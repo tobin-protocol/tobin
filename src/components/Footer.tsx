@@ -10,7 +10,7 @@ const resourceLinks: Dest[] = [
 ];
 
 const linkClass =
-  "rounded-md py-1 text-[0.9375rem] text-paper/70 underline decoration-transparent underline-offset-4 transition-colors hover:text-paper hover:decoration-current";
+  "inline-flex min-h-11 min-w-11 items-center rounded-md text-[0.9375rem] text-paper/70 underline decoration-transparent underline-offset-4 transition-colors hover:text-paper hover:decoration-current";
 
 /** A dashed rule with a small mono label, the way the section dividers read. */
 function Divider({ label }: { label: string }) {

@@ -19,7 +19,7 @@ const pill =
   "pointer-events-auto flex h-12 items-center rounded-2xl border border-paper/15 bg-ink/90 text-paper backdrop-blur-md";
 
 const linkClass =
-  "btn-press flex h-9 items-center rounded-xl px-4 text-[0.9375rem] font-medium text-paper/80 transition-colors hover:bg-paper/10 hover:text-paper";
+  "btn-press flex h-11 items-center rounded-xl px-4 text-[0.9375rem] font-medium text-paper/80 transition-colors hover:bg-paper/10 hover:text-paper";
 
 export function Nav() {
   const [open, setOpen] = useState(false);
@@ -65,7 +65,7 @@ export function Nav() {
       >
         {/* Logo pill: glossy lockup, 30px, on near-black. Clear space is the pill padding. */}
         <div data-surface="dark" className={`${pill} px-3.5`}>
-          <a href="#top" aria-label="Tobin, back to top" className="flex items-center rounded-md">
+          <a href="#top" aria-label="Tobin, back to top" className="flex h-12 items-center rounded-md">
             <Logo variant="lockup" theme="dark" height={30} decorative />
           </a>
         </div>
