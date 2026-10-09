@@ -1,6 +1,6 @@
 # Tobin landing page
 
-Landing page for Tobin Clearing Protocol. Next.js (App Router), TypeScript, Tailwind CSS v4, and `motion` for React.
+Landing page for Tobin Clearing Protocol. Next.js (App Router), TypeScript, Tailwind CSS v4, `motion` for React, and `lenis` for smooth scroll.
 
 ```bash
 npm run dev     # local development
@@ -12,9 +12,21 @@ npm run build   # type-checks and prerenders the page statically
 
 - **Links:** set `github` and `docs` in [src/lib/site.ts](src/lib/site.ts). Both are `null` because no URLs exist yet. Until they are set, the nav and footer omit those links and the final call to action shows clearly marked "Link pending" placeholders.
 - **Site URL:** set `NEXT_PUBLIC_SITE_URL` (for example `https://tobin.example`) so Open Graph and Twitter images resolve to absolute URLs.
+- **Display font license:** the headline face is Aalto Display, supplied with a **"Personal Use Only"** license. A public site is not personal use. Get a web/commercial license (or swap the face) before deploying. The file is expected at `public/fonts/aalto-display-personal-use.otf` and is **gitignored on purpose**, so it is not redistributed through the repository. If it is missing, the `--font-display` stack falls back to Impact / Arial Narrow and the layout still holds. To swap the face, change the `@font-face` and `--font-display` in [src/app/globals.css](src/app/globals.css); nothing else references the font by name.
+
+## Design tokens
+
+All in [src/app/globals.css](src/app/globals.css). Surfaces are `paper` (default), `ink` (dark stage), `accent` (blue), and `signal` (warm second hue, used with ink text only). `accent-bright` exists because `accent` is only 2.98:1 on ink; use it for text and graphics on dark surfaces. Surfaces announce themselves with `data-surface="dark|accent|signal"`, which drives body-copy colour, eyebrow colour and focus-ring colour.
+
+## Motion and layout architecture
+
+- **Pinned scenes** are a tall outer wrapper with a `sticky` inner. The next block rides up over it with a negative margin (a "curtain"). This only happens where there is room: width >= 1024px, height >= 700px, and no `prefers-reduced-motion`. The same query lives in two places and must stay in sync: `PIN_QUERY` in [src/lib/stage.ts](src/lib/stage.ts) and the `@media` blocks marked "Keep in sync" in `globals.css`.
+- **Static fallback.** Outside that query (narrow, short, or reduced motion) the page is a plain flow layout: no sticky, no overlaps, no Lenis. `HowItWorks` renders both a static list and the pinned scene; CSS (`.pin-hide` / `.pin-only`) shows one so the other leaves the accessibility tree.
+- **Scenes:** hero (`HeroStage`), How It Works (`HowScene`), Stellar curtain with wave (`Curtain`).
+- **Nav tone.** The fixed nav samples which `[data-nav-tone]` element is under it and switches between light, dark and signal (open mobile sheet), so text and CTA are never ink-on-ink.
+- **Pace.** Motion values follow the design spec except where this brand is calmer: Lenis 1.6s / wheel x0.8 (spec 2.5s / x0.6), hero pull-back scale .9 / rotate 1deg / opacity .2 (spec .8 / 2deg / .1), scene blur 3px (spec 4px).
 
 ## Structure
 
 - `src/lib/clearing.ts`: the netting arithmetic. The example figures on the page are computed from it, not hard-coded.
-- `src/components/ClearingVisual.tsx`: the hero visualization (the only substantial client component besides the nav and reveal wrappers).
-- `src/app/globals.css`: design tokens, type scale, buttons, and the translucent nav material, including reduced-motion, reduced-transparency, and high-contrast variants.
+- `src/components/ClearingVisual.tsx`: the clearing visualization. Uncontrolled in the hero (autoplays once, with stage buttons) and controlled by scroll inside `HowScene`.

@@ -100,6 +100,7 @@ export function Nav() {
         className="nav-material fixed inset-x-0 top-0 z-50"
         data-material={scrolled || open}
         data-tone={open ? "signal" : tone}
+        data-surface={open ? "signal" : tone === "dark" ? "dark" : undefined}
       >
         <nav
           aria-label="Primary"
