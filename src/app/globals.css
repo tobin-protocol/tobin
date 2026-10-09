@@ -21,6 +21,8 @@
   --color-signal: #f5b73b;
   /* Accent for dark surfaces: --color-accent is only 2.98:1 on ink, this is 7:1. */
   --color-accent-bright: #7ba0f5;
+  /* Third institution hue (A = accent, B = signal, C = coral). Ink text only. */
+  --color-coral: #ff6f5e;
 
   /* Display face: Aalto Display (single weight, caps only, display sizes only). */
   --font-display:

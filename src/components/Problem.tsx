@@ -1,13 +1,23 @@
+import type { CSSProperties } from "react";
 import { EXAMPLE, EXAMPLE_OBLIGATIONS, usd } from "@/lib/clearing";
 import { GrowBar, Reveal } from "./Reveal";
 import { Container } from "./ui";
 
 const netShare = EXAMPLE.settled / EXAMPLE.gross;
 
+/** Each institution keeps one colour everywhere it appears. */
+const PARTY: Record<string, { bg: string; fg: string; css: string }> = {
+  A: { bg: "bg-accent", fg: "text-paper", css: "var(--color-accent)" },
+  B: { bg: "bg-signal", fg: "text-ink", css: "var(--color-signal)" },
+  C: { bg: "bg-coral", fg: "text-ink", css: "var(--color-coral)" },
+};
+
 type CardData = {
   label: string;
   amount: number;
   title: string;
+  /** Institutions shown as tiles: [payer] or [payer, payee]. */
+  parties: string[];
   sub?: string;
   /** Receivers read in the loud second hue; everything else in paper. */
   receives?: boolean;
@@ -17,32 +27,62 @@ const grossCards: CardData[] = EXAMPLE_OBLIGATIONS.map((o) => ({
   label: "Obligation",
   amount: o.amount,
   title: `${o.from} owes ${o.to}`,
+  parties: [o.from, o.to],
 }));
 
 const netCards: CardData[] = EXAMPLE.positions.map((p) => ({
   label: "Net position",
   amount: Math.abs(p.net),
   title: `${p.party} ${p.net < 0 ? "pays" : "receives"}`,
+  parties: [p.party],
   sub: `owes ${usd(p.owes)}, is owed ${usd(p.owed)}`,
   receives: p.net > 0,
 }));
 
-function Card({ card, index }: { card: CardData; index: number }) {
+/** An app-icon style tile: rounded squircle, institution colour, Aalto initial, soft glow. */
+function Tile({ party, size }: { party: string; size: "lg" | "md" }) {
+  const c = PARTY[party];
   return (
-    <div className="group mx-3 flex h-80 w-60 shrink-0 flex-col rounded-md border border-paper/15 bg-paper/[0.04] p-6 transition-all duration-700 hover:border-paper/40 hover:bg-paper/[0.08] sm:mx-4 sm:h-96 sm:w-72">
+    <span
+      className={`flex items-center justify-center rounded-[22%] font-display leading-none ${c.bg} ${c.fg} ${size === "lg" ? "h-24 w-24 text-[3.5rem] sm:h-28 sm:w-28 sm:text-[4rem]" : "h-14 w-14 text-[2.25rem] sm:h-16 sm:w-16 sm:text-[2.5rem]"}`}
+      style={{ boxShadow: `0 10px 36px color-mix(in srgb, ${c.css} 38%, transparent)` }}
+    >
+      {party}
+    </span>
+  );
+}
+
+function Card({ card, index }: { card: CardData; index: number }) {
+  const lead = PARTY[card.parties[0]];
+  return (
+    <div
+      style={{ "--c": lead.css } as CSSProperties}
+      className="group mx-3 flex h-80 w-60 shrink-0 flex-col rounded-md border border-paper/15 bg-paper/[0.04] p-6 transition-all duration-700 hover:border-(--c) hover:bg-paper/[0.08] sm:mx-4 sm:h-96 sm:w-72"
+    >
       <div className="flex items-start justify-between text-paper/60 transition-colors duration-700 group-hover:text-paper">
         <span className="spaced">{card.label}</span>
-        <span className="mt-0.5 h-1.5 w-1.5 rounded-full bg-paper/30 transition-colors duration-700 group-hover:bg-signal" />
+        <span className="mt-0.5 h-1.5 w-1.5 rounded-full bg-(--c)" />
       </div>
 
-      <div className="flex flex-1 flex-col items-center justify-center">
+      <div className="flex flex-1 flex-col items-center justify-center gap-3">
+        {card.parties.length === 2 ? (
+          <div className="flex items-center gap-3">
+            <Tile party={card.parties[0]} size="md" />
+            <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="text-paper/70">
+              <path d="M3 8h10M9 4l4 4-4 4" />
+            </svg>
+            <Tile party={card.parties[1]} size="md" />
+          </div>
+        ) : (
+          <Tile party={card.parties[0]} size="lg" />
+        )}
         <span
-          className={`font-display text-[5.5rem] leading-none sm:text-[7rem] ${card.receives ? "text-signal" : "text-paper"}`}
+          className={`font-display text-[3.75rem] leading-none sm:text-[4.5rem] ${card.receives ? "text-signal" : "text-paper"}`}
         >
           {usd(card.amount)}
         </span>
         {card.sub ? (
-          <span className="tabular mt-4 font-mono text-[11px] tracking-[0.02em] text-paper/70">{card.sub}</span>
+          <span className="tabular font-mono text-[11px] tracking-[0.02em] text-paper/70">{card.sub}</span>
         ) : null}
       </div>
 
