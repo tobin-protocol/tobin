@@ -6,71 +6,26 @@ import { links, navLinks } from "@/lib/site";
 import { Logo } from "./Logo";
 
 /*
- * Navigation = Partyverse's floating pills (logo left, call to action right,
- * nothing behind them) + Web3Flutter's drip menu (a blob hanging from the top
- * edge that springs open into a panel of roll links).
+ * Navigation in the Partyverse manner: a centred cluster of floating, rounded
+ * pieces with nothing behind them. From md up: logo pill, one pill holding all
+ * the links, and a white call to action. Below md: logo pill and a Menu pill
+ * that opens a dropdown panel.
  *
- * The pills are always ink-on-paper-on-ink, so they read over every section;
- * the blob carries an ink outline so it never vanishes into the amber one.
+ * The dark pieces are always ink with a hairline border and the call to action
+ * is always paper, so the bar reads over every section without tone switching.
  */
-
-const SPRING = { type: "spring", stiffness: 300, damping: 28 } as const;
-
-// Same command count and order in both shapes, so the path can morph. The
-// closed one is a 140x48 drop; the open one a 340x320 panel with a drip below.
-const PATH_CLOSED =
-  "M0 0 H140 V0 C0 0 0 0 0 0 L140 0 C140 0 140 8 130 18 C120 28 115 38 100 42 C90 44.5 80 46 70 46 C60 46 50 44.5 40 42 C25 38 20 28 10 18 C0 8 0 0 0 0 L0 0 C0 0 0 0 0 0 V0 Z";
-const PATH_OPEN =
-  "M0 0 H340 V252 C340 266 332 272 320 272 L240 272 C240 272 240 280 230 290 C220 300 215 310 200 314 C190 316.5 180 318 170 318 C160 318 150 316.5 140 314 C125 310 120 300 110 290 C100 280 100 272 100 272 L20 272 C8 272 0 266 0 252 V0 Z";
-const OPEN_W = 340;
 
 const pill =
   "pointer-events-auto flex h-12 items-center rounded-2xl border border-paper/15 bg-ink/90 text-paper backdrop-blur-md";
 
-/** A roll link: the label rolls away while the same label, in mono caps, rolls in. */
-function RollRow({
-  href,
-  label,
-  external,
-  onClick,
-  innerRef,
-}: {
-  href: string;
-  label: string;
-  external?: boolean;
-  onClick: () => void;
-  innerRef?: (el: HTMLAnchorElement | null) => void;
-}) {
-  return (
-    <a
-      ref={innerRef}
-      href={href}
-      onClick={onClick}
-      className="roll flex w-full justify-start border-b border-ink/15 py-2.5 last:border-0"
-      {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-    >
-      <span className="roll-front font-display text-[2rem] uppercase leading-none !text-left">{label}</span>
-      <span className="roll-back !text-left" aria-hidden="true">
-        {label}
-      </span>
-    </a>
-  );
-}
+const linkClass =
+  "btn-press flex h-9 items-center rounded-xl px-4 text-[0.9375rem] font-medium text-paper/80 transition-colors hover:bg-paper/10 hover:text-paper";
 
 export function Nav() {
   const [open, setOpen] = useState(false);
-  const [k, setK] = useState(1);
   const toggleRef = useRef<HTMLButtonElement>(null);
-  const firstRef = useRef<HTMLAnchorElement | null>(null);
+  const firstRef = useRef<HTMLAnchorElement>(null);
   const wasOpen = useRef(false);
-
-  // On very narrow screens the open panel scales down to fit.
-  useEffect(() => {
-    const fit = () => setK(Math.min(1, (window.innerWidth - 16) / OPEN_W));
-    fit();
-    window.addEventListener("resize", fit);
-    return () => window.removeEventListener("resize", fit);
-  }, []);
 
   // Escape closes; focus moves in on open and back to the button on close.
   useEffect(() => {
@@ -93,147 +48,106 @@ export function Nav() {
 
   return (
     <header className="pointer-events-none fixed inset-x-0 top-0 z-50">
-      {/* Pills */}
-      <nav
-        aria-label="Primary"
-        className="mx-auto flex w-full max-w-[72rem] items-start justify-between px-4 pt-3 sm:px-8 sm:pt-4"
-      >
-        <div data-surface="dark" className={`${pill} px-3.5`}>
-          {/* Glossy lockup, 30px high, on the near-black pill. Clear space (~19% of the symbol) is the pill padding. */}
-          <a href="#top" aria-label="Tobin, back to top" className="flex items-center rounded-md">
-            <Logo variant="lockup" theme="dark" height={30} decorative />
-          </a>
-        </div>
-
-        <div className="hidden items-center gap-2 sm:flex">
-          {links.github ? (
-            <a
-              href={links.github}
-              target="_blank"
-              rel="noopener noreferrer"
-              data-surface="dark"
-              className={`${pill} btn-press px-5 text-[0.9375rem] font-medium transition-colors hover:bg-ink`}
-            >
-              GitHub
-            </a>
-          ) : null}
-          <a
-            href={cta}
-            className="btn-press pointer-events-auto flex h-12 items-center rounded-2xl bg-paper px-5 text-[0.9375rem] font-semibold text-ink shadow-[0_6px_24px_-8px_rgba(0,0,0,0.45)] ring-1 ring-ink/10 transition-colors hover:bg-white"
-          >
-            Explore the Protocol
-          </a>
-        </div>
-      </nav>
-
       {open ? (
+        // Click-outside catcher, a sibling of the panel so no transformed ancestor traps it.
         <button
           type="button"
           aria-label="Close menu"
           tabIndex={-1}
           onClick={close}
-          className="pointer-events-auto fixed inset-0 z-[55] cursor-default"
+          className="pointer-events-auto fixed inset-0 z-[55] cursor-default md:hidden"
         />
       ) : null}
 
-      {/* Drip menu, hanging from the top centre */}
-      <div className="pointer-events-none fixed left-1/2 top-0 z-[60] -translate-x-1/2">
-
-        <div style={{ transform: `scale(${k})`, transformOrigin: "top center" }}>
-          <m.div
-            className="pointer-events-auto relative overflow-hidden"
-            animate={{ width: open ? OPEN_W : 140, height: open ? 320 : 48, y: open ? 14 : 0 }}
-            transition={SPRING}
-          >
-            <svg width="100%" height="100%" fill="none" className="absolute inset-0" aria-hidden="true">
-              <m.path
-                animate={{ d: open ? PATH_OPEN : PATH_CLOSED }}
-                transition={SPRING}
-                className="fill-signal stroke-ink"
-                strokeWidth={2}
-              />
-            </svg>
-
-            <button
-              ref={toggleRef}
-              type="button"
-              aria-expanded={open}
-              aria-controls="site-menu"
-              aria-label={open ? "Close menu" : "Open menu"}
-              onClick={() => setOpen((v) => !v)}
-              data-surface="signal"
-              className="absolute left-1/2 top-0 z-20 flex h-11 w-full -translate-x-1/2 items-center justify-center rounded-b-3xl text-ink"
-            >
-              <AnimatePresence mode="wait" initial={false}>
-                {open ? (
-                  <m.span
-                    key="x"
-                    initial={{ rotate: -90, opacity: 0 }}
-                    animate={{ rotate: 0, opacity: 1 }}
-                    exit={{ rotate: 90, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                      <path d="M4 4l12 12M16 4L4 16" />
-                    </svg>
-                  </m.span>
-                ) : (
-                  <m.span
-                    key="burger"
-                    initial={{ rotate: 90, opacity: 0 }}
-                    animate={{ rotate: 0, opacity: 1 }}
-                    exit={{ rotate: -90, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <svg width="22" height="14" viewBox="0 0 22 14" aria-hidden="true">
-                      <rect y="0" width="22" height="2.2" rx="1.1" fill="currentColor" />
-                      <rect y="5.8" width="22" height="2.2" rx="1.1" fill="currentColor" />
-                      <rect y="11.6" width="22" height="2.2" rx="1.1" fill="currentColor" />
-                    </svg>
-                  </m.span>
-                )}
-              </AnimatePresence>
-            </button>
-
-            <AnimatePresence>
-              {open ? (
-                <m.div
-                  id="site-menu"
-                  data-surface="signal"
-                  className="absolute inset-x-0 px-8 text-ink"
-                  style={{ top: 48 }}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ delay: 0.1, duration: 0.2 }}
-                >
-                  <ul>
-                    {items.map((l, i) => (
-                      <li key={l.href}>
-                        <RollRow
-                          href={l.href}
-                          label={l.label}
-                          external={l.external}
-                          onClick={close}
-                          innerRef={i === 0 ? (el) => { firstRef.current = el; } : undefined}
-                        />
-                      </li>
-                    ))}
-                  </ul>
-                  {/* Below sm the pills drop their CTA; it lives here instead. */}
-                  <a
-                    href={cta}
-                    onClick={close}
-                    className="btn-press mt-3 flex h-11 items-center justify-center rounded-2xl bg-ink text-[0.9375rem] font-semibold text-paper sm:hidden"
-                  >
-                    Explore the Protocol
-                  </a>
-                </m.div>
-              ) : null}
-            </AnimatePresence>
-          </m.div>
+      <nav
+        aria-label="Primary"
+        className="relative z-[60] mx-auto flex w-full max-w-[72rem] items-start justify-between gap-2 px-4 pt-3 sm:px-8 sm:pt-4 md:justify-center"
+      >
+        {/* Logo pill: glossy lockup, 30px, on near-black. Clear space is the pill padding. */}
+        <div data-surface="dark" className={`${pill} px-3.5`}>
+          <a href="#top" aria-label="Tobin, back to top" className="flex items-center rounded-md">
+            <Logo variant="lockup" theme="dark" height={30} decorative />
+          </a>
         </div>
-      </div>
+
+        {/* Links pill (md+) */}
+        <ul data-surface="dark" className={`${pill} hidden gap-1 px-2 md:flex`}>
+          {items.map((l) => (
+            <li key={l.href}>
+              <a
+                href={l.href}
+                className={linkClass}
+                {...(l.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+              >
+                {l.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+
+        {/* Call to action (md+) */}
+        <a
+          href={cta}
+          className="btn-press pointer-events-auto hidden h-12 items-center rounded-2xl bg-paper px-5 text-[0.9375rem] font-semibold text-ink shadow-[0_6px_24px_-8px_rgba(0,0,0,0.45)] ring-1 ring-ink/10 transition-colors hover:bg-white md:flex"
+        >
+          Explore the Protocol
+        </a>
+
+        {/* Menu pill (below md) */}
+        <button
+          ref={toggleRef}
+          type="button"
+          aria-expanded={open}
+          aria-controls="site-menu"
+          onClick={() => setOpen((v) => !v)}
+          data-surface="dark"
+          className={`${pill} btn-press gap-2.5 px-4 text-[0.9375rem] font-medium md:hidden`}
+        >
+          Menu
+          <span className="relative block h-2.5 w-4" aria-hidden="true">
+            <span className={`absolute left-0 h-[1.5px] w-4 rounded bg-current transition-transform duration-200 ease-out ${open ? "top-[4.25px] rotate-45" : "top-0"}`} />
+            <span className={`absolute left-0 h-[1.5px] w-4 rounded bg-current transition-transform duration-200 ease-out ${open ? "top-[4.25px] -rotate-45" : "top-[8.5px]"}`} />
+          </span>
+        </button>
+      </nav>
+
+      {/* Dropdown (below md): scales out from the Menu pill */}
+      <AnimatePresence>
+        {open ? (
+          <m.div
+            id="site-menu"
+            data-surface="dark"
+            className="pointer-events-auto absolute right-4 top-[4.75rem] z-[60] w-[min(20rem,calc(100vw-2rem))] origin-top-right rounded-3xl border border-paper/15 bg-ink/95 p-3 text-paper shadow-[0_24px_48px_-16px_rgba(0,0,0,0.6)] backdrop-blur-xl sm:right-8 md:hidden"
+            initial={{ opacity: 0, scale: 0.94, y: -6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.94, y: -6 }}
+            transition={{ type: "spring", bounce: 0, duration: 0.35 }}
+          >
+            <ul>
+              {items.map((l, i) => (
+                <li key={l.href}>
+                  <a
+                    ref={i === 0 ? firstRef : undefined}
+                    href={l.href}
+                    onClick={close}
+                    className="block rounded-2xl px-4 py-3 font-display text-[1.75rem] uppercase leading-none transition-colors hover:bg-paper/10 active:bg-paper/10"
+                    {...(l.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                  >
+                    {l.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+            <a
+              href={cta}
+              onClick={close}
+              className="btn-press mt-2 flex h-12 items-center justify-center rounded-2xl bg-paper text-[0.9375rem] font-semibold text-ink"
+            >
+              Explore the Protocol
+            </a>
+          </m.div>
+        ) : null}
+      </AnimatePresence>
     </header>
   );
 }
