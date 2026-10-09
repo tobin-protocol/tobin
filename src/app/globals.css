@@ -527,3 +527,8 @@ body {
     display: none;
   }
 }
+
+/* Ink on signal: body copy must be full ink (ink-soft is only 4.3:1 here). */
+[data-surface="signal"] .text-body {
+  color: var(--color-ink);
+}
