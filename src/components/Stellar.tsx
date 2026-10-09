@@ -60,7 +60,7 @@ export function Stellar() {
           <p className="eyebrow">+ Built for Stellar</p>
           <h2
             id="stellar-title"
-            className="font-display mt-5 max-w-[21ch] text-[clamp(3rem,7.4vw,6.75rem)] uppercase leading-[0.9] text-balance"
+            className="font-display mt-5 text-[clamp(2.75rem,11vw,4.5rem)] uppercase leading-[0.95] text-balance md:whitespace-nowrap md:text-[min(5rem,calc((100vw-4rem)/13.6))]"
           >
             A clearing layer above the rails that already exist.
           </h2>
