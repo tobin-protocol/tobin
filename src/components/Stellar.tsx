@@ -52,7 +52,7 @@ function Join() {
 
 export function Stellar() {
   return (
-    <Curtain id="stellar" label="stellar-title" className="py-24 md:py-32">
+    <Curtain id="stellar" label="stellar-title" surface="signal" className="py-24 md:py-32">
       <Container className="grid gap-14 lg:grid-cols-12 lg:items-center lg:gap-10">
         <Reveal className="lg:col-span-5">
           <p className="eyebrow">Built for Stellar</p>
