@@ -7,52 +7,79 @@ import {
   useScroll,
   useTransform,
 } from "motion/react";
-import { useRef, useState } from "react";
+import { useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { EXAMPLE, EXAMPLE_OBLIGATIONS, usd } from "@/lib/clearing";
 import { HOW_CLOSING, HOW_STEPS } from "@/lib/how";
 import { usePinned } from "@/lib/stage";
 import { Container } from "./ui";
 
+const icon = (children: ReactNode) => (
+  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {children}
+  </svg>
+);
+
 /*
- * The four stage cards. The small figures on each come from the illustrative
- * example, so they cannot drift from the rest of the page.
+ * The four stages. The closed strip keeps a pastel (the last one a solid), the
+ * open card goes dark and speaks in the stage's colour. The small figures come
+ * from the illustrative example, so they cannot drift from the rest of the page.
  */
-const CARDS = [
+const STAGES = [
   {
     ...HOW_STEPS[0],
-    surface: "bg-accent-pastel text-ink",
-    chip: "bg-ink/[0.07]",
-    soft: "text-ink-soft",
+    c: "var(--color-accent-bright)",
+    bg: "var(--color-accent-pastel)",
+    fg: "var(--color-ink)",
+    tag: "bg-accent-bright text-ink",
+    glyph: icon(
+      <>
+        <path d="M12 3v11m0 0l-4-4m4 4l4-4" />
+        <path d="M5 15v3a2 2 0 002 2h10a2 2 0 002-2v-3" />
+      </>,
+    ),
     lines: EXAMPLE_OBLIGATIONS.map((o) => `${o.from} → ${o.to}   ${usd(o.amount)}`),
   },
   {
     ...HOW_STEPS[1],
-    surface: "bg-signal-pastel text-ink",
-    chip: "bg-ink/[0.07]",
-    soft: "text-ink-soft",
+    c: "var(--color-signal)",
+    bg: "var(--color-signal-pastel)",
+    fg: "var(--color-ink)",
+    tag: "bg-signal text-ink",
+    glyph: icon(
+      <>
+        <circle cx="12" cy="12" r="8.5" />
+        <circle cx="9" cy="10" r="1.1" fill="currentColor" stroke="none" />
+        <circle cx="15" cy="10" r="1.1" fill="currentColor" stroke="none" />
+        <circle cx="12" cy="15" r="1.1" fill="currentColor" stroke="none" />
+      </>,
+    ),
     lines: [`${EXAMPLE_OBLIGATIONS.length} obligations → 1 session`, `gross ${usd(EXAMPLE.gross)}`],
   },
   {
     ...HOW_STEPS[2],
-    surface: "bg-coral-pastel text-ink",
-    chip: "bg-ink/[0.07]",
-    soft: "text-ink-soft",
+    c: "var(--color-coral)",
+    bg: "var(--color-coral-pastel)",
+    fg: "var(--color-ink)",
+    tag: "bg-coral text-ink",
+    glyph: icon(<path d="M4 6l8 6m8-6l-8 6m0 0v7" />),
     lines: EXAMPLE.positions.map(
       (p) => `${p.party} ${p.net < 0 ? "pays" : "receives"} ${usd(Math.abs(p.net))}`,
     ),
   },
   {
-    // The result: solid, so the eye lands on where it ends up.
+    // The result: a solid strip, so the eye lands on where it ends up.
     ...HOW_STEPS[3],
-    surface: "bg-accent text-paper",
-    chip: "bg-ink/[0.28]",
-    soft: "text-paper",
+    c: "var(--color-accent-bright)",
+    bg: "var(--color-accent)",
+    fg: "var(--color-paper)",
+    tag: "bg-accent-bright text-ink",
+    glyph: icon(<path d="M5 12.5l4.5 4.5L19 7.5" />),
     lines: [`${usd(EXAMPLE.settled)} moves instead of ${usd(EXAMPLE.gross)}`],
   },
 ];
 
-// Pinned timing (spec phases): cards light up one by one over the first half of
-// progress, then the scene pulls back underneath the next curtain.
+// Pinned timing (spec phases): stages advance over the first half of progress,
+// then the scene pulls back underneath the next curtain.
 const STAGE_AT = [0, 0.1, 0.2, 0.3];
 const EXIT_FROM = 0.5;
 
@@ -60,14 +87,16 @@ const stageFor = (v: number) =>
   v >= STAGE_AT[3] ? 3 : v >= STAGE_AT[2] ? 2 : v >= STAGE_AT[1] ? 1 : 0;
 
 /**
- * How It Works. Headline left, paragraph right, then four numbered cards.
- * Pinned (wide, tall, no reduced motion): the section sticks and scrolling
- * lifts each card in turn along a progress rail, then the scene blurs, dims
- * and splits apart under the Stellar curtain. Static everywhere else.
+ * How It Works as a strip accordion. Headline left, paragraph right, then four
+ * tall strips; the active one opens into a wide dark card. Hover, focus or tap
+ * opens any strip. Pinned (wide, tall, no reduced motion): the section sticks
+ * and scrolling advances the open strip along a progress rail, then the scene
+ * blurs, dims and splits apart under the Stellar curtain.
  */
 export function HowScene() {
   const pinned = usePinned();
   const outerRef = useRef<HTMLDivElement>(null);
+  const lastStage = useRef(0);
   const [active, setActive] = useState(0);
 
   const { scrollYProgress: p } = useScroll({
@@ -75,10 +104,13 @@ export function HowScene() {
     offset: ["start start", "end end"],
   });
 
+  // Scroll opens the strip for the stage it reaches; hovering overrides until the stage changes again.
   useMotionValueEvent(p, "change", (v) => {
     if (!pinned) return;
     const next = stageFor(v);
-    setActive((prev) => (prev === next ? prev : next));
+    if (next === lastStage.current) return;
+    lastStage.current = next;
+    setActive(next);
   });
 
   const rail = useTransform(p, [0, STAGE_AT[3]], [0, 1]);
@@ -128,31 +160,69 @@ export function HowScene() {
                 </div>
               ) : null}
 
-              <ol className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {CARDS.map((c, i) => {
-                  const on = pinned && active === i;
+              <ol
+                className="acc"
+                style={pinned ? ({ "--acc-h": "clamp(19rem, calc(100svh - 27rem), 26rem)" } as CSSProperties) : undefined}
+              >
+                {STAGES.map((s, i) => {
+                  const on = active === i;
                   return (
                     <li
-                      key={c.title}
-                      aria-current={on ? "step" : undefined}
-                      className={`flex min-h-[19rem] flex-col rounded-[1.75rem] p-6 transition-[transform,box-shadow] duration-500 ease-out sm:p-7 lg:min-h-[21rem] ${c.surface} ${on ? "-translate-y-3 shadow-[0_28px_60px_-24px_rgba(0,0,0,0.7)]" : ""}`}
+                      key={s.title}
+                      className="acc-item"
+                      data-active={on}
+                      style={{ "--c": s.c, "--acc-bg": s.bg, "--acc-fg": s.fg } as CSSProperties}
                     >
-                      <span className="font-display text-[4.5rem] leading-none sm:text-[5.5rem]">
-                        0{i + 1}
-                      </span>
-                      <h3 className="text-heading mt-5">{c.title}</h3>
-                      <p className={`mt-2 text-[0.9375rem] leading-relaxed ${c.soft}`}>{c.body}</p>
+                      <button
+                        type="button"
+                        aria-expanded={on}
+                        aria-label={`Stage ${i + 1}, ${s.title}. ${s.body} ${s.lines.join(", ")}`}
+                        onMouseEnter={() => setActive(i)}
+                        onFocus={() => setActive(i)}
+                        onClick={() => setActive(i)}
+                        className="acc-btn stage-tab"
+                      >
+                        {/* Closed: index, sideways title, the stage's glyph. */}
+                        <span aria-hidden="true" className="acc-collapsed">
+                          <span className="spaced tabular opacity-80">0{i + 1}</span>
+                          <span className="acc-vert">{s.title}</span>
+                          {s.glyph}
+                        </span>
 
-                      <div className="mt-auto flex flex-col gap-1.5 pt-6">
-                        {c.lines.map((line) => (
-                          <span
-                            key={line}
-                            className={`tabular whitespace-pre rounded-lg px-3 py-1.5 font-mono text-xs font-semibold ${c.chip}`}
-                          >
-                            {line}
+                        {/* Open: tag, numeral, title, copy, the example's figures. */}
+                        <span aria-hidden="true" className="acc-open">
+                          <span className="flex items-center justify-between">
+                            <span className={`rounded-full px-3.5 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] ${s.tag}`}>
+                              Stage 0{i + 1}
+                            </span>
+                            <span style={{ color: s.c }}>{s.glyph}</span>
                           </span>
-                        ))}
-                      </div>
+
+                          <span className="mt-auto grid gap-6 md:grid-cols-[1fr_auto] md:items-end md:gap-10">
+                            <span className="block">
+                              <span className="block font-display text-[5rem] leading-none md:text-[7rem]" style={{ color: s.c }}>
+                                0{i + 1}
+                              </span>
+                              <span className="mt-3 block text-[1.75rem] font-semibold leading-tight tracking-[-0.02em]">
+                                {s.title}
+                              </span>
+                              <span className="mt-2 block max-w-[24rem] text-base leading-relaxed text-paper/80">
+                                {s.body}
+                              </span>
+                            </span>
+                            <span className="flex flex-col gap-1.5 md:min-w-[14rem]">
+                              {s.lines.map((line) => (
+                                <span
+                                  key={line}
+                                  className="tabular whitespace-pre rounded-lg bg-paper/10 px-3 py-1.5 font-mono text-xs font-semibold text-paper"
+                                >
+                                  {line}
+                                </span>
+                              ))}
+                            </span>
+                          </span>
+                        </span>
+                      </button>
                     </li>
                   );
                 })}
