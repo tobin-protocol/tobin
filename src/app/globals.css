@@ -23,6 +23,10 @@
   --color-accent-bright: #7ba0f5;
   /* Third institution hue (A = accent, B = signal, C = coral). Ink text only. */
   --color-coral: #ff6f5e;
+  /* Pastel surfaces for stage cards; ink text only. */
+  --color-accent-pastel: #d9e4ff;
+  --color-signal-pastel: #fde8bf;
+  --color-coral-pastel: #ffd9d2;
 
   /* Display face: Aalto Display (single weight, caps only, display sizes only). */
   --font-display:

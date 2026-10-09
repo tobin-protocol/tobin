@@ -166,40 +166,46 @@ export function Problem() {
 
       <Container className="mt-6 md:mt-10">
         <Reveal>
-          <figure className="mx-auto max-w-4xl rounded-[1.75rem] bg-surface p-5 text-ink shadow-card sm:p-8">
-            <div className="grid gap-8 sm:grid-cols-2 sm:gap-0">
-              <div className="sm:pr-8">
-                <h3 className="text-[0.8125rem] font-semibold text-ink-soft">Settled one by one</h3>
-                <p className="mt-4 flex items-baseline justify-between">
-                  <span className="text-sm text-ink-soft">Gross settlement</span>
-                  <span className="tabular text-3xl font-semibold tracking-[-0.03em]">{usd(EXAMPLE.gross)}</span>
+          <figure className="mx-auto max-w-5xl">
+            <div className="grid gap-4 md:grid-cols-[1fr_auto_1fr] md:items-stretch md:gap-5">
+              {/* Heavy: everything settled one by one. */}
+              <div className="flex min-h-[19rem] flex-col rounded-[1.75rem] bg-signal-pastel p-7 text-ink sm:p-9">
+                <h3 className="spaced text-ink-soft">Settled one by one</h3>
+                <p className="font-display mt-6 text-[clamp(5.5rem,11vw,8.5rem)] leading-[0.9] tabular">
+                  {usd(EXAMPLE.gross)}
                 </p>
+                <p className="mt-3 text-[0.9375rem] font-medium text-ink-soft">Gross settlement</p>
+                <div aria-hidden="true" className="mt-auto pt-8">
+                  <div className="h-3 rounded-full bg-ink/10">
+                    <GrowBar scale={1} className="h-full w-full rounded-full bg-ink" />
+                  </div>
+                </div>
               </div>
-              <div className="sm:border-l sm:border-line sm:pl-8">
-                <h3 className="text-[0.8125rem] font-semibold text-ink-soft">After clearing: net positions</h3>
-                <p className="mt-4 flex items-baseline justify-between">
-                  <span className="text-sm text-ink-soft">Net settlement</span>
-                  <span className="tabular text-3xl font-semibold tracking-[-0.03em] text-accent">{usd(EXAMPLE.settled)}</span>
+
+              <div aria-hidden="true" className="hidden items-center md:flex">
+                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-signal text-ink">
+                  <svg viewBox="0 0 16 16" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 8h10M9 4l4 4-4 4" />
+                  </svg>
+                </span>
+              </div>
+
+              {/* Light: only what is left after clearing. */}
+              <div className="flex min-h-[19rem] flex-col rounded-[1.75rem] bg-accent p-7 text-paper sm:p-9">
+                <h3 className="spaced">After clearing: net positions</h3>
+                <p className="font-display mt-6 text-[clamp(5.5rem,11vw,8.5rem)] leading-[0.9] tabular">
+                  {usd(EXAMPLE.settled)}
                 </p>
+                <p className="mt-3 text-[0.9375rem] font-medium">Net settlement</p>
+                <div aria-hidden="true" className="mt-auto pt-8">
+                  <div className="h-3 rounded-full bg-paper/20">
+                    <GrowBar scale={netShare} delay={0.15} className="h-full w-full rounded-full bg-signal" />
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="mt-8 space-y-3" role="img" aria-label={`Bar comparison: ${usd(EXAMPLE.gross)} gross versus ${usd(EXAMPLE.settled)} net, in this example.`}>
-              <div className="flex items-center gap-3" aria-hidden="true">
-                <span className="w-12 shrink-0 text-xs font-semibold text-ink-soft">Gross</span>
-                <div className="h-2.5 flex-1 rounded-full bg-ink/[0.06]">
-                  <GrowBar scale={1} className="h-full w-full rounded-full bg-ink" />
-                </div>
-              </div>
-              <div className="flex items-center gap-3" aria-hidden="true">
-                <span className="w-12 shrink-0 text-xs font-semibold text-ink-soft">Net</span>
-                <div className="h-2.5 flex-1 rounded-full bg-ink/[0.06]">
-                  <GrowBar scale={netShare} delay={0.15} className="h-full w-full rounded-full bg-accent" />
-                </div>
-              </div>
-            </div>
-
-            <figcaption className="mt-7 border-t border-line pt-5 text-[0.8125rem] leading-relaxed text-ink-soft">
+            <figcaption className="mx-auto mt-8 max-w-2xl text-center text-[0.8125rem] leading-relaxed text-paper/70">
               The arithmetic here is a simplified illustration. Whether real
               obligations can be netted depends on the agreements between
               participants and on applicable law. Not all obligations can be.
