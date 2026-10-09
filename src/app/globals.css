@@ -532,3 +532,11 @@ body {
 [data-surface="signal"] .text-body {
   color: var(--color-ink);
 }
+
+/* Faint ledger grid on dark stages (spec grid-bg, tuned to paper at 4%). */
+.grid-ledger {
+  background-image:
+    linear-gradient(rgb(246 244 238 / 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(246 244 238 / 0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+}

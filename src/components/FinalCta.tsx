@@ -8,7 +8,7 @@ export function FinalCta() {
       aria-labelledby="cta-title"
       data-surface="dark"
       data-nav-tone="dark"
-      className="seam relative flex min-h-[85vh] items-center bg-ink pb-28 pt-40 text-paper md:pb-36 md:pt-52"
+      className="seam grid-ledger relative flex min-h-[85vh] items-center bg-ink pb-28 pt-40 text-paper md:pb-36 md:pt-52"
     >
       <Container>
         <Reveal>
