@@ -17,7 +17,9 @@ function toneAtTop(): Tone {
   document.querySelectorAll<HTMLElement>("[data-nav-tone]").forEach((el) => {
     const r = el.getBoundingClientRect();
     // The seam clips the top of a curtain diagonally; sample its midpoint.
-    const top = r.top + (el.classList.contains("seam") ? window.innerWidth * 0.02 : 0);
+    // A curtain's wave edge hangs above its box; `data-nav-lead` counts that overhang.
+    const lead = Number(el.dataset.navLead ?? 0);
+    const top = r.top - lead + (el.classList.contains("seam") ? window.innerWidth * 0.02 : 0);
     if (top <= PROBE_Y && r.bottom > PROBE_Y) tone = el.dataset.navTone as Tone;
   });
   return tone;
