@@ -16,6 +16,15 @@
   --color-accent: #1f57d6; /* Stellar-inspired blue, 5.6:1 on paper */
   --color-accent-ink: #1a47ad;
   --color-accent-tint: #e8eefc;
+  /* Second hue: warm signal for loud moments (menu sheet, one principle block, CTAs on dark). Ink text only. */
+  --color-signal: #f5b73b;
+  /* Accent for dark surfaces: --color-accent is only 2.98:1 on ink, this is 7:1. */
+  --color-accent-bright: #7ba0f5;
+
+  /* Display face: Aalto Display (single weight, caps only, display sizes only). */
+  --font-display:
+    "Aalto Display", Impact, "Haettenschweiler", "Arial Narrow Bold",
+    sans-serif;
 
   --font-sans:
     -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
@@ -31,6 +40,19 @@
     0 1px 0 rgb(255 255 255 / 0.6) inset, 0 24px 48px -16px rgb(21 20 15 / 0.22);
 
   --ease-out-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/*
+ * Aalto Display ships with a "Personal Use Only" license. The file lives in
+ * public/fonts (gitignored). If it is missing the stack above falls back to
+ * Impact / Arial Narrow, so layout still holds.
+ */
+@font-face {
+  font-family: "Aalto Display";
+  src: url("/fonts/aalto-display-personal-use.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
 }
 
 html {
@@ -67,6 +89,19 @@ body {
   outline: 2px solid var(--color-accent);
   outline-offset: 3px;
   border-radius: 6px;
+}
+/* Focus rings follow the surface they sit on, so they always clear 3:1. */
+[data-surface="dark"] :focus-visible,
+[data-surface="dark"]:focus-visible {
+  outline-color: var(--color-accent-bright);
+}
+[data-surface="accent"] :focus-visible,
+[data-surface="accent"]:focus-visible {
+  outline-color: var(--color-paper);
+}
+[data-surface="signal"] :focus-visible,
+[data-surface="signal"]:focus-visible {
+  outline-color: var(--color-ink);
 }
 
 /* In-page anchors clear the sticky navigation. */
@@ -105,13 +140,44 @@ body {
     line-height: 1.6;
     color: var(--color-ink-soft);
   }
-  .eyebrow {
-    font-size: 0.75rem;
-    line-height: 1;
-    letter-spacing: 0.09em;
+  /* Display: the poster-scale headline. One weight, caps by design. */
+  .text-display-xl {
+    font-family: var(--font-display);
+    font-weight: 400;
     text-transform: uppercase;
-    font-weight: 600;
+    font-size: clamp(4rem, 2rem + 11vw, 11rem);
+    line-height: 0.86;
+    letter-spacing: -0.005em;
+  }
+  .text-display-lg {
+    font-family: var(--font-display);
+    font-weight: 400;
+    text-transform: uppercase;
+    font-size: clamp(2.75rem, 1.5rem + 6vw, 6.5rem);
+    line-height: 0.9;
+    letter-spacing: 0;
+  }
+  /* Mono micro-label: wide-tracked, uppercase. */
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    line-height: 1;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    font-weight: 500;
     color: var(--color-accent);
+  }
+  [data-surface="dark"] .eyebrow {
+    color: var(--color-accent-bright);
+  }
+  [data-surface="accent"] .eyebrow {
+    color: var(--color-paper);
+  }
+  .spaced {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
   }
   .tabular {
     font-variant-numeric: tabular-nums;
@@ -161,6 +227,13 @@ body {
   }
   .btn-secondary:hover {
     background: var(--color-surface);
+  }
+  .btn-signal {
+    background: var(--color-signal);
+    color: var(--color-ink);
+  }
+  .btn-signal:hover {
+    background: #ffc558;
   }
   .btn-light {
     background: var(--color-paper);

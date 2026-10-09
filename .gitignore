@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Licensed display font (Personal Use Only). Obtain a web license before deploying; see README.
+/public/fonts/aalto-*
