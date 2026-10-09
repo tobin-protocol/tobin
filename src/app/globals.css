@@ -1,26 +1,291 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+ * Tobin design tokens.
+ * One warm paper surface, near-black ink, hairline neutrals and a single
+ * restrained blue accent. Light only: this is a reading surface.
+ */
+@theme {
+  --color-paper: #f6f4ee;
+  --color-surface: #ffffff;
+  --color-ink: #15140f;
+  --color-ink-soft: #55524a; /* body copy, 7:1 on paper */
+  --color-ink-faint: #8c877b; /* large display text and decoration only */
+  --color-line: rgb(21 20 15 / 0.1);
+  --color-line-strong: rgb(21 20 15 / 0.18);
+  --color-accent: #1f57d6; /* Stellar-inspired blue, 5.6:1 on paper */
+  --color-accent-ink: #1a47ad;
+  --color-accent-tint: #e8eefc;
+
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+    "Segoe UI Variable Display", "Segoe UI", system-ui, Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+  --font-mono:
+    ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Menlo, Consolas,
+    monospace;
+
+  --shadow-card:
+    0 1px 0 rgb(21 20 15 / 0.04), 0 12px 32px -12px rgb(21 20 15 / 0.12);
+  --shadow-sheet:
+    0 1px 0 rgb(255 255 255 / 0.6) inset, 0 24px 48px -16px rgb(21 20 15 / 0.22);
+
+  --ease-out-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+html {
+  color-scheme: light;
+  background: var(--color-paper);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
   }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-optical-sizing: auto;
+}
+
+::selection {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* In-page anchors clear the sticky navigation. */
+[id] {
+  scroll-margin-top: 5rem;
+}
+
+@layer components {
+  /* Type scale: tracking tightens and leading closes up as size grows. */
+  .text-display {
+    font-size: clamp(2.75rem, 1.5rem + 5.8vw, 5.5rem);
+    line-height: 0.98;
+    letter-spacing: -0.045em;
+    font-weight: 650;
+  }
+  .text-title {
+    font-size: clamp(2rem, 1.35rem + 2.7vw, 3.5rem);
+    line-height: 1.04;
+    letter-spacing: -0.035em;
+    font-weight: 620;
+  }
+  .text-heading {
+    font-size: 1.25rem;
+    line-height: 1.25;
+    letter-spacing: -0.015em;
+    font-weight: 600;
+  }
+  .text-lead {
+    font-size: clamp(1.0625rem, 1rem + 0.35vw, 1.3125rem);
+    line-height: 1.5;
+    letter-spacing: -0.008em;
+    color: var(--color-ink-soft);
+  }
+  .text-body {
+    font-size: 1rem;
+    line-height: 1.6;
+    color: var(--color-ink-soft);
+  }
+  .eyebrow {
+    font-size: 0.75rem;
+    line-height: 1;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--color-accent);
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Buttons: feedback lands on press, not on release. */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    height: 2.875rem;
+    padding-inline: 1.375rem;
+    border-radius: 999px;
+    font-size: 0.9375rem;
+    font-weight: 560;
+    letter-spacing: -0.005em;
+    white-space: nowrap;
+    border: 1px solid transparent;
+    transition:
+      transform 100ms ease-out,
+      background-color 160ms ease,
+      border-color 160ms ease,
+      color 160ms ease;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  .btn:active {
+    transform: scale(0.97);
+  }
+  .btn-sm {
+    height: 2.25rem;
+    padding-inline: 1rem;
+    font-size: 0.875rem;
+  }
+  .btn-primary {
+    background: var(--color-ink);
+    color: var(--color-paper);
+  }
+  .btn-primary:hover {
+    background: #2b2a24;
+  }
+  .btn-secondary {
+    background: transparent;
+    color: var(--color-ink);
+    border-color: var(--color-line-strong);
+  }
+  .btn-secondary:hover {
+    background: var(--color-surface);
+  }
+  .btn-light {
+    background: var(--color-paper);
+    color: var(--color-ink);
+  }
+  .btn-light:hover {
+    background: #fff;
+  }
+  .btn-outline-light {
+    color: var(--color-paper);
+    border-color: rgb(246 244 238 / 0.28);
+  }
+  .btn-outline-light:hover {
+    background: rgb(246 244 238 / 0.08);
+  }
+  .btn-pending {
+    cursor: default;
+    color: rgb(246 244 238 / 0.72);
+    border: 1px dashed rgb(246 244 238 / 0.3);
+  }
+  .btn-pending:active {
+    transform: none;
+  }
+  .btn-pending-tag {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.125rem 0.4rem;
+    border-radius: 999px;
+    background: rgb(246 244 238 / 0.12);
+  }
+
+  /*
+   * Navigation material. Transparent at rest; once content scrolls under it
+   * becomes a translucent layer, with a soft blurred edge instead of a rule.
+   */
+  .nav-material {
+    position: relative;
+    transition: background-color 220ms ease, backdrop-filter 220ms ease;
+  }
+  .nav-material::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    top: 100%;
+    height: 1.5rem;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 220ms ease;
+    background: linear-gradient(
+      to bottom,
+      rgb(246 244 238 / 0.55),
+      rgb(246 244 238 / 0)
+    );
+    -webkit-mask-image: linear-gradient(to bottom, #000, transparent);
+    mask-image: linear-gradient(to bottom, #000, transparent);
+  }
+  .nav-material[data-material="true"] {
+    background: rgb(246 244 238 / 0.72);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+  }
+  .nav-material[data-material="true"]::after {
+    opacity: 1;
+  }
+
+  /* The menu sheet is a larger surface, so it reads thicker. */
+  .sheet-material {
+    background: rgb(255 255 255 / 0.88);
+    -webkit-backdrop-filter: saturate(180%) blur(32px);
+    backdrop-filter: saturate(180%) blur(32px);
+    box-shadow: var(--shadow-sheet);
+    border: 1px solid rgb(255 255 255 / 0.7);
+  }
+
+  /* Stage progress in the clearing visual. */
+  .stage-tab {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    transition: transform 100ms ease-out;
+  }
+  .stage-tab:active {
+    transform: scale(0.97);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .nav-material[data-material="true"] {
+    background: var(--color-paper);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: 0 1px 0 var(--color-line);
+  }
+  .nav-material::after {
+    display: none;
+  }
+  .sheet-material {
+    background: var(--color-surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --color-ink-soft: #3a3830;
+    --color-line: rgb(21 20 15 / 0.35);
+    --color-line-strong: rgb(21 20 15 / 0.55);
+  }
+  .nav-material[data-material="true"] {
+    background: var(--color-paper);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: 0 1px 0 var(--color-ink);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .stage-tab {
+    transition-property: background-color, border-color, color, opacity;
+  }
+  .btn:active,
+  .stage-tab:active {
+    transform: none;
+  }
 }
