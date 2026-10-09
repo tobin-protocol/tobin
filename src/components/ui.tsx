@@ -14,12 +14,13 @@ export function Container({
   );
 }
 
-type Variant = "primary" | "secondary" | "light" | "outline-light";
+type Variant = "primary" | "secondary" | "light" | "signal" | "outline-light";
 
 const variantClass: Record<Variant, string> = {
   primary: "btn-primary",
   secondary: "btn-secondary",
   light: "btn-light",
+  signal: "btn-signal",
   "outline-light": "btn-outline-light",
 };
 
