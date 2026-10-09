@@ -539,6 +539,129 @@ body {
   color: var(--color-ink);
 }
 
+/* ---- Poster hero + amber curtain ---------------------------------------- */
+
+/* Nav over the blue hero: paper text, translucent blue material, signal CTA. */
+.nav-material[data-tone="accent"] {
+  --nav-fg: var(--color-paper);
+  --nav-fg-soft: var(--color-paper);
+  --nav-mark: var(--color-paper);
+}
+.nav-material[data-tone="accent"][data-material="true"] {
+  background: rgb(31 87 214 / 0.88);
+}
+.nav-material[data-tone="accent"]::after {
+  background: linear-gradient(to bottom, rgb(31 87 214 / 0.5), rgb(31 87 214 / 0));
+}
+.nav-material[data-tone="accent"] .nav-cta {
+  background: var(--color-signal);
+  color: var(--color-ink);
+}
+.nav-material[data-tone="accent"] .nav-cta:hover {
+  background: #ffc558;
+}
+
+/* Amber surface: blue eyebrow would be 3.4:1 here, so it goes ink. */
+[data-surface="signal"] .eyebrow {
+  color: var(--color-ink);
+}
+
+/*
+ * Statically (no pinned scenes) a seam pulls up over whatever precedes it, so
+ * its diagonal shows that colour instead of a paper triangle. Pinned layouts
+ * override this with .pin-curtain below.
+ */
+.seam {
+  margin-top: -4vw;
+}
+@media (min-width: 1024px) and (min-height: 700px) and (prefers-reduced-motion: no-preference) {
+  .pin-curtain {
+    margin-top: -100vh;
+  }
+}
+/* A curtain must be at least one viewport tall, or it exposes the scene it covers. */
+@media (min-width: 1024px) and (min-height: 700px) and (prefers-reduced-motion: no-preference) {
+  .pin-curtain {
+    min-height: 100vh;
+  }
+}
+
+/* ---- Problem: tilted dual marquee --------------------------------------- */
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@keyframes marquee-reverse {
+  from { transform: translateX(-50%); }
+  to { transform: translateX(0); }
+}
+.animate-marquee {
+  animation: marquee 30s linear infinite;
+}
+.animate-marquee-reverse {
+  animation: marquee-reverse 36s linear infinite;
+}
+/* Pausing under the pointer or keyboard focus makes the figures readable. */
+.marquee-row:hover,
+.marquee-row:focus-within {
+  animation-play-state: paused;
+}
+
+/* The band is 120vw wide, tilted -3 degrees, so its tilted ends never show. */
+.marquee-band {
+  width: 120vw;
+  margin-left: -10vw;
+  rotate: -3deg;
+  scale: 1.05;
+}
+
+/* Reduced motion: no tilt, no scrolling, no duplicates; the cards simply wrap. */
+@media (prefers-reduced-motion: reduce) {
+  .marquee-band {
+    width: auto;
+    margin-left: 0;
+    rotate: none;
+    scale: none;
+  }
+  .animate-marquee,
+  .animate-marquee-reverse {
+    animation: none;
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 1.5rem;
+    margin-left: 0 !important;
+  }
+  .marquee-dup {
+    display: none;
+  }
+}
+
+/* ---- How It Works: the "session file" scene ------------------------------ */
+
+/* Static by default; pinned (tall outer, scrolling window) only where there is room. */
+@media (min-width: 1024px) and (min-height: 700px) and (prefers-reduced-motion: no-preference) {
+  .pin-scene {
+    height: 320vh;
+  }
+  .pin-window {
+    height: clamp(14rem, calc(100svh - 30rem), 24rem);
+    overflow: hidden;
+  }
+}
+
+/* ---- Strip accordion (How It Works) --------------------------------------- */
+
+/*
+ * A row of tall pill strips; the active one opens into a wide dark card with a
+ * colour-matched offset shadow. Rows on phones, columns from md up. Per-item
+ * colours come from --acc-bg / --acc-fg (the closed strip) and --c (accent).
+ */
+.acc {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
 .acc-item {
   position: relative;
   height: 4.25rem;
