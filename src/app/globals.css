@@ -294,7 +294,7 @@ body {
     mask-image: linear-gradient(to bottom, #000, transparent);
   }
   .nav-material[data-material="true"] {
-    background: rgb(246 244 238 / 0.72);
+    background: rgb(246 244 238 / 0.86);
     -webkit-backdrop-filter: saturate(180%) blur(20px);
     backdrop-filter: saturate(180%) blur(20px);
   }
