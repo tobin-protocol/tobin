@@ -2,130 +2,201 @@
 
 import {
   m,
-  useMotionTemplate,
   useMotionValueEvent,
+  useMotionTemplate,
   useScroll,
   useTransform,
 } from "motion/react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { EXAMPLE, EXAMPLE_OBLIGATIONS, usd } from "@/lib/clearing";
 import { HOW_CLOSING, HOW_STEPS } from "@/lib/how";
-import { scrollToY } from "@/lib/lenis";
-import { ClearingVisual, type Stage } from "./ClearingVisual";
+import { usePinned } from "@/lib/stage";
 import { Container } from "./ui";
 
 /*
- * Scroll phases. The wrapper is 400vh; the next block (a curtain) covers its
- * last viewport, so the stages play out over the first two thirds of progress
- * and the exit plays underneath the curtain.
+ * The session log. Every figure comes from the illustrative example, so it
+ * can never drift from the rest of the page.
  */
-const STAGE_AT = [0, 0.1, 0.27, 0.44]; // progress where each stage begins
-const EXIT_FROM = 2 / 3;
+const pad = (s: string, n: number) => s.padEnd(n, " ");
 
-const stageFor = (p: number): Stage =>
-  p >= STAGE_AT[3] ? 3 : p >= STAGE_AT[2] ? 2 : p >= STAGE_AT[1] ? 1 : 0;
+const BLOCKS = [
+  {
+    ...HOW_STEPS[0],
+    lines: EXAMPLE_OBLIGATIONS.map(
+      (o) => `${o.from} → ${o.to}   ${usd(o.amount)}`,
+    ),
+  },
+  {
+    ...HOW_STEPS[1],
+    lines: [
+      `session   ${EXAMPLE_OBLIGATIONS.length} obligations · gross ${usd(EXAMPLE.gross)}`,
+    ],
+  },
+  {
+    ...HOW_STEPS[2],
+    lines: EXAMPLE.positions.map(
+      (p) =>
+        `${p.party}  ${pad(p.net < 0 ? "pays" : "receives", 9)}${usd(Math.abs(p.net))}   (owes ${usd(p.owes)}, owed ${usd(p.owed)})`,
+    ),
+  },
+  {
+    ...HOW_STEPS[3],
+    lines: [`settled   ${usd(EXAMPLE.settled)} moves instead of ${usd(EXAMPLE.gross)}`],
+  },
+];
+
+// Timing (spec): the log scrolls over the first half of progress, then the whole
+// scene pulls back underneath the next curtain over the second half.
+const EXIT_FROM = 0.5;
 
 /**
- * How It Works as a pinned scene: the section sticks, scrolling steps the
- * clearing visual through Submit > Clear > Net > Settle, then the scene pulls
- * back (spec: scale 1>.9, y -40px, blur 0>4px, brightness 1>.5; blur trimmed
- * to 3px here) while the Stellar curtain rises over it.
+ * How It Works as a pinned "file window" scene (the spec's skills scene).
+ * Pinned: the section sticks, scrolling reads the log top to bottom, the
+ * active stage is highlighted, then the scene blurs, dims and splits apart.
+ * Static (narrow, short, reduced motion): the same window, fully visible.
  */
 export function HowScene() {
-  const ref = useRef<HTMLDivElement>(null);
-  const [stage, setStage] = useState<Stage>(0);
+  const pinned = usePinned();
+  const outerRef = useRef<HTMLDivElement>(null);
+  const windowRef = useRef<HTMLDivElement>(null);
+  const logRef = useRef<HTMLDivElement>(null);
+  const maxScroll = useRef(0);
+  const blockEls = useRef<(HTMLDivElement | null)[]>([]);
+  const [active, setActive] = useState(0);
+
   const { scrollYProgress: p } = useScroll({
-    target: ref,
+    target: outerRef,
     offset: ["start start", "end end"],
   });
 
+  // How far the log can travel: its height minus the window's.
+  useEffect(() => {
+    const measure = () => {
+      const w = windowRef.current;
+      const l = logRef.current;
+      if (w && l) maxScroll.current = Math.max(0, l.scrollHeight - w.clientHeight);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (windowRef.current) ro.observe(windowRef.current);
+    if (logRef.current) ro.observe(logRef.current);
+    return () => ro.disconnect();
+  }, [pinned]);
+
+  const logY = useTransform(() => -Math.min(p.get() / EXIT_FROM, 1) * maxScroll.current);
+
   useMotionValueEvent(p, "change", (v) => {
-    const next = stageFor(v);
-    setStage((prev) => (prev === next ? prev : next));
+    if (!pinned) return;
+    const scrolled = Math.min(v / EXIT_FROM, 1) * maxScroll.current;
+    const line = (windowRef.current?.clientHeight ?? 0) * 0.4;
+    let next = 0;
+    blockEls.current.forEach((el, i) => {
+      if (el && el.offsetTop - scrolled <= line) next = i;
+    });
+    // The last block can never climb to the highlight line; once the log has
+    // run out of road, the final stage is the active one.
+    if (maxScroll.current > 0 && scrolled >= maxScroll.current - 4) next = BLOCKS.length - 1;
+    setActive((prev) => (prev === next ? prev : next));
   });
 
   const x = useTransform(p, [EXIT_FROM, 1], [0, 1]);
   const scale = useTransform(x, [0, 1], [1, 0.9]);
   const y = useTransform(x, [0, 1], ["0px", "-40px"]);
-  const blur = useTransform(x, [0, 1], [0, 3]);
+  const blur = useTransform(x, [0, 1], [0, 4]);
   const bright = useTransform(x, [0, 1], [1, 0.5]);
   const filter = useMotionTemplate`blur(${blur}px) brightness(${bright})`;
-  const headY = useTransform(x, [0, 0.8], ["0px", "-120px"]);
+  const headY = useTransform(x, [0, 0.8], ["0px", "-150px"]);
   const headO = useTransform(x, [0, 0.6], [1, 0]);
-  const cardY = useTransform(x, [0, 0.8], ["0px", "120px"]);
+  const cardY = useTransform(x, [0, 0.8], ["0px", "150px"]);
   const cardO = useTransform(x, [0, 0.6], [1, 0]);
-  const rail = useTransform(p, [0, STAGE_AT[3]], [0, 1]);
-
-  // Steps are buttons: jump the scroll to the middle of that stage's range.
-  const goTo = (i: number) => {
-    const el = ref.current;
-    if (!el) return;
-    const next = STAGE_AT[i + 1] ?? EXIT_FROM;
-    const target = (STAGE_AT[i] + Math.min(next, EXIT_FROM)) / 2;
-    const top = el.getBoundingClientRect().top + window.scrollY;
-    scrollToY(top + target * (el.offsetHeight - window.innerHeight));
-  };
 
   return (
-    <div ref={ref} className="relative h-[400vh]">
-      <div className="pin-sticky">
-        <m.div style={{ scale, y, filter }} className="w-full origin-center">
-          <Container className="grid items-center gap-10 lg:grid-cols-12 lg:gap-12">
-            <m.div style={{ y: headY, opacity: headO }} className="lg:col-span-5">
+    <div ref={outerRef} className="pin-scene relative">
+      <div className="pin-sticky py-24 md:py-32">
+        <m.div
+          style={pinned ? { scale, y, filter } : undefined}
+          className="w-full origin-center"
+        >
+          <Container>
+            <m.div
+              style={pinned ? { y: headY, opacity: headO } : undefined}
+              className="mx-auto mb-10 max-w-4xl text-center md:mb-12"
+            >
               <p className="eyebrow">How Tobin works</p>
               <h2
-                id="how-title-pinned"
-                className="mt-4 text-[clamp(2rem,3.4vw,3rem)] font-[620] leading-[1.04] tracking-[-0.035em] text-balance"
+                id="how-title"
+                className="mt-4 text-[clamp(2.25rem,4.4vw,4rem)] font-bold leading-[1.02] tracking-[-0.035em] text-balance"
               >
-                Four stages, from obligation to settlement.
+                Four stages,{" "}
+                <span className="bg-linear-to-br from-signal to-coral bg-clip-text text-transparent">
+                  from obligation to settlement.
+                </span>
               </h2>
-
-              <ol className="relative mt-9">
-                <span aria-hidden="true" className="absolute bottom-1 left-[0.6875rem] top-1 w-px bg-paper/20" />
-                <m.span
-                  aria-hidden="true"
-                  style={{ scaleY: rail }}
-                  className="absolute bottom-1 left-[0.6875rem] top-1 w-px origin-top bg-accent-bright"
-                />
-                {HOW_STEPS.map((s, i) => {
-                  const active = stage === i;
-                  return (
-                    <li key={s.title} aria-current={active ? "step" : undefined}>
-                      <button
-                        type="button"
-                        onClick={() => goTo(i)}
-                        className="stage-tab flex w-full items-start gap-5 rounded-lg py-2.5 text-left"
-                      >
-                        <span
-                          className={`relative z-10 mt-0.5 flex h-[1.4375rem] w-[1.4375rem] shrink-0 items-center justify-center rounded-full font-mono text-[0.625rem] transition-colors duration-300 ${i <= stage ? "bg-accent-bright text-ink" : "bg-ink text-paper/60 ring-1 ring-paper/25"}`}
-                        >
-                          {i + 1}
-                        </span>
-                        <span className="min-w-0">
-                          <span
-                            className={`text-heading block transition-opacity duration-300 ${active ? "opacity-100" : "opacity-45"}`}
-                          >
-                            {s.title}
-                          </span>
-                          <span
-                            className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${active ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
-                          >
-                            <span className="text-body block overflow-hidden">{s.body}</span>
-                          </span>
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ol>
-
-              <p className="mt-6 max-w-[26rem] text-[0.9375rem] leading-relaxed text-paper/70">
-                {HOW_CLOSING}
-              </p>
+              <p className="text-lead mx-auto mt-5 max-w-2xl">{HOW_CLOSING}</p>
             </m.div>
 
-            <m.div style={{ y: cardY, opacity: cardO }} className="lg:col-span-7">
-              <div className="mx-auto w-full max-w-[30rem]">
-                <ClearingVisual stage={stage} fit />
+            <m.div
+              style={pinned ? { y: cardY, opacity: cardO } : undefined}
+              className="mx-auto w-full max-w-4xl"
+            >
+              <div className="overflow-hidden rounded-[2rem] border border-paper/10 bg-black/45 shadow-[0_40px_100px_rgba(0,0,0,0.6)]">
+                {/* Title bar */}
+                <div className="flex items-center justify-between gap-4 border-b border-paper/10 bg-paper/5 px-5 py-4 sm:px-6">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-signal" aria-hidden="true">
+                      <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" />
+                      <path d="M14 3v5h5M9 13h6M9 17h4" />
+                    </svg>
+                    <span className="truncate font-mono text-sm font-semibold tracking-wide text-paper/80">
+                      clearing-session.txt
+                    </span>
+                    <span className="hidden shrink-0 rounded-full border border-signal/30 bg-signal/20 px-3 py-1 font-mono text-[10px] font-semibold uppercase tracking-widest text-signal sm:inline">
+                      Illustrative
+                    </span>
+                  </div>
+                  <span className="tabular shrink-0 rounded-lg bg-signal px-4 py-2 font-mono text-xs font-bold uppercase tracking-wider text-ink">
+                    {pinned ? `Stage 0${active + 1} / 04` : "4 stages"}
+                  </span>
+                </div>
+
+                {/* Window: the log scrolls inside it when pinned */}
+                <div ref={windowRef} className="pin-window relative bg-accent text-paper">
+                  <m.div
+                    ref={logRef}
+                    style={pinned ? { y: logY } : undefined}
+                    className="relative p-6 font-mono text-[0.8125rem] leading-[1.9] sm:p-8 sm:text-sm"
+                  >
+                    <p className="whitespace-pre-wrap">{"# Tobin clearing session"}</p>
+                    <p className="whitespace-pre-wrap">{"# Illustrative example · not real transaction data"}</p>
+                    <p className="mt-2">---</p>
+
+                    {BLOCKS.map((b, i) => {
+                      const on = pinned && active === i;
+                      return (
+                        <div
+                          key={b.title}
+                          ref={(el) => {
+                            blockEls.current[i] = el;
+                          }}
+                          className={`-mx-6 mt-4 border-l-2 px-[1.375rem] py-3 transition-colors duration-300 sm:-mx-8 sm:px-[1.875rem] ${on ? "border-signal bg-ink/30" : "border-transparent"}`}
+                        >
+                          <p className="font-bold">
+                            {"› "}stage 0{i + 1} · {b.title.toLowerCase()}
+                          </p>
+                          <p className="whitespace-pre-wrap pl-4 text-paper">{b.body}</p>
+                          {b.lines.map((line) => (
+                            <p key={line} className="whitespace-pre-wrap pl-4 font-semibold">
+                              {line}
+                            </p>
+                          ))}
+                        </div>
+                      );
+                    })}
+
+                    <p className="mt-4">---</p>
+                    <p>{"# end of session"}</p>
+                  </m.div>
+                </div>
               </div>
             </m.div>
           </Container>

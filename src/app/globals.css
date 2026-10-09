@@ -640,3 +640,16 @@ body {
     display: none;
   }
 }
+
+/* ---- How It Works: the "session file" scene ------------------------------ */
+
+/* Static by default; pinned (tall outer, scrolling window) only where there is room. */
+@media (min-width: 1024px) and (min-height: 700px) and (prefers-reduced-motion: no-preference) {
+  .pin-scene {
+    height: 320vh;
+  }
+  .pin-window {
+    height: clamp(14rem, calc(100svh - 30rem), 24rem);
+    overflow: hidden;
+  }
+}
