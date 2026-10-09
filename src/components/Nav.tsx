@@ -7,7 +7,7 @@ import { links, navLinks } from "@/lib/site";
 import { ButtonLink } from "./ui";
 import { Wordmark } from "./Wordmark";
 
-type Tone = "light" | "dark";
+type Tone = "light" | "dark" | "accent";
 
 const PROBE_Y = 32;
 
@@ -43,7 +43,8 @@ function RollLink({ href, children, onClick }: { href: string; children: string;
 export function Nav() {
   const reduce = useReducedMotion();
   const [scrolled, setScrolled] = useState(false);
-  const [tone, setTone] = useState<Tone>("light");
+  // Starts on the blue hero; the first scroll sample corrects it.
+  const [tone, setTone] = useState<Tone>("accent");
   const [open, setOpen] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const firstLinkRef = useRef<HTMLAnchorElement>(null);
@@ -100,7 +101,7 @@ export function Nav() {
         className="nav-material fixed inset-x-0 top-0 z-50"
         data-material={scrolled || open}
         data-tone={open ? "signal" : tone}
-        data-surface={open ? "signal" : tone === "dark" ? "dark" : undefined}
+        data-surface={open ? "signal" : tone === "light" ? undefined : tone}
       >
         <nav
           aria-label="Primary"

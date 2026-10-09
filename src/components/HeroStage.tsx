@@ -27,11 +27,14 @@ export function HeroStage({
   const rotate = useTransform(scrollYProgress, [0, 0.5], [0, 1]);
   const opacity = useTransform(scrollYProgress, [0, 0.5], [1, 0.2]);
 
+  // Ink sits behind the blue, so the scene reads as a card being pulled away.
   return (
-    <div ref={ref} className="pin-stage relative bg-paper" style={{ zIndex: 1 }}>
+    <div ref={ref} className="pin-stage relative bg-ink" style={{ zIndex: 1 }}>
       <m.section
         aria-labelledby={labelledBy}
-        className="pin-sticky origin-center pb-20 pt-28 sm:pt-32 md:pb-28 lg:pt-32"
+        data-surface="accent"
+        data-nav-tone="accent"
+        className="pin-sticky relative origin-center overflow-hidden bg-accent pb-24 pt-28 text-paper sm:pt-32 md:pb-28 lg:pt-32"
         style={pinned ? { scale, rotate, opacity } : undefined}
       >
         {children}
