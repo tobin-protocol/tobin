@@ -1,110 +1,115 @@
 import { Curtain } from "./Curtain";
 import { Reveal } from "./Reveal";
+import { StackIllustration, type Layer } from "./StackIllustration";
 import { Container } from "./ui";
 
-const statements = [
+/*
+ * Four statements, each with the layer it talks about lit in the picture.
+ * `details` keeps every label and description from the architecture diagram.
+ */
+const ROWS: {
+  n: string;
+  term: string;
+  sentence: string;
+  layer: Layer;
+  details: [string, string][];
+}[] = [
   {
+    n: "01",
     term: "Stellar",
-    text: "provides the settlement network.",
+    sentence: "Stellar provides the settlement network.",
+    layer: "stellar",
+    details: [["Stellar network", "The settlement network"]],
   },
   {
+    n: "02",
     term: "Soroban",
-    text: "supports Tobin's on-chain protocol logic.",
+    sentence: "Soroban supports Tobin's on-chain protocol logic.",
+    layer: "soroban",
+    details: [["Soroban", "Smart contracts holding Tobin's on-chain protocol logic"]],
   },
   {
+    n: "03",
     term: "Tobin",
-    text: "adds a clearing layer above existing payment infrastructure.",
+    sentence: "Tobin adds a clearing layer above existing payment infrastructure.",
+    layer: "tobin",
+    details: [
+      ["Tobin clearing layer", "Obligations, clearing sessions, net positions"],
+      ["Institutions and integrators", "Submit obligations and receive net positions"],
+    ],
   },
   {
+    n: "04",
     term: "SEP-31",
-    text: "stays in place. Tobin is designed to complement it, not replace it.",
+    sentence: "SEP-31 stays in place. Tobin is designed to complement it, not replace it.",
+    layer: "sep31",
+    details: [["Existing standard", "Cross-border payments. Unchanged, and complemented by Tobin."]],
   },
 ];
 
-function Layer({
-  title,
-  detail,
-  tone = "plain",
-}: {
-  title: string;
-  detail: string;
-  tone?: "plain" | "accent";
-}) {
-  const toneClass =
-    tone === "accent"
-      ? "border-accent/40 bg-accent-tint"
-      : "border-line bg-surface";
-  return (
-    <div className={`rounded-2xl border px-5 py-4 ${toneClass}`}>
-      <p className={`text-[0.9375rem] font-semibold tracking-[-0.01em] ${tone === "accent" ? "text-accent-ink" : "text-ink"}`}>
-        {title}
-      </p>
-      <p className="mt-0.5 text-[0.8125rem] leading-snug text-ink-soft">{detail}</p>
-    </div>
-  );
-}
-
-function Join() {
-  return (
-    <span aria-hidden="true" className="mx-auto block h-4 w-px bg-line-strong" />
-  );
-}
-
+/**
+ * Built for Stellar: an amber header block, then full-width split rows on ink.
+ * Each row pairs a number, a large title and its sentence with an isometric
+ * wireframe of the stack, alternating sides, with the relevant layer lit.
+ */
 export function Stellar() {
   return (
-    <Curtain id="stellar" label="stellar-title" surface="signal" className="py-24 md:py-32">
-      <Container className="grid gap-14 lg:grid-cols-12 lg:items-center lg:gap-10">
-        <Reveal className="lg:col-span-5">
-          <p className="eyebrow">Built for Stellar</p>
-          <h2 id="stellar-title" className="text-title mt-4 text-balance">
+    <Curtain id="stellar" label="stellar-title" surface="signal" className="pt-24 md:pt-32">
+      <Container>
+        <Reveal className="pb-16 md:pb-24">
+          <p className="eyebrow">+ Built for Stellar</p>
+          <h2
+            id="stellar-title"
+            className="font-display mt-5 max-w-[21ch] text-[clamp(3rem,7.4vw,6.75rem)] uppercase leading-[0.9] text-balance"
+          >
             A clearing layer above the rails that already exist.
           </h2>
-          <dl className="mt-9 divide-y divide-line border-y border-line">
-            {statements.map((s) => (
-              <div key={s.term} className="flex gap-4 py-4">
-                <dt className="w-20 shrink-0 text-[0.9375rem] font-semibold">{s.term}</dt>
-                <dd className="text-body text-[0.9375rem]">{s.text}</dd>
-              </div>
-            ))}
-          </dl>
         </Reveal>
+      </Container>
 
-        <Reveal delay={0.08} className="lg:col-span-7">
-          <figure>
+      <div data-surface="dark" data-nav-tone="dark" className="bg-ink text-paper">
+        {ROWS.map((r, i) => {
+          const flip = i % 2 === 1;
+          return (
             <div
-              role="img"
-              aria-label="Simplified architecture, top to bottom: institutions and integrators; the Tobin clearing layer; Soroban smart contracts holding Tobin's on-chain logic; and the Stellar network for settlement. SEP-31 payment flows sit alongside and are complemented by Tobin."
-              className="grid gap-4 rounded-[1.75rem] border border-line bg-paper p-4 sm:p-6 md:grid-cols-[minmax(0,1fr)_11.5rem]"
+              key={r.term}
+              className="grid border-t border-paper/40 md:min-h-[30rem] md:grid-cols-2"
             >
-              <div aria-hidden="true" className="flex flex-col">
-                <Layer title="Institutions and integrators" detail="Submit obligations and receive net positions" />
-                <Join />
-                <Layer tone="accent" title="Tobin clearing layer" detail="Obligations, clearing sessions, net positions" />
-                <Join />
-                <Layer title="Soroban" detail="Smart contracts holding Tobin's on-chain protocol logic" />
-                <Join />
-                <Layer title="Stellar network" detail="The settlement network" />
+              <div className={`flex flex-col justify-center px-6 py-14 sm:px-10 md:px-16 md:py-20 ${flip ? "md:order-2 md:border-l md:border-paper/15" : ""}`}>
+                <Reveal>
+                  <p className="font-mono text-xs tracking-[0.2em] text-paper/60">{r.n}</p>
+                  <h3 className="font-display mt-4 text-[clamp(3.5rem,6.5vw,6rem)] uppercase leading-[0.9]">
+                    {r.term}
+                  </h3>
+                  <p className="mt-5 max-w-[28rem] text-[1.0625rem] leading-relaxed text-paper/75 md:text-lg">
+                    {r.sentence}
+                  </p>
+                  <dl className="mt-8 max-w-[28rem] space-y-3 border-t border-paper/15 pt-5">
+                    {r.details.map(([k, v]) => (
+                      <div key={k}>
+                        <dt className="font-mono text-[11px] uppercase tracking-[0.18em] text-paper/60">{k}</dt>
+                        <dd className="mt-1 text-sm leading-snug text-paper/85">{v}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </Reveal>
               </div>
 
               <div
-                aria-hidden="true"
-                className="flex flex-col justify-center rounded-2xl border border-dashed border-line-strong px-5 py-5 text-center md:text-left"
+                className={`flex items-center justify-center border-t border-paper/15 bg-black/30 px-6 py-12 sm:px-10 md:border-t-0 md:px-12 ${flip ? "md:order-1" : "md:border-l md:border-paper/15"}`}
               >
-                <p className="font-mono text-[0.6875rem] uppercase tracking-[0.06em] text-ink-faint">
-                  Existing standard
-                </p>
-                <p className="mt-1.5 text-[1.0625rem] font-semibold tracking-[-0.01em]">SEP-31</p>
-                <p className="mt-1 text-[0.8125rem] leading-snug text-ink-soft">
-                  Cross-border payments. Unchanged, and complemented by Tobin.
-                </p>
+                <Reveal className="w-full max-w-[34rem]">
+                  <StackIllustration active={r.layer} />
+                </Reveal>
               </div>
             </div>
-            <figcaption className="mt-3 px-1 text-[0.8125rem] text-ink-soft">
-              Simplified architecture for illustration.
-            </figcaption>
-          </figure>
-        </Reveal>
-      </Container>
+          );
+        })}
+
+        <p className="border-t border-paper/40 px-6 py-6 font-mono text-[11px] uppercase tracking-[0.18em] text-paper/60 sm:px-10 md:px-16">
+          Simplified architecture for illustration.
+        </p>
+      </div>
     </Curtain>
   );
 }
