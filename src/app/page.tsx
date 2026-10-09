@@ -23,7 +23,7 @@ export default function Home() {
         <div
           data-surface="dark"
           data-nav-tone="dark"
-          className="seam pin-curtain grid-ledger relative z-10 bg-ink text-paper"
+          className="seam pin-curtain relative z-10 bg-ink text-paper"
         >
           <Problem />
           <HowItWorks />
