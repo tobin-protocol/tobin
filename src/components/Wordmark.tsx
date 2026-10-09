@@ -18,14 +18,21 @@ export function Mark({ className = "" }: { className?: string }) {
   );
 }
 
-export function Wordmark({ href = "#top" }: { href?: string }) {
+/** `markClassName` sets the mark colour (default accent); the label inherits currentColor. */
+export function Wordmark({
+  href = "#top",
+  markClassName = "text-accent",
+}: {
+  href?: string;
+  markClassName?: string;
+}) {
   return (
     <a
       href={href}
       aria-label="Tobin, back to top"
       className="inline-flex items-center gap-2 rounded-md text-[1.1875rem] font-semibold tracking-[-0.03em]"
     >
-      <Mark className="text-accent" />
+      <Mark className={markClassName} />
       Tobin
     </a>
   );

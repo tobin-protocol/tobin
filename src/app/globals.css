@@ -409,3 +409,108 @@ body {
     max-height: calc(100svh - 19rem);
   }
 }
+
+/*
+ * Navigation tone. The bar follows the surface under it: light (default),
+ * dark (ink sections) or signal (open mobile sheet). Text, mark and CTA all
+ * read from these variables so nothing is ever ink-on-ink.
+ */
+.nav-material {
+  --nav-fg: var(--color-ink);
+  --nav-fg-soft: var(--color-ink-soft);
+  --nav-mark: var(--color-accent);
+  color: var(--nav-fg);
+}
+.nav-material[data-tone="dark"] {
+  --nav-fg: var(--color-paper);
+  --nav-fg-soft: rgb(246 244 238 / 0.82);
+  --nav-mark: var(--color-accent-bright);
+}
+.nav-material[data-tone="signal"] {
+  --nav-fg: var(--color-ink);
+  --nav-fg-soft: var(--color-ink);
+  --nav-mark: var(--color-ink);
+}
+.nav-material[data-tone="dark"][data-material="true"] {
+  background: rgb(21 20 15 / 0.88);
+}
+.nav-material[data-tone="dark"]::after {
+  background: linear-gradient(to bottom, rgb(21 20 15 / 0.5), rgb(21 20 15 / 0));
+}
+.nav-material[data-tone="signal"][data-material="true"] {
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.nav-material[data-tone="signal"]::after {
+  display: none;
+}
+.nav-material .nav-mark {
+  color: var(--nav-mark);
+}
+.nav-material[data-tone="dark"] .nav-cta {
+  background: var(--color-signal);
+  color: var(--color-ink);
+}
+.nav-material[data-tone="dark"] .nav-cta:hover {
+  background: #ffc558;
+}
+.nav-link {
+  color: var(--nav-fg-soft);
+  transition: color 160ms ease;
+}
+.nav-link:hover,
+.nav-link:focus-visible {
+  color: var(--nav-fg);
+}
+.nav-bar-line {
+  background: var(--nav-fg);
+}
+
+/*
+ * Roll link: the label rolls away on X (pivot bottom) while a mono-caps copy
+ * of the same label rolls in (pivot top). Spec: perspective 400px, .3s,
+ * [.4,0,.2,1]. Fires on hover and on keyboard focus.
+ */
+.roll {
+  display: inline-grid;
+  perspective: 400px;
+}
+.roll > span {
+  grid-area: 1 / 1;
+  text-align: center;
+  white-space: nowrap;
+  transition:
+    transform 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.roll .roll-front {
+  transform-origin: bottom center;
+}
+.roll .roll-back {
+  transform-origin: top center;
+  transform: rotateX(90deg);
+  opacity: 0;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 600;
+  align-self: center;
+}
+.roll:hover .roll-front,
+.roll:focus-visible .roll-front {
+  transform: rotateX(-90deg);
+  opacity: 0;
+}
+.roll:hover .roll-back,
+.roll:focus-visible .roll-back {
+  transform: rotateX(0);
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .roll .roll-front,
+  .roll .roll-back {
+    transform: none !important;
+  }
+}
