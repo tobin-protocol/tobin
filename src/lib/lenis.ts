@@ -9,6 +9,9 @@ export const setLenis = (l: Lenis | null) => {
 
 /** Freeze or release page scroll (menus), whether or not Lenis is active. */
 export function lockScroll(locked: boolean) {
-  if (instance) locked ? instance.stop() : instance.start();
+  if (instance) {
+    if (locked) instance.stop();
+    else instance.start();
+  }
   document.documentElement.style.overflow = locked ? "hidden" : "";
 }

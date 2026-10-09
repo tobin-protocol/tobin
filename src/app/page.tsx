@@ -17,10 +17,17 @@ export default function Home() {
         Skip to content
       </a>
       <Nav />
-      <main id="main" className="flex-1">
+      <main id="main" className="relative flex-1">
         <Hero />
-        <Problem />
-        <HowItWorks />
+        {/* Ink curtain: rises over the pinned hero, with a diagonal top edge. */}
+        <div
+          data-surface="dark"
+          data-nav-tone="dark"
+          className="seam pin-curtain relative z-10 bg-ink text-paper"
+        >
+          <Problem />
+          <HowItWorks />
+        </div>
         <Stellar />
         <Principles />
         <FinalCta />

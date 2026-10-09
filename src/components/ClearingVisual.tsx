@@ -117,7 +117,7 @@ const ARIA_LABEL = `Diagram of an illustrative example. ${EXAMPLE_OBLIGATIONS.ma
 
 const STEP_MS = [1500, 1900, 1900];
 
-export function ClearingVisual() {
+export function ClearingVisual({ fit = false }: { fit?: boolean }) {
   const reduce = useReducedMotion();
   const rootRef = useRef<HTMLDivElement>(null);
   const inView = useInView(rootRef, { once: true, amount: 0.55 });
@@ -190,7 +190,7 @@ export function ClearingVisual() {
 
       <svg
         viewBox={`0 0 ${W} ${H}`}
-        className="mt-1 block h-auto w-full"
+        className={`mt-1 block h-auto w-full ${fit ? "pin-fit" : ""}`}
         role="img"
         aria-label={ARIA_LABEL}
       >

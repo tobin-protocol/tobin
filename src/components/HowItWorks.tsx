@@ -53,7 +53,7 @@ const steps = [
 
 export function HowItWorks() {
   return (
-    <section id="how-it-works" aria-labelledby="how-title" className="border-t border-line py-24 md:py-32">
+    <section id="how-it-works" aria-labelledby="how-title" className="pb-28 pt-8 md:pb-40">
       <Container>
         <Reveal>
           <p className="eyebrow">How Tobin works</p>
@@ -68,7 +68,7 @@ export function HowItWorks() {
             return (
               <li key={s.title} className="relative pb-12 pl-16 last:pb-0 md:pb-0 md:pl-0">
                 <span
-                  className={`absolute left-0 top-0 flex h-11 w-11 items-center justify-center rounded-full border md:static ${last ? "border-accent bg-accent text-white" : "border-line-strong bg-surface text-ink"}`}
+                  className={`absolute left-0 top-0 flex h-11 w-11 items-center justify-center rounded-full border md:static ${last ? "border-signal bg-signal text-ink" : "border-paper/25 bg-paper/10 text-paper"}`}
                 >
                   {s.glyph}
                 </span>
@@ -82,7 +82,7 @@ export function HowItWorks() {
                 {!last ? (
                   <span
                     aria-hidden="true"
-                    className="absolute bottom-3 left-[1.375rem] top-14 w-px bg-line-strong md:bottom-auto md:left-[3.5rem] md:right-[-1.25rem] md:top-[1.375rem] md:h-px md:w-auto"
+                    className="absolute bottom-3 left-[1.375rem] top-14 w-px bg-paper/25 md:bottom-auto md:left-[3.5rem] md:right-[-1.25rem] md:top-[1.375rem] md:h-px md:w-auto"
                   />
                 ) : null}
               </li>
@@ -91,7 +91,7 @@ export function HowItWorks() {
         </ol>
 
         <Reveal delay={0.1}>
-          <p className="mt-16 max-w-[40rem] text-[1.0625rem] leading-relaxed text-ink md:mt-20">
+          <p className="mt-16 max-w-[40rem] text-[1.0625rem] leading-relaxed text-paper md:mt-20">
             Obligations in, net positions out. Because the calculation is
             deterministic, the same set of obligations always produces the same
             result.

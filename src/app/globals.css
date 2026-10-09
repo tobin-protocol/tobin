@@ -363,3 +363,49 @@ body {
     transform: none;
   }
 }
+
+/* Diagonal seam where a dark curtain meets the page (static, always on). */
+.seam {
+  clip-path: polygon(0 4vw, 100% 0, 100% 100%, 0 100%);
+}
+
+/*
+ * Dark surfaces: body copy flips to paper at 70% (8.6:1 on ink).
+ * Full-opacity paper is required on accent backgrounds (70% is only 3.6:1).
+ */
+[data-surface="dark"] .text-lead,
+[data-surface="dark"] .text-body {
+  color: rgb(246 244 238 / 0.7);
+}
+[data-surface="accent"] .text-lead,
+[data-surface="accent"] .text-body {
+  color: var(--color-paper);
+}
+
+/*
+ * Pinned scenes. A tall outer wrapper holds a sticky, viewport-tall inner; the
+ * next block rides up over it with a negative margin (a "curtain"). Only where
+ * there is room and no reduced-motion preference. Keep in sync with PIN_QUERY.
+ */
+@media (min-width: 1024px) and (min-height: 700px) and (prefers-reduced-motion: no-preference) {
+  .pin-stage {
+    height: 200vh;
+  }
+  .pin-sticky {
+    position: sticky;
+    top: 0;
+    height: 100svh;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    padding-top: 4rem;
+    padding-bottom: 2rem;
+  }
+  .pin-curtain {
+    margin-top: -100vh;
+  }
+  /* Keep the whole visual inside one viewport. */
+  .pin-fit {
+    max-height: calc(100svh - 19rem);
+  }
+}

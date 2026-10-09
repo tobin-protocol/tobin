@@ -6,7 +6,7 @@ const netShare = EXAMPLE.settled / EXAMPLE.gross;
 
 export function Problem() {
   return (
-    <section id="problem" aria-labelledby="problem-title" className="border-t border-line py-24 md:py-32">
+    <section id="problem" aria-labelledby="problem-title" className="py-28 md:py-40">
       <Container className="grid gap-14 lg:grid-cols-12 lg:gap-10">
         <Reveal className="lg:col-span-5">
           <div className="lg:sticky lg:top-28">
@@ -28,7 +28,7 @@ export function Problem() {
         </Reveal>
 
         <Reveal delay={0.08} className="lg:col-span-7">
-          <figure className="rounded-[1.75rem] border border-line bg-surface p-5 shadow-card sm:p-8">
+          <figure className="rounded-[1.75rem] border border-line bg-surface p-5 text-ink shadow-card sm:p-8">
             <figcaption className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
               <span className="rounded-full bg-accent-tint px-3 py-1.5 text-xs font-semibold text-accent-ink">
                 Illustrative example
