@@ -791,3 +791,27 @@ body {
     transition: none;
   }
 }
+
+/* ---- Navigation pills ----------------------------------------------------- */
+
+/* Press feedback lands on pointer-down, like every other button. */
+.btn-press {
+  transition: transform 100ms ease-out, background-color 160ms ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.btn-press:active {
+  transform: scale(0.97);
+}
+@media (prefers-reduced-transparency: reduce) {
+  header .backdrop-blur-md {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: var(--color-ink);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn-press:active {
+    transform: none;
+  }
+}
