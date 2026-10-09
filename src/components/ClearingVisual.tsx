@@ -4,9 +4,9 @@ import { m, useInView, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { EXAMPLE, EXAMPLE_OBLIGATIONS, usd } from "@/lib/clearing";
 
-type Stage = 0 | 1 | 2 | 3;
+export type Stage = 0 | 1 | 2 | 3;
 
-const STAGES: { label: string; caption: string }[] = [
+export const STAGES: { label: string; caption: string }[] = [
   {
     label: "Obligations",
     caption: `Three institutions owe each other money. Settled one by one, ${usd(EXAMPLE.gross)} would move.`,
@@ -117,11 +117,24 @@ const ARIA_LABEL = `Diagram of an illustrative example. ${EXAMPLE_OBLIGATIONS.ma
 
 const STEP_MS = [1500, 1900, 1900];
 
-export function ClearingVisual({ fit = false }: { fit?: boolean }) {
+/**
+ * Uncontrolled by default: plays through once, with stage buttons and Replay.
+ * Pass `stage` to drive it from outside (a scroll scene); controls and
+ * autoplay are then off and the caller owns the pacing.
+ */
+export function ClearingVisual({
+  fit = false,
+  stage: controlled,
+}: {
+  fit?: boolean;
+  stage?: Stage;
+}) {
   const reduce = useReducedMotion();
   const rootRef = useRef<HTMLDivElement>(null);
   const inView = useInView(rootRef, { once: true, amount: 0.55 });
-  const [stage, setStage] = useState<Stage>(0);
+  const [own, setStage] = useState<Stage>(0);
+  const isControlled = controlled !== undefined;
+  const stage = isControlled ? controlled : own;
   const timer = useRef<number | undefined>(undefined);
 
   const stop = useCallback(() => window.clearTimeout(timer.current), []);
@@ -146,9 +159,9 @@ export function ClearingVisual({ fit = false }: { fit?: boolean }) {
   // Play through once when the visual first scrolls into view. Never loops,
   // and never starts on its own for people who prefer reduced motion.
   useEffect(() => {
-    if (inView && !reduce) schedule(0);
+    if (inView && !reduce && !isControlled) schedule(0);
     return stop;
-  }, [inView, reduce, schedule, stop]);
+  }, [inView, reduce, isControlled, schedule, stop]);
 
   const choose = (s: Stage) => {
     stop();
@@ -176,16 +189,22 @@ export function ClearingVisual({ fit = false }: { fit?: boolean }) {
         <span className="rounded-full bg-accent-tint px-3 py-1.5 text-xs font-semibold tracking-[0.01em] text-accent-ink">
           Illustrative example
         </span>
-        <button
-          type="button"
-          onClick={replay}
-          className="stage-tab inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-[0.8125rem] font-medium text-ink-soft transition-colors hover:text-ink"
-        >
-          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M2.5 8a5.5 5.5 0 1 0 1.9-4.15M2.5 2.5v3h3" />
-          </svg>
-          Replay
-        </button>
+        {isControlled ? (
+          <span className="tabular font-mono text-xs tracking-[0.12em] text-ink-soft">
+            0{stage + 1} / 04
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={replay}
+            className="stage-tab inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-[0.8125rem] font-medium text-ink-soft transition-colors hover:text-ink"
+          >
+            <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M2.5 8a5.5 5.5 0 1 0 1.9-4.15M2.5 2.5v3h3" />
+            </svg>
+            Replay
+          </button>
+        )}
       </div>
 
       <svg
@@ -370,6 +389,19 @@ export function ClearingVisual({ fit = false }: { fit?: boolean }) {
         ))}
       </div>
 
+      {isControlled ? (
+        // Scroll owns the pacing: show progress only, nothing to press.
+        <div aria-hidden="true" className="mt-4 grid grid-cols-4 gap-1.5">
+          {STAGES.map((s, i) => (
+            <div key={s.label} className="pt-1 text-center">
+              <span className={`block h-[3px] w-full rounded-full transition-colors duration-300 ${i <= stage ? "bg-accent" : "bg-line-strong"}`} />
+              <span className={`mt-2 block text-[0.75rem] font-semibold sm:text-[0.8125rem] ${stage === i ? "text-ink" : "text-ink-soft"}`}>
+                {s.label}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : (
       <div role="group" aria-label="Clearing stages" className="mt-4 grid grid-cols-4 gap-1.5">
         {STAGES.map((s, i) => (
           <button
@@ -390,6 +422,7 @@ export function ClearingVisual({ fit = false }: { fit?: boolean }) {
           </button>
         ))}
       </div>
+      )}
     </div>
   );
 }

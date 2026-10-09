@@ -514,3 +514,16 @@ body {
     transform: none !important;
   }
 }
+
+/* Static vs pinned renderings of the same section. Keep in sync with PIN_QUERY. */
+.pin-only {
+  display: none;
+}
+@media (min-width: 1024px) and (min-height: 700px) and (prefers-reduced-motion: no-preference) {
+  .pin-only {
+    display: block;
+  }
+  .pin-hide {
+    display: none;
+  }
+}

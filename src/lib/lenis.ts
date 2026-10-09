@@ -7,6 +7,12 @@ export const setLenis = (l: Lenis | null) => {
   instance = l;
 };
 
+/** Scroll to an absolute page offset, through Lenis when it is running. */
+export function scrollToY(y: number) {
+  if (instance) instance.scrollTo(y);
+  else window.scrollTo({ top: y });
+}
+
 /** Freeze or release page scroll (menus), whether or not Lenis is active. */
 export function lockScroll(locked: boolean) {
   if (instance) {
