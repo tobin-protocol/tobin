@@ -184,7 +184,7 @@ export function HowScene() {
                       >
                         {/* Closed: index, sideways title, the stage's glyph. */}
                         <span aria-hidden="true" className="acc-collapsed">
-                          <span className="spaced tabular opacity-80">0{i + 1}</span>
+                          <span className="spaced tabular">0{i + 1}</span>
                           <span className="acc-vert">{s.title}</span>
                           {s.glyph}
                         </span>

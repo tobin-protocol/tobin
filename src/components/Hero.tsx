@@ -40,7 +40,7 @@ export function Hero() {
 
             <Reveal delay={0.35}>
               <div aria-hidden="true" className="-mt-3 flex items-center justify-end gap-3 pr-1 sm:-mt-5 sm:gap-4">
-                <span className="-rotate-[14deg] font-mono text-xl text-signal sm:text-2xl">for</span>
+                <span className="-rotate-[14deg] font-mono text-2xl text-signal">for</span>
                 <span
                   className="-rotate-2 bg-signal px-5 py-1.5 font-display text-[clamp(2rem,4.2vw,3.75rem)] uppercase leading-none tracking-[0.04em] text-ink sm:px-7"
                   style={{ borderRadius: "255px 15px 225px 15px / 15px 225px 15px 255px" }}
