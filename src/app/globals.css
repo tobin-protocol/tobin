@@ -594,6 +594,57 @@ body {
   }
 }
 
+/* ---- Problem: tilted dual marquee --------------------------------------- */
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@keyframes marquee-reverse {
+  from { transform: translateX(-50%); }
+  to { transform: translateX(0); }
+}
+.animate-marquee {
+  animation: marquee 30s linear infinite;
+}
+.animate-marquee-reverse {
+  animation: marquee-reverse 36s linear infinite;
+}
+/* Pausing under the pointer or keyboard focus makes the figures readable. */
+.marquee-row:hover,
+.marquee-row:focus-within {
+  animation-play-state: paused;
+}
+
+/* The band is 120vw wide, tilted -3 degrees, so its tilted ends never show. */
+.marquee-band {
+  width: 120vw;
+  margin-left: -10vw;
+  rotate: -3deg;
+  scale: 1.05;
+}
+
+/* Reduced motion: no tilt, no scrolling, no duplicates; the cards simply wrap. */
+@media (prefers-reduced-motion: reduce) {
+  .marquee-band {
+    width: auto;
+    margin-left: 0;
+    rotate: none;
+    scale: none;
+  }
+  .animate-marquee,
+  .animate-marquee-reverse {
+    animation: none;
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 1.5rem;
+    margin-left: 0 !important;
+  }
+  .marquee-dup {
+    display: none;
+  }
+}
+
 /* ---- How It Works: the "session file" scene ------------------------------ */
 
 /* Static by default; pinned (tall outer, scrolling window) only where there is room. */
@@ -604,136 +655,5 @@ body {
   .pin-window {
     height: clamp(14rem, calc(100svh - 30rem), 24rem);
     overflow: hidden;
-  }
-}
-
-/* ---- Problem: expanding accordion ---------------------------------------- */
-
-/*
- * A row of tall pill strips; the active one opens into a wide card with a
- * colour-matched offset shadow. Rows on phones, columns from md up. Only the
- * active item changes size, and nothing animates under reduced motion.
- */
-.acc {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-.acc-item {
-  position: relative;
-  height: 4.25rem;
-  border-radius: 1.25rem;
-  transition:
-    height 550ms cubic-bezier(0.4, 0, 0.2, 1),
-    flex 550ms cubic-bezier(0.4, 0, 0.2, 1),
-    border-radius 550ms cubic-bezier(0.4, 0, 0.2, 1),
-    box-shadow 550ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-.acc-item[data-active="true"] {
-  height: 27rem;
-  box-shadow: 8px 8px 0 var(--c);
-}
-.acc-btn {
-  display: block;
-  position: relative;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  text-align: left;
-  border-radius: inherit;
-  border: 1px solid rgb(246 244 238 / 0.25);
-  background: rgb(246 244 238 / 0.05);
-  color: var(--color-paper);
-  transition: background-color 400ms ease, border-color 400ms ease;
-}
-.acc-btn:hover {
-  border-color: rgb(246 244 238 / 0.55);
-}
-.acc-item[data-active="true"] .acc-btn {
-  background: color-mix(in srgb, var(--color-ink) 72%, black);
-  border-color: rgb(246 244 238 / 0.22);
-}
-.acc-collapsed {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0 1.25rem;
-  transition: opacity 250ms ease;
-}
-.acc-open {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  padding: 1.5rem;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 300ms ease;
-}
-.acc-item[data-active="true"] .acc-collapsed {
-  opacity: 0;
-}
-.acc-item[data-active="true"] .acc-open {
-  opacity: 1;
-  transition-delay: 180ms;
-}
-.acc-vert {
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  font-size: 0.875rem;
-  white-space: nowrap;
-}
-
-.acc-group {
-  margin-top: 0.75rem;
-}
-
-@media (min-width: 768px) {
-  .acc-group {
-    margin-top: 0;
-    margin-left: 1.25rem;
-  }
-  .acc {
-    flex-direction: row;
-    height: 27rem;
-    padding-right: 10px; /* room for the offset shadow */
-  }
-  .acc-item {
-    height: 100%;
-    flex: 0 0 4.5rem;
-    border-radius: 9999px;
-  }
-  .acc-item[data-active="true"] {
-    height: 100%;
-    flex: 1 1 24rem;
-    border-radius: 2rem;
-  }
-  .acc-collapsed {
-    flex-direction: column;
-    justify-content: space-between;
-    gap: 0;
-    padding: 1.25rem 0;
-    align-items: center;
-  }
-  .acc-vert {
-    writing-mode: vertical-rl;
-    rotate: 180deg;
-    font-size: 0.9375rem;
-  }
-  .acc-open {
-    min-width: 22rem;
-    padding: 2rem;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .acc-item,
-  .acc-btn,
-  .acc-collapsed,
-  .acc-open {
-    transition: none;
   }
 }
