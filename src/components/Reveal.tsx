@@ -4,8 +4,8 @@ import { m } from "motion/react";
 import type { ReactNode } from "react";
 
 /**
- * Subtle entrance: opacity plus a short rise, once, critically damped.
- * MotionConfig(reducedMotion="user") turns the rise into a plain fade.
+ * Entrance: opacity plus a 30px rise, once, at 10% visibility (spec timing:
+ * 0.6s `ease`). MotionConfig(reducedMotion="user") turns the rise into a fade.
  */
 export function Reveal({
   children,
@@ -19,10 +19,10 @@ export function Reveal({
   return (
     <m.div
       className={className}
-      initial={{ opacity: 0, y: 14 }}
+      initial={{ opacity: 0, y: 30 }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "0px 0px -8% 0px" }}
-      transition={{ type: "spring", bounce: 0, duration: 0.7, delay }}
+      viewport={{ once: true, amount: 0.1 }}
+      transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1], delay }}
     >
       {children}
     </m.div>

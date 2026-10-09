@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { MotionProvider } from "@/components/MotionProvider";
+import { SmoothScroll } from "@/components/SmoothScroll";
 import { siteDescription } from "@/lib/site";
 import "./globals.css";
 
@@ -41,6 +42,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         </noscript>
       </head>
       <body className="flex min-h-full flex-col">
+        <SmoothScroll />
         <MotionProvider>{children}</MotionProvider>
       </body>
     </html>
