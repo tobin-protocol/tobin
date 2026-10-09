@@ -24,3 +24,23 @@ export function usePinned() {
     () => false,
   );
 }
+
+const REDUCE_QUERY = "(prefers-reduced-motion: reduce)";
+
+function subscribeReduce(onChange: () => void) {
+  const mq = window.matchMedia(REDUCE_QUERY);
+  mq.addEventListener("change", onChange);
+  return () => mq.removeEventListener("change", onChange);
+}
+
+/**
+ * Reduced-motion preference that is safe to render with: false on the server
+ * and during hydration, then the real value, so markup never mismatches.
+ */
+export function useReduceMotion() {
+  return useSyncExternalStore(
+    subscribeReduce,
+    () => window.matchMedia(REDUCE_QUERY).matches,
+    () => false,
+  );
+}

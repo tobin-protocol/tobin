@@ -645,3 +645,26 @@ body {
     transition: none;
   }
 }
+
+/* ---- Principles: widening blocks ------------------------------------------ */
+
+/* Side by side from md up; the hovered (or focused) block widens, the others give way. */
+@media (min-width: 768px) {
+  .pr-row {
+    display: flex;
+  }
+  .pr-item {
+    flex: 1 1 0;
+    min-width: 0;
+    transition: flex 600ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .pr-item:hover,
+  .pr-item:focus-within {
+    flex: 1.4 1 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pr-item {
+    transition: none;
+  }
+}

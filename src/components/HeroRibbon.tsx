@@ -1,8 +1,9 @@
 "use client";
 
-import { AnimatePresence, m, useReducedMotion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { EXAMPLE, EXAMPLE_OBLIGATIONS, usd } from "@/lib/clearing";
+import { useReduceMotion } from "@/lib/stage";
 
 /*
  * Kinetic ribbon (spec path: a thick band that sweeps across, loops once on
@@ -119,7 +120,7 @@ function ClearingPill({ animated }: { animated: boolean }) {
 }
 
 export function HeroRibbon() {
-  const reduce = !!useReducedMotion();
+  const reduce = useReduceMotion();
   const measureRef = useRef<SVGPathElement>(null);
   const [pill, setPill] = useState<{ x: number; y: number } | null>(null);
 
