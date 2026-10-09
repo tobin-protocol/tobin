@@ -1,5 +1,5 @@
 import { links, navLinks } from "@/lib/site";
-import { Mark } from "./Wordmark";
+import { Logo } from "./Logo";
 
 type Dest = { label: string; href: string | null; external?: boolean };
 
@@ -89,17 +89,9 @@ export function Footer() {
       <div className="mx-auto grid max-w-[90rem] gap-3 lg:grid-cols-[minmax(0,1fr)_22rem] sm:gap-4">
         {/* Main panel */}
         <div className="rounded-[1.75rem] border border-paper/10 bg-paper/[0.04] p-6 sm:p-10">
-          <a
-            href="#top"
-            aria-label="Tobin, back to top"
-            className="inline-flex items-center gap-[0.12em] text-[clamp(5rem,21vw,18rem)] leading-none"
-          >
-            <span className="flex h-[0.8em] w-[0.8em] shrink-0 items-center justify-center rounded-full bg-signal">
-              <Mark className="h-[44%] w-[44%] text-ink" />
-            </span>
-            <span className="font-display uppercase leading-[0.8]" aria-hidden="true">
-              Tobin
-            </span>
+          {/* The brand lockup, flat white on the near-black panel, set large as the footer's anchor. */}
+          <a href="#top" aria-label="Tobin, back to top" className="inline-flex rounded-md">
+            <Logo variant="lockup" theme="dark" flat decorative className="h-[clamp(6rem,19vw,14rem)]" />
           </a>
 
           <div className="mt-14 sm:mt-16">
@@ -124,7 +116,9 @@ export function Footer() {
         {/* Side panel */}
         <div className="relative flex flex-col justify-between gap-10 overflow-hidden rounded-[1.75rem] border border-paper/10 bg-paper/[0.06] p-6 sm:p-8">
           {/* A faint, oversized mark fills the quiet middle of the card. */}
-          <Mark className="pointer-events-none absolute left-1/2 top-[52%] h-60 w-60 -translate-x-1/2 -translate-y-1/2 text-paper/[0.06]" />
+          <span aria-hidden="true" className="pointer-events-none absolute left-1/2 top-[52%] -translate-x-1/2 -translate-y-1/2 opacity-[0.06]">
+            <Logo variant="symbol" theme="dark" flat decorative className="h-60 w-60" />
+          </span>
           <div className="relative">
             <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-paper/60">Tobin</p>
             <p className="mt-4 text-[1.375rem] font-semibold leading-snug tracking-[-0.015em]">

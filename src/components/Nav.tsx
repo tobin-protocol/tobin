@@ -3,7 +3,7 @@
 import { AnimatePresence, m } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { links, navLinks } from "@/lib/site";
-import { Wordmark } from "./Wordmark";
+import { Logo } from "./Logo";
 
 /*
  * Navigation = Partyverse's floating pills (logo left, call to action right,
@@ -98,8 +98,11 @@ export function Nav() {
         aria-label="Primary"
         className="mx-auto flex w-full max-w-[72rem] items-start justify-between px-4 pt-3 sm:px-8 sm:pt-4"
       >
-        <div data-surface="dark" className={`${pill} px-4`}>
-          <Wordmark markClassName="text-accent-bright" />
+        <div data-surface="dark" className={`${pill} px-3.5`}>
+          {/* Glossy lockup, 30px high, on the near-black pill. Clear space (~19% of the symbol) is the pill padding. */}
+          <a href="#top" aria-label="Tobin, back to top" className="flex items-center rounded-md">
+            <Logo variant="lockup" theme="dark" height={30} decorative />
+          </a>
         </div>
 
         <div className="hidden items-center gap-2 sm:flex">

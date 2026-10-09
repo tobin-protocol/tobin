@@ -1,0 +1,13 @@
+:root{
+  --tobin-core:#08080B;
+  --tobin-paper:#F4F3F1;
+  --tobin-slate:#44434B;
+  --tobin-mist:#E2E0DC;
+  --tobin-magenta:#E45BD0;
+  --tobin-violet:#8A5CF0;
+  --tobin-blue:#3F7BFF;
+  --tobin-cyan:#3FD6E8;
+  --tobin-rim:linear-gradient(135deg,#E45BD0,#8A5CF0 25%,#3F7BFF 50%,#3FD6E8 70%,#8A5CF0 88%,#E45BD0);
+  --tobin-font-display:'Aalto Display',Helvetica,Arial,sans-serif; /* caps only: wordmark and headings */
+  --tobin-font-mono:'JetBrains Mono',ui-monospace,monospace;
+}
