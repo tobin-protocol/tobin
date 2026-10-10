@@ -84,8 +84,10 @@
  * gitignored): the copy used in development is the PERSONAL-USE licence, and a
  * commercial licence is required before this site launches publicly. Put your
  * licensed file at public/fonts/aalto-display-personal-use.otf (or change the
- * src below). If it is missing, the stack above falls back to a neutral
- * condensed/system sans (never Impact) and the layout still holds.
+ * src below). If it is missing, the stack above falls back to Arial Narrow or
+ * Roboto Condensed when installed, otherwise a wide system sans. The display
+ * type is much narrower than that, so the hero headline wraps and crowds the
+ * ribbon: do not ship without the licensed font or a condensed substitute.
  */
 @font-face {
   font-family: "Aalto Display";

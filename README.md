@@ -84,11 +84,15 @@ flowchart TB
 - **Nav tone.** The fixed nav samples which `[data-nav-tone]` element is under it and switches between light, dark and signal, so text and CTA are never ink-on-ink.
 - **Pace.** Motion values follow the design spec except where this brand is calmer: Lenis 1.6s / wheel ×0.8 (spec 2.5s / ×0.6), hero pull-back scale .9 / rotate 1deg / opacity .2 (spec .8 / 2deg / .1), scene blur 3px (spec 4px).
 
+## Deploying
+
+The site is hosted on Vercel (Next.js preset, Node 24). The Vercel project is connected to this repository, so every push to `main` deploys to production and other branches and pull requests get preview deployments. `NEXT_PUBLIC_SITE_URL` is set as a production environment variable in the Vercel project settings; change it there when the production domain changes.
+
 ## Before you deploy
 
 - **Links:** set `github` and `docs` in [src/lib/site.ts](src/lib/site.ts). Both are `null` because no documentation URL exists yet. Until set, the nav and footer omit those links and the final call to action shows clearly marked "Link pending" placeholders.
 - **Site URL:** set `NEXT_PUBLIC_SITE_URL` (for example `https://tobin.example`) so Open Graph and Twitter images resolve to absolute URLs.
-- **Display font licence:** the headline face is Aalto Display, supplied with a **"Personal Use Only"** licence. A public site is not personal use, so get a web/commercial licence (or swap the face) before deploying. The font file is **not in this repository** (`public/fonts` is gitignored, so the licensed file is never redistributed). Put your licensed copy at `public/fonts/aalto-display-personal-use.otf`, or change the `@font-face` to point at yours. Without it, the `--font-display` stack falls back to Arial Narrow / Roboto Condensed and the layout still holds. To swap the face, change the `@font-face` and `--font-display` in [src/app/globals.css](src/app/globals.css); nothing else references the font by name.
+- **Display font licence:** the headline face is Aalto Display, supplied with a **"Personal Use Only"** licence. A public site is not personal use, so get a web/commercial licence (or swap the face) before deploying. The font file is **not in this repository** (`public/fonts` is gitignored, so the licensed file is never redistributed). Put your licensed copy at `public/fonts/aalto-display-personal-use.otf`, or change the `@font-face` to point at yours. Without it, the `--font-display` stack falls back to Arial Narrow / Roboto Condensed if installed, otherwise a wide system sans, and the hero headline wraps and crowds the ribbon, so do not ship without the licensed font or a condensed substitute. To swap the face, change the `@font-face` and `--font-display` in [src/app/globals.css](src/app/globals.css); nothing else references the font by name.
 
 ## Contributing
 
