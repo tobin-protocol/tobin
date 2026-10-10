@@ -31,7 +31,7 @@
   --tobin-blue: var(--color-blue);
   --tobin-cyan: var(--color-cyan);
   --tobin-rim: linear-gradient(135deg, #e45bd0, #8a5cf0 25%, #3f7bff 50%, #3fd6e8 70%, #8a5cf0 88%, #e45bd0);
-  --tobin-font-display: var(--font-display); /* Aalto Display: caps only, wordmark and headings */
+  --tobin-font-display: var(--font-display); /* JetBrains Mono: wordmark and headings */
   --tobin-font-mono: var(--font-mono);
 }
 
@@ -63,38 +63,18 @@
   --color-signal-pastel: color-mix(in srgb, #d5a857 28%, #f8f8f8);
   --color-sky-pastel: #aabaf6; /* Hisa periwinkle */
 
-  /* Display face: Aalto Display (single weight, caps only, display sizes only). */
-  --font-display:
-    "Aalto Display", "Arial Narrow", "Roboto Condensed", system-ui, sans-serif;
-
+  /* Body text and UI: Instrument Sans via next/font; the system stack is the fallback. */
   --font-sans:
-    -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
-    "Segoe UI Variable Display", "Segoe UI", system-ui, Roboto, "Helvetica Neue",
-    Arial, sans-serif;
-  /* JetBrains Mono (400, 500) via next/font; the system stack is the fallback. */
+    var(--font-instrument-sans), system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Wordmark, headings, labels and code: JetBrains Mono via next/font. */
   --font-mono:
     var(--font-jetbrains-mono), ui-monospace, "SF Mono", "Cascadia Code", Menlo,
     Consolas, monospace;
+  /* Poster-scale display type is the same face (the `font-display` utility). */
+  --font-display: var(--font-mono);
 
   --ease-out-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-/*
- * Aalto Display. The font file is NOT in this repository (public/fonts is
- * gitignored): the copy used in development is the PERSONAL-USE licence, and a
- * commercial licence is required before this site launches publicly. Put your
- * licensed file at public/fonts/aalto-display-personal-use.otf (or change the
- * src below). If it is missing, the stack above falls back to Arial Narrow or
- * Roboto Condensed when installed, otherwise a wide system sans. The display
- * type is much narrower than that, so the hero headline wraps and crowds the
- * ribbon: do not ship without the licensed font or a condensed substitute.
- */
-@font-face {
-  font-family: "Aalto Display";
-  src: url("/fonts/aalto-display-personal-use.otf") format("opentype");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
 }
 
 html {
@@ -151,24 +131,46 @@ body {
   scroll-margin-top: 5rem;
 }
 
+/* Headings are JetBrains Mono (a monospace face needs tighter tracking than a sans). */
+@layer base {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+  }
+  /* Poster type: same face, heavy, tightened. */
+  .font-display {
+    font-weight: 800;
+    letter-spacing: -0.05em;
+  }
+}
+
 @layer components {
   /* Type scale: tracking tightens and leading closes up as size grows. */
   .text-display {
-    font-size: clamp(2.75rem, 1.5rem + 5.8vw, 5.5rem);
-    line-height: 0.98;
+    font-family: var(--font-mono);
+    font-size: clamp(2.25rem, 1.2rem + 4.4vw, 4.25rem);
+    line-height: 1.02;
     letter-spacing: -0.045em;
-    font-weight: 650;
+    font-weight: 700;
   }
   .text-title {
-    font-size: clamp(2rem, 1.35rem + 2.7vw, 3.5rem);
-    line-height: 1.04;
-    letter-spacing: -0.035em;
-    font-weight: 620;
+    font-family: var(--font-mono);
+    font-size: clamp(1.75rem, 1.2rem + 2.2vw, 2.75rem);
+    line-height: 1.1;
+    letter-spacing: -0.04em;
+    font-weight: 700;
   }
   .text-heading {
-    font-size: 1.25rem;
-    line-height: 1.25;
-    letter-spacing: -0.015em;
+    font-family: var(--font-mono);
+    font-size: 1.125rem;
+    line-height: 1.3;
+    letter-spacing: -0.02em;
     font-weight: 600;
   }
   .text-lead {
@@ -185,19 +187,19 @@ body {
   /* Display: the poster-scale headline. One weight, caps by design. */
   .text-display-xl {
     font-family: var(--font-display);
-    font-weight: 400;
+    font-weight: 800;
     text-transform: uppercase;
-    font-size: clamp(4rem, 2rem + 11vw, 11rem);
-    line-height: 0.86;
-    letter-spacing: -0.005em;
+    font-size: clamp(2.5rem, 1rem + 7vw, 7rem);
+    line-height: 0.9;
+    letter-spacing: -0.05em;
   }
   .text-display-lg {
     font-family: var(--font-display);
-    font-weight: 400;
+    font-weight: 800;
     text-transform: uppercase;
-    font-size: clamp(2.75rem, 1.5rem + 6vw, 6.5rem);
-    line-height: 0.9;
-    letter-spacing: 0;
+    font-size: clamp(2rem, 1rem + 4vw, 4.5rem);
+    line-height: 0.95;
+    letter-spacing: -0.05em;
   }
   /* Mono micro-label: wide-tracked, uppercase. */
   .eyebrow {

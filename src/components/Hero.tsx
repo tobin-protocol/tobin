@@ -21,7 +21,7 @@ export function Hero() {
         {/* One sentence for assistive tech; the pieces below are display only. */}
         <p className="sr-only">Open clearing protocol for Stellar</p>
         <Reveal>
-          <p aria-hidden="true" className="font-display text-[clamp(1.75rem,3.2vw,3rem)] uppercase leading-none">
+          <p aria-hidden="true" className="font-display text-[clamp(1.25rem,2.4vw,2.25rem)] uppercase leading-none">
             Open clearing protocol
           </p>
         </Reveal>
@@ -31,7 +31,7 @@ export function Hero() {
             <Reveal delay={0.1}>
               <h1
                 id="hero-title"
-                className="font-display text-[min(21vw,6.25rem)] uppercase leading-[0.86] sm:text-[min(21vw,9rem)] lg:text-[clamp(4.5rem,min(11.7rem,30vh,16.3vw),11.7rem)]"
+                className="font-display text-[min(13vw,5rem)] uppercase leading-[0.9] sm:text-[min(13vw,6.25rem)] lg:text-[clamp(4rem,min(6.75rem,30vh,calc((100vw-4rem)*0.5/6.6)),6.75rem)]"
               >
                 <span className="block">Clear more.</span>
                 <span className="block">Settle less.</span>

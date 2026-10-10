@@ -22,5 +22,6 @@ its own branding.
 
 Third-party material
 --------------------
-The Aalto Display font is not part of this repository and is not covered by
-this licence. See README.md ("Before you deploy").
+The site loads JetBrains Mono and Instrument Sans through next/font/google. Both
+fonts are licensed under the SIL Open Font License 1.1 by their authors; no font
+files are stored in this repository.

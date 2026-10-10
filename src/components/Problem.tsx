@@ -39,7 +39,7 @@ const netCards: CardData[] = EXAMPLE.positions.map((p) => ({
   receives: p.net > 0,
 }));
 
-/** An app-icon style tile: rounded squircle, institution colour, Aalto initial. */
+/** An app-icon style tile: near-square tile, institution colour, initial. */
 function Tile({ party, size }: { party: string; size: "lg" | "md" }) {
   const c = PARTY[party];
   return (

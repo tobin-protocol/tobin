@@ -35,7 +35,7 @@ export function Principles() {
           {/* One straight line from md up, scaled to span the container (like Stellar's). */}
           <h2
             id="principles-title"
-            className="font-display mt-5 text-[clamp(2.75rem,11vw,5rem)] uppercase leading-[0.95] text-balance md:whitespace-nowrap md:text-[min(6.5rem,calc((100vw-4rem)/10.9))]"
+            className="font-display mt-5 text-[clamp(1.75rem,7vw,2.75rem)] uppercase leading-[1] text-balance md:whitespace-nowrap md:text-[calc(min(68rem,100vw-4rem)/23.5)]"
           >
             Three ideas the protocol is built around.
           </h2>

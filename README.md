@@ -6,7 +6,7 @@ This repository contains **only the landing page**. The protocol itself (specifi
 
 Built with Next.js (App Router), React, TypeScript, Tailwind CSS v4, [`motion`](https://motion.dev) and [`lenis`](https://lenis.darkroom.engineering) for smooth scroll.
 
-**Contents:** [Getting started](#getting-started) · [What's on the page](#whats-on-the-page) · [Project structure](#project-structure) · [Design tokens](#design-tokens) · [Motion and layout](#motion-and-layout-architecture) · [Before you deploy](#before-you-deploy) · [Contributing](#contributing)
+**Contents:** [Getting started](#getting-started) · [What's on the page](#whats-on-the-page) · [Project structure](#project-structure) · [Typography](#typography) · [Design tokens](#design-tokens) · [Motion and layout](#motion-and-layout-architecture) · [Before you deploy](#before-you-deploy) · [Contributing](#contributing)
 
 ---
 
@@ -61,6 +61,17 @@ brand-pack/       Source logo and colour assets
 scripts/          build-logo-art.mjs (regenerates src/components/logo-art.ts from brand-pack/svg)
 ```
 
+## Typography
+
+Two typefaces, both loaded through `next/font/google` in [src/app/layout.tsx](src/app/layout.tsx):
+
+| Face | Used for | Token |
+| --- | --- | --- |
+| **JetBrains Mono** | The wordmark, all headings (`h1`–`h6`), the poster-scale display type (`font-display`), labels and code | `--font-mono` (`--font-display` is an alias) |
+| **Instrument Sans** | Body text and UI (nav, buttons, paragraphs) | `--font-sans` |
+
+The wordmark in the logo is live JetBrains Mono text, generated into [src/components/logo-art.ts](src/components/logo-art.ts) by `scripts/build-logo-art.mjs`; the symbol is still drawn from `brand-pack/`. Because the display face is monospaced (every character is the same width), the one-line headlines in `Stellar.tsx` and `Principles.tsx` are sized from their character count and the container width. If you change their copy, update the divisor in their `text-[calc(...)]` class.
+
 ## Design tokens
 
 All in [src/app/globals.css](src/app/globals.css). The palette was sampled from reference designs. Surfaces are `paper` (default), `navy` (dark sections), `accent` (violet `#6935f1`) and `signal` (gold `#d5a857`, used with ink text only). `ink` is text and the nav pills. `sky` is the third institution colour. `accent-ink` is violet for text on light, and `accent-bright` is lavender for text and graphics on dark surfaces.
@@ -92,7 +103,7 @@ The site is hosted on Vercel (Next.js preset, Node 24). The Vercel project is co
 
 - **Links:** set `github` and `docs` in [src/lib/site.ts](src/lib/site.ts). Both are `null` because no documentation URL exists yet. Until set, the nav and footer omit those links and the final call to action shows clearly marked "Link pending" placeholders.
 - **Site URL:** set `NEXT_PUBLIC_SITE_URL` (for example `https://tobin.example`) so Open Graph and Twitter images resolve to absolute URLs.
-- **Display font licence:** the headline face is Aalto Display, supplied with a **"Personal Use Only"** licence. A public site is not personal use, so get a web/commercial licence (or swap the face) before deploying. The font file is **not in this repository** (`public/fonts` is gitignored, so the licensed file is never redistributed). Put your licensed copy at `public/fonts/aalto-display-personal-use.otf`, or change the `@font-face` to point at yours. Without it, the `--font-display` stack falls back to Arial Narrow / Roboto Condensed if installed, otherwise a wide system sans, and the hero headline wraps and crowds the ribbon, so do not ship without the licensed font or a condensed substitute. To swap the face, change the `@font-face` and `--font-display` in [src/app/globals.css](src/app/globals.css); nothing else references the font by name.
+- **Fonts:** nothing to configure. JetBrains Mono and Instrument Sans are both free (SIL Open Font License) and are fetched from Google Fonts by `next/font` at build time, so the build needs network access. No font files are stored in the repository.
 
 ## Contributing
 
@@ -125,7 +136,7 @@ Fixes and improvements to the landing page are welcome: accessibility, performan
 - Respect `prefers-reduced-motion`, and keep the static fallback working.
 - Check the page at phone width and do not introduce horizontal scrolling.
 
-**Licensed assets.** Do not commit fonts, images or logos you do not have the right to redistribute. The Aalto Display file is deliberately kept out of the repository.
+**Licensed assets.** Do not commit fonts, images or logos you do not have the right to redistribute. Fonts come from `next/font`, not from files in the repo.
 
 By submitting a pull request, you agree that your contribution is licensed under the Apache License 2.0, the same licence as the rest of the code.
 
@@ -135,7 +146,7 @@ Please be respectful and assume good faith.
 
 The source code is licensed under the [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for the copyright line.
 
-The Apache licence does **not** cover the Tobin name, logo or brand assets (`brand-pack/`, `public/brand/`, the icons and social images). NOTICE lists the exact files. If you fork this repository for anything you present to others, replace them with your own branding. The Aalto Display font is not part of this repository and is not covered by this licence.
+The Apache licence does **not** cover the Tobin name, logo or brand assets (`brand-pack/`, `public/brand/`, the icons and social images). NOTICE lists the exact files. If you fork this repository for anything you present to others, replace them with your own branding. The fonts (JetBrains Mono, Instrument Sans) are loaded from Google Fonts under the SIL Open Font License and are not part of this repository.
 
 ## Links
 

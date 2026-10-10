@@ -6,7 +6,8 @@ import { ART, type Art } from "./logo-art";
  *
  * Usage rules from the pack:
  * - symbol minimum 16px (enforced below); clear space about 19% of the symbol height;
- * - never stretch, rotate, recolour or retype the wordmark (it is outlined; no font is applied);
+ * - never stretch, rotate or recolour the wordmark (it is live JetBrains Mono text, set by
+ *   scripts/build-logo-art.mjs, so it needs the site's font to render as designed);
  * - the glossy symbol only on a near-black or near-white ground, otherwise use `flat`.
  *
  * theme: the ground the logo sits on. "light" = light ground, "dark" = dark ground,

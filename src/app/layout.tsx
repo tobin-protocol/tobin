@@ -1,16 +1,23 @@
 import type { Metadata, Viewport } from "next";
-import { JetBrains_Mono } from "next/font/google";
+import { Instrument_Sans, JetBrains_Mono } from "next/font/google";
 import { MotionProvider } from "@/components/MotionProvider";
 import { SmoothScroll } from "@/components/SmoothScroll";
 import { siteDescription } from "@/lib/site";
 import "./globals.css";
 
-// Labels and technical text. The variable is not named --font-mono because that is
-// the Tailwind theme token this feeds (see globals.css), which would be circular.
+// Wordmark, headings, labels and code. Variable font, so every weight is available.
+// The CSS variable is not named --font-mono because that is the Tailwind theme token
+// this feeds (see globals.css), which would be circular.
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
-  weight: ["400", "500"],
   variable: "--font-jetbrains-mono",
+  display: "swap",
+});
+
+// Body text and UI. Same naming rule as above.
+const instrumentSans = Instrument_Sans({
+  subsets: ["latin"],
+  variable: "--font-instrument-sans",
   display: "swap",
 });
 
@@ -46,7 +53,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`h-full ${jetbrainsMono.variable}`}>
+    <html lang="en" className={`h-full ${jetbrainsMono.variable} ${instrumentSans.variable}`}>
       <head>
         {/* Scroll reveals start hidden; without JS, show everything. */}
         <noscript>

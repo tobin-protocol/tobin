@@ -18,7 +18,7 @@ export function FinalCta() {
         <Reveal>
           <h2
             id="cta-title"
-            className="font-display text-[clamp(3.75rem,12.5vw,11rem)] uppercase leading-[0.88]"
+            className="font-display text-[clamp(2.25rem,12vw,3.75rem)] uppercase leading-[0.92] md:text-[calc(min(68rem,100vw-4rem)/9.8)]"
           >
             <span className="block">Build on a better</span>
             <span className="block text-signal">clearing layer.</span>

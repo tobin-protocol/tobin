@@ -52,7 +52,7 @@ export function PrincipleBlocks({ blocks }: { blocks: Block[] }) {
               }}
             >
               <m.div
-                className="flex min-h-[26rem] flex-col justify-between p-6 sm:p-10 md:min-h-[36rem] md:min-w-[19rem] lg:min-h-[40rem]"
+                className="flex min-h-[26rem] flex-col justify-between p-6 sm:p-10 md:min-h-[36rem] md:min-w-[min(19rem,33.333vw)] lg:min-h-[40rem]"
                 variants={{
                   hidden: { opacity: 0, y: 28 },
                   visible: {
@@ -72,7 +72,7 @@ export function PrincipleBlocks({ blocks }: { blocks: Block[] }) {
 
                 <p className="text-body my-10 max-w-[22rem] text-[0.9375rem] sm:text-base">{b.body}</p>
 
-                <h3 className="font-display text-[3.5rem] uppercase leading-[0.9] md:text-[clamp(1.75rem,5.4vw,5rem)]">
+                <h3 className="font-display text-[min(calc((100vw-3rem)/7.9),3.5rem)] uppercase leading-[0.95] sm:text-[min(calc((100vw-5rem)/7.9),4rem)] md:text-[clamp(1rem,calc((33.333vw-5rem)/7.9),3.5rem)]">
                   {b.title.split(" ").map((word) => (
                     <span key={word} className="block">
                       {word}
