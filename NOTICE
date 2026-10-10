@@ -1,0 +1,26 @@
+Tobin landing page
+Copyright 2026 Tobin Protocol contributors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Trademarks and brand assets
+---------------------------
+The Apache-2.0 licence covers the source code in this repository. It does not
+grant any right to use the Tobin name, the Tobin logo or other Tobin brand
+assets, and the following files are NOT licensed for reuse:
+
+  - brand-pack/
+  - public/brand/
+  - public/icon-192.png, public/icon-512.png, public/icon-maskable-512.png
+  - src/app/icon.svg, src/app/favicon.ico, src/app/apple-icon.png
+  - src/app/opengraph-image.png, src/app/twitter-image.png
+  - src/components/logo-art.ts (generated from brand-pack/svg)
+
+You may keep these files unmodified when you fork this repository to run or
+study the site, but a fork that is presented to others must replace them with
+its own branding.
+
+Third-party material
+--------------------
+The Aalto Display font is not part of this repository and is not covered by
+this licence. See README.md ("Before you deploy").

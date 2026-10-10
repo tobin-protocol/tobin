@@ -123,11 +123,15 @@ Fixes and improvements to the landing page are welcome: accessibility, performan
 
 **Licensed assets.** Do not commit fonts, images or logos you do not have the right to redistribute. The Aalto Display file is deliberately kept out of the repository.
 
+By submitting a pull request, you agree that your contribution is licensed under the Apache License 2.0, the same licence as the rest of the code.
+
 Please be respectful and assume good faith.
 
 ## Licence
 
-No licence file has been added to this repository yet, so until one is, all rights are reserved by default.
+The source code is licensed under the [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for the copyright line.
+
+The Apache licence does **not** cover the Tobin name, logo or brand assets (`brand-pack/`, `public/brand/`, the icons and social images). NOTICE lists the exact files. If you fork this repository for anything you present to others, replace them with your own branding. The Aalto Display font is not part of this repository and is not covered by this licence.
 
 ## Links
 
