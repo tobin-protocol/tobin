@@ -95,7 +95,7 @@ flowchart TB
 Fixes and improvements to the landing page are welcome: accessibility, performance, responsiveness, motion, and copy clarity.
 
 1. Open an issue first for anything beyond a small fix.
-2. Fork, then branch from `master` (for example `fix/nav-focus-ring`).
+2. Fork, then branch from `main` (for example `fix/nav-focus-ring`).
 3. Keep pull requests small and focused, with the reason in the description. Include before/after screenshots for visual changes.
 4. Before pushing, run:
 
