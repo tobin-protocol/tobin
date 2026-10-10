@@ -14,7 +14,7 @@ const blocks = [
     title: "Verifiable clearing",
     body: "Clearing is deterministic: the same inputs produce the same net positions. Cryptographic commitments and participant authorization are part of the protocol design.",
     surface: "dark",
-    className: "bg-ink text-paper",
+    className: "bg-navy text-paper",
     fg: "var(--color-accent-bright)",
   },
   {

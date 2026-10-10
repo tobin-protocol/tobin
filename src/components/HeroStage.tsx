@@ -29,7 +29,7 @@ export function HeroStage({
 
   // Ink sits behind the blue, so the scene reads as a card being pulled away.
   return (
-    <div ref={ref} className="pin-stage relative bg-ink" style={{ zIndex: 1 }}>
+    <div ref={ref} className="pin-stage relative bg-navy" style={{ zIndex: 1 }}>
       <m.section
         aria-labelledby={labelledBy}
         data-surface="accent"

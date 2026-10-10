@@ -16,7 +16,7 @@ npm run build   # type-checks and prerenders the page statically
 
 ## Design tokens
 
-All in [src/app/globals.css](src/app/globals.css). Surfaces are `paper` (default), `ink` (dark stage), `accent` (blue), and `signal` (warm second hue, used with ink text only). `accent-bright` exists because `accent` is only 2.98:1 on ink; use it for text and graphics on dark surfaces. Surfaces announce themselves with `data-surface="dark|accent|signal"`, which drives body-copy colour, eyebrow colour and focus-ring colour.
+All in [src/app/globals.css](src/app/globals.css). The palette was sampled from the reference designs in `/designs` (Hisa, Stripe, Onramper); the Hisa colours lead. Surfaces are `paper` (default), `navy` (dark sections), `accent` (violet `#6935f1`), and `signal` (gold `#d5a857`, used with ink text only). `ink` is text and the nav pills. `sky` is the third institution colour. `accent-ink` is violet for text on light, and `accent-bright` is lavender for text and graphics on dark surfaces. The page has no glows, gradients or shadows, and cards are square. Surfaces announce themselves with `data-surface="dark|accent|signal"`, which drives body-copy colour, eyebrow colour and focus-ring colour.
 
 ## Motion and layout architecture
 

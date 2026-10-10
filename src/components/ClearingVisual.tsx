@@ -183,7 +183,7 @@ export function ClearingVisual({
   return (
     <div
       ref={rootRef}
-      className="rounded-[1.75rem] border border-line bg-surface p-4 shadow-card sm:p-6"
+      className="border border-line bg-surface p-4 sm:p-6"
     >
       <div className="flex items-center justify-between gap-3">
         <span className="rounded-full bg-accent-tint px-3 py-1.5 text-xs font-semibold tracking-[0.01em] text-accent-ink">

@@ -11,9 +11,9 @@
  */
 @theme static {
   --color-core: #08080b;
-  --color-paper: #f4f3f1;
-  --color-slate: #44434b;
-  --color-mist: #e2e0dc;
+  --color-paper: #f8f8f8; /* Hisa */
+  --color-slate: #5b5764; /* Hisa UI grey, 6.6:1 on paper */
+  --color-mist: #e7e6ed; /* Onramper cool grey */
   --color-magenta: #e45bd0;
   --color-violet: #8a5cf0;
   --color-blue: #3f7bff;
@@ -36,30 +36,32 @@
 }
 
 /*
- * Site tokens. Neutrals now come from the brand palette: ink is core, body text
- * is slate (about 9:1 on paper); the rest is the page's own scheme: one restrained
- * blue accent plus signal and coral. Light only: this is a reading surface.
+ * Site tokens. Every colour here was sampled from the reference designs in
+ * /designs (Hisa, Stripe, Onramper); the pastels are tints of those samples.
+ * Ink is text and small chrome (nav pills); navy is the dark section surface.
+ * Light only: this is a reading surface.
  */
 @theme {
   --color-surface: #ffffff;
-  --color-ink: var(--color-core);
+  --color-ink: #21212b; /* Hisa ink, 15:1 on paper */
+  --color-navy: #0d1838; /* Stripe navy: dark section surfaces */
   --color-ink-soft: var(--color-slate); /* body copy */
-  --color-ink-faint: #8c877b; /* large display text and decoration only */
-  --color-line: rgb(21 20 15 / 0.1);
-  --color-line-strong: rgb(21 20 15 / 0.18);
-  --color-accent: #1f57d6; /* Stellar-inspired blue, 5.6:1 on paper */
-  --color-accent-ink: #1a47ad;
-  --color-accent-tint: #e8eefc;
-  /* Second hue: warm signal for loud moments (menu sheet, one principle block, CTAs on dark). Ink text only. */
-  --color-signal: #f5b73b;
-  /* Accent for dark surfaces: --color-accent is only 2.98:1 on ink, this is 7:1. */
-  --color-accent-bright: #7ba0f5;
-  /* Third institution hue (A = accent, B = signal, C = coral). Ink text only. */
-  --color-coral: #ff6f5e;
+  --color-ink-faint: #8b8793; /* large display text and decoration only */
+  --color-line: rgb(33 33 43 / 0.1);
+  --color-line-strong: rgb(33 33 43 / 0.18);
+  --color-accent: #6935f1; /* Hisa violet: hero field, tile A. 6.2:1 with white */
+  --color-accent-ink: #5933c8; /* violet text on light, 7.2:1 on paper */
+  --color-accent-tint: #f0ebff;
+  /* Second hue: gold for loud moments (CTAs, tags, highlights). Ink text only. */
+  --color-signal: #d5a857; /* Hisa gold */
+  /* Violet for dark surfaces (text, markers): 6.3:1 on navy. */
+  --color-accent-bright: #a789f6; /* Hisa lavender */
+  /* Third institution hue (A = accent, B = signal, C = sky). Ink text only. */
+  --color-sky: #4488e9; /* Hisa blue */
   /* Pastel surfaces for stage cards; ink text only. */
-  --color-accent-pastel: #d9e4ff;
-  --color-signal-pastel: #fde8bf;
-  --color-coral-pastel: #ffd9d2;
+  --color-accent-pastel: #f0ebff;
+  --color-signal-pastel: color-mix(in srgb, #d5a857 28%, #f8f8f8);
+  --color-sky-pastel: #aabaf6; /* Hisa periwinkle */
 
   /* Display face: Aalto Display (single weight, caps only, display sizes only). */
   --font-display:
@@ -73,11 +75,6 @@
   --font-mono:
     var(--font-jetbrains-mono), ui-monospace, "SF Mono", "Cascadia Code", Menlo,
     Consolas, monospace;
-
-  --shadow-card:
-    0 1px 0 rgb(21 20 15 / 0.04), 0 12px 32px -12px rgb(21 20 15 / 0.12);
-  --shadow-sheet:
-    0 1px 0 rgb(255 255 255 / 0.6) inset, 0 24px 48px -16px rgb(21 20 15 / 0.22);
 
   --ease-out-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
@@ -208,7 +205,7 @@ body {
     letter-spacing: 0.22em;
     text-transform: uppercase;
     font-weight: 500;
-    color: var(--color-accent);
+    color: var(--color-accent-ink);
   }
   [data-surface="dark"] .eyebrow {
     color: var(--color-accent-bright);
@@ -261,7 +258,7 @@ body {
     color: var(--color-paper);
   }
   .btn-primary:hover {
-    background: #2b2a24;
+    background: color-mix(in srgb, var(--color-ink) 88%, white);
   }
   .btn-secondary {
     background: transparent;
@@ -276,7 +273,7 @@ body {
     color: var(--color-ink);
   }
   .btn-signal:hover {
-    background: #ffc558;
+    background: #e4b879;
   }
   .btn-light {
     background: var(--color-paper);
@@ -287,15 +284,15 @@ body {
   }
   .btn-outline-light {
     color: var(--color-paper);
-    border-color: rgb(246 244 238 / 0.28);
+    border-color: rgb(248 248 248 / 0.28);
   }
   .btn-outline-light:hover {
-    background: rgb(246 244 238 / 0.08);
+    background: rgb(248 248 248 / 0.08);
   }
   .btn-pending {
     cursor: default;
-    color: rgb(246 244 238 / 0.72);
-    border: 1px dashed rgb(246 244 238 / 0.3);
+    color: rgb(248 248 248 / 0.72);
+    border: 1px dashed rgb(248 248 248 / 0.3);
   }
   .btn-pending:active {
     transform: none;
@@ -307,7 +304,7 @@ body {
     text-transform: uppercase;
     padding: 0.125rem 0.4rem;
     border-radius: 999px;
-    background: rgb(246 244 238 / 0.12);
+    background: rgb(248 248 248 / 0.12);
   }
 
   /*
@@ -318,30 +315,10 @@ body {
     position: relative;
     transition: background-color 220ms ease, backdrop-filter 220ms ease;
   }
-  .nav-material::after {
-    content: "";
-    position: absolute;
-    inset-inline: 0;
-    top: 100%;
-    height: 1.5rem;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 220ms ease;
-    background: linear-gradient(
-      to bottom,
-      rgb(246 244 238 / 0.55),
-      rgb(246 244 238 / 0)
-    );
-    -webkit-mask-image: linear-gradient(to bottom, #000, transparent);
-    mask-image: linear-gradient(to bottom, #000, transparent);
-  }
   .nav-material[data-material="true"] {
-    background: rgb(246 244 238 / 0.86);
+    background: rgb(248 248 248 / 0.86);
     -webkit-backdrop-filter: saturate(180%) blur(20px);
     backdrop-filter: saturate(180%) blur(20px);
-  }
-  .nav-material[data-material="true"]::after {
-    opacity: 1;
   }
 
   /* The menu sheet is a larger surface, so it reads thicker. */
@@ -349,7 +326,6 @@ body {
     background: rgb(255 255 255 / 0.88);
     -webkit-backdrop-filter: saturate(180%) blur(32px);
     backdrop-filter: saturate(180%) blur(32px);
-    box-shadow: var(--shadow-sheet);
     border: 1px solid rgb(255 255 255 / 0.7);
   }
 
@@ -383,9 +359,9 @@ body {
 
 @media (prefers-contrast: more) {
   :root {
-    --color-ink-soft: #3a3830;
-    --color-line: rgb(21 20 15 / 0.35);
-    --color-line-strong: rgb(21 20 15 / 0.55);
+    --color-ink-soft: #3d3a4a;
+    --color-line: rgb(33 33 43 / 0.35);
+    --color-line-strong: rgb(33 33 43 / 0.55);
   }
   .nav-material[data-material="true"] {
     background: var(--color-paper);
@@ -417,7 +393,7 @@ body {
  */
 [data-surface="dark"] .text-lead,
 [data-surface="dark"] .text-body {
-  color: rgb(246 244 238 / 0.7);
+  color: rgb(248 248 248 / 0.7);
 }
 [data-surface="accent"] .text-lead,
 [data-surface="accent"] .text-body {
@@ -465,7 +441,7 @@ body {
 }
 .nav-material[data-tone="dark"] {
   --nav-fg: var(--color-paper);
-  --nav-fg-soft: rgb(246 244 238 / 0.82);
+  --nav-fg-soft: rgb(248 248 248 / 0.82);
   --nav-mark: var(--color-accent-bright);
 }
 .nav-material[data-tone="signal"] {
@@ -474,18 +450,12 @@ body {
   --nav-mark: var(--color-ink);
 }
 .nav-material[data-tone="dark"][data-material="true"] {
-  background: rgb(21 20 15 / 0.88);
-}
-.nav-material[data-tone="dark"]::after {
-  background: linear-gradient(to bottom, rgb(21 20 15 / 0.5), rgb(21 20 15 / 0));
+  background: rgb(33 33 43 / 0.88);
 }
 .nav-material[data-tone="signal"][data-material="true"] {
   background: transparent;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
-}
-.nav-material[data-tone="signal"]::after {
-  display: none;
 }
 .nav-material .nav-mark {
   color: var(--nav-mark);
@@ -495,7 +465,7 @@ body {
   color: var(--color-ink);
 }
 .nav-material[data-tone="dark"] .nav-cta:hover {
-  background: #ffc558;
+  background: #e4b879;
 }
 .nav-link {
   color: var(--nav-fg-soft);
@@ -584,17 +554,14 @@ body {
   --nav-mark: var(--color-paper);
 }
 .nav-material[data-tone="accent"][data-material="true"] {
-  background: rgb(31 87 214 / 0.88);
-}
-.nav-material[data-tone="accent"]::after {
-  background: linear-gradient(to bottom, rgb(31 87 214 / 0.5), rgb(31 87 214 / 0));
+  background: rgb(105 53 241 / 0.88);
 }
 .nav-material[data-tone="accent"] .nav-cta {
   background: var(--color-signal);
   color: var(--color-ink);
 }
 .nav-material[data-tone="accent"] .nav-cta:hover {
-  background: #ffc558;
+  background: #e4b879;
 }
 
 /* Amber surface: blue eyebrow would be 3.4:1 here, so it goes ink. */
@@ -689,8 +656,8 @@ body {
 /* ---- Strip accordion (How It Works) --------------------------------------- */
 
 /*
- * A row of tall pill strips; the active one opens into a wide dark card with a
- * colour-matched offset shadow. Rows on phones, columns from md up. Per-item
+ * A row of tall flat strips; the active one opens into a wide dark panel.
+ * Rows on phones, columns from md up. Per-item
  * colours come from --acc-bg / --acc-fg (the closed strip) and --c (accent).
  */
 .acc {
@@ -701,16 +668,12 @@ body {
 .acc-item {
   position: relative;
   height: 4.25rem;
-  border-radius: 1.25rem;
   transition:
     height 550ms cubic-bezier(0.4, 0, 0.2, 1),
-    flex 550ms cubic-bezier(0.4, 0, 0.2, 1),
-    border-radius 550ms cubic-bezier(0.4, 0, 0.2, 1),
-    box-shadow 550ms cubic-bezier(0.4, 0, 0.2, 1);
+    flex 550ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .acc-item[data-active="true"] {
   height: 30rem;
-  box-shadow: 8px 8px 0 var(--c);
 }
 .acc-btn {
   display: block;
@@ -719,13 +682,12 @@ body {
   height: 100%;
   overflow: hidden;
   text-align: left;
-  border-radius: inherit;
   background: var(--acc-bg);
   color: var(--acc-fg);
   transition: background-color 400ms ease, color 400ms ease;
 }
 .acc-item[data-active="true"] .acc-btn {
-  background: color-mix(in srgb, var(--color-ink) 72%, black);
+  background: var(--color-navy);
   color: var(--color-paper);
 }
 .acc-collapsed {
@@ -766,17 +728,14 @@ body {
   .acc {
     flex-direction: row;
     height: var(--acc-h, 26rem);
-    padding-right: 10px; /* room for the offset shadow */
   }
   .acc-item {
     height: 100%;
     flex: 0 0 5rem;
-    border-radius: 9999px;
   }
   .acc-item[data-active="true"] {
     height: 100%;
     flex: 1 1 24rem;
-    border-radius: 2rem;
   }
   .acc-collapsed {
     flex-direction: column;

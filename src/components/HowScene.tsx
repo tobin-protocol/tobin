@@ -57,10 +57,10 @@ const STAGES = [
   },
   {
     ...HOW_STEPS[2],
-    c: "var(--color-coral)",
-    bg: "var(--color-coral-pastel)",
+    c: "var(--color-sky)",
+    bg: "var(--color-sky-pastel)",
     fg: "var(--color-ink)",
-    tag: "bg-coral text-ink",
+    tag: "bg-sky text-ink",
     glyph: icon(<path d="M4 6l8 6m8-6l-8 6m0 0v7" />),
     lines: EXAMPLE.positions.map(
       (p) => `${p.party} ${p.net < 0 ? "pays" : "receives"} ${usd(Math.abs(p.net))}`,
@@ -141,9 +141,7 @@ export function HowScene() {
                   className="mt-4 text-[clamp(2.25rem,4.6vw,4.25rem)] font-bold leading-[1.02] tracking-[-0.035em] text-balance"
                 >
                   Four stages,{" "}
-                  <span className="bg-linear-to-br from-signal to-coral bg-clip-text text-transparent">
-                    from obligation to settlement.
-                  </span>
+                  <span className="text-signal">from obligation to settlement.</span>
                 </h2>
               </div>
               <p className="text-lead max-w-[32rem] lg:col-span-5">{HOW_CLOSING}</p>

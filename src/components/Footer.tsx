@@ -85,10 +85,10 @@ function Row({ label, href, light = false, external = false }: { label: string; 
  */
 export function Footer() {
   return (
-    <footer data-surface="dark" data-nav-tone="dark" className="bg-ink px-3 pb-3 text-paper sm:px-5 sm:pb-5">
+    <footer data-surface="dark" data-nav-tone="dark" className="bg-navy px-3 pb-3 text-paper sm:px-5 sm:pb-5">
       <div className="mx-auto grid max-w-[90rem] gap-3 lg:grid-cols-[minmax(0,1fr)_22rem] sm:gap-4">
         {/* Main panel */}
-        <div className="rounded-[1.75rem] border border-paper/10 bg-paper/[0.04] p-6 sm:p-10">
+        <div className="border border-paper/10 bg-paper/[0.04] p-6 sm:p-10">
           {/* The brand lockup, flat white on the near-black panel, set large as the footer's anchor. */}
           <a href="#top" aria-label="Tobin, back to top" className="inline-flex rounded-md">
             <Logo variant="lockup" theme="dark" flat decorative className="h-[clamp(6rem,19vw,14rem)]" />
@@ -114,7 +114,7 @@ export function Footer() {
         </div>
 
         {/* Side panel */}
-        <div className="relative flex flex-col justify-between gap-10 overflow-hidden rounded-[1.75rem] border border-paper/10 bg-paper/[0.06] p-6 sm:p-8">
+        <div className="relative flex flex-col justify-between gap-10 overflow-hidden border border-paper/10 bg-paper/[0.06] p-6 sm:p-8">
           {/* A faint, oversized mark fills the quiet middle of the card. */}
           <span aria-hidden="true" className="pointer-events-none absolute left-1/2 top-[52%] -translate-x-1/2 -translate-y-1/2 opacity-[0.06]">
             <Logo variant="symbol" theme="dark" flat decorative className="h-60 w-60" />

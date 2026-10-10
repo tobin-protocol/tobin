@@ -9,7 +9,7 @@ const netShare = EXAMPLE.settled / EXAMPLE.gross;
 const PARTY: Record<string, { bg: string; fg: string; css: string }> = {
   A: { bg: "bg-accent", fg: "text-paper", css: "var(--color-accent)" },
   B: { bg: "bg-signal", fg: "text-ink", css: "var(--color-signal)" },
-  C: { bg: "bg-coral", fg: "text-ink", css: "var(--color-coral)" },
+  C: { bg: "bg-sky", fg: "text-ink", css: "var(--color-sky)" },
 };
 
 type CardData = {
@@ -39,13 +39,12 @@ const netCards: CardData[] = EXAMPLE.positions.map((p) => ({
   receives: p.net > 0,
 }));
 
-/** An app-icon style tile: rounded squircle, institution colour, Aalto initial, soft glow. */
+/** An app-icon style tile: rounded squircle, institution colour, Aalto initial. */
 function Tile({ party, size }: { party: string; size: "lg" | "md" }) {
   const c = PARTY[party];
   return (
     <span
-      className={`flex items-center justify-center rounded-[22%] font-display leading-none ${c.bg} ${c.fg} ${size === "lg" ? "h-24 w-24 text-[3.5rem] sm:h-28 sm:w-28 sm:text-[4rem]" : "h-14 w-14 text-[2.25rem] sm:h-16 sm:w-16 sm:text-[2.5rem]"}`}
-      style={{ boxShadow: `0 10px 36px color-mix(in srgb, ${c.css} 38%, transparent)` }}
+      className={`flex items-center justify-center rounded-[8%] font-display leading-none ${c.bg} ${c.fg} ${size === "lg" ? "h-24 w-24 text-[3.5rem] sm:h-28 sm:w-28 sm:text-[4rem]" : "h-14 w-14 text-[2.25rem] sm:h-16 sm:w-16 sm:text-[2.5rem]"}`}
     >
       {party}
     </span>
@@ -57,7 +56,7 @@ function Card({ card, index }: { card: CardData; index: number }) {
   return (
     <div
       style={{ "--c": lead.css } as CSSProperties}
-      className="group mx-3 flex h-80 w-60 shrink-0 flex-col rounded-md border border-paper/15 bg-paper/[0.04] p-6 transition-all duration-700 hover:border-(--c) hover:bg-paper/[0.08] sm:mx-4 sm:h-96 sm:w-72"
+      className="group mx-3 flex h-80 w-60 shrink-0 flex-col border border-paper/15 bg-paper/[0.04] p-6 transition-all duration-700 hover:border-(--c) hover:bg-paper/[0.08] sm:mx-4 sm:h-96 sm:w-72"
     >
       <div className="flex items-start justify-between text-paper/60 transition-colors duration-700 group-hover:text-paper">
         <span className="spaced">{card.label}</span>
@@ -169,7 +168,7 @@ export function Problem() {
           <figure className="mx-auto max-w-5xl">
             <div className="grid gap-4 md:grid-cols-[1fr_auto_1fr] md:items-stretch md:gap-5">
               {/* Heavy: everything settled one by one. */}
-              <div className="flex min-h-[19rem] flex-col rounded-[1.75rem] bg-signal-pastel p-7 text-ink sm:p-9">
+              <div className="flex min-h-[19rem] flex-col bg-signal-pastel p-7 text-ink sm:p-9">
                 <h3 className="spaced text-ink-soft">Settled one by one</h3>
                 <p className="font-display mt-6 text-[clamp(5.5rem,11vw,8.5rem)] leading-[0.9] tabular">
                   {usd(EXAMPLE.gross)}
@@ -191,7 +190,7 @@ export function Problem() {
               </div>
 
               {/* Light: only what is left after clearing. */}
-              <div className="flex min-h-[19rem] flex-col rounded-[1.75rem] bg-accent p-7 text-paper sm:p-9">
+              <div className="flex min-h-[19rem] flex-col bg-accent p-7 text-paper sm:p-9">
                 <h3 className="spaced">After clearing: net positions</h3>
                 <p className="font-display mt-6 text-[clamp(5.5rem,11vw,8.5rem)] leading-[0.9] tabular">
                   {usd(EXAMPLE.settled)}

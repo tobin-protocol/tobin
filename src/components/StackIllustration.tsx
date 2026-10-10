@@ -8,7 +8,7 @@ export type Layer = "institutions" | "tobin" | "soroban" | "stellar" | "sep31";
 /** One colour per layer, so a row and its picture speak the same language. */
 const COLOR: Record<Layer, string> = {
   institutions: "var(--color-paper)",
-  tobin: "var(--color-coral)",
+  tobin: "var(--color-sky)",
   soroban: "var(--color-signal)",
   stellar: "var(--color-accent-bright)",
   sep31: "var(--color-paper)",
@@ -62,7 +62,7 @@ function Slab({ cy, lit, color }: { cy: number; lit: boolean; color: string }) {
       {/* Lit: the same slab filled in its colour, fading in when it scrolls into view. */}
       <g
         className="transition-opacity duration-[900ms] ease-out motion-reduce:transition-none"
-        style={{ opacity: lit ? 1 : 0, filter: `drop-shadow(0 0 22px color-mix(in srgb, ${color} 55%, transparent))` }}
+        style={{ opacity: lit ? 1 : 0 }}
       >
         <polygon points={left} style={{ fill: `color-mix(in srgb, ${color} 62%, black)` }} />
         <polygon points={right} style={{ fill: `color-mix(in srgb, ${color} 42%, black)` }} />
@@ -114,7 +114,7 @@ export function StackIllustration({ active }: { active: Layer }) {
         <rect x={452} y={64} width={32} height={318} rx={16} fill="none" className="stroke-paper/45" strokeWidth={1.25} strokeDasharray="5 5" />
         <g
           className="transition-opacity duration-[900ms] ease-out motion-reduce:transition-none"
-          style={{ opacity: sepLit ? 1 : 0, filter: "drop-shadow(0 0 18px color-mix(in srgb, var(--color-paper) 40%, transparent))" }}
+          style={{ opacity: sepLit ? 1 : 0 }}
         >
           <rect x={452} y={64} width={32} height={318} rx={16} className="fill-paper" />
         </g>

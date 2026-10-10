@@ -67,7 +67,7 @@ export function Stellar() {
         </Reveal>
       </Container>
 
-      <div data-surface="dark" data-nav-tone="dark" className="bg-ink text-paper">
+      <div data-surface="dark" data-nav-tone="dark" className="bg-navy text-paper">
         {ROWS.map((r, i) => {
           const flip = i % 2 === 1;
           return (

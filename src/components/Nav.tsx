@@ -88,7 +88,7 @@ export function Nav() {
         {/* Call to action (md+) */}
         <a
           href={cta}
-          className="btn-press pointer-events-auto hidden h-12 items-center rounded-2xl bg-paper px-5 text-[0.9375rem] font-semibold text-ink shadow-[0_6px_24px_-8px_rgba(0,0,0,0.45)] ring-1 ring-ink/10 transition-colors hover:bg-white md:flex"
+          className="btn-press pointer-events-auto hidden h-12 items-center rounded-2xl border border-ink/20 bg-paper px-5 text-[0.9375rem] font-semibold text-ink transition-colors hover:bg-white md:flex"
         >
           Explore the Protocol
         </a>
@@ -117,7 +117,7 @@ export function Nav() {
           <m.div
             id="site-menu"
             data-surface="dark"
-            className="pointer-events-auto absolute right-4 top-[4.75rem] z-[60] w-[min(20rem,calc(100vw-2rem))] origin-top-right rounded-3xl border border-paper/15 bg-ink/95 p-3 text-paper shadow-[0_24px_48px_-16px_rgba(0,0,0,0.6)] backdrop-blur-xl sm:right-8 md:hidden"
+            className="pointer-events-auto absolute right-4 top-[4.75rem] z-[60] w-[min(20rem,calc(100vw-2rem))] origin-top-right rounded-3xl border border-paper/15 bg-ink/95 p-3 text-paper backdrop-blur-xl sm:right-8 md:hidden"
             initial={{ opacity: 0, scale: 0.94, y: -6 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.94, y: -6 }}

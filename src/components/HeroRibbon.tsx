@@ -104,7 +104,7 @@ function ClearingPill({ animated }: { animated: boolean }) {
           )}
         </AnimatePresence>
       </div>
-      <div className="inline-flex items-center gap-[2.5px] rounded-full border border-paper/30 bg-paper px-3.5 py-2 shadow-[0_0_20px_rgba(0,0,0,0.35)]">
+      <div className="inline-flex items-center gap-[2.5px] rounded-full border border-paper/30 bg-paper px-3.5 py-2">
         {bars.map((s, i) => (
           <m.div
             key={i}
@@ -154,7 +154,7 @@ export function HeroRibbon() {
         {/* Three stacked strokes: dark core, light rim, dark core = a 1px bevel. */}
         <g opacity="0.6">
           <use href="#ribbonPath" className="stroke-ink" strokeWidth="24" fill="none" strokeLinecap="round" strokeDasharray="0 19 82 200" />
-          <use href="#ribbonPath" stroke="rgb(246 244 238 / 0.18)" strokeWidth="26" fill="none" strokeLinecap="round" strokeDasharray="0 19 82 200" />
+          <use href="#ribbonPath" stroke="rgb(248 248 248 / 0.18)" strokeWidth="26" fill="none" strokeLinecap="round" strokeDasharray="0 19 82 200" />
           <use href="#ribbonPath" className="stroke-ink" strokeWidth="23" fill="none" strokeLinecap="round" strokeDasharray="0 19 82 200" />
         </g>
 
@@ -167,7 +167,7 @@ export function HeroRibbon() {
 
         {/* Pulse: a bright line that draws itself along the band every 15s. */}
         {!reduce && (
-          <use href="#ribbonPath" className="stroke-signal" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeDasharray="100 4000" style={{ filter: "blur(1.5px)" }}>
+          <use href="#ribbonPath" className="stroke-signal" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeDasharray="100 4000">
             <animate attributeName="stroke-dashoffset" from="2500" to="0" dur="15s" repeatCount="indefinite" />
           </use>
         )}
