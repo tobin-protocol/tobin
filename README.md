@@ -97,7 +97,7 @@ flowchart TB
 
 ## Deploying
 
-The site is hosted on Vercel (Next.js preset, Node 24). The Vercel project is connected to this repository, so every push to `main` deploys to production and other branches and pull requests get preview deployments. `NEXT_PUBLIC_SITE_URL` is set as a production environment variable in the Vercel project settings; change it there when the production domain changes.
+The site is hosted on Vercel (Next.js preset, Node 24). The Vercel project is connected to this repository, so every push to `main` deploys to production and other branches and pull requests get preview deployments. Production is served at **https://tobinprotocol.xyz** (`www.tobinprotocol.xyz` redirects to it), with the DNS records managed at the domain registrar as listed in the Vercel project's Domains settings. `NEXT_PUBLIC_SITE_URL` is set to that address as a production environment variable in the Vercel project settings; change it there if the production domain changes.
 
 ## Before you deploy
 
