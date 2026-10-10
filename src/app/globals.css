@@ -63,8 +63,7 @@
 
   /* Display face: Aalto Display (single weight, caps only, display sizes only). */
   --font-display:
-    "Aalto Display", Impact, "Haettenschweiler", "Arial Narrow Bold",
-    sans-serif;
+    "Aalto Display", "Arial Narrow", "Roboto Condensed", system-ui, sans-serif;
 
   --font-sans:
     -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
@@ -84,9 +83,12 @@
 }
 
 /*
- * Aalto Display ships with a "Personal Use Only" license. The file lives in
- * public/fonts (gitignored). If it is missing the stack above falls back to
- * Impact / Arial Narrow, so layout still holds.
+ * Aalto Display. The font file is NOT in this repository (public/fonts is
+ * gitignored): the copy used in development is the PERSONAL-USE licence, and a
+ * commercial licence is required before this site launches publicly. Put your
+ * licensed file at public/fonts/aalto-display-personal-use.otf (or change the
+ * src below). If it is missing, the stack above falls back to a neutral
+ * condensed/system sans (never Impact) and the layout still holds.
  */
 @font-face {
   font-family: "Aalto Display";

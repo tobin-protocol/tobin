@@ -40,5 +40,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Licensed display font (Personal Use Only). Obtain a web license before deploying; see README.
+
+# Licensed display font (Personal Use Only). Not redistributed; add your licensed copy locally. See README.
 /public/fonts/aalto-*
