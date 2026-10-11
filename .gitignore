@@ -1,0 +1,51 @@
+# Tobin Clearing Protocol: the SDK and CLI are planned in TypeScript (Node), so this covers
+# that stack plus secrets and editor/OS files. Add Soroban contract build output (target/)
+# when contracts are introduced.
+
+# dependencies
+node_modules/
+.pnpm-store/
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# build output
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# tests and coverage
+coverage/
+.nyc_output/
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# secrets and keys: never commit these (Stellar secret keys, tokens, certificates)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+
+# local caches
+.cache/
+.eslintcache
+.turbo/
+
+# editor and OS files
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
