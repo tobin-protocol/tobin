@@ -2,7 +2,7 @@
 
 The website for **Tobin Clearing Protocol**: an open clearing protocol that helps financial institutions net payment obligations and settle the resulting balances on Stellar.
 
-This repository contains **only the landing page**. The protocol itself (specification, contracts, SDK, CLI) is not in this repository.
+This repository contains **only the landing page**. The protocol itself (specification, contracts, SDK, CLI) is not in this repository; the protocol repository is [tobin-protocol/tobin](https://github.com/tobin-protocol/tobin).
 
 Built with Next.js (App Router), React, TypeScript, Tailwind CSS v4, [`motion`](https://motion.dev) and [`lenis`](https://lenis.darkroom.engineering) for smooth scroll.
 
@@ -151,4 +151,5 @@ The Apache licence does **not** cover the Tobin name, logo or brand assets (`bra
 ## Links
 
 - GitHub organisation: <https://github.com/tobin-protocol>
+- Protocol repository: <https://github.com/tobin-protocol/tobin>
 - Documentation: pending (no URL exists yet)
