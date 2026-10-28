@@ -1,0 +1,26 @@
+# Tobin MVP-1 core (baseline "Phase B": contract core). Experimental, local development and host tests only.
+# Not Tobin protocol v0.2 code; not for deployment; no network use is authorized (DB-13).
+[workspace]
+resolver = "2"
+members = ["token", "clearing"]
+
+[workspace.dependencies]
+# Same SDK version as the Phase A prototype and the D-06 spike (offline in the cargo cache).
+soroban-sdk = "29.0.0"
+
+# Smaller test builds on a nearly full disk; no effect on behavior.
+[profile.dev]
+debug = 0
+
+[profile.test]
+debug = 0
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true

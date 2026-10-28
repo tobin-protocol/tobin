@@ -1,0 +1,120 @@
+# Pull-request CI for the MVP-1 baseline. Read-only token, no secrets, no deployment, no publishing.
+# Required here: cargo fmt --check, Rust tests, TypeScript typecheck/tests/console build, documentation links, release-gate file validity,
+# and a clean working tree afterwards. Advisory (reported, not blocking): clippy warnings.
+# Heavier checks (contract Wasm, Wasm-mode tests, browser journey, dependency metadata) live in integration.yml.
+name: ci
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  RUSTUP_TOOLCHAIN: "1.96.0"
+  NODE_VERSION: "24.14.0"
+  CARGO_INCREMENTAL: "0"
+  CARGO_TERM_COLOR: never
+  STELLAR_NO_UPDATE_CHECK: "true"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  checks:
+    name: Rust, TypeScript and documentation checks
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install the pinned Rust toolchain
+        working-directory: core
+        run: |
+          rustup toolchain install "${RUSTUP_TOOLCHAIN}" --profile minimal --component rustfmt --component clippy --target wasm32v1-none
+          rustc --version
+          cargo --version
+
+      - name: Fetch Rust dependencies (locked)
+        working-directory: core
+        run: cargo fetch --locked
+
+      - name: cargo fmt --check (required)
+        working-directory: core
+        run: cargo fmt --all --check
+
+      - name: cargo clippy (errors fail; warnings are counted and advisory)
+        working-directory: core
+        run: |
+          cargo clippy --locked --workspace --all-targets 2>&1 | tee "$RUNNER_TEMP/clippy.log"
+          warnings="$(grep -c '^warning' "$RUNNER_TEMP/clippy.log" || true)"
+          echo "### cargo clippy: no errors; ${warnings} warning lines (advisory; -D warnings is not enforced)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Rust workspace tests (native)
+        working-directory: core
+        run: cargo test --locked --workspace 2>&1 | tee "$RUNNER_TEMP/rust-test.log"
+
+      - name: Summarize Rust tests
+        if: always()
+        run: node scripts/ci/cargo-test-summary.mjs "$RUNNER_TEMP/rust-test.log" "Rust workspace tests (native)"
+
+      - name: Build the Rust development bridge used by the TypeScript tests
+        working-directory: core
+        run: |
+          cargo build --locked -p tobin-clearing-v1 --example bridge
+          test -x "$GITHUB_WORKSPACE/core/target/debug/examples/bridge"
+          echo "TOBIN_BRIDGE_EXE=$GITHUB_WORKSPACE/core/target/debug/examples/bridge" >> "$GITHUB_ENV"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install TypeScript dependencies (lockfile, no install scripts)
+        working-directory: ts
+        run: |
+          node --version
+          npm ci --ignore-scripts
+
+      - name: TypeScript typecheck
+        working-directory: ts
+        run: npm run typecheck
+
+      - name: Console production build
+        working-directory: ts
+        run: npm run build:console
+
+      - name: TypeScript tests (with the Rust bridge)
+        working-directory: ts
+        run: npm test 2>&1 | tee "$RUNNER_TEMP/ts-test.log"
+
+      - name: Report skipped tests against the explicit allow-list
+        if: always()
+        run: |
+          node scripts/ci/test-skip-report.mjs "$RUNNER_TEMP/ts-test.log" \
+            --allow "the known-answer intent fixture is exactly what this code generates=known-answer fixtures are not part of this publication"
+
+      - name: Documentation links
+        run: node scripts/ci/check-links.mjs
+
+      - name: Release gate file validity and status (report; unresolved human gates stay visible and do not fail this job)
+        run: node scripts/release/check-gates.mjs
+
+      - name: Tracked files and the working tree must be unchanged by the build and tests
+        run: |
+          git diff --exit-code --stat
+          git status --porcelain --untracked-files=all > "$RUNNER_TEMP/status.txt"
+          if [ -s "$RUNNER_TEMP/status.txt" ]; then
+            echo "::error::the build or tests changed or created files in the working tree"
+            cat "$RUNNER_TEMP/status.txt"
+            exit 1
+          fi

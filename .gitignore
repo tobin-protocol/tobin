@@ -1,6 +1,5 @@
 # Tobin Clearing Protocol: the SDK and CLI are planned in TypeScript (Node), so this covers
-# that stack plus secrets and editor/OS files. Add Soroban contract build output (target/)
-# when contracts are introduced.
+# that stack plus secrets, editor/OS files and Soroban contract build output (target/).
 
 # dependencies
 node_modules/
@@ -49,3 +48,8 @@ secrets/
 *.swo
 .DS_Store
 Thumbs.db
+
+# MVP-1 local-only and generated paths (added during the MVP-1 migration)
+target/
+ts/test/browser/.badge-profile/
+phase-e-evidence/

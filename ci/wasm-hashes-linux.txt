@@ -1,0 +1,8 @@
+# Linux reference hashes for the contract Wasm built by integration.yml (stellar contract build, Rust 1.96.0, Stellar CLI 28.0.0, ubuntu-22.04).
+# status: PENDING
+# No hosted Linux build has been recorded. Do NOT edit the status to ENFORCED until all of the following are recorded here:
+#   1. the first hosted Linux build (run URL and commit SHA),
+#   2. a second independent hosted run of the same workflow on the same commit and pinned toolchain with identical hashes,
+#   3. the sizes and SHA-256 values of both artifacts,
+#   4. a note stating that the claim is scoped to this exact pinned environment (it is not a cross-OS claim).
+# size_bytes  sha256  file

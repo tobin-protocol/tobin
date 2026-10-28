@@ -1,0 +1,485 @@
+{
+  "schema_version": 1,
+  "purpose": "Machine-readable release gates for Tobin Clearing Protocol (experimental MVP-1). A gate is PASS only when this file records the required approval or evidence AND the cross-checks in scripts/release/check-gates.mjs agree with the repository state. Absent fields, existing files and zero scan findings never turn a gate into PASS. This file does not authorize anything by itself; publication always needs a recorded approval under gate G11.",
+  "statuses": [
+    "PASS",
+    "FAIL",
+    "BLOCKED",
+    "PENDING REVIEW",
+    "NOT VERIFIED"
+  ],
+  "targets": {
+    "private-remote-backup": "push of the branch to a verified PRIVATE remote",
+    "public-source-release": "making the source repository public",
+    "versioned-release": "a tagged or versioned release with artifacts",
+    "production": "production or real-value deployment (not intended by this project today)"
+  },
+  "gates": [
+    {
+      "id": "G01",
+      "name": "Copyright holder and licensor authority confirmed",
+      "category": "legal",
+      "kind": "legal",
+      "status": "PASS",
+      "required_for": [
+        "public-source-release",
+        "versioned-release",
+        "production"
+      ],
+      "blocked_by": "",
+      "evidence_required": "Written confirmation (registration documents or an explicit owner decision) of who actually holds the copyright and the authority to license, including any contributor or third-party material, reviewed by qualified counsel. A founder-provided assertion of ownership is not independent verification.",
+      "owner_or_reviewer": "project owner; qualified legal counsel",
+      "founder_assertion": "The founder states that they are the founder and claim ownership of the project (recorded as a founder-provided assertion). It has not been independently verified, and it does not verify other contributors' rights, third-party rights, or the provenance of every file. Tobin Protocol is not yet formally registered.",
+      "founder_decision": {
+        "recorded_on": "2026-10-28",
+        "decision": "Intended copyright holder designation: \"tobin-protocol\". Intended copyright notice: \"Copyright 2026 tobin-protocol\". Applied to the Apache-2.0 appendix of LICENSE.",
+        "nature": "founder decision; not a legal review; not a statement that a legal entity named tobin-protocol exists or is registered",
+        "gate_effect": "none: this gate stays BLOCKED until qualified legal review and confirmation of the rights holder are recorded under approval and legal_review"
+      },
+      "review_standard": "founder-attestation",
+      "valid_for": [
+        "public-source-release"
+      ],
+      "attestation": "The founder attests that they own or control the material they are licensing (the code and the documentation and specification they own or control in this repository) and that they know of no competing claim. \"tobin-protocol\" is a copyright designation, not a registered legal entity. No legal review was performed; contributor and third-party rights beyond the founder's knowledge are not verified.",
+      "approval": {
+        "approved_by": "Ebubechi Ihediwa",
+        "role": "founder",
+        "approved_on": "2026-10-28",
+        "decision_reference": "Founder instruction \"Execute the final Tobin MVP-1 publication task\" of 2026-10-28, transcribed into this file by the assistant at the founder's instruction; the founder's identity and statements are not independently verified."
+      }
+    },
+    {
+      "id": "G02",
+      "name": "Code licence scope confirmed",
+      "category": "owner",
+      "kind": "human",
+      "status": "PASS",
+      "required_for": [
+        "public-source-release",
+        "versioned-release",
+        "production"
+      ],
+      "blocked_by": "",
+      "evidence_required": "Owner decision recorded that Apache-2.0 is the intended licence for which files (the README currently says 'the code').",
+      "owner_or_reviewer": "project owner",
+      "founder_decision": {
+        "recorded_on": "2026-10-28",
+        "decision": "The code in this repository is intended to be licensed under the Apache License 2.0.",
+        "nature": "founder decision; not a legal review; documentation, specification, branding, dependencies and excluded materials are NOT covered by this decision",
+        "gate_effect": "none yet: PASS needs the founder to record their own named approval (approval.approved_by, approved_on, decision_reference) and a scope_decision naming which files are covered; no approval was entered on their behalf"
+      },
+      "valid_for": [
+        "public-source-release"
+      ],
+      "scope_decision": "Apache License 2.0 for the code and its tooling (core/, ts/, scripts/, ci/, .github/, release/), under the notice \"Copyright 2026 tobin-protocol\" in LICENSE. Third-party dependencies are not covered and keep their own licences.",
+      "approval": {
+        "approved_by": "Ebubechi Ihediwa",
+        "role": "founder",
+        "approved_on": "2026-10-28",
+        "decision_reference": "Founder instruction \"Execute the final Tobin MVP-1 publication task\" of 2026-10-28, transcribed into this file by the assistant at the founder's instruction; the founder's identity and statements are not independently verified."
+      }
+    },
+    {
+      "id": "G03",
+      "name": "Documentation and specification licence scope decided",
+      "category": "owner",
+      "kind": "human",
+      "status": "PASS",
+      "required_for": [
+        "public-source-release",
+        "versioned-release",
+        "production"
+      ],
+      "blocked_by": "",
+      "evidence_required": "Owner decision on the licence (or explicit reservation) for docs/ and the baseline specification, reflected in README and CONTRIBUTING.",
+      "owner_or_reviewer": "project owner",
+      "valid_for": [
+        "public-source-release"
+      ],
+      "scope_decision": "Apache License 2.0 also for the documentation and specification (docs/ and the baseline specification), to the extent the founder owns or controls them. The Tobin name, logo and brand assets are not covered.",
+      "approval": {
+        "approved_by": "Ebubechi Ihediwa",
+        "role": "founder",
+        "approved_on": "2026-10-28",
+        "decision_reference": "Founder instruction \"Execute the final Tobin MVP-1 publication task\" of 2026-10-28, transcribed into this file by the assistant at the founder's instruction; the founder's identity and statements are not independently verified."
+      }
+    },
+    {
+      "id": "G04",
+      "name": "Dependency and attribution review completed to an agreed standard",
+      "category": "legal",
+      "kind": "hybrid",
+      "status": "BLOCKED",
+      "required_for": [
+        "versioned-release",
+        "production"
+      ],
+      "blocked_by": "Full attribution review deferred for the source-only release by PC-1. Still BLOCKED and still required for versioned-release and production: locked-version metadata for 20 Rust crates was not available offline, 31 located entries are flagged, 2 workspace crates have no licence field, licence texts were not read.",
+      "evidence_required": "Agreed review standard; completed inventory including licence texts and notices for crates that are redistributed; list of crates actually linked into any distributed Wasm.",
+      "owner_or_reviewer": "project owner; qualified legal counsel"
+    },
+    {
+      "id": "G05",
+      "name": "NOTICE applicability assessed against actual materials and distribution",
+      "category": "legal",
+      "kind": "legal",
+      "status": "PASS",
+      "required_for": [
+        "public-source-release",
+        "versioned-release",
+        "production"
+      ],
+      "blocked_by": "",
+      "evidence_required": "Recorded assessment with basis (notice_decision: required or not-required, plus basis) after G01 and G04 inputs exist. The absence or presence of a NOTICE file is not evidence.",
+      "owner_or_reviewer": "project owner; qualified legal counsel",
+      "review_standard": "founder-attestation",
+      "valid_for": [
+        "public-source-release"
+      ],
+      "notice_decision": {
+        "value": "not-required",
+        "basis": "Source-only publication: no third-party source is vendored, no binaries, Wasm or bundles are distributed, and dependencies are only named in lockfiles; so no third-party notice is carried by this publication. This is the founder's assessment, not a legal review, and must be reassessed before any binary, Wasm or packaged release. No NOTICE file is created."
+      },
+      "approval": {
+        "approved_by": "Ebubechi Ihediwa",
+        "role": "founder",
+        "approved_on": "2026-10-28",
+        "decision_reference": "Founder instruction \"Execute the final Tobin MVP-1 publication task\" of 2026-10-28, transcribed into this file by the assistant at the founder's instruction; the founder's identity and statements are not independently verified."
+      }
+    },
+    {
+      "id": "G06",
+      "name": "Security reporting contact and policy decision completed",
+      "category": "security",
+      "kind": "human",
+      "status": "PASS",
+      "required_for": [
+        "public-source-release",
+        "versioned-release",
+        "production"
+      ],
+      "blocked_by": "",
+      "evidence_required": "Owner-approved contact channel and policy, adopted as SECURITY.md without PENDING or DRAFT markers.",
+      "owner_or_reviewer": "project owner",
+      "valid_for": [
+        "public-source-release"
+      ],
+      "channel_verification": {
+        "verified_on": "2026-10-28",
+        "method": "authenticated GitHub API: GET repos/tobin-protocol/tobin/private-vulnerability-reporting returned {\"enabled\":true}",
+        "not_verified": "An end-to-end test report was not submitted; no response-time or other commitment exists."
+      },
+      "evidence": {
+        "description": "SECURITY.md adopted with GitHub private vulnerability reporting as the channel and the owner as monitor. No address was invented and no SLA is promised."
+      },
+      "approval": {
+        "approved_by": "Ebubechi Ihediwa",
+        "role": "founder",
+        "approved_on": "2026-10-28",
+        "decision_reference": "Founder confirmation of 2026-10-28 (task \"Finish the Tobin MVP-1 source publication\"): enabled private vulnerability reporting and personally monitors reports; transcribed by the assistant at the founder's instruction, not independently verified."
+      }
+    },
+    {
+      "id": "G07",
+      "name": "Public-testnet claims reconciled against evidence that may legitimately be published",
+      "category": "evidence",
+      "kind": "human",
+      "status": "PASS",
+      "required_for": [
+        "public-source-release",
+        "versioned-release",
+        "production"
+      ],
+      "blocked_by": "",
+      "evidence_required": "Each public-testnet sentence in README and docs either backed by evidence the owner has approved for publication (for example a sanitized summary) or reworded; the raw testnet evidence stays unpublished unless separately approved.",
+      "owner_or_reviewer": "project owner",
+      "valid_for": [
+        "public-source-release"
+      ],
+      "testnet_claims_decision": "retain-qualified-author-reported",
+      "evidence": {
+        "description": "No public evidence for the testnet run is published. Only wording that says the run is author-reported, its report and raw evidence are unpublished and it cannot be independently verified is retained (README, CONTRIBUTING, core/README). No transaction hashes, contract identifiers or evidence details are published."
+      },
+      "approval": {
+        "approved_by": "Ebubechi Ihediwa",
+        "role": "founder",
+        "approved_on": "2026-10-28",
+        "decision_reference": "Founder instruction \"Execute the final Tobin MVP-1 publication task\" of 2026-10-28, transcribed into this file by the assistant at the founder's instruction; the founder's identity and statements are not independently verified."
+      }
+    },
+    {
+      "id": "G08",
+      "name": "Excluded authentication fixtures and their TEST-ONLY seeds reviewed before any reconsideration",
+      "category": "legal",
+      "kind": "legal",
+      "status": "PASS",
+      "required_for": [
+        "public-source-release",
+        "versioned-release",
+        "production"
+      ],
+      "blocked_by": "",
+      "evidence_required": "Recorded fixtures_decision (remain-excluded or reconsidered-and-approved) with attribution review and a disclosure review of the test seeds. The fixtures currently remain excluded and no reconsideration has been requested.",
+      "owner_or_reviewer": "project owner; qualified legal counsel; security reviewer",
+      "review_standard": "founder-attestation",
+      "valid_for": [
+        "public-source-release"
+      ],
+      "fixtures_decision": "remain-excluded",
+      "approval": {
+        "approved_by": "Ebubechi Ihediwa",
+        "role": "founder",
+        "approved_on": "2026-10-28",
+        "decision_reference": "Founder instruction \"Execute the final Tobin MVP-1 publication task\" of 2026-10-28, transcribed into this file by the assistant at the founder's instruction; the founder's identity and statements are not independently verified."
+      }
+    },
+    {
+      "id": "G09",
+      "name": "Source tree reviewed for secrets, excluded evidence, private logs and unsuitable archives",
+      "category": "security",
+      "kind": "hybrid",
+      "status": "PASS",
+      "required_for": [
+        "private-remote-backup",
+        "public-source-release",
+        "versioned-release",
+        "production"
+      ],
+      "blocked_by": "",
+      "evidence_required": "A clean automated scan (computed by scripts/release/check-gates.mjs on the exact tree) AND a recorded human sign-off. A clean scan alone never passes this gate.",
+      "owner_or_reviewer": "project owner or delegate",
+      "valid_for": [
+        "private-remote-backup",
+        "public-source-release"
+      ],
+      "evidence": {
+        "description": "Automated scan of the exact tree is recomputed by the checker on every run (105 files, 0 findings at sign-off); local history scan of 2 commits and 89 blobs found no secrets, keys, tokens, emails or local paths and no excluded material. Human sign-off recorded under approval."
+      },
+      "approval": {
+        "approved_by": "Ebubechi Ihediwa",
+        "role": "founder",
+        "approved_on": "2026-10-28",
+        "decision_reference": "Founder instruction \"Execute the final Tobin MVP-1 publication task\" of 2026-10-28, transcribed into this file by the assistant at the founder's instruction; the founder's identity and statements are not independently verified."
+      }
+    },
+    {
+      "id": "G10",
+      "name": "Release artifacts and provenance reviewed",
+      "category": "automation",
+      "kind": "hybrid",
+      "status": "BLOCKED",
+      "required_for": [
+        "versioned-release",
+        "production"
+      ],
+      "blocked_by": "No hosted build exists; Wasm byte-reproducibility across independent Linux runs is not established; no artifact provenance process exists.",
+      "evidence_required": "Hosted build record for the exact commit, matching Wasm hashes across independent runs on the pinned toolchain, and a recorded review of the artifact list and hashes.",
+      "owner_or_reviewer": "project owner"
+    },
+    {
+      "id": "G11",
+      "name": "An authorized person explicitly approves the intended publication action",
+      "category": "owner",
+      "kind": "human",
+      "status": "PASS",
+      "required_for": [
+        "private-remote-backup",
+        "public-source-release",
+        "versioned-release",
+        "production"
+      ],
+      "blocked_by": "",
+      "evidence_required": "Recorded approval that names the exact action (for example 'push branch X to private remote Y') and the approver.",
+      "owner_or_reviewer": "project owner",
+      "valid_for": [
+        "private-remote-backup",
+        "public-source-release"
+      ],
+      "approval": {
+        "approved_by": "Ebubechi Ihediwa",
+        "role": "founder",
+        "approved_on": "2026-10-28",
+        "decision_reference": "Founder instruction \"Execute the final Tobin MVP-1 publication task\" of 2026-10-28, transcribed into this file by the assistant at the founder's instruction; the founder's identity and statements are not independently verified.",
+        "approved_action": "Commit the reviewed MVP-1 changes on migrate/mvp-1 in two commits (formatting-only first) with the existing author identity and no AI attribution, then push only the branch migrate/mvp-1 to origin (tobin-protocol/tobin, understood to be public) without merging into main, force-pushing, tagging, creating a release or changing repository visibility."
+      }
+    },
+    {
+      "id": "G12",
+      "name": "Dependency standard for source-only publication accepted",
+      "category": "legal",
+      "kind": "hybrid",
+      "status": "PASS",
+      "required_for": [
+        "public-source-release"
+      ],
+      "valid_for": [
+        "public-source-release"
+      ],
+      "blocked_by": "",
+      "evidence_required": "Founder approval of the source-only standard (only source and lockfiles are published; no vendored code, binaries, Wasm or bundles; dependency licence metadata recorded with its limits; full review before any binary or packaged release) and the recorded metadata inventory.",
+      "owner_or_reviewer": "project owner",
+      "evidence": {
+        "description": "ci/dependency-baseline.csv and scripts/ci/dependency-report.mjs record 214 registry crates and 2 workspace crates in core/Cargo.lock and 3 npm packages: 194 Rust entries with licence metadata for the exact locked version, 2 partially assessed, 18 unassessed, 2 workspace crates without a licence field, 31 located entries flagged for interpretation, 20 registry crates whose metadata was not locatable offline. Licence texts were not read and compatibility was not assessed. This is a metadata inventory, not a legal review."
+      },
+      "approval": {
+        "approved_by": "Ebubechi Ihediwa",
+        "role": "founder",
+        "approved_on": "2026-10-28",
+        "decision_reference": "Founder instruction \"Execute the final Tobin MVP-1 publication task\" of 2026-10-28, transcribed into this file by the assistant at the founder's instruction; the founder's identity and statements are not independently verified."
+      }
+    },
+    {
+      "id": "E01",
+      "name": "Pull-request workflow (ci.yml) passed on a GitHub-hosted runner for the exact commit",
+      "category": "automation",
+      "kind": "automated",
+      "status": "NOT VERIFIED",
+      "required_for": [
+        "versioned-release",
+        "production"
+      ],
+      "blocked_by": "No hosted run exists; hosted execution needs a push or pull request to a verified destination, which has not been authorized. Deferred for the source-only public release by PC-1 (recommended follow-up); still required for versioned-release and production.",
+      "evidence_required": "Hosted run URL and the 40-character commit SHA it tested.",
+      "owner_or_reviewer": "maintainer"
+    },
+    {
+      "id": "E02",
+      "name": "Integration workflow (integration.yml) passed on a GitHub-hosted runner for the exact commit",
+      "category": "automation",
+      "kind": "automated",
+      "status": "NOT VERIFIED",
+      "required_for": [
+        "versioned-release",
+        "production"
+      ],
+      "blocked_by": "No hosted run exists.",
+      "evidence_required": "Hosted run URL and the 40-character commit SHA it tested.",
+      "owner_or_reviewer": "maintainer"
+    },
+    {
+      "id": "E03",
+      "name": "Browser journey passed on the hosted Linux runner at 1200 px and 420 px with the browser sandbox enabled",
+      "category": "automation",
+      "kind": "automated",
+      "status": "NOT VERIFIED",
+      "required_for": [
+        "versioned-release",
+        "production"
+      ],
+      "blocked_by": "No hosted run exists; Chrome sandbox behaviour on the hosted image is unverified.",
+      "evidence_required": "Hosted run URL and commit SHA showing both widths complete.",
+      "owner_or_reviewer": "maintainer"
+    },
+    {
+      "id": "E04",
+      "name": "Wasm hashes identical across two independent hosted Linux runs on the pinned toolchain",
+      "category": "automation",
+      "kind": "automated",
+      "status": "NOT VERIFIED",
+      "required_for": [
+        "versioned-release",
+        "production"
+      ],
+      "blocked_by": "No hosted Linux build exists; the recorded hashes are from Windows only.",
+      "evidence_required": "Two run URLs, one commit SHA, and the sizes and SHA-256 values of both artifacts, recorded in ci/wasm-hashes-linux.txt.",
+      "owner_or_reviewer": "maintainer"
+    },
+    {
+      "id": "E05",
+      "name": "Branch protection and required status checks verified as active",
+      "category": "automation",
+      "kind": "automated",
+      "status": "NOT VERIFIED",
+      "required_for": [
+        "versioned-release",
+        "production"
+      ],
+      "blocked_by": "Repository settings have not been inspected or changed; the destination repository is unverified. Deferred for the source-only public release by PC-1 (recommended follow-up); still required for versioned-release and production.",
+      "evidence_required": "Independent verification (settings export or API response) of the items in release/GITHUB-SETTINGS-CHECKLIST.md.",
+      "owner_or_reviewer": "repository administrator"
+    },
+    {
+      "id": "P01",
+      "name": "Independent security review completed",
+      "category": "security",
+      "kind": "human",
+      "status": "BLOCKED",
+      "required_for": [
+        "production"
+      ],
+      "blocked_by": "No independent review exists; all evidence is from the implementing author.",
+      "evidence_required": "Report from an independent reviewer covering authorization, replay, accounting invariants, storage and upgrade behaviour.",
+      "owner_or_reviewer": "independent reviewer"
+    },
+    {
+      "id": "P02",
+      "name": "Wallet and multisig signing verification completed",
+      "category": "security",
+      "kind": "human",
+      "status": "BLOCKED",
+      "required_for": [
+        "production"
+      ],
+      "blocked_by": "MVP-1 used a local signing tool and simulated authorizations only.",
+      "evidence_required": "Recorded test evidence with real wallets and multisig accounts on the target network.",
+      "owner_or_reviewer": "project owner; independent reviewer"
+    },
+    {
+      "id": "P03",
+      "name": "Measured resources, fees and storage lifetimes on the target network",
+      "category": "evidence",
+      "kind": "human",
+      "status": "NOT VERIFIED",
+      "required_for": [
+        "production"
+      ],
+      "blocked_by": "Resources are declared, not measured; storage lifetimes are placeholders.",
+      "evidence_required": "Measured results at maximum documented sizes and an agreed storage-lifetime policy.",
+      "owner_or_reviewer": "project owner"
+    },
+    {
+      "id": "P04",
+      "name": "Fuzzing and extended adversarial testing completed",
+      "category": "security",
+      "kind": "human",
+      "status": "NOT VERIFIED",
+      "required_for": [
+        "production"
+      ],
+      "blocked_by": "Only seeded property tests and author-run mutation checks exist.",
+      "evidence_required": "Fuzzing campaign and adversarial test results reviewed by someone other than the implementing author.",
+      "owner_or_reviewer": "independent reviewer"
+    },
+    {
+      "id": "P05",
+      "name": "Legal and compliance review for real-value use",
+      "category": "legal",
+      "kind": "legal",
+      "status": "BLOCKED",
+      "required_for": [
+        "production"
+      ],
+      "blocked_by": "Real-value use is not intended and has not been reviewed.",
+      "evidence_required": "Qualified legal and compliance review for the jurisdictions and activities involved.",
+      "owner_or_reviewer": "qualified legal counsel"
+    }
+  ],
+  "policy_changes": [
+    {
+      "id": "PC-1",
+      "title": "Experimental source-only publication standard",
+      "description": "For the first public source release of the experimental MVP-1 only: (a) legal-kind gates G01, G05 and G08 may be approved on the founder's own attestation (review_standard \"founder-attestation\") instead of a qualified counsel review; (b) the full dependency attribution gate G04 and the hosted-evidence gates E01 and E05 are removed from the public-source-release requirements and replaced by the source-only dependency standard G12; (c) each approval made under this standard is valid only for public-source-release (valid_for), so versioned-release and production keep their full requirements and need fresh approvals. No legal review took place and none is claimed; hosted CI has not run; branch protection is unverified.",
+      "limits": [
+        "Founder attestation is not independent verification and not legal advice.",
+        "The weaker assurance is accepted by the founder for an experimental source-only release and does not apply to binaries, Wasm releases, packages or any real-value use.",
+        "Hosted CI and branch protection remain recommended follow-ups (E01, E05) and are still required for versioned-release and production."
+      ],
+      "approval": {
+        "approved_by": "Ebubechi Ihediwa",
+        "role": "founder",
+        "approved_on": "2026-10-28",
+        "decision_reference": "Founder instruction \"Execute the final Tobin MVP-1 publication task\" of 2026-10-28, transcribed into this file by the assistant at the founder's instruction; the founder's identity and statements are not independently verified."
+      }
+    }
+  ]
+}

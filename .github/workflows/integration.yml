@@ -1,0 +1,247 @@
+# Integration checks: contract Wasm build, Wasm-mode tests, Wasm hash REPORT (enforced only after two matching hosted Linux runs are recorded),
+# browser journey, dependency metadata REPORT.
+# Runs on pushes to main, weekly (to notice runner/Chrome/toolchain drift), manually, and, for the dependency report only,
+# on pull requests that touch dependency files. Read-only token, no secrets, no deployment, no publishing.
+name: integration
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - core/Cargo.lock
+      - core/**/Cargo.toml
+      - ts/package.json
+      - ts/package-lock.json
+      - ci/**
+      - scripts/ci/**
+      - .github/workflows/integration.yml
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  RUSTUP_TOOLCHAIN: "1.96.0"
+  NODE_VERSION: "24.14.0"
+  CARGO_INCREMENTAL: "0"
+  CARGO_TERM_COLOR: never
+  STELLAR_NO_UPDATE_CHECK: "true"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  dependency-report:
+    name: Dependency licence metadata report (report-only)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install the pinned Rust toolchain
+        working-directory: core
+        run: |
+          rustup toolchain install "${RUSTUP_TOOLCHAIN}" --profile minimal
+          cargo --version
+
+      - name: Fetch Rust dependencies (locked); manifests are then read from the local Cargo cache
+        working-directory: core
+        run: cargo fetch --locked
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Dependency metadata report
+        run: node scripts/ci/dependency-report.mjs "$RUNNER_TEMP/dependency-report.csv"
+
+      - name: Upload the dependency report
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dependency-report
+          path: ${{ runner.temp }}/dependency-report.csv
+          retention-days: 14
+          if-no-files-found: error
+
+  wasm:
+    name: Contract Wasm build, Wasm-mode tests and hash report
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install the pinned Rust toolchain
+        working-directory: core
+        run: |
+          rustup toolchain install "${RUSTUP_TOOLCHAIN}" --profile minimal --target wasm32v1-none
+          rustc --version
+
+      - name: Install Stellar CLI 28.0.0 from the official release, verified by SHA-256 and commit
+        env:
+          STELLAR_CLI_VERSION: "28.0.0"
+          STELLAR_CLI_COMMIT: "300aaf69ab100536678bdb641428b06f06b318ea"
+          STELLAR_CLI_SHA256: "207544486734fccb4df1afc4a7745478f9f1e21688b2f9506f0ef36f60ce3fdc"
+        run: |
+          asset="stellar-cli-${STELLAR_CLI_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+          mkdir -p "$RUNNER_TEMP/stellar-dl" "$RUNNER_TEMP/stellar-bin"
+          curl --proto '=https' --tlsv1.2 -fsSL -o "$RUNNER_TEMP/stellar-dl/${asset}" "https://github.com/stellar/stellar-cli/releases/download/v${STELLAR_CLI_VERSION}/${asset}"
+          echo "${STELLAR_CLI_SHA256}  $RUNNER_TEMP/stellar-dl/${asset}" | sha256sum --check --strict -
+          tar -xzf "$RUNNER_TEMP/stellar-dl/${asset}" -C "$RUNNER_TEMP/stellar-bin" stellar
+          "$RUNNER_TEMP/stellar-bin/stellar" --version | tee "$RUNNER_TEMP/stellar-version.txt"
+          grep -q "stellar ${STELLAR_CLI_VERSION} (${STELLAR_CLI_COMMIT})" "$RUNNER_TEMP/stellar-version.txt"
+          echo "$RUNNER_TEMP/stellar-bin" >> "$GITHUB_PATH"
+
+      - name: Fetch Rust dependencies (locked)
+        working-directory: core
+        run: cargo fetch --locked
+
+      - name: Build the contract Wasm (stellar contract build)
+        working-directory: core
+        run: |
+          stellar contract build --locked --manifest-path Cargo.toml --out-dir "$RUNNER_TEMP/wasm" --config-dir "$RUNNER_TEMP/stellar-config"
+          ls -l "$RUNNER_TEMP/wasm"
+
+      - name: Rebuild the Wasm in a second target directory (same runner; determinism evidence only)
+        working-directory: core
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/target-rebuild
+        run: stellar contract build --locked --manifest-path Cargo.toml --out-dir "$RUNNER_TEMP/wasm-rebuild" --config-dir "$RUNNER_TEMP/stellar-config"
+
+      - name: Wasm hash report (report-only until ci/wasm-hashes-linux.txt declares ENFORCED; Windows record is historical)
+        run: node scripts/ci/wasm-hash-report.mjs "$RUNNER_TEMP/wasm" "$RUNNER_TEMP/wasm/hashes.txt" --rebuild "$RUNNER_TEMP/wasm-rebuild"
+
+      - name: Rust tests against the compiled Wasm
+        working-directory: core
+        env:
+          TOBIN_CLEARING_WASM: ${{ runner.temp }}/wasm/tobin_clearing_v1.wasm
+          TOBIN_TOKEN_WASM: ${{ runner.temp }}/wasm/tobin_test_token.wasm
+        run: cargo test --locked -p tobin-clearing-v1 2>&1 | tee "$RUNNER_TEMP/wasm-test.log"
+
+      - name: Summarize Wasm-mode tests
+        if: always()
+        run: node scripts/ci/cargo-test-summary.mjs "$RUNNER_TEMP/wasm-test.log" "Rust tests against the compiled Wasm"
+
+      - name: Working tree must be unchanged
+        run: |
+          git status --porcelain --untracked-files=all > "$RUNNER_TEMP/status.txt"
+          if [ -s "$RUNNER_TEMP/status.txt" ]; then
+            echo "::error::the build or tests changed or created files in the working tree"
+            cat "$RUNNER_TEMP/status.txt"
+            exit 1
+          fi
+
+      - name: Upload the built Wasm and hashes
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: wasm-artifacts
+          path: |
+            ${{ runner.temp }}/wasm/tobin_clearing_v1.wasm
+            ${{ runner.temp }}/wasm/tobin_test_token.wasm
+            ${{ runner.temp }}/wasm/hashes.txt
+          retention-days: 7
+          if-no-files-found: error
+
+  browser:
+    name: Browser journey at 1200 px and 420 px
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install the pinned Rust toolchain
+        working-directory: core
+        run: |
+          rustup toolchain install "${RUSTUP_TOOLCHAIN}" --profile minimal
+          cargo --version
+
+      - name: Fetch Rust dependencies (locked)
+        working-directory: core
+        run: cargo fetch --locked
+
+      - name: Build the Rust development bridge
+        working-directory: core
+        run: |
+          cargo build --locked -p tobin-clearing-v1 --example bridge
+          test -x "$GITHUB_WORKSPACE/core/target/debug/examples/bridge"
+          echo "TOBIN_BRIDGE_EXE=$GITHUB_WORKSPACE/core/target/debug/examples/bridge" >> "$GITHUB_ENV"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install TypeScript dependencies (lockfile, no install scripts)
+        working-directory: ts
+        run: npm ci --ignore-scripts
+
+      - name: Console production build
+        working-directory: ts
+        run: npm run build:console
+
+      - name: Locate the preinstalled Google Chrome
+        run: |
+          chrome="$(command -v google-chrome || true)"
+          if [ -z "$chrome" ]; then
+            echo "::error::google-chrome was not found on this runner image"
+            exit 1
+          fi
+          "$chrome" --version
+          echo "TOBIN_BROWSER=$chrome" >> "$GITHUB_ENV"
+
+      - name: Browser journey at 1200 px
+        working-directory: ts
+        env:
+          TOBIN_WIDTH: "1200"
+        run: node test/browser/journey.mjs "$RUNNER_TEMP/journey-1200" 2>&1 | tee "$RUNNER_TEMP/journey-1200.log"
+
+      - name: Browser journey at 420 px
+        working-directory: ts
+        env:
+          TOBIN_WIDTH: "420"
+        run: node test/browser/journey.mjs "$RUNNER_TEMP/journey-420" 2>&1 | tee "$RUNNER_TEMP/journey-420.log"
+
+      - name: Journey summary
+        if: always()
+        run: |
+          {
+            echo "### Browser journey"
+            for w in 1200 420; do
+              echo "- ${w} px: $(tail -n 1 "$RUNNER_TEMP/journey-${w}.log" 2>/dev/null || echo 'did not run')"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Stop any leftover browser process
+        if: always()
+        run: pkill -f -- "--user-data-dir=$RUNNER_TEMP/journey" || true
+
+      - name: Upload journey logs and screenshots on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: journey-failure
+          path: |
+            ${{ runner.temp }}/journey-*.log
+            ${{ runner.temp }}/journey-*/*.png
+          retention-days: 7
+          if-no-files-found: warn
