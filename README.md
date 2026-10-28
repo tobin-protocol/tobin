@@ -81,18 +81,18 @@ Tobin is not an anchor, a custodian, a payment processor, a DEX or liquidity poo
 
 MVP-1 was the milestone for putting Tobin's core clearing design into practice and testing whether the ideas work beyond theory. It is distinct from the broader protocol described above and from its draft specification, and it makes no claim of conformance to that specification.
 
-- **What was built:** the core clearing lifecycle (sessions, obligations, net settlement proposals, approvals and atomic settlement) as Soroban contracts written in Rust, a clearing contract and a capped-supply test token, in [core](core/README.md); and, in [ts](ts/README.md), a TypeScript netting engine and SDK, a local sandbox Console, and a local tool for signing authorization entries with disposable test keys.
-- **How it was tested:** (1) automated tests in the Soroban test host and a local sandbox Console journey, which can be re-run from this repository with the setup described in [core/README.md](core/README.md) and [ts/README.md](ts/README.md); (2) a stage on a disposable local network, documented in [docs/reports/MVP-1-MILESTONE-8-STAGE-B-REPORT.md](docs/reports/MVP-1-MILESTONE-8-STAGE-B-REPORT.md), whose driver scripts are not part of this repository; and (3) a vertical slice on the Stellar public testnet with disposable accounts and test assets, whose report and raw evidence are not published, so it cannot be independently checked from this repository.
+- **What was built:** the core clearing lifecycle (sessions, obligations, net settlement proposals, approvals and atomic settlement) as Soroban contracts written in Rust, a clearing contract and a capped-supply test token, in [contracts](contracts/README.md); and, in [packages/mvp1-sdk](packages/mvp1-sdk/README.md), a TypeScript netting engine and SDK, a local sandbox Console (`apps/web-console`, Next.js), and a local tool for signing authorization entries with disposable test keys.
+- **How it was tested:** (1) automated tests in the Soroban test host and a local sandbox Console journey, which can be re-run from this repository with the setup described in [contracts/README.md](contracts/README.md) and [packages/mvp1-sdk/README.md](packages/mvp1-sdk/README.md); (2) a stage on a disposable local network, documented in [docs/reports/MVP-1-MILESTONE-8-STAGE-B-REPORT.md](docs/reports/MVP-1-MILESTONE-8-STAGE-B-REPORT.md), whose driver scripts are not part of this repository; and (3) a vertical slice on the Stellar public testnet with disposable accounts and test assets, whose report and raw evidence are not published, so it cannot be independently checked from this repository.
 - **Outcome:** within MVP-1's defined scope (small sessions and one test token), the lifecycle passed the documented MVP-1 test scenarios. Obligations were recorded, net positions were calculated, participants approved a settlement proposal, and the net amounts of the test token moved atomically in a single settlement. The local-network stage covered wrong-signer, tampered-argument, wrong-network, expired, missing-authorization and replayed-authorization cases, and verified that a failed settlement was rolled back; the public-testnet run demonstrated the settlement flow, including successful settlement and a failed settlement that left balances unchanged. This completed the intended experimental validation milestone, roadmap milestone M2 for the experimental scope. It tested the clearing mechanics; it did not prove the economic thesis or any real-world use case.
 - **Limits:** MVP-1 is experimental and not production-ready; it has not been independently audited, and its evidence comes from the implementing author only; it is not the full protocol (it has no deadlines, abort, default or recovery handling, collateral or Merkle commitments); it is not intended for real-value settlement; and it does not show wallet or multisig compatibility, maximum-size capacity, maximum resource consumption or general fee behaviour. The Console is a local sandbox with simulated authorizations. The public-testnet results rest on an unpublished report and cannot be independently verified from this repository.
 
-Developer notes are in [core/README.md](core/README.md) and [ts/README.md](ts/README.md); see [CONTRIBUTING.md](CONTRIBUTING.md) before changing it.
+Developer notes are in [contracts/README.md](contracts/README.md) and [packages/mvp1-sdk/README.md](packages/mvp1-sdk/README.md); see [CONTRIBUTING.md](CONTRIBUTING.md) before changing it.
 
 ## Development status
 
 | | |
 | --- | --- |
-| **Exists today** | This repository (licence, this README, [contribution guidelines](CONTRIBUTING.md) and the experimental [MVP-1](#experimental-mvp-1) source) and a separate public repository for the project's landing page. |
+| **Exists today** | This repository (licence, this README, [contribution guidelines](CONTRIBUTING.md) and the experimental [MVP-1](#experimental-mvp-1) source) and the project's landing page in [`apps/landing/`](apps/landing/README.md) (imported with its history from the separate `tobin-landing` repository). |
 | **Validated by MVP-1** | The core clearing lifecycle, within MVP-1's scope of small sessions and one test token: automated tests in the Soroban test host and a Stellar public-testnet run with disposable accounts and test assets (its report and raw evidence are unpublished). This completes roadmap milestone M2 for the experimental scope only. Experimental; evidence from the implementing author only; no independent audit. |
 | **Not built** | The rest of the broader protocol: deadlines, abort, default and recovery handling, collateral, Merkle commitments, an institutional adapter, SDK and CLI packages for the broader protocol (none has been published; only the experimental MVP-1 SDK source exists), wallet or multisig integration, production deployment and a conformance suite. |
 | **Not yet validated** | Whether real Stellar institutional payment flows are interconnected enough for multilateral clearing to reduce gross settlement. The first planned validation step uses historical Stellar ledger data and ends in an explicit go, modify or stop decision. That analysis has not been done; MVP-1 tested the clearing mechanics, not this question. |
@@ -125,21 +125,21 @@ Planned broader-protocol package names are `@tobin-protocol/types`, `@tobin-prot
 | --- | --- |
 | This README | The single source for the concepts, scope, status and milestones above |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to give feedback or propose a change |
-| [core/README.md](core/README.md) | MVP-1 Soroban contracts: layout, implemented behaviour and test commands |
-| [ts/README.md](ts/README.md) | MVP-1 TypeScript engine, SDK and local Console: layout and commands |
+| [contracts/README.md](contracts/README.md) | MVP-1 Soroban contracts: layout, implemented behaviour and test commands |
+| [packages/mvp1-sdk/README.md](packages/mvp1-sdk/README.md) | MVP-1 TypeScript engine, SDK and local bridge client: layout and commands (the local Console is in `apps/web-console/`) |
 | [LICENSE](LICENSE) | Apache License 2.0, for the code, documentation and specification the project owns or controls (see [Licence](#licence)) |
 | <https://tobinprotocol.xyz> | The project site |
-| <https://github.com/tobin-protocol/tobin-landing> | Source of the project site |
+| [apps/landing/README.md](apps/landing/README.md) | Source of the project site (a Next.js app; imported from the earlier `tobin-landing` repository) |
 
 The product requirements, the draft protocol specification and the supporting review material are not published here yet (see [Development status](#development-status)). If they are published here, a documentation index should say which document governs which topic, and which documents are decisions, proposals or history.
 
 ## Licence
 
-The code, documentation and specification in this repository are licensed under the [Apache License 2.0](LICENSE), to the extent the project owner owns or controls them (copyright notice: Copyright 2026 tobin-protocol; this is a designation, not a statement that a registered legal entity exists). Third-party dependencies are not covered and remain under their own licences. The Tobin name, logo and brand assets are not covered by this licence, and no excluded material (such as the unpublished test-network evidence) is licensed or published here.
+The code, documentation and specification in this repository are licensed under the [Apache License 2.0](LICENSE), to the extent the project owner owns or controls them (copyright notice: Copyright 2026 tobin-protocol; this is a designation, not a statement that a registered legal entity exists). Third-party dependencies are not covered and remain under their own licences. The Tobin name, logo and brand assets are not covered by this licence. In this repository they include at least the files that `apps/landing/NOTICE` lists as not licensed for reuse (`apps/landing/brand-pack/`, `apps/landing/public/brand/`, the icons and social images under `apps/landing/public/` and `apps/landing/src/app/`, and `apps/landing/src/components/logo-art.ts`); that NOTICE keeps its own wording and its own copyright line. No excluded material (such as the unpublished test-network evidence) is licensed or published here.
 
 Contribution guidelines are in [CONTRIBUTING.md](CONTRIBUTING.md). Security reports go through GitHub private vulnerability reporting; see [SECURITY.md](SECURITY.md).
 
 ## Links
 
 - Project site: <https://tobinprotocol.xyz>
-- Landing page source: <https://github.com/tobin-protocol/tobin-landing>
+- Landing page source: [apps/landing](apps/landing/README.md) (earlier repository: <https://github.com/tobin-protocol/tobin-landing>)

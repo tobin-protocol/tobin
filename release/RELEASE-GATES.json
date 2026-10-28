@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "purpose": "Machine-readable release gates for Tobin Clearing Protocol (experimental MVP-1). A gate is PASS only when this file records the required approval or evidence AND the cross-checks in scripts/release/check-gates.mjs agree with the repository state. Absent fields, existing files and zero scan findings never turn a gate into PASS. This file does not authorize anything by itself; publication always needs a recorded approval under gate G11.",
+  "path_map_note": "Paths in recorded approvals and evidence texts (for example core/ and ts/) use the layout of the date they were recorded; the current locations are listed in docs/PATH-MAP.md. The recorded approvals were not edited.",
   "statuses": [
     "PASS",
     "FAIL",
@@ -480,6 +481,30 @@
         "approved_on": "2026-10-28",
         "decision_reference": "Founder instruction \"Execute the final Tobin MVP-1 publication task\" of 2026-10-28, transcribed into this file by the assistant at the founder's instruction; the founder's identity and statements are not independently verified."
       }
+    }
+  ],
+  "pending_approvals": [
+    {
+      "id": "PA-1",
+      "title": "Re-approval of the recorded source-publication approvals and of policy change PC-1 for the expanded monorepo scope",
+      "status": "PENDING",
+      "opened_on": "2026-10-28",
+      "affects_gates": [
+        "G01",
+        "G02",
+        "G03",
+        "G05",
+        "G07",
+        "G09",
+        "G11",
+        "G12",
+        "PC-1"
+      ],
+      "scope_recorded": "The approvals of 2026-10-28 were recorded for the MVP-1 source tree: the Rust contracts, the TypeScript SDK and plain-DOM Console, documentation, CI and release controls, with an inventory of 214 registry crates plus 2 workspace crates and 3 npm packages.",
+      "scope_now": "The monorepo adds apps/landing (the landing page imported with its own LICENSE, NOTICE, brand assets and 44 commits of history), a Next.js web console, and an npm dependency set of 444 third-party packages in the root lockfile, including LGPL-labelled optional packages, MPL-labelled packages and content-licence entries.",
+      "proposal": "release/PROPOSED-POLICY-UPDATE-MONOREPO.md",
+      "note": "No gate status was changed. Until a named, dated founder resolution is recorded here, the strict checks treat the listed gates and PC-1 as not satisfied for the targets that require them.",
+      "resolution": null
     }
   ]
 }

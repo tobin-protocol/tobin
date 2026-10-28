@@ -10,10 +10,12 @@ on:
       - main
   pull_request:
     paths:
-      - core/Cargo.lock
-      - core/**/Cargo.toml
-      - ts/package.json
-      - ts/package-lock.json
+      - contracts/Cargo.lock
+      - contracts/**/Cargo.toml
+      - package.json
+      - package-lock.json
+      - apps/*/package.json
+      - packages/*/package.json
       - ci/**
       - scripts/ci/**
       - .github/workflows/integration.yml
@@ -51,13 +53,13 @@ jobs:
           persist-credentials: false
 
       - name: Install the pinned Rust toolchain
-        working-directory: core
+        working-directory: contracts
         run: |
           rustup toolchain install "${RUSTUP_TOOLCHAIN}" --profile minimal
           cargo --version
 
       - name: Fetch Rust dependencies (locked); manifests are then read from the local Cargo cache
-        working-directory: core
+        working-directory: contracts
         run: cargo fetch --locked
 
       - name: Set up Node.js
@@ -88,7 +90,7 @@ jobs:
           persist-credentials: false
 
       - name: Install the pinned Rust toolchain
-        working-directory: core
+        working-directory: contracts
         run: |
           rustup toolchain install "${RUSTUP_TOOLCHAIN}" --profile minimal --target wasm32v1-none
           rustc --version
@@ -109,17 +111,17 @@ jobs:
           echo "$RUNNER_TEMP/stellar-bin" >> "$GITHUB_PATH"
 
       - name: Fetch Rust dependencies (locked)
-        working-directory: core
+        working-directory: contracts
         run: cargo fetch --locked
 
       - name: Build the contract Wasm (stellar contract build)
-        working-directory: core
+        working-directory: contracts
         run: |
           stellar contract build --locked --manifest-path Cargo.toml --out-dir "$RUNNER_TEMP/wasm" --config-dir "$RUNNER_TEMP/stellar-config"
           ls -l "$RUNNER_TEMP/wasm"
 
       - name: Rebuild the Wasm in a second target directory (same runner; determinism evidence only)
-        working-directory: core
+        working-directory: contracts
         env:
           CARGO_TARGET_DIR: ${{ runner.temp }}/target-rebuild
         run: stellar contract build --locked --manifest-path Cargo.toml --out-dir "$RUNNER_TEMP/wasm-rebuild" --config-dir "$RUNNER_TEMP/stellar-config"
@@ -128,7 +130,7 @@ jobs:
         run: node scripts/ci/wasm-hash-report.mjs "$RUNNER_TEMP/wasm" "$RUNNER_TEMP/wasm/hashes.txt" --rebuild "$RUNNER_TEMP/wasm-rebuild"
 
       - name: Rust tests against the compiled Wasm
-        working-directory: core
+        working-directory: contracts
         env:
           TOBIN_CLEARING_WASM: ${{ runner.temp }}/wasm/tobin_clearing_v1.wasm
           TOBIN_TOKEN_WASM: ${{ runner.temp }}/wasm/tobin_test_token.wasm
@@ -170,21 +172,21 @@ jobs:
           persist-credentials: false
 
       - name: Install the pinned Rust toolchain
-        working-directory: core
+        working-directory: contracts
         run: |
           rustup toolchain install "${RUSTUP_TOOLCHAIN}" --profile minimal
           cargo --version
 
       - name: Fetch Rust dependencies (locked)
-        working-directory: core
+        working-directory: contracts
         run: cargo fetch --locked
 
       - name: Build the Rust development bridge
-        working-directory: core
+        working-directory: contracts
         run: |
           cargo build --locked -p tobin-clearing-v1 --example bridge
-          test -x "$GITHUB_WORKSPACE/core/target/debug/examples/bridge"
-          echo "TOBIN_BRIDGE_EXE=$GITHUB_WORKSPACE/core/target/debug/examples/bridge" >> "$GITHUB_ENV"
+          test -x "$GITHUB_WORKSPACE/contracts/target/debug/examples/bridge"
+          echo "TOBIN_BRIDGE_EXE=$GITHUB_WORKSPACE/contracts/target/debug/examples/bridge" >> "$GITHUB_ENV"
 
       - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -192,11 +194,9 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Install TypeScript dependencies (lockfile, no install scripts)
-        working-directory: ts
         run: npm ci --ignore-scripts
 
       - name: Console production build
-        working-directory: ts
         run: npm run build:console
 
       - name: Locate the preinstalled Google Chrome
@@ -210,13 +210,13 @@ jobs:
           echo "TOBIN_BROWSER=$chrome" >> "$GITHUB_ENV"
 
       - name: Browser journey at 1200 px
-        working-directory: ts
+        working-directory: apps/web-console
         env:
           TOBIN_WIDTH: "1200"
         run: node test/browser/journey.mjs "$RUNNER_TEMP/journey-1200" 2>&1 | tee "$RUNNER_TEMP/journey-1200.log"
 
       - name: Browser journey at 420 px
-        working-directory: ts
+        working-directory: apps/web-console
         env:
           TOBIN_WIDTH: "420"
         run: node test/browser/journey.mjs "$RUNNER_TEMP/journey-420" 2>&1 | tee "$RUNNER_TEMP/journey-420.log"

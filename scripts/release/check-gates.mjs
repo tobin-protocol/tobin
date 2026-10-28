@@ -37,6 +37,20 @@ const pc1 = (data.policy_changes || []).find((x) => x.id === 'PC-1');
 const pc1ok = Boolean(pc1 && nonEmpty(pc1.description) && pc1.approval && nonEmpty(pc1.approval.approved_by) && notAi(pc1.approval.approved_by) && isDate(pc1.approval.approved_on) && pc1.approval.approved_on <= today && nonEmpty(pc1.approval.decision_reference));
 if (pc1 && !pc1ok) problems.push('PC-1: the policy change record is incomplete (needs description and a named founder approval with a past date and decision reference)');
 
+// Pending re-approvals (pending_approvals in the gate file). Approvals are recorded for a defined scope of the source tree; when that scope grows (for
+// example a new application is imported), the gates and policy changes listed in affects_gates stay NOT satisfied for the strict checks until a named,
+// dated founder approval is recorded in the entry's resolution. Report mode keeps showing the recorded status and prints the pending entry.
+const pendings = Array.isArray(data.pending_approvals) ? data.pending_approvals : [];
+const pendingOpen = [];
+for (const pa of pendings) {
+  const r = pa.resolution;
+  const resolved = pa.status === 'RESOLVED' && r && nonEmpty(r.approved_by) && notAi(r.approved_by) && isDate(r.approved_on) && r.approved_on <= today && nonEmpty(r.decision_reference);
+  if (pa.status === 'RESOLVED' && !resolved) problems.push('pending approval ' + pa.id + ': marked RESOLVED without a complete named, dated resolution');
+  if (!nonEmpty(pa.id) || !Array.isArray(pa.affects_gates) || !nonEmpty(pa.title)) problems.push('a pending_approvals entry needs id, title and affects_gates');
+  if (!resolved) pendingOpen.push(pa);
+}
+const pendingFor = (id) => pendingOpen.filter((pa) => (pa.affects_gates || []).includes(id));
+
 // Built-in minimum policy: the gate file may add gates or targets but can never delete a mandatory gate or drop it from a target.
 const MINIMUM_STRICT = {
   'private-remote-backup': ['G09', 'G11'],
@@ -63,7 +77,7 @@ function scanTree() {
   const findings = [];
   const badPath = /(^|\/)(auth-vectors|authvectors|auth-intent)|(^|\/)CLAUDE\.md$|phase-e|PHASE-E|phase-b|PHASE-B|(^|\/)m0-review(\/|$)|(^|\/)(node_modules|dist|target)\/|\.badge-profile|(^|\/)\.env|\.pem$|\.key$|^archive\//;
   // Synthetic test data only: fixture directories and the strkey codec test (all-zero / 0x..01 addresses, not deployed contracts).
-  const fixtureDirs = /^(core\/clearing\/tests\/fixtures\/|ts\/test\/fixtures\/|ts\/test\/primitives\.test\.ts$)/;
+  const fixtureDirs = /^(contracts\/clearing\/tests\/fixtures\/|packages\/mvp1-sdk\/test\/fixtures\/|packages\/mvp1-sdk\/test\/primitives\.test\.ts$)/;
   for (const f of files) {
     if (badPath.test(f)) findings.push(`excluded or unsuitable path tracked: ${f}`);
     let st; try { st = statSync(f); } catch { continue; }
@@ -142,16 +156,19 @@ for (const g of data.gates) {
     else reasons.push(`automated scan clean (${scan.count} files); human sign-off still required`);
   }
   if (g.status !== 'PASS' && nonEmpty(g.blocked_by)) reasons.push(g.blocked_by);
+  for (const pa of pendingFor(g.id)) reasons.push('re-approval pending for the expanded scope (' + pa.id + ')');
   state.set(g.id, { gate: g, effective, reasons });
 }
 
 // --- report
-const satisfied = (g, t) => state.get(g.id).effective === 'PASS' && (!Array.isArray(g.valid_for) || g.valid_for.includes(t));
-const labelFor = (g, t) => (state.get(g.id).effective === 'PASS' && !satisfied(g, t) ? 'PASS only for ' + g.valid_for.join(', ') + '; not valid here' : state.get(g.id).effective);
+const satisfied = (g, t) => state.get(g.id).effective === 'PASS' && (!Array.isArray(g.valid_for) || g.valid_for.includes(t)) && pendingFor(g.id).length === 0;
+const labelFor = (g, t) => (!state.has(g.id) ? 'policy change PC-1: re-approval pending' : state.get(g.id).effective === 'PASS' && pendingFor(g.id).length ? 'PASS recorded for an earlier scope; re-approval pending (' + pendingFor(g.id).map((x) => x.id).join(', ') + ')' : state.get(g.id).effective === 'PASS' && !satisfied(g, t) ? 'PASS only for ' + g.valid_for.join(', ') + '; not valid here' : state.get(g.id).effective);
 const rows = data.gates.map((g) => { const s = state.get(g.id); return `| ${g.id} | ${g.name} | ${g.kind} | **${s.effective}** | ${(g.required_for || []).join(', ')} |`; });
 const byTarget = TARGETS.map((t) => {
   const need = data.gates.filter((g) => g.required_for.includes(t));
   const missing = need.filter((g) => !satisfied(g, t));
+  // the source-only policy change PC-1 only holds for the scope it was approved for
+  if (t === 'public-source-release' && pendingFor('PC-1').length) missing.push({ id: 'PC-1' });
   return { t, need: need.length, missing };
 });
 summary([
@@ -160,6 +177,7 @@ summary([
   '| target | gates required | not yet PASS | result |', '|---|---|---|---|',
   ...byTarget.map((b) => `| ${b.t} | ${b.need} | ${b.missing.length} (${b.missing.map((m) => m.id).join(', ')}) | ${b.missing.length ? 'BLOCKED' : 'all required gates PASS (human approval for the exact action is still recorded under G11 only)'} |`), '',
   `Automated source-tree scan: ${scan.count} files, ${scan.findings.length} finding(s)${scan.findings.length ? ':\n' + scan.findings.map((f) => `- ${f}`).join('\n') : '.'} A clean scan does not pass G09 by itself.`,
+  pendingOpen.length ? '\n**Pending re-approvals (strict checks stay blocked for the gates they list):**\n' + pendingOpen.map((pa) => '- ' + pa.id + ': ' + pa.title + ' (affects ' + (pa.affects_gates || []).join(', ') + ')').join('\n') : '',
   problems.length ? `\n**Gate file problems:**\n${problems.map((p) => `- ${p}`).join('\n')}` : '',
 ].join('\n'));
 

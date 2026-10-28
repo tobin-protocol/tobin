@@ -12,7 +12,8 @@ for (let i = 1; i < args.length; i++) if (args[i] === '--allow') { const [name, 
 if (!file) { error('usage: test-skip-report.mjs <test-output-file> [--allow "name=reason prefix"]'); process.exit(2); }
 
 const text = readFileSync(file, 'utf8');
-const num = (label) => { const m = text.match(new RegExp(`^ℹ ${label} (\\d+)$`, 'm')); return m ? Number(m[1]) : undefined; };
+// `npm test --workspaces` prints one node:test summary per workspace; the totals are their sum
+const num = (label) => { const all = [...text.matchAll(new RegExp('^ℹ ' + label + ' (\\d+)$', 'gm'))]; return all.length ? all.reduce((n, m) => n + Number(m[1]), 0) : undefined; };
 const total = { tests: num('tests'), pass: num('pass'), fail: num('fail'), cancelled: num('cancelled'), skipped: num('skipped'), todo: num('todo') };
 const problems = [];
 if (total.tests === undefined) problems.push('no node:test summary found (expected the default spec reporter of Node 24)');

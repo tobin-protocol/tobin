@@ -16,6 +16,13 @@ assets, and the following files are NOT licensed for reuse:
   - src/app/opengraph-image.png, src/app/twitter-image.png
   - src/components/logo-art.ts (generated from brand-pack/svg)
 
+Twenty wordmark artwork files (the lockup SVGs, logo PNGs and social PNGs of the
+original brand pack, also under public/brand/) are not part of this repository,
+and have been removed from its history, because redistribution permission for the
+font they are described as using was not available. This notice does not state
+that any remaining file is cleared for redistribution, and the list above reserves
+rights; it does not grant them.
+
 You may keep these files unmodified when you fork this repository to run or
 study the site, but a fork that is presented to others must replace them with
 its own branding.

@@ -51,5 +51,12 @@ Thumbs.db
 
 # MVP-1 local-only and generated paths (added during the MVP-1 migration)
 target/
-ts/test/browser/.badge-profile/
+apps/web-console/test/browser/.badge-profile/
+apps/web-console/test/browser/shots/
+/archive/
 phase-e-evidence/
+
+# Next.js build output and generated files
+.next/
+next-env.d.ts
+*.tsbuildinfo

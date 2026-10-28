@@ -1,0 +1,17 @@
+{
+  "name": "tobin-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tobin Clearing Protocol monorepo (experimental MVP-1): contracts/ (Rust), packages/mvp1-sdk, apps/web-console. Not production-ready.",
+  "engines": { "node": ">=24" },
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm test --workspaces --if-present",
+    "build:console": "npm run build:console --workspace tobin-web-console"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.43",
+    "typescript": "5.9.3"
+  }
+}
