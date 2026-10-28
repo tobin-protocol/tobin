@@ -21,7 +21,7 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contracterror, contractevent, contractimpl, contractclient, contracttype, vec,
+    contract, contractclient, contracterror, contractevent, contractimpl, contracttype, vec,
     xdr::ToXdr, Address, Bytes, BytesN, Env, IntoVal, Vec,
 };
 
@@ -266,14 +266,22 @@ impl TobinClearingV1 {
         max_participants: u32,
         max_obligations: u32,
     ) -> Result<(), Error> {
-        if env.storage().persistent().has(&Key::Session(session_id.clone())) {
+        if env
+            .storage()
+            .persistent()
+            .has(&Key::Session(session_id.clone()))
+        {
             return Err(Error::SessionExists);
         }
         xdr_of(&env, &creator)?; // account or contract address only
         if !is_contract_address(&env, &token)? {
             return Err(Error::BadAddressKind);
         }
-        if max_participants < 2 || max_participants > PARTICIPANT_CEILING || max_obligations < 1 || max_obligations > OBLIGATION_CEILING {
+        if max_participants < 2
+            || max_participants > PARTICIPANT_CEILING
+            || max_obligations < 1
+            || max_obligations > OBLIGATION_CEILING
+        {
             return Err(Error::BadCapacity);
         }
         creator.require_auth();
@@ -287,14 +295,29 @@ impl TobinClearingV1 {
             obligation_commitment: None,
         };
         save_session(&env, &session_id, &session);
-        SessionCreated { session_id: session_id.clone(), creator: creator.clone(), token, max_participants, max_obligations }.publish(&env);
-        ParticipantJoined { session_id, participant: creator }.publish(&env);
+        SessionCreated {
+            session_id: session_id.clone(),
+            creator: creator.clone(),
+            token,
+            max_participants,
+            max_obligations,
+        }
+        .publish(&env);
+        ParticipantJoined {
+            session_id,
+            participant: creator,
+        }
+        .publish(&env);
         Ok(())
     }
 
     /// Admit `participant`. Needs the joiner's own authorization AND, separately, the creator's authorization of this joiner.
     /// The creator gains no other power (EQ-19).
-    pub fn join_session(env: Env, session_id: BytesN<32>, participant: Address) -> Result<(), Error> {
+    pub fn join_session(
+        env: Env,
+        session_id: BytesN<32>,
+        participant: Address,
+    ) -> Result<(), Error> {
         let mut s = load_session(&env, &session_id)?;
         if s.state != State::Open {
             return Err(Error::WrongState);
@@ -310,17 +333,27 @@ impl TobinClearingV1 {
         s.creator.require_auth();
         s.participants.push_back(participant.clone());
         save_session(&env, &session_id, &s);
-        ParticipantJoined { session_id, participant }.publish(&env);
+        ParticipantJoined {
+            session_id,
+            participant,
+        }
+        .publish(&env);
         Ok(())
     }
 
     /// Record an obligation. The debtor authorizes the full call. The id is caller-chosen; the contract enforces uniqueness only.
-    pub fn submit_obligation(env: Env, session_id: BytesN<32>, obligation: Obligation) -> Result<(), Error> {
+    pub fn submit_obligation(
+        env: Env,
+        session_id: BytesN<32>,
+        obligation: Obligation,
+    ) -> Result<(), Error> {
         let s = load_session(&env, &session_id)?;
         if s.state != State::Open {
             return Err(Error::WrongState);
         }
-        if !s.participants.contains(&obligation.debtor) || !s.participants.contains(&obligation.creditor) {
+        if !s.participants.contains(&obligation.debtor)
+            || !s.participants.contains(&obligation.creditor)
+        {
             return Err(Error::UnknownParty);
         }
         if obligation.debtor == obligation.creditor {
@@ -363,7 +396,11 @@ impl TobinClearingV1 {
 
     /// Freeze participants, token and obligations; store the obligation commitment. Any admitted participant may call it.
     /// Edits nothing, proposes nothing, approves nothing. An all-zero-net set is allowed (EQ-15).
-    pub fn finalize_obligations(env: Env, session_id: BytesN<32>, caller: Address) -> Result<BytesN<32>, Error> {
+    pub fn finalize_obligations(
+        env: Env,
+        session_id: BytesN<32>,
+        caller: Address,
+    ) -> Result<BytesN<32>, Error> {
         let mut s = load_session(&env, &session_id)?;
         if s.state != State::Open {
             return Err(Error::WrongState);
@@ -398,7 +435,12 @@ impl TobinClearingV1 {
     /// Create or replace the settlement proposal. Any admitted participant may propose. The plan is validated against the frozen
     /// obligations BEFORE it becomes current; any valid plan is accepted. A replacement invalidates all approvals and leaves the
     /// session COMMITTED, in this one invocation: if any step fails nothing is written.
-    pub fn propose_settlement(env: Env, session_id: BytesN<32>, proposer: Address, instructions: Vec<Instruction>) -> Result<BytesN<32>, Error> {
+    pub fn propose_settlement(
+        env: Env,
+        session_id: BytesN<32>,
+        proposer: Address,
+        instructions: Vec<Instruction>,
+    ) -> Result<BytesN<32>, Error> {
         let mut s = load_session(&env, &session_id)?;
         if s.state != State::Committed && s.state != State::Approved {
             return Err(Error::WrongState);
@@ -413,32 +455,62 @@ impl TobinClearingV1 {
         // EQ-05: the revision is bound into the digest, so a signature for one revision can never authorize another, even when the
         // instructions are identical (A -> B -> A). The revision only ever increases; at u32::MAX a further replacement fails with
         // Overflow BEFORE anything is written, leaving the current proposal, revision and approvals untouched.
-        let old: Option<Proposal> = env.storage().persistent().get(&Key::Proposal(session_id.clone()));
+        let old: Option<Proposal> = env
+            .storage()
+            .persistent()
+            .get(&Key::Proposal(session_id.clone()));
         let (revision, replaced) = match &old {
-            Some(p) => (p.revision.checked_add(1).ok_or(Error::Overflow)?, Some(p.digest.clone())),
+            Some(p) => (
+                p.revision.checked_add(1).ok_or(Error::Overflow)?,
+                Some(p.digest.clone()),
+            ),
             None => (1u32, None),
         };
         let digest = proposal_digest(&env, &session_id, &s, &oc, revision, &instructions)?;
         let cleared = load_approvals(&env, &session_id).len();
-        let proposal = Proposal { digest: digest.clone(), instructions, proposer: proposer.clone(), revision };
+        let proposal = Proposal {
+            digest: digest.clone(),
+            instructions,
+            proposer: proposer.clone(),
+            revision,
+        };
         let pk = Key::Proposal(session_id.clone());
         env.storage().persistent().set(&pk, &proposal);
         bump(&env, &pk);
-        env.storage().persistent().remove(&Key::Approvals(session_id.clone()));
+        env.storage()
+            .persistent()
+            .remove(&Key::Approvals(session_id.clone()));
         s.state = State::Committed;
         save_session(&env, &session_id, &s);
-        SettlementProposed { session_id, digest: digest.clone(), proposer, revision, replaced, approvals_cleared: cleared }.publish(&env);
+        SettlementProposed {
+            session_id,
+            digest: digest.clone(),
+            proposer,
+            revision,
+            replaced,
+            approvals_cleared: cleared,
+        }
+        .publish(&env);
         Ok(digest)
     }
 
     /// Approve the COMPLETE current proposal (obligations, nets, instructions, token, identity), not one obligation. Every admitted
     /// participant must approve. Returns true when this call completed the set (state becomes APPROVED in the same transaction).
-    pub fn approve_settlement(env: Env, session_id: BytesN<32>, participant: Address, digest: BytesN<32>) -> Result<bool, Error> {
+    pub fn approve_settlement(
+        env: Env,
+        session_id: BytesN<32>,
+        participant: Address,
+        digest: BytesN<32>,
+    ) -> Result<bool, Error> {
         let mut s = load_session(&env, &session_id)?;
         if s.state != State::Committed {
             return Err(Error::WrongState);
         }
-        let proposal: Proposal = env.storage().persistent().get(&Key::Proposal(session_id.clone())).ok_or(Error::NoProposal)?;
+        let proposal: Proposal = env
+            .storage()
+            .persistent()
+            .get(&Key::Proposal(session_id.clone()))
+            .ok_or(Error::NoProposal)?;
         if !s.participants.contains(&participant) {
             return Err(Error::NotParticipant);
         }
@@ -452,15 +524,28 @@ impl TobinClearingV1 {
                 return Ok(false); // exact duplicate: idempotent, no change
             }
         }
-        approvals.push_back(Approval { participant: participant.clone(), digest: proposal.digest.clone() });
+        approvals.push_back(Approval {
+            participant: participant.clone(),
+            digest: proposal.digest.clone(),
+        });
         let count = count_current(&approvals, &proposal.digest);
         let complete = count == s.participants.len();
         save_approvals(&env, &session_id, &approvals);
-        Approved { session_id: session_id.clone(), participant, digest: proposal.digest.clone(), approval_count: count }.publish(&env);
+        Approved {
+            session_id: session_id.clone(),
+            participant,
+            digest: proposal.digest.clone(),
+            approval_count: count,
+        }
+        .publish(&env);
         if complete {
             s.state = State::Approved;
             save_session(&env, &session_id, &s);
-            SessionApproved { session_id, digest: proposal.digest }.publish(&env);
+            SessionApproved {
+                session_id,
+                digest: proposal.digest,
+            }
+            .publish(&env);
         }
         Ok(complete)
     }
@@ -473,7 +558,11 @@ impl TobinClearingV1 {
             State::Settled => return Err(Error::AlreadySettled),
             State::Open => return Err(Error::WrongState),
             State::Committed => {
-                return if env.storage().persistent().has(&Key::Proposal(session_id.clone())) {
+                return if env
+                    .storage()
+                    .persistent()
+                    .has(&Key::Proposal(session_id.clone()))
+                {
                     Err(Error::MissingApproval)
                 } else {
                     Err(Error::NoProposal)
@@ -481,7 +570,11 @@ impl TobinClearingV1 {
             }
             State::Approved => {}
         }
-        let proposal: Proposal = env.storage().persistent().get(&Key::Proposal(session_id.clone())).ok_or(Error::CorruptState)?;
+        let proposal: Proposal = env
+            .storage()
+            .persistent()
+            .get(&Key::Proposal(session_id.clone()))
+            .ok_or(Error::CorruptState)?;
         if digest != proposal.digest {
             return Err(Error::DigestMismatch);
         }
@@ -507,7 +600,15 @@ impl TobinClearingV1 {
         if validate_plan(&env, &s, &obligations, &proposal.instructions).is_err() {
             return Err(Error::CorruptState);
         }
-        if proposal_digest(&env, &session_id, &s, &oc, proposal.revision, &proposal.instructions)? != proposal.digest {
+        if proposal_digest(
+            &env,
+            &session_id,
+            &s,
+            &oc,
+            proposal.revision,
+            &proposal.instructions,
+        )? != proposal.digest
+        {
             return Err(Error::CorruptState);
         }
         // Each distinct payer authorizes THIS settlement: (session id, digest, its own total debit). Instructions are ordered by payer,
@@ -527,7 +628,12 @@ impl TobinClearingV1 {
                 total = total.checked_add(ins.amount).ok_or(Error::Overflow)?;
                 j += 1;
             }
-            payer.require_auth_for_args(vec![&env, session_id.into_val(&env), digest.into_val(&env), total.into_val(&env)]);
+            payer.require_auth_for_args(vec![
+                &env,
+                session_id.into_val(&env),
+                digest.into_val(&env),
+                total.into_val(&env),
+            ]);
             grand = grand.checked_add(total).ok_or(Error::Overflow)?;
             i = j;
         }
@@ -548,7 +654,13 @@ impl TobinClearingV1 {
         for ins in proposal.instructions.iter() {
             token.transfer(&ins.payer, &ins.payee, &ins.amount);
         }
-        Settled { session_id, digest: proposal.digest, total_moved: grand, instruction_count: n }.publish(&env);
+        Settled {
+            session_id,
+            digest: proposal.digest,
+            total_moved: grand,
+            instruction_count: n,
+        }
+        .publish(&env);
         Ok(())
     }
 
@@ -563,7 +675,11 @@ impl TobinClearingV1 {
         Ok(load_obligations(&env, &session_id))
     }
 
-    pub fn get_obligation(env: Env, session_id: BytesN<32>, id: BytesN<32>) -> Result<Obligation, Error> {
+    pub fn get_obligation(
+        env: Env,
+        session_id: BytesN<32>,
+        id: BytesN<32>,
+    ) -> Result<Obligation, Error> {
         load_session(&env, &session_id)?;
         for o in load_obligations(&env, &session_id).iter() {
             if o.id == id {
@@ -574,19 +690,27 @@ impl TobinClearingV1 {
     }
 
     pub fn get_commitment(env: Env, session_id: BytesN<32>) -> Result<BytesN<32>, Error> {
-        load_session(&env, &session_id)?.obligation_commitment.ok_or(Error::WrongState)
+        load_session(&env, &session_id)?
+            .obligation_commitment
+            .ok_or(Error::WrongState)
     }
 
     /// The current settlement proposal (digest, instructions, proposer, revision), or `NoProposal`.
     pub fn get_proposal(env: Env, session_id: BytesN<32>) -> Result<Proposal, Error> {
         load_session(&env, &session_id)?;
-        env.storage().persistent().get(&Key::Proposal(session_id)).ok_or(Error::NoProposal)
+        env.storage()
+            .persistent()
+            .get(&Key::Proposal(session_id))
+            .ok_or(Error::NoProposal)
     }
 
     /// The terminal record of a settled session, or `WrongState` before settlement.
     pub fn get_settlement(env: Env, session_id: BytesN<32>) -> Result<SettlementResult, Error> {
         load_session(&env, &session_id)?;
-        env.storage().persistent().get(&Key::Settlement(session_id)).ok_or(Error::WrongState)
+        env.storage()
+            .persistent()
+            .get(&Key::Settlement(session_id))
+            .ok_or(Error::WrongState)
     }
 
     pub fn get_approvals(env: Env, session_id: BytesN<32>) -> Result<Vec<Approval>, Error> {
@@ -594,7 +718,11 @@ impl TobinClearingV1 {
         Ok(load_approvals(&env, &session_id))
     }
 
-    pub fn get_approval(env: Env, session_id: BytesN<32>, participant: Address) -> Result<Option<Approval>, Error> {
+    pub fn get_approval(
+        env: Env,
+        session_id: BytesN<32>,
+        participant: Address,
+    ) -> Result<Option<Approval>, Error> {
         load_session(&env, &session_id)?;
         for a in load_approvals(&env, &session_id).iter() {
             if a.participant == participant {
@@ -616,7 +744,11 @@ impl TobinClearingV1 {
     /// The canonical bytes that the current proposal digest hashes.
     pub fn proposal_bytes(env: Env, session_id: BytesN<32>) -> Result<Bytes, Error> {
         let s = load_session(&env, &session_id)?;
-        let p: Proposal = env.storage().persistent().get(&Key::Proposal(session_id.clone())).ok_or(Error::NoProposal)?;
+        let p: Proposal = env
+            .storage()
+            .persistent()
+            .get(&Key::Proposal(session_id.clone()))
+            .ok_or(Error::NoProposal)?;
         let oc = s.obligation_commitment.clone().ok_or(Error::CorruptState)?;
         proposal_bytes_of(&env, &session_id, &s, &oc, p.revision, &p.instructions)
     }
@@ -626,13 +758,20 @@ impl TobinClearingV1 {
 // storage helpers
 
 fn bump(env: &Env, key: &Key) {
-    env.storage().persistent().extend_ttl(key, LIFETIME_THRESHOLD, LIFETIME_EXTEND);
+    env.storage()
+        .persistent()
+        .extend_ttl(key, LIFETIME_THRESHOLD, LIFETIME_EXTEND);
     // the contract instance entry (and so the contract) must stay alive as long as the records it serves
-    env.storage().instance().extend_ttl(LIFETIME_THRESHOLD, LIFETIME_EXTEND);
+    env.storage()
+        .instance()
+        .extend_ttl(LIFETIME_THRESHOLD, LIFETIME_EXTEND);
 }
 
 fn load_session(env: &Env, sid: &BytesN<32>) -> Result<Session, Error> {
-    env.storage().persistent().get(&Key::Session(sid.clone())).ok_or(Error::SessionNotFound)
+    env.storage()
+        .persistent()
+        .get(&Key::Session(sid.clone()))
+        .ok_or(Error::SessionNotFound)
 }
 
 fn save_session(env: &Env, sid: &BytesN<32>, s: &Session) {
@@ -642,7 +781,10 @@ fn save_session(env: &Env, sid: &BytesN<32>, s: &Session) {
 }
 
 fn load_obligations(env: &Env, sid: &BytesN<32>) -> Vec<Obligation> {
-    env.storage().persistent().get(&Key::Obligations(sid.clone())).unwrap_or(Vec::new(env))
+    env.storage()
+        .persistent()
+        .get(&Key::Obligations(sid.clone()))
+        .unwrap_or(Vec::new(env))
 }
 
 fn save_obligations(env: &Env, sid: &BytesN<32>, v: &Vec<Obligation>) {
@@ -652,7 +794,10 @@ fn save_obligations(env: &Env, sid: &BytesN<32>, v: &Vec<Obligation>) {
 }
 
 fn load_approvals(env: &Env, sid: &BytesN<32>) -> Vec<Approval> {
-    env.storage().persistent().get(&Key::Approvals(sid.clone())).unwrap_or(Vec::new(env))
+    env.storage()
+        .persistent()
+        .get(&Key::Approvals(sid.clone()))
+        .unwrap_or(Vec::new(env))
 }
 
 fn save_approvals(env: &Env, sid: &BytesN<32>, v: &Vec<Approval>) {
@@ -679,7 +824,8 @@ fn count_current(approvals: &Vec<Approval>, digest: &BytesN<32>) -> u32 {
 fn xdr_of(env: &Env, a: &Address) -> Result<Bytes, Error> {
     let x = a.clone().to_xdr(env);
     let n = x.len();
-    let ok = (n == 44 && x.slice(0..12) == Bytes::from_array(env, &[0, 0, 0, 0x12, 0, 0, 0, 0, 0, 0, 0, 0]))
+    let ok = (n == 44
+        && x.slice(0..12) == Bytes::from_array(env, &[0, 0, 0, 0x12, 0, 0, 0, 0, 0, 0, 0, 0]))
         || (n == 40 && x.slice(0..8) == Bytes::from_array(env, &[0, 0, 0, 0x12, 0, 0, 0, 1]));
     if ok {
         Ok(x)
@@ -717,7 +863,11 @@ fn all_zero(nets: &Vec<i128>) -> bool {
 
 /// Net position of every participant (admission order) with the baseline convention: N = outgoing - incoming. Positive = net debtor.
 /// All arithmetic is checked; the sum of all obligation amounts is checked too, so no later total can overflow.
-fn compute_nets(env: &Env, participants: &Vec<Address>, obligations: &Vec<Obligation>) -> Result<Vec<i128>, Error> {
+fn compute_nets(
+    env: &Env,
+    participants: &Vec<Address>,
+    obligations: &Vec<Obligation>,
+) -> Result<Vec<i128>, Error> {
     let n = participants.len();
     let mut out: Vec<i128> = Vec::new(env);
     let mut inn: Vec<i128> = Vec::new(env);
@@ -727,15 +877,36 @@ fn compute_nets(env: &Env, participants: &Vec<Address>, obligations: &Vec<Obliga
     }
     let mut grand: i128 = 0;
     for o in obligations.iter() {
-        let d = participants.first_index_of(&o.debtor).ok_or(Error::UnknownParty)?;
-        let c = participants.first_index_of(&o.creditor).ok_or(Error::UnknownParty)?;
-        out.set(d, out.get(d).unwrap().checked_add(o.amount).ok_or(Error::Overflow)?);
-        inn.set(c, inn.get(c).unwrap().checked_add(o.amount).ok_or(Error::Overflow)?);
+        let d = participants
+            .first_index_of(&o.debtor)
+            .ok_or(Error::UnknownParty)?;
+        let c = participants
+            .first_index_of(&o.creditor)
+            .ok_or(Error::UnknownParty)?;
+        out.set(
+            d,
+            out.get(d)
+                .unwrap()
+                .checked_add(o.amount)
+                .ok_or(Error::Overflow)?,
+        );
+        inn.set(
+            c,
+            inn.get(c)
+                .unwrap()
+                .checked_add(o.amount)
+                .ok_or(Error::Overflow)?,
+        );
         grand = grand.checked_add(o.amount).ok_or(Error::Overflow)?;
     }
     let mut nets: Vec<i128> = Vec::new(env);
     for i in 0..n {
-        nets.push_back(out.get(i).unwrap().checked_sub(inn.get(i).unwrap()).ok_or(Error::Overflow)?);
+        nets.push_back(
+            out.get(i)
+                .unwrap()
+                .checked_sub(inn.get(i).unwrap())
+                .ok_or(Error::Overflow)?,
+        );
     }
     Ok(nets)
 }
@@ -747,7 +918,12 @@ fn compute_nets(env: &Env, participants: &Vec<Address>, obligations: &Vec<Obliga
 /// receives more than the net credit; conservation follows); 5 no value omitted, duplicated or introduced;
 /// 6 CHOICE (EQ-01): instructions strictly ascending by (payer, payee) as XDR bytes, so no repeated pair and an unambiguous encoding;
 /// 7 checked arithmetic.
-fn validate_plan(env: &Env, s: &Session, obligations: &Vec<Obligation>, ins: &Vec<Instruction>) -> Result<(), Error> {
+fn validate_plan(
+    env: &Env,
+    s: &Session,
+    obligations: &Vec<Obligation>,
+    ins: &Vec<Instruction>,
+) -> Result<(), Error> {
     if ins.len() > INSTRUCTION_CEILING {
         return Err(Error::TooManyInstructions);
     }
@@ -767,8 +943,14 @@ fn validate_plan(env: &Env, s: &Session, obligations: &Vec<Obligation>, ins: &Ve
         if k.payer == k.payee {
             return Err(Error::InstructionSelfPay);
         }
-        let pi = s.participants.first_index_of(&k.payer).ok_or(Error::UnknownParty)?;
-        let ci = s.participants.first_index_of(&k.payee).ok_or(Error::UnknownParty)?;
+        let pi = s
+            .participants
+            .first_index_of(&k.payer)
+            .ok_or(Error::UnknownParty)?;
+        let ci = s
+            .participants
+            .first_index_of(&k.payee)
+            .ok_or(Error::UnknownParty)?;
         let key = (xdr_of(env, &k.payer)?, xdr_of(env, &k.payee)?);
         if let Some(p) = &prev {
             if !(p.0 < key.0 || (p.0 == key.0 && p.1 < key.1)) {
@@ -776,8 +958,22 @@ fn validate_plan(env: &Env, s: &Session, obligations: &Vec<Obligation>, ins: &Ve
             }
         }
         prev = Some(key);
-        debit.set(pi, debit.get(pi).unwrap().checked_add(k.amount).ok_or(Error::Overflow)?);
-        credit.set(ci, credit.get(ci).unwrap().checked_add(k.amount).ok_or(Error::Overflow)?);
+        debit.set(
+            pi,
+            debit
+                .get(pi)
+                .unwrap()
+                .checked_add(k.amount)
+                .ok_or(Error::Overflow)?,
+        );
+        credit.set(
+            ci,
+            credit
+                .get(ci)
+                .unwrap()
+                .checked_add(k.amount)
+                .ok_or(Error::Overflow)?,
+        );
     }
     for i in 0..n {
         let net = nets.get(i).unwrap();
@@ -787,7 +983,11 @@ fn validate_plan(env: &Env, s: &Session, obligations: &Vec<Obligation>, ins: &Ve
             return Err(Error::OffsettingFlows);
         }
         let want_debit = if net > 0 { net } else { 0 };
-        let want_credit = if net < 0 { net.checked_neg().ok_or(Error::Overflow)? } else { 0 };
+        let want_credit = if net < 0 {
+            net.checked_neg().ok_or(Error::Overflow)?
+        } else {
+            0
+        };
         if d != want_debit || c != want_credit {
             return Err(Error::FlowMismatch);
         }
@@ -829,14 +1029,22 @@ fn header(env: &Env, tag: &[u8], sid: &BytesN<32>, s: &Session) -> Result<Bytes,
     put_domain(&mut b, tag);
     put_u32(&mut b, DIGEST_VERSION);
     put_id(&mut b, &env.ledger().network_id());
-    put_id(&mut b, &contract_id32(env, &env.current_contract_address())?);
+    put_id(
+        &mut b,
+        &contract_id32(env, &env.current_contract_address())?,
+    );
     put_id(&mut b, sid);
     put_id(&mut b, &contract_id32(env, &s.token)?);
     Ok(b)
 }
 
 /// Bytes of the obligation commitment: header, participants ascending by XDR bytes, obligations strictly ascending by id.
-fn obligation_bytes(env: &Env, sid: &BytesN<32>, s: &Session, obligations: &Vec<Obligation>) -> Result<Bytes, Error> {
+fn obligation_bytes(
+    env: &Env,
+    sid: &BytesN<32>,
+    s: &Session,
+    obligations: &Vec<Obligation>,
+) -> Result<Bytes, Error> {
     let mut b = header(env, DOMAIN_OBLIGATIONS, sid, s)?;
     // participants sorted ascending by their XDR bytes (insertion sort, at most 4)
     let mut sorted: Vec<Bytes> = Vec::new(env);
@@ -867,13 +1075,28 @@ fn obligation_bytes(env: &Env, sid: &BytesN<32>, s: &Session, obligations: &Vec<
     Ok(b)
 }
 
-fn obligation_commitment(env: &Env, sid: &BytesN<32>, s: &Session, obligations: &Vec<Obligation>) -> Result<BytesN<32>, Error> {
-    Ok(env.crypto().sha256(&obligation_bytes(env, sid, s, obligations)?).to_bytes())
+fn obligation_commitment(
+    env: &Env,
+    sid: &BytesN<32>,
+    s: &Session,
+    obligations: &Vec<Obligation>,
+) -> Result<BytesN<32>, Error> {
+    Ok(env
+        .crypto()
+        .sha256(&obligation_bytes(env, sid, s, obligations)?)
+        .to_bytes())
 }
 
 /// Bytes of the proposal digest: header, the obligation commitment, the proposal REVISION (u32, big-endian), the instructions exactly as
 /// submitted (already validated to be in the contract's order). Two different valid plans, or the same plan at two revisions, have different digests.
-fn proposal_bytes_of(env: &Env, sid: &BytesN<32>, s: &Session, oc: &BytesN<32>, revision: u32, ins: &Vec<Instruction>) -> Result<Bytes, Error> {
+fn proposal_bytes_of(
+    env: &Env,
+    sid: &BytesN<32>,
+    s: &Session,
+    oc: &BytesN<32>,
+    revision: u32,
+    ins: &Vec<Instruction>,
+) -> Result<Bytes, Error> {
     let mut b = header(env, DOMAIN_SETTLEMENT, sid, s)?;
     put_id(&mut b, oc);
     put_u32(&mut b, revision);
@@ -886,6 +1109,16 @@ fn proposal_bytes_of(env: &Env, sid: &BytesN<32>, s: &Session, oc: &BytesN<32>, 
     Ok(b)
 }
 
-fn proposal_digest(env: &Env, sid: &BytesN<32>, s: &Session, oc: &BytesN<32>, revision: u32, ins: &Vec<Instruction>) -> Result<BytesN<32>, Error> {
-    Ok(env.crypto().sha256(&proposal_bytes_of(env, sid, s, oc, revision, ins)?).to_bytes())
+fn proposal_digest(
+    env: &Env,
+    sid: &BytesN<32>,
+    s: &Session,
+    oc: &BytesN<32>,
+    revision: u32,
+    ins: &Vec<Instruction>,
+) -> Result<BytesN<32>, Error> {
+    Ok(env
+        .crypto()
+        .sha256(&proposal_bytes_of(env, sid, s, oc, revision, ins)?)
+        .to_bytes())
 }

@@ -32,7 +32,15 @@ pub struct Catcher;
 
 #[contractimpl]
 impl Catcher {
-    pub fn ignore(env: Env, token: Address, a: Address, b: Address, c: Address, first: i128, second: i128) -> Result<(), CatchError> {
+    pub fn ignore(
+        env: Env,
+        token: Address,
+        a: Address,
+        b: Address,
+        c: Address,
+        first: i128,
+        second: i128,
+    ) -> Result<(), CatchError> {
         env.storage().persistent().set(&K::Marker, &true);
         let t = TokenClient::new(&env, &token);
         t.transfer(&a, &c, &first);
@@ -40,7 +48,15 @@ impl Catcher {
         Ok(())
     }
 
-    pub fn catch(env: Env, token: Address, a: Address, b: Address, c: Address, first: i128, second: i128) -> Result<(), CatchError> {
+    pub fn catch(
+        env: Env,
+        token: Address,
+        a: Address,
+        b: Address,
+        c: Address,
+        first: i128,
+        second: i128,
+    ) -> Result<(), CatchError> {
         env.storage().persistent().set(&K::Marker, &true);
         let t = TokenClient::new(&env, &token);
         t.transfer(&a, &c, &first);
@@ -50,7 +66,15 @@ impl Catcher {
         }
     }
 
-    pub fn propagate(env: Env, token: Address, a: Address, b: Address, c: Address, first: i128, second: i128) -> Result<(), CatchError> {
+    pub fn propagate(
+        env: Env,
+        token: Address,
+        a: Address,
+        b: Address,
+        c: Address,
+        first: i128,
+        second: i128,
+    ) -> Result<(), CatchError> {
         env.storage().persistent().set(&K::Marker, &true);
         let t = TokenClient::new(&env, &token);
         t.transfer(&a, &c, &first);
@@ -72,12 +96,28 @@ enum R {
 
 /// Run `f` ("ignore" | "catch" | "propagate") with A and B each authorizing their own transfer (`b_signs` false: B does not authorize).
 fn run(w: &World, catcher: &Address, f: &str, first: i128, second: i128, b_signs: bool) -> R {
-    let ta = MockAuthInvoke { contract: &w.token, fn_name: "transfer", args: (&w.a.addr, &w.c.addr, &first).into_val(&w.env), sub_invokes: &[] };
-    let tb = MockAuthInvoke { contract: &w.token, fn_name: "transfer", args: (&w.b.addr, &w.c.addr, &second).into_val(&w.env), sub_invokes: &[] };
+    let ta = MockAuthInvoke {
+        contract: &w.token,
+        fn_name: "transfer",
+        args: (&w.a.addr, &w.c.addr, &first).into_val(&w.env),
+        sub_invokes: &[],
+    };
+    let tb = MockAuthInvoke {
+        contract: &w.token,
+        fn_name: "transfer",
+        args: (&w.b.addr, &w.c.addr, &second).into_val(&w.env),
+        sub_invokes: &[],
+    };
     // The Catcher never calls require_auth itself, so each account's authorization is rooted at its own token transfer.
-    let mut auths = std::vec![MockAuth { address: &w.a.addr, invoke: &ta }];
+    let mut auths = std::vec![MockAuth {
+        address: &w.a.addr,
+        invoke: &ta
+    }];
     if b_signs {
-        auths.push(MockAuth { address: &w.b.addr, invoke: &tb });
+        auths.push(MockAuth {
+            address: &w.b.addr,
+            invoke: &tb,
+        });
     }
     let client = CatcherClient::new(&w.env, catcher);
     let c = client.mock_auths(&auths);
@@ -89,7 +129,9 @@ fn run(w: &World, catcher: &Address, f: &str, first: i128, second: i128, b_signs
     }
 }
 
-fn own<T: std::fmt::Debug, C: std::fmt::Debug, I: std::fmt::Debug>(r: Result<Result<T, C>, Result<CatchError, I>>) -> R {
+fn own<T: std::fmt::Debug, C: std::fmt::Debug, I: std::fmt::Debug>(
+    r: Result<Result<T, C>, Result<CatchError, I>>,
+) -> R {
     match r {
         Ok(Ok(_)) => R::Ok,
         Ok(Err(e)) => panic!("conversion error {e:?}"),
@@ -107,7 +149,12 @@ fn setup(a_funds: i128, b_funds: i128) -> (World, Address) {
 }
 
 fn state(w: &World, catcher: &Address) -> (i128, i128, i128, bool) {
-    (bal(w, &w.a), bal(w, &w.b), bal(w, &w.c), CatcherClient::new(&w.env, catcher).marker())
+    (
+        bal(w, &w.a),
+        bal(w, &w.b),
+        bal(w, &w.c),
+        CatcherClient::new(&w.env, catcher).marker(),
+    )
 }
 
 #[test]
@@ -122,7 +169,10 @@ fn a_contract_that_ignores_a_failed_transfer_keeps_the_earlier_transfer_and_its_
 fn a_contract_that_catches_a_failed_transfer_and_returns_an_error_rolls_everything_back() {
     // EQ-16 at host level: the earlier transfer and the marker are reverted when the contract returns its own error
     let (w, c) = setup(10, 1);
-    assert_eq!(run(&w, &c, "catch", 10, 5, true), R::OwnError(CatchError::TransferFailed));
+    assert_eq!(
+        run(&w, &c, "catch", 10, 5, true),
+        R::OwnError(CatchError::TransferFailed)
+    );
     assert_eq!(state(&w, &c), (10, 1, 0, false));
 }
 
@@ -140,9 +190,20 @@ fn a_catch_also_swallows_a_missing_authorization_so_it_would_blur_two_different_
     // failure". Together with the S12 requirement of distinct error conditions this is why TobinClearingV1.settle lets the failure
     // propagate (a missing authorization is then a host Auth error and a token failure the token's own contract error).
     let (w, c) = setup(10, 10);
-    assert_eq!(run(&w, &c, "catch", 10, 5, false), R::OwnError(CatchError::TransferFailed));
-    assert_eq!(state(&w, &c), (10, 10, 0, false), "everything still rolled back");
-    assert_eq!(run(&w, &c, "propagate", 10, 5, false), R::Host, "propagating keeps it a host authorization error");
+    assert_eq!(
+        run(&w, &c, "catch", 10, 5, false),
+        R::OwnError(CatchError::TransferFailed)
+    );
+    assert_eq!(
+        state(&w, &c),
+        (10, 10, 0, false),
+        "everything still rolled back"
+    );
+    assert_eq!(
+        run(&w, &c, "propagate", 10, 5, false),
+        R::Host,
+        "propagating keeps it a host authorization error"
+    );
     assert_eq!(state(&w, &c), (10, 10, 0, false));
     // and the ignoring variant leaves a PARTIAL settlement: A paid, B did not, and the marker says the work is done
     assert_eq!(run(&w, &c, "ignore", 10, 5, false), R::Ok);

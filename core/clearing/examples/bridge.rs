@@ -22,8 +22,7 @@ use ed25519_dalek::SigningKey;
 use serde_json::{json, Value};
 use soroban_sdk::{
     testutils::{Address as _, EnvTestConfig, Events as _, Ledger as _, MockAuth, MockAuthInvoke},
-    xdr,
-    Address, BytesN, Env, IntoVal, String as SStr, Symbol, TryFromVal, Val, Vec as SVec,
+    xdr, Address, BytesN, Env, IntoVal, String as SStr, Symbol, TryFromVal, Val, Vec as SVec,
 };
 use std::collections::HashMap;
 use std::io::{BufRead, Write};
@@ -50,13 +49,19 @@ fn hex(b: &[u8]) -> String {
 }
 
 fn unhex(s: &str) -> Vec<u8> {
-    (0..s.len() / 2).map(|i| u8::from_str_radix(&s[2 * i..2 * i + 2], 16).unwrap()).collect()
+    (0..s.len() / 2)
+        .map(|i| u8::from_str_radix(&s[2 * i..2 * i + 2], 16).unwrap())
+        .collect()
 }
 
 fn account(env: &Env, seed: u8) -> Address {
     let key = SigningKey::from_bytes(&[seed; 32]);
-    let id = xdr::AccountId(xdr::PublicKey::PublicKeyTypeEd25519(xdr::Uint256(key.verifying_key().to_bytes())));
-    let entry_key = Rc::new(xdr::LedgerKey::Account(xdr::LedgerKeyAccount { account_id: id.clone() }));
+    let id = xdr::AccountId(xdr::PublicKey::PublicKeyTypeEd25519(xdr::Uint256(
+        key.verifying_key().to_bytes(),
+    )));
+    let entry_key = Rc::new(xdr::LedgerKey::Account(xdr::LedgerKeyAccount {
+        account_id: id.clone(),
+    }));
     let entry = Rc::new(xdr::LedgerEntry {
         last_modified_ledger_seq: 0,
         data: xdr::LedgerEntryData::Account(xdr::AccountEntry {
@@ -73,7 +78,9 @@ fn account(env: &Env, seed: u8) -> Address {
         }),
         ext: xdr::LedgerEntryExt::V0,
     });
-    env.host().add_ledger_entry(&entry_key, &entry, None).unwrap();
+    env.host()
+        .add_ledger_entry(&entry_key, &entry, None)
+        .unwrap();
     Address::try_from_val(env, &xdr::ScAddress::Account(id)).unwrap()
 }
 
@@ -89,17 +96,29 @@ fn bytes32(env: &Env, v: &Value) -> BytesN<32> {
 }
 
 fn i128v(v: &Value) -> i128 {
-    v.as_str().expect("i128 as decimal string").parse().expect("i128")
+    v.as_str()
+        .expect("i128 as decimal string")
+        .parse()
+        .expect("i128")
 }
 
 fn obligation(env: &Env, v: &Value) -> Obligation {
-    Obligation { id: bytes32(env, &v["id"]), debtor: addr(env, &v["debtor"]), creditor: addr(env, &v["creditor"]), amount: i128v(&v["amount"]) }
+    Obligation {
+        id: bytes32(env, &v["id"]),
+        debtor: addr(env, &v["debtor"]),
+        creditor: addr(env, &v["creditor"]),
+        amount: i128v(&v["amount"]),
+    }
 }
 
 fn instructions(env: &Env, v: &Value) -> SVec<Instruction> {
     let mut out = SVec::new(env);
     for i in v.as_array().expect("instruction array") {
-        out.push_back(Instruction { payer: addr(env, &i["payer"]), payee: addr(env, &i["payee"]), amount: i128v(&i["amount"]) });
+        out.push_back(Instruction {
+            payer: addr(env, &i["payer"]),
+            payee: addr(env, &i["payee"]),
+            amount: i128v(&i["amount"]),
+        });
     }
     out
 }
@@ -140,7 +159,10 @@ fn inv(env: &Env, v: &Value) -> Inv {
         contract: addr(env, &v["contract"]),
         name: v["fn"].as_str().expect("fn").to_string(),
         args: args_vec(env, &v["args"]),
-        subs: v["subs"].as_array().map(|s| s.iter().map(|x| inv(env, x)).collect()).unwrap_or_default(),
+        subs: v["subs"]
+            .as_array()
+            .map(|s| s.iter().map(|x| inv(env, x)).collect())
+            .unwrap_or_default(),
     }
 }
 
@@ -149,7 +171,12 @@ fn leak(i: &Inv) -> MockAuthInvoke<'static> {
     let contract: &'static Address = Box::leak(Box::new(i.contract.clone()));
     let name: &'static str = Box::leak(i.name.clone().into_boxed_str());
     let subs: Vec<MockAuthInvoke<'static>> = i.subs.iter().map(leak).collect();
-    MockAuthInvoke { contract, fn_name: name, args: i.args.clone(), sub_invokes: Box::leak(subs.into_boxed_slice()) }
+    MockAuthInvoke {
+        contract,
+        fn_name: name,
+        args: i.args.clone(),
+        sub_invokes: Box::leak(subs.into_boxed_slice()),
+    }
 }
 
 fn to_json(env: &Env, val: Val) -> Value {
@@ -167,7 +194,9 @@ fn sc_json(env: &Env, sc: &xdr::ScVal) -> Value {
         xdr::ScVal::I64(n) => json!(n.to_string()),
         xdr::ScVal::I128(p) => json!((((p.hi as i128) << 64) | p.lo as i128).to_string()),
         xdr::ScVal::Bytes(b) => json!(hex(&b.0)),
-        xdr::ScVal::Address(a) => json!(addr_str(&Address::try_from_val(env, &xdr::ScVal::Address(a.clone())).unwrap())),
+        xdr::ScVal::Address(a) => json!(addr_str(
+            &Address::try_from_val(env, &xdr::ScVal::Address(a.clone())).unwrap()
+        )),
         xdr::ScVal::String(s) => json!(s.to_utf8_string_lossy()),
         xdr::ScVal::Symbol(s) => json!(s.to_utf8_string_lossy()),
         xdr::ScVal::Vec(Some(v)) => Value::Array(v.0.iter().map(|x| sc_json(env, x)).collect()),
@@ -192,7 +221,11 @@ fn invoke(w: &World, req: &Value) -> Value {
     // explicit authorization trees (enforcing world only)
     let owned: Vec<(Address, Inv)> = req["auths"]
         .as_array()
-        .map(|a| a.iter().map(|x| (addr(env, &x["who"]), inv(env, &x["root"]))).collect())
+        .map(|a| {
+            a.iter()
+                .map(|x| (addr(env, &x["who"]), inv(env, &x["root"])))
+                .collect()
+        })
         .unwrap_or_default();
     if !w.accounts {
         let auths: Vec<MockAuth<'static>> = owned
@@ -200,7 +233,10 @@ fn invoke(w: &World, req: &Value) -> Value {
             .map(|(who, root)| {
                 let who: &'static Address = Box::leak(Box::new(who.clone()));
                 let root: &'static MockAuthInvoke<'static> = Box::leak(Box::new(leak(root)));
-                MockAuth { address: who, invoke: root }
+                MockAuth {
+                    address: who,
+                    invoke: root,
+                }
             })
             .collect();
         env.mock_auths(&auths);
@@ -221,14 +257,22 @@ fn parse_error(msg: &str) -> Option<(String, String)> {
 /// narrow every non-contract error to Context/InvalidAction, and the diagnostic log does not reliably record repeated failures). The panic is
 /// caught here and turned into a structured error; the host has already unwound its frames when the SDK panics.
 fn run(env: &Env, contract: &Address, fname: &str, args: SVec<Val>) -> Value {
-    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| env.invoke_contract::<Val>(contract, &Symbol::new(env, fname), args)));
+    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        env.invoke_contract::<Val>(contract, &Symbol::new(env, fname), args)
+    }));
     let events = env.events().all().events().len();
     let r = env.cost_estimate().resources();
     let resources = json!({ "instructions": r.instructions, "memBytes": r.mem_bytes, "writeEntries": r.write_entries, "writeBytes": r.write_bytes });
     match res {
-        Ok(v) => json!({ "ok": true, "value": to_json(env, v), "eventCount": events, "resources": resources }),
+        Ok(v) => {
+            json!({ "ok": true, "value": to_json(env, v), "eventCount": events, "resources": resources })
+        }
         Err(payload) => {
-            let msg = payload.downcast_ref::<String>().cloned().or_else(|| payload.downcast_ref::<&str>().map(|s| s.to_string())).unwrap_or_default();
+            let msg = payload
+                .downcast_ref::<String>()
+                .cloned()
+                .or_else(|| payload.downcast_ref::<&str>().map(|s| s.to_string()))
+                .unwrap_or_default();
             match parse_error(&msg) {
                 Some((ty, code)) => {
                     // a contract error reads `#N`; a host error reads a name such as InvalidAction
@@ -269,7 +313,16 @@ fn handle(w: &mut World, req: &Value) -> Value {
         "token" => {
             let minter = addr(&env, &req["minter"]);
             let cap = i128v(&req["cap"]);
-            let t = env.register(TobinTestToken, (minter, cap, 7u32, SStr::from_str(&env, "Tobin Test Token"), SStr::from_str(&env, "TTT")));
+            let t = env.register(
+                TobinTestToken,
+                (
+                    minter,
+                    cap,
+                    7u32,
+                    SStr::from_str(&env, "Tobin Test Token"),
+                    SStr::from_str(&env, "TTT"),
+                ),
+            );
             json!({ "ok": true, "address": addr_str(&t) })
         }
         "clearing" => {
@@ -278,22 +331,32 @@ fn handle(w: &mut World, req: &Value) -> Value {
         }
         "network" => json!({ "ok": true, "networkId": hex(&env.ledger().network_id().to_array()) }),
         "ledger" => {
-            env.ledger().with_mut(|l| l.sequence_number = req["sequence"].as_u64().unwrap() as u32);
+            env.ledger()
+                .with_mut(|l| l.sequence_number = req["sequence"].as_u64().unwrap() as u32);
             json!({ "ok": true })
         }
         "invoke" => invoke(w, req),
-        c => json!({ "ok": false, "errorType": "Protocol", "code": 0, "detail": format!("unknown cmd {c}") }),
+        c => {
+            json!({ "ok": false, "errorType": "Protocol", "code": 0, "detail": format!("unknown cmd {c}") })
+        }
     }
 }
 
 fn main() {
     std::panic::set_hook(Box::new(|_| {}));
     let accounts = std::env::args().any(|a| a == "--accounts");
-    let env = Env::new_with_config(EnvTestConfig { capture_snapshot_at_drop: false });
+    let env = Env::new_with_config(EnvTestConfig {
+        capture_snapshot_at_drop: false,
+    });
     if accounts {
         env.mock_all_auths();
     }
-    let mut w = World { env, accounts, actors: HashMap::new(), next_seed: 0 };
+    let mut w = World {
+        env,
+        accounts,
+        actors: HashMap::new(),
+        next_seed: 0,
+    };
     let stdin = std::io::stdin();
     let mut out = std::io::stdout();
     for line in stdin.lock().lines() {

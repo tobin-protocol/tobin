@@ -24,7 +24,12 @@ fn sc_addr(a: &Address) -> xdr::ScAddress {
     a.try_into().unwrap()
 }
 
-fn invocation(f: &str, contract: &Address, args: std::vec::Vec<xdr::ScVal>, subs: std::vec::Vec<xdr::SorobanAuthorizedInvocation>) -> xdr::SorobanAuthorizedInvocation {
+fn invocation(
+    f: &str,
+    contract: &Address,
+    args: std::vec::Vec<xdr::ScVal>,
+    subs: std::vec::Vec<xdr::SorobanAuthorizedInvocation>,
+) -> xdr::SorobanAuthorizedInvocation {
     xdr::SorobanAuthorizedInvocation {
         function: xdr::SorobanAuthorizedFunction::ContractFn(xdr::InvokeContractArgs {
             contract_address: sc_addr(contract),
@@ -43,27 +48,55 @@ struct SignOpts<'a> {
 }
 
 fn opts<'a>() -> SignOpts<'a> {
-    SignOpts { key: None, signed_tree: None, network_id: None, expiry: None }
+    SignOpts {
+        key: None,
+        signed_tree: None,
+        network_id: None,
+        expiry: None,
+    }
 }
 
-fn signed_entry(w: &World, who: &Acct, root: xdr::SorobanAuthorizedInvocation, nonce: i64, o: SignOpts) -> xdr::SorobanAuthorizationEntry {
+fn signed_entry(
+    w: &World,
+    who: &Acct,
+    root: xdr::SorobanAuthorizedInvocation,
+    nonce: i64,
+    o: SignOpts,
+) -> xdr::SorobanAuthorizationEntry {
     let expiry = o.expiry.unwrap_or(w.env.ledger().sequence() + 100);
-    let net = o.network_id.unwrap_or_else(|| w.env.ledger().network_id().to_array());
-    let preimage = xdr::HashIdPreimage::SorobanAuthorization(xdr::HashIdPreimageSorobanAuthorization {
-        network_id: xdr::Hash(net),
-        nonce,
-        signature_expiration_ledger: expiry,
-        invocation: o.signed_tree.unwrap_or_else(|| root.clone()),
-    });
-    let payload = w.env.crypto().sha256(&Bytes::from_slice(&w.env, &preimage.to_xdr(Limits::none()).unwrap()));
+    let net = o
+        .network_id
+        .unwrap_or_else(|| w.env.ledger().network_id().to_array());
+    let preimage =
+        xdr::HashIdPreimage::SorobanAuthorization(xdr::HashIdPreimageSorobanAuthorization {
+            network_id: xdr::Hash(net),
+            nonce,
+            signature_expiration_ledger: expiry,
+            invocation: o.signed_tree.unwrap_or_else(|| root.clone()),
+        });
+    let payload = w.env.crypto().sha256(&Bytes::from_slice(
+        &w.env,
+        &preimage.to_xdr(Limits::none()).unwrap(),
+    ));
     let key = o.key.unwrap_or(&who.key);
     let sig = key.sign(&payload.to_array()).to_bytes();
-    let entry = |k: &str, v: xdr::ScVal| xdr::ScMapEntry { key: xdr::ScVal::Symbol(k.try_into().unwrap()), val: v };
+    let entry = |k: &str, v: xdr::ScVal| xdr::ScMapEntry {
+        key: xdr::ScVal::Symbol(k.try_into().unwrap()),
+        val: v,
+    };
     let signature = xdr::ScVal::Vec(Some(xdr::ScVec(
         std::vec![xdr::ScVal::Map(Some(xdr::ScMap(
             std::vec![
-                entry("public_key", xdr::ScVal::Bytes(xdr::ScBytes(key.verifying_key().to_bytes().to_vec().try_into().unwrap()))),
-                entry("signature", xdr::ScVal::Bytes(xdr::ScBytes(sig.to_vec().try_into().unwrap()))),
+                entry(
+                    "public_key",
+                    xdr::ScVal::Bytes(xdr::ScBytes(
+                        key.verifying_key().to_bytes().to_vec().try_into().unwrap()
+                    ))
+                ),
+                entry(
+                    "signature",
+                    xdr::ScVal::Bytes(xdr::ScBytes(sig.to_vec().try_into().unwrap()))
+                ),
             ]
             .try_into()
             .unwrap(),
@@ -106,11 +139,26 @@ fn s0_the_participants_are_classic_accounts_and_the_token_is_the_custom_contract
 }
 
 fn join_tree(w: &World, s: &BytesN<32>, joiner: &Acct) -> xdr::SorobanAuthorizedInvocation {
-    invocation("join_session", &w.clearing, std::vec![sc(&w.env, s), sc(&w.env, &joiner.addr)], std::vec![])
+    invocation(
+        "join_session",
+        &w.clearing,
+        std::vec![sc(&w.env, s), sc(&w.env, &joiner.addr)],
+        std::vec![],
+    )
 }
 
-fn try_join(w: &World, s: &BytesN<32>, joiner: &Acct, entries: &[xdr::SorobanAuthorizationEntry]) -> Out {
-    classify(&w.env, clearing(w).set_auths(entries).try_join_session(s, &joiner.addr))
+fn try_join(
+    w: &World,
+    s: &BytesN<32>,
+    joiner: &Acct,
+    entries: &[xdr::SorobanAuthorizationEntry],
+) -> Out {
+    classify(
+        &w.env,
+        clearing(w)
+            .set_auths(entries)
+            .try_join_session(s, &joiner.addr),
+    )
 }
 
 #[test]
@@ -137,27 +185,90 @@ fn s2_a_join_with_only_one_signer_a_wrong_key_or_a_substituted_joiner_is_rejecte
     clearing(&w).create_session(&w.a.addr, &s, &w.token, &4, &16);
     let tree = join_tree(&w, &s, &w.b);
     // only the joiner / only the creator
-    assert!(matches!(try_join(&w, &s, &w.b, &[signed_entry(&w, &w.b, tree.clone(), 1, opts())]), Out::Host(_)));
-    assert!(matches!(try_join(&w, &s, &w.b, &[signed_entry(&w, &w.a, tree.clone(), 2, opts())]), Out::Host(_)));
+    assert!(matches!(
+        try_join(
+            &w,
+            &s,
+            &w.b,
+            &[signed_entry(&w, &w.b, tree.clone(), 1, opts())]
+        ),
+        Out::Host(_)
+    ));
+    assert!(matches!(
+        try_join(
+            &w,
+            &s,
+            &w.b,
+            &[signed_entry(&w, &w.a, tree.clone(), 2, opts())]
+        ),
+        Out::Host(_)
+    ));
     // the creator's entry signed with a key that is not its signer
     let wrong = SigningKey::from_bytes(&[99; 32]);
-    let bad_creator = signed_entry(&w, &w.a, tree.clone(), 3, SignOpts { key: Some(&wrong), ..opts() });
-    assert!(matches!(try_join(&w, &s, &w.b, &[signed_entry(&w, &w.b, tree.clone(), 4, opts()), bad_creator]), Out::Host(_)));
+    let bad_creator = signed_entry(
+        &w,
+        &w.a,
+        tree.clone(),
+        3,
+        SignOpts {
+            key: Some(&wrong),
+            ..opts()
+        },
+    );
+    assert!(matches!(
+        try_join(
+            &w,
+            &s,
+            &w.b,
+            &[signed_entry(&w, &w.b, tree.clone(), 4, opts()), bad_creator]
+        ),
+        Out::Host(_)
+    ));
     // entries made for B's join, presented for C's join
-    let (eb, ea) = (signed_entry(&w, &w.b, tree.clone(), 5, opts()), signed_entry(&w, &w.a, tree.clone(), 6, opts()));
+    let (eb, ea) = (
+        signed_entry(&w, &w.b, tree.clone(), 5, opts()),
+        signed_entry(&w, &w.a, tree.clone(), 6, opts()),
+    );
     assert!(matches!(try_join(&w, &s, &w.c, &[eb, ea]), Out::Host(_)));
-    assert_eq!(clearing(&w).get_session(&s).participants.len(), 1, "nobody was admitted");
+    assert_eq!(
+        clearing(&w).get_session(&s).participants.len(),
+        1,
+        "nobody was admitted"
+    );
 }
 
-fn settle_tree(w: &World, s: &BytesN<32>, digest: &BytesN<32>, total: i128, transfers: &[(&Acct, &Acct, i128)]) -> xdr::SorobanAuthorizedInvocation {
+fn settle_tree(
+    w: &World,
+    s: &BytesN<32>,
+    digest: &BytesN<32>,
+    total: i128,
+    transfers: &[(&Acct, &Acct, i128)],
+) -> xdr::SorobanAuthorizedInvocation {
     let subs = transfers
         .iter()
-        .map(|(f, t, amt)| invocation("transfer", &w.token, std::vec![sc(&w.env, &f.addr), sc(&w.env, &t.addr), sc(&w.env, amt)], std::vec![]))
+        .map(|(f, t, amt)| {
+            invocation(
+                "transfer",
+                &w.token,
+                std::vec![sc(&w.env, &f.addr), sc(&w.env, &t.addr), sc(&w.env, amt)],
+                std::vec![],
+            )
+        })
         .collect();
-    invocation("settle", &w.clearing, std::vec![sc(&w.env, s), sc(&w.env, digest), sc(&w.env, &total)], subs)
+    invocation(
+        "settle",
+        &w.clearing,
+        std::vec![sc(&w.env, s), sc(&w.env, digest), sc(&w.env, &total)],
+        subs,
+    )
 }
 
-fn try_settle(w: &World, s: &BytesN<32>, digest: &BytesN<32>, entries: &[xdr::SorobanAuthorizationEntry]) -> Out {
+fn try_settle(
+    w: &World,
+    s: &BytesN<32>,
+    digest: &BytesN<32>,
+    entries: &[xdr::SorobanAuthorizationEntry],
+) -> Out {
     classify(&w.env, clearing(w).set_auths(entries).try_settle(s, digest))
 }
 
@@ -180,11 +291,21 @@ fn s3_a_settlement_signed_by_the_debtor_moves_the_custom_token() {
     // in the README example A is the only debtor: A pays B 20 and C 10 under ONE entry carrying both transfers
     let w = world_real();
     let (s, d, _p) = ready(&w);
-    let ea = signed_entry(&w, &w.a, settle_tree(&w, &s, &d, 30, &[(&w.a, &w.b, 20), (&w.a, &w.c, 10)]), 21, opts());
+    let ea = signed_entry(
+        &w,
+        &w.a,
+        settle_tree(&w, &s, &d, 30, &[(&w.a, &w.b, 20), (&w.a, &w.c, 10)]),
+        21,
+        opts(),
+    );
     must(try_settle(&w, &s, &d, &[ea]));
     println!("signed README settlement resources (host test; native or Wasm per environment; real ed25519 entry): {:?}", w.env.cost_estimate().resources());
     let authed: std::vec::Vec<_> = w.env.auths().into_iter().map(|(a, _)| a).collect();
-    assert_eq!(authed, std::vec![w.a.addr.clone()], "only the debtor authorized; no submitter, no approver, no creator");
+    assert_eq!(
+        authed,
+        std::vec![w.a.addr.clone()],
+        "only the debtor authorized; no submitter, no approver, no creator"
+    );
     assert_eq!((bal(&w, &w.a), bal(&w, &w.b), bal(&w, &w.c)), (70, 20, 10));
     assert_eq!(state_of(&w, &s), State::Settled);
 }
@@ -210,13 +331,31 @@ fn s4_two_independent_debtors_each_sign_their_own_entry() {
     }
     token(&w).mint(&w.a.addr, &10);
     token(&w).mint(&w.b.addr, &10);
-    let ea = signed_entry(&w, &w.a, settle_tree(&w, &s, &d, 10, &[(&w.a, &w.c, 10)]), 31, opts());
-    let eb = signed_entry(&w, &w.b, settle_tree(&w, &s, &d, 10, &[(&w.b, &w.d, 10)]), 32, opts());
+    let ea = signed_entry(
+        &w,
+        &w.a,
+        settle_tree(&w, &s, &d, 10, &[(&w.a, &w.c, 10)]),
+        31,
+        opts(),
+    );
+    let eb = signed_entry(
+        &w,
+        &w.b,
+        settle_tree(&w, &s, &d, 10, &[(&w.b, &w.d, 10)]),
+        32,
+        opts(),
+    );
     // a missing second entry is rejected and nothing moves
-    assert!(matches!(try_settle(&w, &s, &d, &[ea.clone()]), Out::Host(_)));
+    assert!(matches!(
+        try_settle(&w, &s, &d, &[ea.clone()]),
+        Out::Host(_)
+    ));
     assert_eq!((bal(&w, &w.a), bal(&w, &w.b)), (10, 10));
     must(try_settle(&w, &s, &d, &[ea, eb]));
-    assert_eq!((bal(&w, &w.a), bal(&w, &w.b), bal(&w, &w.c), bal(&w, &w.d)), (0, 0, 10, 10));
+    assert_eq!(
+        (bal(&w, &w.a), bal(&w, &w.b), bal(&w, &w.c), bal(&w, &w.d)),
+        (0, 0, 10, 10)
+    );
     assert_eq!(state_of(&w, &s), State::Settled);
 }
 
@@ -231,17 +370,90 @@ fn s5_bad_signatures_and_tampering_are_rejected_and_nothing_moves() {
     other_digest[0] ^= 1;
     let other_digest = BytesN::from_array(&w.env, &other_digest);
     let cases: std::vec::Vec<(&str, xdr::SorobanAuthorizationEntry)> = std::vec![
-        ("a key that is not the account signer", signed_entry(&w, &w.a, tree.clone(), 1, SignOpts { key: Some(&wrong), ..opts() })),
-        ("a tree altered after signing", signed_entry(&w, &w.a, tree.clone(), 2, SignOpts { signed_tree: Some(altered_after_signing), ..opts() })),
-        ("a signature for another network", signed_entry(&w, &w.a, tree.clone(), 3, SignOpts { network_id: Some([7; 32]), ..opts() })),
-        ("an entry for another digest", signed_entry(&w, &w.a, settle_tree(&w, &s, &other_digest, 30, &[(&w.a, &w.b, 20), (&w.a, &w.c, 10)]), 4, opts())),
-        ("a different total", signed_entry(&w, &w.a, settle_tree(&w, &s, &d, 31, &[(&w.a, &w.b, 20), (&w.a, &w.c, 10)]), 5, opts())),
-        ("a missing transfer sub-invocation", signed_entry(&w, &w.a, settle_tree(&w, &s, &d, 30, &[(&w.a, &w.b, 20)]), 6, opts())),
+        (
+            "a key that is not the account signer",
+            signed_entry(
+                &w,
+                &w.a,
+                tree.clone(),
+                1,
+                SignOpts {
+                    key: Some(&wrong),
+                    ..opts()
+                }
+            )
+        ),
+        (
+            "a tree altered after signing",
+            signed_entry(
+                &w,
+                &w.a,
+                tree.clone(),
+                2,
+                SignOpts {
+                    signed_tree: Some(altered_after_signing),
+                    ..opts()
+                }
+            )
+        ),
+        (
+            "a signature for another network",
+            signed_entry(
+                &w,
+                &w.a,
+                tree.clone(),
+                3,
+                SignOpts {
+                    network_id: Some([7; 32]),
+                    ..opts()
+                }
+            )
+        ),
+        (
+            "an entry for another digest",
+            signed_entry(
+                &w,
+                &w.a,
+                settle_tree(
+                    &w,
+                    &s,
+                    &other_digest,
+                    30,
+                    &[(&w.a, &w.b, 20), (&w.a, &w.c, 10)]
+                ),
+                4,
+                opts()
+            )
+        ),
+        (
+            "a different total",
+            signed_entry(
+                &w,
+                &w.a,
+                settle_tree(&w, &s, &d, 31, &[(&w.a, &w.b, 20), (&w.a, &w.c, 10)]),
+                5,
+                opts()
+            )
+        ),
+        (
+            "a missing transfer sub-invocation",
+            signed_entry(
+                &w,
+                &w.a,
+                settle_tree(&w, &s, &d, 30, &[(&w.a, &w.b, 20)]),
+                6,
+                opts()
+            )
+        ),
     ];
     for (name, e) in cases {
         let out = try_settle(&w, &s, &d, &[e]);
         assert!(matches!(out, Out::Host(_)), "{name}: {out:?}");
-        assert_eq!((bal(&w, &w.a), bal(&w, &w.b), bal(&w, &w.c)), (100, 0, 0), "{name}");
+        assert_eq!(
+            (bal(&w, &w.a), bal(&w, &w.b), bal(&w, &w.c)),
+            (100, 0, 0),
+            "{name}"
+        );
     }
     assert_eq!(state_of(&w, &s), State::Approved);
 }
@@ -252,10 +464,24 @@ fn s6_an_expired_entry_is_rejected_and_a_fresh_one_settles() {
     let (s, d, _p) = ready(&w);
     w.env.ledger().with_mut(|l| l.sequence_number = 500);
     let tree = settle_tree(&w, &s, &d, 30, &[(&w.a, &w.b, 20), (&w.a, &w.c, 10)]);
-    let expired = signed_entry(&w, &w.a, tree.clone(), 1, SignOpts { expiry: Some(499), ..opts() });
+    let expired = signed_entry(
+        &w,
+        &w.a,
+        tree.clone(),
+        1,
+        SignOpts {
+            expiry: Some(499),
+            ..opts()
+        },
+    );
     assert!(matches!(try_settle(&w, &s, &d, &[expired]), Out::Host(_)));
     assert_eq!(bal(&w, &w.a), 100);
-    must(try_settle(&w, &s, &d, &[signed_entry(&w, &w.a, tree, 2, opts())]));
+    must(try_settle(
+        &w,
+        &s,
+        &d,
+        &[signed_entry(&w, &w.a, tree, 2, opts())],
+    ));
     assert_eq!(bal(&w, &w.a), 70);
 }
 
@@ -264,8 +490,16 @@ fn s7_a_settled_session_cannot_be_settled_again_even_with_fresh_valid_signatures
     let w = world_real();
     let (s, d, _p) = ready(&w);
     let tree = settle_tree(&w, &s, &d, 30, &[(&w.a, &w.b, 20), (&w.a, &w.c, 10)]);
-    must(try_settle(&w, &s, &d, &[signed_entry(&w, &w.a, tree.clone(), 1, opts())]));
+    must(try_settle(
+        &w,
+        &s,
+        &d,
+        &[signed_entry(&w, &w.a, tree.clone(), 1, opts())],
+    ));
     token(&w).mint(&w.a.addr, &100);
-    assert_eq!(try_settle(&w, &s, &d, &[signed_entry(&w, &w.a, tree, 2, opts())]), Out::Contract(Error::AlreadySettled));
+    assert_eq!(
+        try_settle(&w, &s, &d, &[signed_entry(&w, &w.a, tree, 2, opts())]),
+        Out::Contract(Error::AlreadySettled)
+    );
     assert_eq!(bal(&w, &w.a), 170);
 }

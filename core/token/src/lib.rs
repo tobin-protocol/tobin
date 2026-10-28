@@ -15,7 +15,9 @@
 //! * All balance, supply and cap arithmetic is checked. Amounts must be strictly positive.
 #![no_std]
 
-use soroban_sdk::{contract, contracterror, contractevent, contractimpl, contracttype, Address, Env, String};
+use soroban_sdk::{
+    contract, contracterror, contractevent, contractimpl, contracttype, Address, Env, String,
+};
 
 /// Provisional storage-lifetime parameters in ledgers (about 30 and 60 days at 5 s per ledger). [MEASURE]: not chosen from any
 /// measurement.
@@ -73,7 +75,14 @@ pub struct TobinTestToken;
 #[contractimpl]
 impl TobinTestToken {
     /// Runs once at deployment. `minter` is the only account that can ever mint; `cap` is the hard, immutable supply cap.
-    pub fn __constructor(env: Env, minter: Address, cap: i128, decimals: u32, name: String, symbol: String) -> Result<(), Error> {
+    pub fn __constructor(
+        env: Env,
+        minter: Address,
+        cap: i128,
+        decimals: u32,
+        name: String,
+        symbol: String,
+    ) -> Result<(), Error> {
         if cap <= 0 {
             return Err(Error::BadCap);
         }
@@ -101,7 +110,9 @@ impl TobinTestToken {
         if new_total > cap {
             return Err(Error::CapExceeded);
         }
-        let new_bal = balance_of(&env, &to).checked_add(amount).ok_or(Error::Overflow)?;
+        let new_bal = balance_of(&env, &to)
+            .checked_add(amount)
+            .ok_or(Error::Overflow)?;
         set_balance(&env, &to, new_bal);
         env.storage().instance().set(&Key::Total, &new_total);
         extend_instance(&env);
@@ -120,7 +131,9 @@ impl TobinTestToken {
             return Err(Error::InsufficientBalance);
         }
         if from != to {
-            let to_bal = balance_of(&env, &to).checked_add(amount).ok_or(Error::Overflow)?;
+            let to_bal = balance_of(&env, &to)
+                .checked_add(amount)
+                .ok_or(Error::Overflow)?;
             set_balance(&env, &from, from_bal - amount); // cannot underflow: checked above
             set_balance(&env, &to, to_bal);
         }
@@ -153,15 +166,22 @@ impl TobinTestToken {
 }
 
 fn balance_of(env: &Env, id: &Address) -> i128 {
-    env.storage().persistent().get(&Key::Balance(id.clone())).unwrap_or(0)
+    env.storage()
+        .persistent()
+        .get(&Key::Balance(id.clone()))
+        .unwrap_or(0)
 }
 
 fn set_balance(env: &Env, id: &Address, v: i128) {
     let k = Key::Balance(id.clone());
     env.storage().persistent().set(&k, &v);
-    env.storage().persistent().extend_ttl(&k, LIFETIME_THRESHOLD, LIFETIME_EXTEND);
+    env.storage()
+        .persistent()
+        .extend_ttl(&k, LIFETIME_THRESHOLD, LIFETIME_EXTEND);
 }
 
 fn extend_instance(env: &Env) {
-    env.storage().instance().extend_ttl(LIFETIME_THRESHOLD, LIFETIME_EXTEND);
+    env.storage()
+        .instance()
+        .extend_ttl(LIFETIME_THRESHOLD, LIFETIME_EXTEND);
 }

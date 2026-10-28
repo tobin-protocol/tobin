@@ -17,7 +17,11 @@ fn show(label: &str, w: &World) {
 
 #[test]
 fn measure_the_worst_case_session_at_the_provisional_targets() {
-    let backend = if std::env::var("TOBIN_CLEARING_WASM").is_ok() { "compiled Wasm" } else { "native code" };
+    let backend = if std::env::var("TOBIN_CLEARING_WASM").is_ok() {
+        "compiled Wasm"
+    } else {
+        "native code"
+    };
     println!("MEASURE backend: {backend}");
     let w = world();
     let s = sid(&w, 1);
@@ -44,16 +48,35 @@ fn measure_the_worst_case_session_at_the_provisional_targets() {
     assert_eq!(clearing(&w).get_obligations(&s).len(), 16);
     must(finalize(&w, &s, &w.d));
     show("finalize_obligations (16 obligations)", &w);
-    let p1 = plan(&w, &[(&w.a, &w.c, 12), (&w.a, &w.d, 12), (&w.b, &w.c, 12), (&w.b, &w.d, 12)]);
+    let p1 = plan(
+        &w,
+        &[
+            (&w.a, &w.c, 12),
+            (&w.a, &w.d, 12),
+            (&w.b, &w.c, 12),
+            (&w.b, &w.d, 12),
+        ],
+    );
     let d1 = propose_digest(&w, &s, &w.a, &p1);
     show("propose_settlement (first, 4 instr.)", &w);
     let p2 = plan(&w, &[(&w.a, &w.c, 24), (&w.b, &w.d, 24)]);
     let d2 = propose_digest(&w, &s, &w.b, &p2);
     show("propose_settlement (replacement)", &w);
     assert!(d1 != d2);
-    let p3 = plan(&w, &[(&w.a, &w.c, 12), (&w.a, &w.d, 12), (&w.b, &w.c, 12), (&w.b, &w.d, 12)]);
+    let p3 = plan(
+        &w,
+        &[
+            (&w.a, &w.c, 12),
+            (&w.a, &w.d, 12),
+            (&w.b, &w.c, 12),
+            (&w.b, &w.d, 12),
+        ],
+    );
     let d3 = propose_digest(&w, &s, &w.c, &p3);
-    assert!(d3 != d1, "the same plan at revision 3 has a different digest (EQ-05)");
+    assert!(
+        d3 != d1,
+        "the same plan at revision 3 has a different digest (EQ-05)"
+    );
     for who in [&w.a, &w.b, &w.c] {
         must(approve(&w, &s, who, &d3));
     }
@@ -64,5 +87,8 @@ fn measure_the_worst_case_session_at_the_provisional_targets() {
     mint(&w, &w.b, 24);
     must(settle(&w, &s, &d3, &p3));
     show("settle (4 transfers, 2 debtors)", &w);
-    assert_eq!((bal(&w, &w.a), bal(&w, &w.b), bal(&w, &w.c), bal(&w, &w.d)), (0, 0, 24, 24));
+    assert_eq!(
+        (bal(&w, &w.a), bal(&w, &w.b), bal(&w, &w.c), bal(&w, &w.d)),
+        (0, 0, 24, 24)
+    );
 }

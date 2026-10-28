@@ -31,8 +31,10 @@ use ed25519_dalek::{Signer, SigningKey};
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 use soroban_sdk::xdr::{
-    self, Hash, HashIdPreimage, HashIdPreimageSorobanAuthorization, Limits, OperationBody, ScAddress, ScBytes, ScMap, ScMapEntry, ScVal, ScVec,
-    SorobanAddressCredentials, SorobanAuthorizationEntry, SorobanAuthorizedInvocation, SorobanCredentials, TransactionEnvelope, WriteXdr,
+    self, Hash, HashIdPreimage, HashIdPreimageSorobanAuthorization, Limits, OperationBody,
+    ScAddress, ScBytes, ScMap, ScMapEntry, ScVal, ScVec, SorobanAddressCredentials,
+    SorobanAuthorizationEntry, SorobanAuthorizedInvocation, SorobanCredentials,
+    TransactionEnvelope, WriteXdr,
 };
 
 /// Founder-approved maximum authorization lifetime, in ledgers beyond the current ledger (EQ-20).
@@ -54,7 +56,8 @@ const MAX_ARGS: usize = 8;
 
 /// Validate an expiration against the caller-supplied current ledger. Returns the expiration unchanged or an error; never adjusts it.
 pub fn check_expiry(current_ledger: Option<u32>, expiration_ledger: u32) -> Result<u32, String> {
-    let current = current_ledger.ok_or("the current ledger is required and was not supplied (fail closed)")?;
+    let current = current_ledger
+        .ok_or("the current ledger is required and was not supplied (fail closed)")?;
     if current == 0 {
         return Err("the current ledger is invalid (zero)".into());
     }
@@ -62,9 +65,13 @@ pub fn check_expiry(current_ledger: Option<u32>, expiration_ledger: u32) -> Resu
         return Err("expiration ledger must be explicit and non-zero".into());
     }
     if expiration_ledger <= current {
-        return Err(format!("expiration ledger {expiration_ledger} is not after the current ledger {current}"));
+        return Err(format!(
+            "expiration ledger {expiration_ledger} is not after the current ledger {current}"
+        ));
     }
-    let latest = current.checked_add(MAX_AUTH_LIFETIME_LEDGERS).ok_or("current ledger plus the maximum lifetime overflows u32")?;
+    let latest = current
+        .checked_add(MAX_AUTH_LIFETIME_LEDGERS)
+        .ok_or("current ledger plus the maximum lifetime overflows u32")?;
     if expiration_ledger > latest {
         return Err(format!("expiration ledger {expiration_ledger} is more than {MAX_AUTH_LIFETIME_LEDGERS} ledgers after the current ledger {current}"));
     }
@@ -84,7 +91,11 @@ fn crc16_xmodem(data: &[u8]) -> u16 {
     for &b in data {
         crc ^= (b as u16) << 8;
         for _ in 0..8 {
-            crc = if crc & 0x8000 != 0 { (crc << 1) ^ 0x1021 } else { crc << 1 };
+            crc = if crc & 0x8000 != 0 {
+                (crc << 1) ^ 0x1021
+            } else {
+                crc << 1
+            };
         }
     }
     crc
@@ -141,7 +152,9 @@ pub fn parse_secret(s: &str) -> Result<SigningKey, String> {
 fn address_of(s: &str) -> Result<ScAddress, String> {
     let (version, key) = strkey_decode(s)?;
     match (s.as_bytes()[0], version) {
-        (b'G', VERSION_ACCOUNT) => Ok(ScAddress::Account(xdr::AccountId(xdr::PublicKey::PublicKeyTypeEd25519(xdr::Uint256(key))))),
+        (b'G', VERSION_ACCOUNT) => Ok(ScAddress::Account(xdr::AccountId(
+            xdr::PublicKey::PublicKeyTypeEd25519(xdr::Uint256(key)),
+        ))),
         (b'C', VERSION_CONTRACT) => Ok(ScAddress::Contract(xdr::ContractId(Hash(key)))),
         _ => Err("only account (G...) and contract (C...) addresses are accepted".into()),
     }
@@ -191,8 +204,14 @@ pub struct ExpectedIntent {
     pub entries: Vec<ExpectedEntry>,
 }
 
-fn exact_keys<'a>(v: &'a Value, keys: &[&str], what: &str) -> Result<&'a Map<String, Value>, String> {
-    let m = v.as_object().ok_or(format!("{what} must be a JSON object"))?;
+fn exact_keys<'a>(
+    v: &'a Value,
+    keys: &[&str],
+    what: &str,
+) -> Result<&'a Map<String, Value>, String> {
+    let m = v
+        .as_object()
+        .ok_or(format!("{what} must be a JSON object"))?;
     for k in m.keys() {
         if !keys.contains(&k.as_str()) {
             return Err(format!("{what} has an unknown field"));
@@ -227,18 +246,28 @@ fn passphrase_ok(p: &str) -> Result<(), String> {
 
 pub fn parse_deployment(src: &str) -> Result<DeploymentRecord, String> {
     let v = parse_json(src, "the deployment record")?;
-    let m = exact_keys(&v, &["version", "network_passphrase", "clearing", "token"], "the deployment record")?;
+    let m = exact_keys(
+        &v,
+        &["version", "network_passphrase", "clearing", "token"],
+        "the deployment record",
+    )?;
     if m["version"].as_u64() != Some(DEPLOYMENT_VERSION) {
         return Err("unsupported deployment record version".into());
     }
     let passphrase = text_of(&m["network_passphrase"], "network_passphrase")?;
     passphrase_ok(&passphrase)?;
-    let clearing = contract_id(&address_of(text_of(&m["clearing"], "clearing")?.as_str())?).ok_or("clearing must be a contract (C...) address")?;
-    let token = contract_id(&address_of(text_of(&m["token"], "token")?.as_str())?).ok_or("token must be a contract (C...) address")?;
+    let clearing = contract_id(&address_of(text_of(&m["clearing"], "clearing")?.as_str())?)
+        .ok_or("clearing must be a contract (C...) address")?;
+    let token = contract_id(&address_of(text_of(&m["token"], "token")?.as_str())?)
+        .ok_or("token must be a contract (C...) address")?;
     if clearing == token {
         return Err("the clearing and token contracts must be different".into());
     }
-    Ok(DeploymentRecord { network_passphrase: passphrase, clearing, token })
+    Ok(DeploymentRecord {
+        network_passphrase: passphrase,
+        clearing,
+        token,
+    })
 }
 
 fn text_of(v: &Value, what: &str) -> Result<String, String> {
@@ -250,21 +279,34 @@ fn sym(k: &str) -> ScVal {
 }
 
 fn i128_val(n: i128) -> ScVal {
-    ScVal::I128(xdr::Int128Parts { hi: (n >> 64) as i64, lo: n as u64 })
+    ScVal::I128(xdr::Int128Parts {
+        hi: (n >> 64) as i64,
+        lo: n as u64,
+    })
 }
 
 fn bytes32_val(hexs: &str) -> Result<ScVal, String> {
-    if hexs.len() != 64 || !hexs.bytes().all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c)) {
+    if hexs.len() != 64
+        || !hexs
+            .bytes()
+            .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
+    {
         return Err("a bytes32 value must be 64 lowercase hex characters".into());
     }
-    let b: Vec<u8> = (0..32).map(|i| u8::from_str_radix(&hexs[2 * i..2 * i + 2], 16).unwrap()).collect();
+    let b: Vec<u8> = (0..32)
+        .map(|i| u8::from_str_radix(&hexs[2 * i..2 * i + 2], 16).unwrap())
+        .collect();
     Ok(ScVal::Bytes(ScBytes(b.try_into().unwrap())))
 }
 
 fn amount(s: &str) -> Result<i128, String> {
-    let n: i128 = s.parse().map_err(|_| "an amount must be a decimal i128".to_string())?;
+    let n: i128 = s
+        .parse()
+        .map_err(|_| "an amount must be a decimal i128".to_string())?;
     if n.to_string() != s {
-        return Err("an amount must be canonical decimal (no sign prefix, no leading zeros)".into());
+        return Err(
+            "an amount must be canonical decimal (no sign prefix, no leading zeros)".into(),
+        );
     }
     Ok(n)
 }
@@ -276,7 +318,17 @@ fn addr_val(s: &str) -> Result<ScVal, String> {
 fn map_val(mut fields: Vec<(&str, ScVal)>) -> ScVal {
     // a `#[contracttype]` struct is an ScMap keyed by field-name symbols in ascending key order
     fields.sort_by(|a, b| a.0.cmp(b.0));
-    ScVal::Map(Some(ScMap(fields.into_iter().map(|(k, v)| ScMapEntry { key: sym(k), val: v }).collect::<Vec<_>>().try_into().unwrap())))
+    ScVal::Map(Some(ScMap(
+        fields
+            .into_iter()
+            .map(|(k, v)| ScMapEntry {
+                key: sym(k),
+                val: v,
+            })
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap(),
+    )))
 }
 
 fn str_field<'a>(m: &'a Map<String, Value>, k: &str) -> Result<&'a str, String> {
@@ -292,11 +344,19 @@ fn parse_arg(v: &Value) -> Result<ScVal, String> {
         "bytes32" => bytes32_val(text(val, "a bytes32 argument")?),
         "i128" => Ok(i128_val(amount(text(val, "an i128 argument")?)?)),
         "u32" => {
-            let n = val.as_u64().ok_or("a u32 argument must be an unsigned integer")?;
-            Ok(ScVal::U32(u32::try_from(n).map_err(|_| "a u32 argument is out of range".to_string())?))
+            let n = val
+                .as_u64()
+                .ok_or("a u32 argument must be an unsigned integer")?;
+            Ok(ScVal::U32(u32::try_from(n).map_err(|_| {
+                "a u32 argument is out of range".to_string()
+            })?))
         }
         "obligation" => {
-            let o = exact_keys(val, &["id", "debtor", "creditor", "amount"], "an obligation argument")?;
+            let o = exact_keys(
+                val,
+                &["id", "debtor", "creditor", "amount"],
+                "an obligation argument",
+            )?;
             Ok(map_val(vec![
                 ("id", bytes32_val(str_field(o, "id")?)?),
                 ("debtor", addr_val(str_field(o, "debtor")?)?),
@@ -305,7 +365,9 @@ fn parse_arg(v: &Value) -> Result<ScVal, String> {
             ]))
         }
         "instructions" => {
-            let a = val.as_array().ok_or("an instructions argument must be an array")?;
+            let a = val
+                .as_array()
+                .ok_or("an instructions argument must be an array")?;
             if a.len() > MAX_VEC_ITEMS {
                 return Err("too many instructions".into());
             }
@@ -318,24 +380,40 @@ fn parse_arg(v: &Value) -> Result<ScVal, String> {
                     ("amount", i128_val(amount(str_field(o, "amount")?)?)),
                 ]));
             }
-            Ok(ScVal::Vec(Some(ScVec(items.try_into().map_err(|_| "too many instructions".to_string())?))))
+            Ok(ScVal::Vec(Some(ScVec(
+                items
+                    .try_into()
+                    .map_err(|_| "too many instructions".to_string())?,
+            ))))
         }
         _ => Err("unsupported argument type".into()),
     }
 }
 
-fn parse_tree(v: &Value, depth: usize, nodes: &mut usize, dep: &DeploymentRecord) -> Result<SorobanAuthorizedInvocation, String> {
+fn parse_tree(
+    v: &Value,
+    depth: usize,
+    nodes: &mut usize,
+    dep: &DeploymentRecord,
+) -> Result<SorobanAuthorizedInvocation, String> {
     if depth >= MAX_TREE_DEPTH {
-        return Err(format!("an invocation tree is deeper than {MAX_TREE_DEPTH}"));
+        return Err(format!(
+            "an invocation tree is deeper than {MAX_TREE_DEPTH}"
+        ));
     }
     *nodes += 1;
     if *nodes > MAX_TREE_NODES {
-        return Err(format!("an invocation tree has more than {MAX_TREE_NODES} nodes"));
+        return Err(format!(
+            "an invocation tree has more than {MAX_TREE_NODES} nodes"
+        ));
     }
     let m = exact_keys(v, &["contract", "fn", "args", "subs"], "an invocation")?;
-    let contract = contract_id(&address_of(text(&m["contract"], "contract")?)?).ok_or("an invocation must name a contract (C...) address")?;
+    let contract = contract_id(&address_of(text(&m["contract"], "contract")?)?)
+        .ok_or("an invocation must name a contract (C...) address")?;
     if contract != dep.clearing && contract != dep.token {
-        return Err("an invocation names a contract that is not in the pinned deployment record".into());
+        return Err(
+            "an invocation names a contract that is not in the pinned deployment record".into(),
+        );
     }
     let f = text(&m["fn"], "fn")?;
     if f.is_empty() || f.len() > 32 {
@@ -347,35 +425,63 @@ fn parse_tree(v: &Value, depth: usize, nodes: &mut usize, dep: &DeploymentRecord
     }
     let args: Vec<ScVal> = args_v.iter().map(parse_arg).collect::<Result<_, _>>()?;
     let subs_v = m["subs"].as_array().ok_or("subs must be an array")?;
-    let subs: Vec<SorobanAuthorizedInvocation> = subs_v.iter().map(|s| parse_tree(s, depth + 1, nodes, dep)).collect::<Result<_, _>>()?;
+    let subs: Vec<SorobanAuthorizedInvocation> = subs_v
+        .iter()
+        .map(|s| parse_tree(s, depth + 1, nodes, dep))
+        .collect::<Result<_, _>>()?;
     Ok(SorobanAuthorizedInvocation {
         function: xdr::SorobanAuthorizedFunction::ContractFn(xdr::InvokeContractArgs {
             contract_address: ScAddress::Contract(xdr::ContractId(Hash(contract))),
-            function_name: f.try_into().map_err(|_| "a function name is not a valid symbol".to_string())?,
-            args: args.try_into().map_err(|_| "too many arguments".to_string())?,
+            function_name: f
+                .try_into()
+                .map_err(|_| "a function name is not a valid symbol".to_string())?,
+            args: args
+                .try_into()
+                .map_err(|_| "too many arguments".to_string())?,
         }),
-        sub_invocations: subs.try_into().map_err(|_| "too many sub-invocations".to_string())?,
+        sub_invocations: subs
+            .try_into()
+            .map_err(|_| "too many sub-invocations".to_string())?,
     })
 }
 
 /// (contract id, function name, arguments, sub-invocations) of a contract-function invocation
-type InvocationParts = ([u8; 32], String, Vec<ScVal>, Vec<SorobanAuthorizedInvocation>);
+type InvocationParts = (
+    [u8; 32],
+    String,
+    Vec<ScVal>,
+    Vec<SorobanAuthorizedInvocation>,
+);
 
 fn parts(inv: &SorobanAuthorizedInvocation) -> Result<InvocationParts, String> {
     let xdr::SorobanAuthorizedFunction::ContractFn(c) = &inv.function else {
         return Err("only contract-function invocations are supported".into());
     };
-    let id = contract_id(&c.contract_address).ok_or("an invocation must name a contract address")?;
-    Ok((id, c.function_name.to_utf8_string_lossy(), c.args.to_vec(), inv.sub_invocations.to_vec()))
+    let id =
+        contract_id(&c.contract_address).ok_or("an invocation must name a contract address")?;
+    Ok((
+        id,
+        c.function_name.to_utf8_string_lossy(),
+        c.args.to_vec(),
+        inv.sub_invocations.to_vec(),
+    ))
 }
 
-fn tree_metrics(inv: &SorobanAuthorizedInvocation, depth: usize, nodes: &mut usize) -> Result<(), String> {
+fn tree_metrics(
+    inv: &SorobanAuthorizedInvocation,
+    depth: usize,
+    nodes: &mut usize,
+) -> Result<(), String> {
     if depth >= MAX_TREE_DEPTH {
-        return Err(format!("an invocation tree is deeper than {MAX_TREE_DEPTH}"));
+        return Err(format!(
+            "an invocation tree is deeper than {MAX_TREE_DEPTH}"
+        ));
     }
     *nodes += 1;
     if *nodes > MAX_TREE_NODES {
-        return Err(format!("an invocation tree has more than {MAX_TREE_NODES} nodes"));
+        return Err(format!(
+            "an invocation tree has more than {MAX_TREE_NODES} nodes"
+        ));
     }
     for s in inv.sub_invocations.iter() {
         tree_metrics(s, depth + 1, nodes)?;
@@ -400,14 +506,34 @@ fn as_i128(v: &ScVal) -> Option<i128> {
 /// The complete semantic check of one expected entry against the pinned record. This is what makes the intent a strict, independent statement of what
 /// each contract call may authorize: allowed functions only, exact argument shapes, the signer in the role the contract assigns it, and for settlement the
 /// exact transfer structure the contract produces.
-fn validate_semantics(signer: &[u8; 32], tree: &SorobanAuthorizedInvocation, dep: &DeploymentRecord) -> Result<(), String> {
+fn validate_semantics(
+    signer: &[u8; 32],
+    tree: &SorobanAuthorizedInvocation,
+    dep: &DeploymentRecord,
+) -> Result<(), String> {
     let (contract, f, args, subs) = parts(tree)?;
-    let me = ScAddress::Account(xdr::AccountId(xdr::PublicKey::PublicKeyTypeEd25519(xdr::Uint256(*signer))));
+    let me = ScAddress::Account(xdr::AccountId(xdr::PublicKey::PublicKeyTypeEd25519(
+        xdr::Uint256(*signer),
+    )));
     let is_me = |v: &ScVal| as_addr_key(v) == Some(&me);
     let is_bytes32 = |v: &ScVal| matches!(v, ScVal::Bytes(b) if b.len() == 32);
     let positive = |v: &ScVal| as_i128(v).is_some_and(|n| n > 0);
-    let no_subs = || if subs.is_empty() { Ok(()) } else { Err(format!("{f} must not carry sub-invocations")) };
-    let shape = |ok: bool| if ok { Ok(()) } else { Err(format!("the arguments of {f} do not have the expected shape")) };
+    let no_subs = || {
+        if subs.is_empty() {
+            Ok(())
+        } else {
+            Err(format!("{f} must not carry sub-invocations"))
+        }
+    };
+    let shape = |ok: bool| {
+        if ok {
+            Ok(())
+        } else {
+            Err(format!(
+                "the arguments of {f} do not have the expected shape"
+            ))
+        }
+    };
     if contract == dep.clearing {
         match f.as_str() {
             "create_session" => {
@@ -435,14 +561,29 @@ fn validate_semantics(signer: &[u8; 32], tree: &SorobanAuthorizedInvocation, dep
             }
             "propose_settlement" => {
                 no_subs()?;
-                shape(args.len() == 3 && is_bytes32(&args[0]) && is_me(&args[1]) && matches!(&args[2], ScVal::Vec(Some(_))))
+                shape(
+                    args.len() == 3
+                        && is_bytes32(&args[0])
+                        && is_me(&args[1])
+                        && matches!(&args[2], ScVal::Vec(Some(_))),
+                )
             }
             "approve_settlement" => {
                 no_subs()?;
-                shape(args.len() == 3 && is_bytes32(&args[0]) && is_me(&args[1]) && is_bytes32(&args[2]))
+                shape(
+                    args.len() == 3
+                        && is_bytes32(&args[0])
+                        && is_me(&args[1])
+                        && is_bytes32(&args[2]),
+                )
             }
             "settle" => {
-                shape(args.len() == 3 && is_bytes32(&args[0]) && is_bytes32(&args[1]) && positive(&args[2]))?;
+                shape(
+                    args.len() == 3
+                        && is_bytes32(&args[0])
+                        && is_bytes32(&args[1])
+                        && positive(&args[2]),
+                )?;
                 settle_semantics(&me, &args, &subs, dep)
             }
             _ => Err(format!("{f} is not a supported signing call")),
@@ -453,7 +594,9 @@ fn validate_semantics(signer: &[u8; 32], tree: &SorobanAuthorizedInvocation, dep
                 no_subs()?;
                 shape(args.len() == 2 && as_addr_key(&args[0]).is_some() && positive(&args[1]))
             }
-            _ => Err(format!("{f} is not a supported root call on the token contract")),
+            _ => Err(format!(
+                "{f} is not a supported root call on the token contract"
+            )),
         }
     } else {
         Err("the root invocation is not on a pinned contract".into())
@@ -466,11 +609,23 @@ fn obligation_ok(v: &ScVal, me: &ScAddress) -> bool {
         return false;
     }
     let get = |k: &str| m.iter().find(|e| e.key == sym(k)).map(|e| &e.val);
-    let (Some(id), Some(d), Some(c), Some(a)) = (get("id"), get("debtor"), get("creditor"), get("amount")) else { return false };
-    matches!(id, ScVal::Bytes(b) if b.len() == 32) && as_addr_key(d) == Some(me) && as_addr_key(c).is_some_and(|c| c != me) && as_i128(a).is_some_and(|n| n > 0)
+    let (Some(id), Some(d), Some(c), Some(a)) =
+        (get("id"), get("debtor"), get("creditor"), get("amount"))
+    else {
+        return false;
+    };
+    matches!(id, ScVal::Bytes(b) if b.len() == 32)
+        && as_addr_key(d) == Some(me)
+        && as_addr_key(c).is_some_and(|c| c != me)
+        && as_i128(a).is_some_and(|n| n > 0)
 }
 
-fn settle_semantics(me: &ScAddress, args: &[ScVal], subs: &[SorobanAuthorizedInvocation], dep: &DeploymentRecord) -> Result<(), String> {
+fn settle_semantics(
+    me: &ScAddress,
+    args: &[ScVal],
+    subs: &[SorobanAuthorizedInvocation],
+    dep: &DeploymentRecord,
+) -> Result<(), String> {
     let total = as_i128(&args[2]).ok_or("the total must be an i128")?;
     if subs.is_empty() {
         return Err("a settlement authorization must carry at least one transfer".into());
@@ -480,7 +635,10 @@ fn settle_semantics(me: &ScAddress, args: &[ScVal], subs: &[SorobanAuthorizedInv
     for s in subs {
         let (c, f, a, inner) = parts(s)?;
         if c != dep.token || f != "transfer" || !inner.is_empty() || a.len() != 3 {
-            return Err("a settlement may only contain token.transfer sub-invocations on the pinned token".into());
+            return Err(
+                "a settlement may only contain token.transfer sub-invocations on the pinned token"
+                    .into(),
+            );
         }
         if as_addr_key(&a[0]) != Some(me) {
             return Err("a transfer must pay from the signer".into());
@@ -489,9 +647,15 @@ fn settle_semantics(me: &ScAddress, args: &[ScVal], subs: &[SorobanAuthorizedInv
         if to == me {
             return Err("a transfer must not pay the signer itself".into());
         }
-        let amt = as_i128(&a[2]).filter(|n| *n > 0).ok_or("a transfer amount must be positive")?;
-        sum = sum.checked_add(amt).ok_or("the transfer total overflows i128")?;
-        let key = to.to_xdr(Limits::none()).map_err(|_| "address encoding failed".to_string())?;
+        let amt = as_i128(&a[2])
+            .filter(|n| *n > 0)
+            .ok_or("a transfer amount must be positive")?;
+        sum = sum
+            .checked_add(amt)
+            .ok_or("the transfer total overflows i128")?;
+        let key = to
+            .to_xdr(Limits::none())
+            .map_err(|_| "address encoding failed".to_string())?;
         if let Some(prev) = &last {
             if &key <= prev {
                 return Err("transfers must go to distinct payees in strictly ascending order (the contract's instruction order)".into());
@@ -509,14 +673,20 @@ fn settle_semantics(me: &ScAddress, args: &[ScVal], subs: &[SorobanAuthorizedInv
 /// outside the record, a different network passphrase, duplicate expected entries and any semantically inconsistent entry.
 pub fn parse_intent(src: &str, dep: &DeploymentRecord) -> Result<ExpectedIntent, String> {
     let v = parse_json(src, "the intent")?;
-    let m = exact_keys(&v, &["version", "network_passphrase", "entries"], "the intent")?;
+    let m = exact_keys(
+        &v,
+        &["version", "network_passphrase", "entries"],
+        "the intent",
+    )?;
     if m["version"].as_u64() != Some(INTENT_VERSION) {
         return Err("unsupported intent version".into());
     }
     let passphrase = text_of(&m["network_passphrase"], "network_passphrase")?;
     passphrase_ok(&passphrase)?;
     if passphrase != dep.network_passphrase {
-        return Err("the intent's network passphrase differs from the pinned deployment record".into());
+        return Err(
+            "the intent's network passphrase differs from the pinned deployment record".into(),
+        );
     }
     let entries_v = m["entries"].as_array().ok_or("entries must be an array")?;
     if entries_v.is_empty() || entries_v.len() > MAX_AUTH_ENTRIES {
@@ -525,7 +695,8 @@ pub fn parse_intent(src: &str, dep: &DeploymentRecord) -> Result<ExpectedIntent,
     let mut entries: Vec<ExpectedEntry> = Vec::new();
     for e in entries_v {
         let em = exact_keys(e, &["signer", "tree"], "an intent entry")?;
-        let signer = account_key(&address_of(text(&em["signer"], "signer")?)?).ok_or("a signer must be an account (G...) address")?;
+        let signer = account_key(&address_of(text(&em["signer"], "signer")?)?)
+            .ok_or("a signer must be an account (G...) address")?;
         let mut nodes = 0;
         let tree = parse_tree(&em["tree"], 0, &mut nodes, dep)?;
         validate_semantics(&signer, &tree, dep)?;
@@ -534,7 +705,10 @@ pub fn parse_intent(src: &str, dep: &DeploymentRecord) -> Result<ExpectedIntent,
         }
         entries.push(ExpectedEntry { signer, tree });
     }
-    Ok(ExpectedIntent { network_passphrase: passphrase, entries })
+    Ok(ExpectedIntent {
+        network_passphrase: passphrase,
+        entries,
+    })
 }
 
 // ------------------------------------------------------------------------------------------------------------------------------------------
@@ -550,22 +724,36 @@ pub struct Report {
 }
 
 /// The 32 bytes that are signed for one entry.
-pub fn payload(network_id: [u8; 32], c: &SorobanAddressCredentials, invocation: &SorobanAuthorizedInvocation) -> Result<[u8; 32], String> {
+pub fn payload(
+    network_id: [u8; 32],
+    c: &SorobanAddressCredentials,
+    invocation: &SorobanAuthorizedInvocation,
+) -> Result<[u8; 32], String> {
     let preimage = HashIdPreimage::SorobanAuthorization(HashIdPreimageSorobanAuthorization {
         network_id: Hash(network_id),
         nonce: c.nonce,
         signature_expiration_ledger: c.signature_expiration_ledger,
         invocation: invocation.clone(),
     });
-    let bytes = preimage.to_xdr(Limits::none()).map_err(|e| format!("preimage encoding failed: {e}"))?;
+    let bytes = preimage
+        .to_xdr(Limits::none())
+        .map_err(|e| format!("preimage encoding failed: {e}"))?;
     Ok(Sha256::digest(&bytes).into())
 }
 
 fn signature_value(key: &SigningKey, sig: [u8; 64]) -> ScVal {
-    let entry = |k: &str, v: Vec<u8>| ScMapEntry { key: ScVal::Symbol(k.try_into().unwrap()), val: ScVal::Bytes(ScBytes(v.try_into().unwrap())) };
+    let entry = |k: &str, v: Vec<u8>| ScMapEntry {
+        key: ScVal::Symbol(k.try_into().unwrap()),
+        val: ScVal::Bytes(ScBytes(v.try_into().unwrap())),
+    };
     ScVal::Vec(Some(ScVec(
         vec![ScVal::Map(Some(ScMap(
-            vec![entry("public_key", key.verifying_key().to_bytes().to_vec()), entry("signature", sig.to_vec())].try_into().unwrap(),
+            vec![
+                entry("public_key", key.verifying_key().to_bytes().to_vec()),
+                entry("signature", sig.to_vec()),
+            ]
+            .try_into()
+            .unwrap(),
         )))]
         .try_into()
         .unwrap(),
@@ -574,7 +762,12 @@ fn signature_value(key: &SigningKey, sig: [u8; 64]) -> ScVal {
 
 /// Sign one address-credential entry in place. Private: the only production path is `sign_envelope`, which has matched the entry to an expected intent
 /// and checked the expiry policy before calling this.
-fn sign_entry(entry: &mut SorobanAuthorizationEntry, network_id: [u8; 32], expiration_ledger: u32, key: &SigningKey) -> Result<(), String> {
+fn sign_entry(
+    entry: &mut SorobanAuthorizationEntry,
+    network_id: [u8; 32],
+    expiration_ledger: u32,
+    key: &SigningKey,
+) -> Result<(), String> {
     if expiration_ledger == 0 {
         return Err("expiration ledger must be explicit and non-zero".into());
     }
@@ -594,13 +787,24 @@ fn sign_entry(entry: &mut SorobanAuthorizationEntry, network_id: [u8; 32], expir
 /// TEST-ONLY affordance (it does not exist outside test builds): sign an entry with any key and no intent check, so negative tests can produce a
 /// signature that the host must reject.
 #[cfg(test)]
-pub fn sign_entry_unchecked_for_tests(entry: &mut SorobanAuthorizationEntry, network_id: [u8; 32], expiration_ledger: u32, key: &SigningKey) -> Result<(), String> {
+pub fn sign_entry_unchecked_for_tests(
+    entry: &mut SorobanAuthorizationEntry,
+    network_id: [u8; 32],
+    expiration_ledger: u32,
+    key: &SigningKey,
+) -> Result<(), String> {
     sign_entry(entry, network_id, expiration_ledger, key)
 }
 
 /// Sign every entry that belongs to one of `keys`, but only if the WHOLE envelope matches `intent`. All checks happen first; on any error nothing is
 /// changed. `current_ledger` is caller-supplied (trust boundary, see the module documentation).
-pub fn sign_envelope(env: &mut TransactionEnvelope, intent: &ExpectedIntent, keys: &[SigningKey], current_ledger: Option<u32>, expiration_ledger: u32) -> Result<Report, String> {
+pub fn sign_envelope(
+    env: &mut TransactionEnvelope,
+    intent: &ExpectedIntent,
+    keys: &[SigningKey],
+    current_ledger: Option<u32>,
+    expiration_ledger: u32,
+) -> Result<Report, String> {
     let expiration_ledger = check_expiry(current_ledger, expiration_ledger)?;
     if keys.is_empty() {
         return Err("no signing key was supplied".into());
@@ -631,10 +835,14 @@ pub fn sign_envelope(env: &mut TransactionEnvelope, intent: &ExpectedIntent, key
     }
     let i = invoke.ok_or("no InvokeHostFunction operation")?;
     let mut ops = v1.tx.operations.to_vec();
-    let OperationBody::InvokeHostFunction(ihf) = &mut ops[i].body else { unreachable!() };
+    let OperationBody::InvokeHostFunction(ihf) = &mut ops[i].body else {
+        unreachable!()
+    };
     let mut entries = ihf.auth.to_vec();
     if entries.len() > MAX_AUTH_ENTRIES {
-        return Err(format!("more than {MAX_AUTH_ENTRIES} authorization entries"));
+        return Err(format!(
+            "more than {MAX_AUTH_ENTRIES} authorization entries"
+        ));
     }
 
     // 1. credential kinds and tree limits, for every entry, before anything else
@@ -652,36 +860,57 @@ pub fn sign_envelope(env: &mut TransactionEnvelope, intent: &ExpectedIntent, key
     let mut used = vec![false; intent.entries.len()];
     let mut owner: Vec<usize> = Vec::new(); // expected index per envelope entry
     for (n, e) in entries.iter().enumerate() {
-        let SorobanCredentials::Address(c) = &e.credentials else { unreachable!() };
-        let key = account_key(&c.address).ok_or(format!("entry {n} is authorized by a contract address, which is not supported"))?;
+        let SorobanCredentials::Address(c) = &e.credentials else {
+            unreachable!()
+        };
+        let key = account_key(&c.address).ok_or(format!(
+            "entry {n} is authorized by a contract address, which is not supported"
+        ))?;
         if !intent.entries.iter().any(|x| x.signer == key) {
-            return Err(format!("entry {n} belongs to {} which the intent does not expect (unexpected entry)", short(&key)));
+            return Err(format!(
+                "entry {n} belongs to {} which the intent does not expect (unexpected entry)",
+                short(&key)
+            ));
         }
         let j = intent
             .entries
             .iter()
             .position(|x| x.signer == key && x.tree == e.root_invocation)
-            .ok_or(format!("entry {n} for {} does not match its expected invocation tree", short(&key)))?;
+            .ok_or(format!(
+                "entry {n} for {} does not match its expected invocation tree",
+                short(&key)
+            ))?;
         if used[j] {
-            return Err(format!("entry {n} duplicates an entry that was already matched"));
+            return Err(format!(
+                "entry {n} duplicates an entry that was already matched"
+            ));
         }
         used[j] = true;
         owner.push(j);
     }
     if let Some(j) = used.iter().position(|u| !u) {
-        return Err(format!("the envelope has no entry for the expected signer {}", short(&intent.entries[j].signer)));
+        return Err(format!(
+            "the envelope has no entry for the expected signer {}",
+            short(&intent.entries[j].signer)
+        ));
     }
 
     // 3. every requested key must have at least one entry, and its entries must be unsigned
     for p in &pubs {
-        let mine: Vec<usize> = (0..entries.len()).filter(|n| intent.entries[owner[*n]].signer == *p).collect();
+        let mine: Vec<usize> = (0..entries.len())
+            .filter(|n| intent.entries[owner[*n]].signer == *p)
+            .collect();
         if mine.is_empty() {
             return Err(format!("the key {} has no expected entry", short(p)));
         }
         for n in mine {
-            let SorobanCredentials::Address(c) = &entries[n].credentials else { unreachable!() };
+            let SorobanCredentials::Address(c) = &entries[n].credentials else {
+                unreachable!()
+            };
             if !matches!(c.signature, ScVal::Void) {
-                return Err(format!("entry {n} already carries a signature; refusing to rewrite it"));
+                return Err(format!(
+                    "entry {n} already carries a signature; refusing to rewrite it"
+                ));
             }
         }
     }
@@ -692,14 +921,19 @@ pub fn sign_envelope(env: &mut TransactionEnvelope, intent: &ExpectedIntent, key
         let who = intent.entries[owner[n]].signer;
         match pubs.iter().position(|p| *p == who) {
             Some(k) => {
-                sign_entry(e, nid, expiration_ledger, &keys[k]).map_err(|m| format!("entry {n}: {m}"))?;
+                sign_entry(e, nid, expiration_ledger, &keys[k])
+                    .map_err(|m| format!("entry {n}: {m}"))?;
                 report.signed.push((n, short(&who)));
             }
             None => report.preserved.push((n, short(&who))),
         }
     }
-    ihf.auth = entries.try_into().map_err(|_| "too many authorization entries".to_string())?;
-    v1.tx.operations = ops.try_into().map_err(|_| "operation list rebuild failed".to_string())?;
+    ihf.auth = entries
+        .try_into()
+        .map_err(|_| "too many authorization entries".to_string())?;
+    v1.tx.operations = ops
+        .try_into()
+        .map_err(|_| "operation list rebuild failed".to_string())?;
     *env = work;
     Ok(report)
 }
@@ -708,11 +942,21 @@ pub fn read_envelope(b64: &str) -> Result<TransactionEnvelope, String> {
     use xdr::ReadXdr;
     let b64 = b64.trim();
     if b64.len() > MAX_ENVELOPE_BYTES / 3 * 4 + 8 {
-        return Err(format!("the envelope is larger than {MAX_ENVELOPE_BYTES} bytes"));
+        return Err(format!(
+            "the envelope is larger than {MAX_ENVELOPE_BYTES} bytes"
+        ));
     }
-    TransactionEnvelope::from_xdr_base64(b64, Limits { depth: XDR_DEPTH_LIMIT, len: MAX_ENVELOPE_BYTES }).map_err(|e| format!("envelope decoding failed: {e}"))
+    TransactionEnvelope::from_xdr_base64(
+        b64,
+        Limits {
+            depth: XDR_DEPTH_LIMIT,
+            len: MAX_ENVELOPE_BYTES,
+        },
+    )
+    .map_err(|e| format!("envelope decoding failed: {e}"))
 }
 
 pub fn write_envelope(env: &TransactionEnvelope) -> Result<String, String> {
-    env.to_xdr_base64(Limits::none()).map_err(|e| format!("envelope encoding failed: {e}"))
+    env.to_xdr_base64(Limits::none())
+        .map_err(|e| format!("envelope encoding failed: {e}"))
 }

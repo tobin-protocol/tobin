@@ -53,15 +53,25 @@ impl Out {
 pub fn acct(env: &Env, seed: u8) -> Acct {
     use soroban_sdk::testutils::Address as _;
     let key = SigningKey::from_bytes(&[seed; 32]);
-    let id = xdr::AccountId(xdr::PublicKey::PublicKeyTypeEd25519(xdr::Uint256(key.verifying_key().to_bytes())));
-    Acct { key, id, addr: Address::generate(env) }
+    let id = xdr::AccountId(xdr::PublicKey::PublicKeyTypeEd25519(xdr::Uint256(
+        key.verifying_key().to_bytes(),
+    )));
+    Acct {
+        key,
+        id,
+        addr: Address::generate(env),
+    }
 }
 
 /// A classic account with a ledger entry (so real signatures can be verified) and a known key.
 pub fn real_acct(env: &Env, seed: u8) -> Acct {
     let key = SigningKey::from_bytes(&[seed; 32]);
-    let id = xdr::AccountId(xdr::PublicKey::PublicKeyTypeEd25519(xdr::Uint256(key.verifying_key().to_bytes())));
-    let entry_key = Rc::new(xdr::LedgerKey::Account(xdr::LedgerKeyAccount { account_id: id.clone() }));
+    let id = xdr::AccountId(xdr::PublicKey::PublicKeyTypeEd25519(xdr::Uint256(
+        key.verifying_key().to_bytes(),
+    )));
+    let entry_key = Rc::new(xdr::LedgerKey::Account(xdr::LedgerKeyAccount {
+        account_id: id.clone(),
+    }));
     let entry = Rc::new(xdr::LedgerEntry {
         last_modified_ledger_seq: 0,
         data: xdr::LedgerEntryData::Account(xdr::AccountEntry {
@@ -78,13 +88,17 @@ pub fn real_acct(env: &Env, seed: u8) -> Acct {
         }),
         ext: xdr::LedgerEntryExt::V0,
     });
-    env.host().add_ledger_entry(&entry_key, &entry, None).unwrap();
+    env.host()
+        .add_ledger_entry(&entry_key, &entry, None)
+        .unwrap();
     let addr = Address::try_from_val(env, &xdr::ScAddress::Account(id.clone())).unwrap();
     Acct { key, id, addr }
 }
 
 pub fn new_env() -> Env {
-    Env::new_with_config(EnvTestConfig { capture_snapshot_at_drop: false })
+    Env::new_with_config(EnvTestConfig {
+        capture_snapshot_at_drop: false,
+    })
 }
 
 pub fn world_with_cap(cap: i128) -> World {
@@ -101,13 +115,29 @@ fn build_world(cap: i128, mk: fn(&Env, u8) -> Acct) -> World {
     let minter = mk(&env, 90);
     // Native by default; the compiled Wasm artifacts when TOBIN_TOKEN_WASM / TOBIN_CLEARING_WASM name files, so the same tests run against
     // the real artifacts (built with `stellar contract build`).
-    let args = (minter.addr.clone(), cap, 7u32, SStr::from_str(&env, "Tobin Test Token"), SStr::from_str(&env, "TTT"));
+    let args = (
+        minter.addr.clone(),
+        cap,
+        7u32,
+        SStr::from_str(&env, "Tobin Test Token"),
+        SStr::from_str(&env, "TTT"),
+    );
     let token = match std::env::var("TOBIN_TOKEN_WASM") {
-        Ok(p) => env.register(std::fs::read(&p).expect("TOBIN_TOKEN_WASM is not readable").as_slice(), args),
+        Ok(p) => env.register(
+            std::fs::read(&p)
+                .expect("TOBIN_TOKEN_WASM is not readable")
+                .as_slice(),
+            args,
+        ),
         Err(_) => env.register(TobinTestToken, args),
     };
     let clearing = match std::env::var("TOBIN_CLEARING_WASM") {
-        Ok(p) => env.register(std::fs::read(&p).expect("TOBIN_CLEARING_WASM is not readable").as_slice(), ()),
+        Ok(p) => env.register(
+            std::fs::read(&p)
+                .expect("TOBIN_CLEARING_WASM is not readable")
+                .as_slice(),
+            (),
+        ),
         Err(_) => env.register(TobinClearingV1, ()),
     };
     World {
@@ -149,12 +179,23 @@ pub fn oid(w: &World, n: u8) -> BytesN<32> {
 
 /// Mint with the minter's explicit authorization of exactly (to, amount).
 pub fn mint(w: &World, to: &Acct, amount: i128) {
-    let inv = MockAuthInvoke { contract: &w.token, fn_name: "mint", args: (&to.addr, &amount).into_val(&w.env), sub_invokes: &[] };
-    let auths = [MockAuth { address: &w.minter.addr, invoke: &inv }];
+    let inv = MockAuthInvoke {
+        contract: &w.token,
+        fn_name: "mint",
+        args: (&to.addr, &amount).into_val(&w.env),
+        sub_invokes: &[],
+    };
+    let auths = [MockAuth {
+        address: &w.minter.addr,
+        invoke: &inv,
+    }];
     token(w).mock_auths(&auths).mint(&to.addr, &amount);
 }
 
-pub fn classify<T: std::fmt::Debug, C: std::fmt::Debug, I: std::fmt::Debug>(env: &Env, r: Result<Result<T, C>, Result<Error, I>>) -> Out {
+pub fn classify<T: std::fmt::Debug, C: std::fmt::Debug, I: std::fmt::Debug>(
+    env: &Env,
+    r: Result<Result<T, C>, Result<Error, I>>,
+) -> Out {
     match r {
         Ok(Ok(_)) => Out::Ok,
         Ok(Err(e)) => panic!("conversion error {e:?}"),
@@ -182,9 +223,26 @@ pub fn must(o: Out) {
 }
 
 /// Run `f` with the given signers each authorizing the plain call `fname(args)` (the call's own arguments, `require_auth()`).
-fn run_auth<R>(w: &World, who: &[&Address], fname: &str, args: Vec<Val>, f: impl FnOnce(&TobinClearingV1Client) -> R) -> R {
-    let inv = MockAuthInvoke { contract: &w.clearing, fn_name: fname, args, sub_invokes: &[] };
-    let auths: std::vec::Vec<MockAuth> = who.iter().map(|a| MockAuth { address: a, invoke: &inv }).collect();
+fn run_auth<R>(
+    w: &World,
+    who: &[&Address],
+    fname: &str,
+    args: Vec<Val>,
+    f: impl FnOnce(&TobinClearingV1Client) -> R,
+) -> R {
+    let inv = MockAuthInvoke {
+        contract: &w.clearing,
+        fn_name: fname,
+        args,
+        sub_invokes: &[],
+    };
+    let auths: std::vec::Vec<MockAuth> = who
+        .iter()
+        .map(|a| MockAuth {
+            address: a,
+            invoke: &inv,
+        })
+        .collect();
     let c = clearing(w);
     let c = c.mock_auths(&auths);
     f(&c)
@@ -192,9 +250,22 @@ fn run_auth<R>(w: &World, who: &[&Address], fname: &str, args: Vec<Val>, f: impl
 
 // ---- wrappers: `*_as` takes the signers explicitly (for negative authorization tests); the plain forms use the correct signers ----
 
-pub fn create_as(w: &World, creator: &Acct, s: &BytesN<32>, tok: &Address, mp: u32, mo: u32, signers: &[&Address]) -> Out {
+pub fn create_as(
+    w: &World,
+    creator: &Acct,
+    s: &BytesN<32>,
+    tok: &Address,
+    mp: u32,
+    mo: u32,
+    signers: &[&Address],
+) -> Out {
     let args = (&creator.addr, s, tok, &mp, &mo).into_val(&w.env);
-    classify(&w.env, run_auth(w, signers, "create_session", args, |c| c.try_create_session(&creator.addr, s, tok, &mp, &mo)))
+    classify(
+        &w.env,
+        run_auth(w, signers, "create_session", args, |c| {
+            c.try_create_session(&creator.addr, s, tok, &mp, &mo)
+        }),
+    )
 }
 pub fn create(w: &World, creator: &Acct, s: &BytesN<32>, mp: u32, mo: u32) -> Out {
     create_as(w, creator, s, &w.token, mp, mo, &[&creator.addr])
@@ -202,7 +273,12 @@ pub fn create(w: &World, creator: &Acct, s: &BytesN<32>, mp: u32, mo: u32) -> Ou
 
 pub fn join_as(w: &World, s: &BytesN<32>, who: &Acct, signers: &[&Address]) -> Out {
     let args = (s, &who.addr).into_val(&w.env);
-    classify(&w.env, run_auth(w, signers, "join_session", args, |c| c.try_join_session(s, &who.addr)))
+    classify(
+        &w.env,
+        run_auth(w, signers, "join_session", args, |c| {
+            c.try_join_session(s, &who.addr)
+        }),
+    )
 }
 /// the correct join: the joiner AND the creator authorize
 pub fn join(w: &World, s: &BytesN<32>, who: &Acct, creator: &Acct) -> Out {
@@ -210,11 +286,21 @@ pub fn join(w: &World, s: &BytesN<32>, who: &Acct, creator: &Acct) -> Out {
 }
 
 pub fn ob(w: &World, id: u8, d: &Acct, c: &Acct, amount: i128) -> Obligation {
-    Obligation { id: oid(w, id), debtor: d.addr.clone(), creditor: c.addr.clone(), amount }
+    Obligation {
+        id: oid(w, id),
+        debtor: d.addr.clone(),
+        creditor: c.addr.clone(),
+        amount,
+    }
 }
 pub fn submit_as(w: &World, s: &BytesN<32>, o: &Obligation, signers: &[&Address]) -> Out {
     let args = (s, o).into_val(&w.env);
-    classify(&w.env, run_auth(w, signers, "submit_obligation", args, |c| c.try_submit_obligation(s, o)))
+    classify(
+        &w.env,
+        run_auth(w, signers, "submit_obligation", args, |c| {
+            c.try_submit_obligation(s, o)
+        }),
+    )
 }
 /// the correct submission: the debtor authorizes
 pub fn submit(w: &World, s: &BytesN<32>, o: &Obligation) -> Out {
@@ -223,23 +309,50 @@ pub fn submit(w: &World, s: &BytesN<32>, o: &Obligation) -> Out {
 
 pub fn finalize_as(w: &World, s: &BytesN<32>, caller: &Address, signers: &[&Address]) -> Out {
     let args = (s, caller).into_val(&w.env);
-    classify(&w.env, run_auth(w, signers, "finalize_obligations", args, |c| c.try_finalize_obligations(s, caller)))
+    classify(
+        &w.env,
+        run_auth(w, signers, "finalize_obligations", args, |c| {
+            c.try_finalize_obligations(s, caller)
+        }),
+    )
 }
 pub fn finalize(w: &World, s: &BytesN<32>, caller: &Acct) -> Out {
     finalize_as(w, s, &caller.addr, &[&caller.addr])
 }
 
-pub fn propose_as(w: &World, s: &BytesN<32>, proposer: &Address, ins: &Vec<Instruction>, signers: &[&Address]) -> Out {
+pub fn propose_as(
+    w: &World,
+    s: &BytesN<32>,
+    proposer: &Address,
+    ins: &Vec<Instruction>,
+    signers: &[&Address],
+) -> Out {
     let args = (s, proposer, ins).into_val(&w.env);
-    classify(&w.env, run_auth(w, signers, "propose_settlement", args, |c| c.try_propose_settlement(s, proposer, ins)))
+    classify(
+        &w.env,
+        run_auth(w, signers, "propose_settlement", args, |c| {
+            c.try_propose_settlement(s, proposer, ins)
+        }),
+    )
 }
 pub fn propose(w: &World, s: &BytesN<32>, proposer: &Acct, ins: &Vec<Instruction>) -> Out {
     propose_as(w, s, &proposer.addr, ins, &[&proposer.addr])
 }
 
-pub fn approve_as(w: &World, s: &BytesN<32>, who: &Address, digest: &BytesN<32>, signers: &[&Address]) -> Out {
+pub fn approve_as(
+    w: &World,
+    s: &BytesN<32>,
+    who: &Address,
+    digest: &BytesN<32>,
+    signers: &[&Address],
+) -> Out {
     let args = (s, who, digest).into_val(&w.env);
-    classify(&w.env, run_auth(w, signers, "approve_settlement", args, |c| c.try_approve_settlement(s, who, digest)))
+    classify(
+        &w.env,
+        run_auth(w, signers, "approve_settlement", args, |c| {
+            c.try_approve_settlement(s, who, digest)
+        }),
+    )
 }
 pub fn approve(w: &World, s: &BytesN<32>, who: &Acct, digest: &BytesN<32>) -> Out {
     approve_as(w, s, &who.addr, digest, &[&who.addr])
@@ -258,7 +371,17 @@ pub fn xkey(env: &Env, a: &Address) -> std::vec::Vec<u8> {
 pub fn plan(w: &World, list: &[(&Acct, &Acct, i128)]) -> Vec<Instruction> {
     let mut items: std::vec::Vec<(std::vec::Vec<u8>, std::vec::Vec<u8>, Instruction)> = list
         .iter()
-        .map(|(p, q, amt)| (xkey(&w.env, &p.addr), xkey(&w.env, &q.addr), Instruction { payer: p.addr.clone(), payee: q.addr.clone(), amount: *amt }))
+        .map(|(p, q, amt)| {
+            (
+                xkey(&w.env, &p.addr),
+                xkey(&w.env, &q.addr),
+                Instruction {
+                    payer: p.addr.clone(),
+                    payee: q.addr.clone(),
+                    amount: *amt,
+                },
+            )
+        })
         .collect();
     items.sort_by(|x, y| (&x.0, &x.1).cmp(&(&y.0, &y.1)));
     let mut v = Vec::new(&w.env);
@@ -272,7 +395,11 @@ pub fn plan(w: &World, list: &[(&Acct, &Acct, i128)]) -> Vec<Instruction> {
 pub fn raw_plan(w: &World, list: &[(&Acct, &Acct, i128)]) -> Vec<Instruction> {
     let mut v = Vec::new(&w.env);
     for (p, q, amt) in list {
-        v.push_back(Instruction { payer: p.addr.clone(), payee: q.addr.clone(), amount: *amt });
+        v.push_back(Instruction {
+            payer: p.addr.clone(),
+            payee: q.addr.clone(),
+            amount: *amt,
+        });
     }
     v
 }
@@ -287,16 +414,27 @@ pub struct Sign {
 }
 
 /// What each debtor must sign for this plan: root `settle(session, digest, its total)` with its own `transfer` sub-invocations.
-pub fn good_signs(w: &World, s: &BytesN<32>, digest: &BytesN<32>, plan: &Vec<Instruction>) -> std::vec::Vec<Sign> {
+pub fn good_signs(
+    w: &World,
+    s: &BytesN<32>,
+    digest: &BytesN<32>,
+    plan: &Vec<Instruction>,
+) -> std::vec::Vec<Sign> {
     let _ = s;
     let mut out: std::vec::Vec<Sign> = std::vec::Vec::new();
     for i in plan.iter() {
         match out.iter_mut().find(|x| x.who == i.payer) {
             Some(x) => {
                 x.total += i.amount;
-                x.transfers.push((i.payer.clone(), i.payee.clone(), i.amount));
+                x.transfers
+                    .push((i.payer.clone(), i.payee.clone(), i.amount));
             }
-            None => out.push(Sign { who: i.payer.clone(), digest: digest.clone(), total: i.amount, transfers: std::vec![(i.payer.clone(), i.payee.clone(), i.amount)] }),
+            None => out.push(Sign {
+                who: i.payer.clone(),
+                digest: digest.clone(),
+                total: i.amount,
+                transfers: std::vec![(i.payer.clone(), i.payee.clone(), i.amount)],
+            }),
         }
     }
     let _ = w;
@@ -309,7 +447,12 @@ pub fn settle_with(w: &World, s: &BytesN<32>, digest: &BytesN<32>, signs: &[Sign
         .map(|g| {
             g.transfers
                 .iter()
-                .map(|(f, t, amt)| MockAuthInvoke { contract: &w.token, fn_name: "transfer", args: (f, t, amt).into_val(&w.env), sub_invokes: &[] })
+                .map(|(f, t, amt)| MockAuthInvoke {
+                    contract: &w.token,
+                    fn_name: "transfer",
+                    args: (f, t, amt).into_val(&w.env),
+                    sub_invokes: &[],
+                })
                 .collect()
         })
         .collect();
@@ -319,11 +462,23 @@ pub fn settle_with(w: &World, s: &BytesN<32>, digest: &BytesN<32>, signs: &[Sign
         .map(|(i, g)| MockAuthInvoke {
             contract: &w.clearing,
             fn_name: "settle",
-            args: soroban_sdk::vec![&w.env, s.into_val(&w.env), g.digest.into_val(&w.env), g.total.into_val(&w.env)],
+            args: soroban_sdk::vec![
+                &w.env,
+                s.into_val(&w.env),
+                g.digest.into_val(&w.env),
+                g.total.into_val(&w.env)
+            ],
             sub_invokes: &subs[i],
         })
         .collect();
-    let auths: std::vec::Vec<MockAuth> = signs.iter().enumerate().map(|(i, g)| MockAuth { address: &g.who, invoke: &roots[i] }).collect();
+    let auths: std::vec::Vec<MockAuth> = signs
+        .iter()
+        .enumerate()
+        .map(|(i, g)| MockAuth {
+            address: &g.who,
+            invoke: &roots[i],
+        })
+        .collect();
     let c = clearing(w);
     let c = c.mock_auths(&auths);
     classify(&w.env, c.try_settle(s, digest))
@@ -372,19 +527,33 @@ pub fn four_session(w: &World, n: u8) -> BytesN<32> {
 /// `approve_settlement` with the participant's own authorization, returning the completion flag.
 pub fn approve_bool(w: &World, s: &BytesN<32>, who: &Acct, digest: &BytesN<32>) -> bool {
     let args = (s, &who.addr, digest).into_val(&w.env);
-    run_auth(w, &[&who.addr], "approve_settlement", args, |c| c.approve_settlement(s, &who.addr, digest))
+    run_auth(w, &[&who.addr], "approve_settlement", args, |c| {
+        c.approve_settlement(s, &who.addr, digest)
+    })
 }
 
 /// `propose_settlement` returning the digest.
-pub fn propose_digest(w: &World, s: &BytesN<32>, proposer: &Acct, ins: &Vec<Instruction>) -> BytesN<32> {
+pub fn propose_digest(
+    w: &World,
+    s: &BytesN<32>,
+    proposer: &Acct,
+    ins: &Vec<Instruction>,
+) -> BytesN<32> {
     let args = (s, &proposer.addr, ins).into_val(&w.env);
-    run_auth(w, &[&proposer.addr], "propose_settlement", args, |c| c.propose_settlement(s, &proposer.addr, ins))
+    run_auth(w, &[&proposer.addr], "propose_settlement", args, |c| {
+        c.propose_settlement(s, &proposer.addr, ins)
+    })
 }
 
 /// Number of events the clearing contract published in the most recent invocation (the test host keeps only the last one's).
 pub fn clearing_events(w: &World) -> usize {
     use soroban_sdk::testutils::Events as _;
-    w.env.events().all().filter_by_contract(&w.clearing).events().len()
+    w.env
+        .events()
+        .all()
+        .filter_by_contract(&w.clearing)
+        .events()
+        .len()
 }
 
 pub fn digest_of(w: &World, s: &BytesN<32>) -> BytesN<32> {
@@ -399,7 +568,10 @@ pub fn state_of(w: &World, s: &BytesN<32>) -> tobin_clearing_v1::State {
 pub fn approve_all(w: &World, s: &BytesN<32>, digest: &BytesN<32>) {
     let parts = clearing(w).get_session(s).participants;
     for p in parts.iter() {
-        let acct = [&w.a, &w.b, &w.c, &w.d].into_iter().find(|x| x.addr == p).unwrap();
+        let acct = [&w.a, &w.b, &w.c, &w.d]
+            .into_iter()
+            .find(|x| x.addr == p)
+            .unwrap();
         must(approve(w, s, acct, digest));
     }
 }
@@ -410,7 +582,12 @@ pub fn put_addr(v: &mut std::vec::Vec<u8>, x: &[u8]) {
     v.extend_from_slice(x);
 }
 
-pub fn header(w: &World, tag: &str, s: &BytesN<32>, token: &soroban_sdk::Address) -> std::vec::Vec<u8> {
+pub fn header(
+    w: &World,
+    tag: &str,
+    s: &BytesN<32>,
+    token: &soroban_sdk::Address,
+) -> std::vec::Vec<u8> {
     let mut v = std::vec::Vec::new();
     v.push(tag.len() as u8);
     v.extend_from_slice(tag.as_bytes());
@@ -422,8 +599,14 @@ pub fn header(w: &World, tag: &str, s: &BytesN<32>, token: &soroban_sdk::Address
     v
 }
 
-
-pub fn expected_pd_bytes(w: &World, s: &BytesN<32>, token: &soroban_sdk::Address, oc: &BytesN<32>, revision: u32, ins: &[(&Acct, &Acct, i128)]) -> std::vec::Vec<u8> {
+pub fn expected_pd_bytes(
+    w: &World,
+    s: &BytesN<32>,
+    token: &soroban_sdk::Address,
+    oc: &BytesN<32>,
+    revision: u32,
+    ins: &[(&Acct, &Acct, i128)],
+) -> std::vec::Vec<u8> {
     let mut v = header(w, "TOBIN-MVP1/SETTLEMENT/v2", s, token);
     v.extend_from_slice(&oc.to_array());
     v.extend_from_slice(&revision.to_be_bytes());
@@ -443,6 +626,8 @@ pub fn to_vec(b: &Bytes) -> std::vec::Vec<u8> {
 }
 
 pub fn sha(w: &World, v: &[u8]) -> BytesN<32> {
-    w.env.crypto().sha256(&Bytes::from_slice(&w.env, v)).to_bytes()
+    w.env
+        .crypto()
+        .sha256(&Bytes::from_slice(&w.env, v))
+        .to_bytes()
 }
-

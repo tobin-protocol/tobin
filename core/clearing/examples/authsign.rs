@@ -40,21 +40,53 @@ fn main() {
         match f.as_str() {
             "--deployment" => deployment = Some(v()),
             "--intent" => intent = Some(v()),
-            "--expiration-ledger" => expiration = Some(v().parse::<u32>().unwrap_or_else(|_| fail("bad expiration ledger"))),
-            "--current-ledger" => current = Some(v().parse::<u32>().unwrap_or_else(|_| fail("bad current ledger"))),
+            "--expiration-ledger" => {
+                expiration = Some(
+                    v().parse::<u32>()
+                        .unwrap_or_else(|_| fail("bad expiration ledger")),
+                )
+            }
+            "--current-ledger" => {
+                current = Some(
+                    v().parse::<u32>()
+                        .unwrap_or_else(|_| fail("bad current ledger")),
+                )
+            }
             "--key" => keys.push(key_from(&v())),
             _ => fail("unknown argument"),
         }
     }
-    let dep = parse_deployment(&read_capped(&deployment.unwrap_or_else(|| fail("--deployment is required")), "deployment record")).unwrap_or_else(|e| fail(&e));
-    let intent = parse_intent(&read_capped(&intent.unwrap_or_else(|| fail("--intent is required (there is no blind-signing mode)")), "intent"), &dep).unwrap_or_else(|e| fail(&e));
+    let dep = parse_deployment(&read_capped(
+        &deployment.unwrap_or_else(|| fail("--deployment is required")),
+        "deployment record",
+    ))
+    .unwrap_or_else(|e| fail(&e));
+    let intent = parse_intent(
+        &read_capped(
+            &intent
+                .unwrap_or_else(|| fail("--intent is required (there is no blind-signing mode)")),
+            "intent",
+        ),
+        &dep,
+    )
+    .unwrap_or_else(|e| fail(&e));
     let expiration = expiration.unwrap_or_else(|| fail("--expiration-ledger is required"));
     let mut input = String::new();
-    std::io::stdin().take(MAX_ENVELOPE_BYTES as u64 * 2).read_to_string(&mut input).unwrap_or_else(|_| fail("cannot read stdin"));
+    std::io::stdin()
+        .take(MAX_ENVELOPE_BYTES as u64 * 2)
+        .read_to_string(&mut input)
+        .unwrap_or_else(|_| fail("cannot read stdin"));
     let mut env = read_envelope(&input).unwrap_or_else(|e| fail(&e));
-    let report = sign_envelope(&mut env, &intent, &keys, current, expiration).unwrap_or_else(|e| fail(&e));
-    eprintln!("signed entries (index, account key prefix): {:?}", report.signed);
-    eprintln!("expected co-signer entries preserved unchanged: {:?}", report.preserved);
+    let report =
+        sign_envelope(&mut env, &intent, &keys, current, expiration).unwrap_or_else(|e| fail(&e));
+    eprintln!(
+        "signed entries (index, account key prefix): {:?}",
+        report.signed
+    );
+    eprintln!(
+        "expected co-signer entries preserved unchanged: {:?}",
+        report.preserved
+    );
     let out = write_envelope(&env).unwrap_or_else(|e| fail(&e));
     std::io::stdout().write_all(out.as_bytes()).unwrap();
 }

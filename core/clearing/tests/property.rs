@@ -48,11 +48,24 @@ fn oracle(nets: &[i128], keys: &[std::vec::Vec<u8>], plan: &Plan) -> bool {
 
 /// A random valid plan: pair debtors and creditors in random order and random chunk sizes, merging repeated pairs, then sort by key.
 fn random_valid_plan(rng: &mut Rng, nets: &[i128], keys: &[std::vec::Vec<u8>]) -> Plan {
-    let mut owe: std::vec::Vec<(usize, i128)> = nets.iter().enumerate().filter(|(_, &v)| v > 0).map(|(i, &v)| (i, v)).collect();
-    let mut due: std::vec::Vec<(usize, i128)> = nets.iter().enumerate().filter(|(_, &v)| v < 0).map(|(i, &v)| (i, -v)).collect();
+    let mut owe: std::vec::Vec<(usize, i128)> = nets
+        .iter()
+        .enumerate()
+        .filter(|(_, &v)| v > 0)
+        .map(|(i, &v)| (i, v))
+        .collect();
+    let mut due: std::vec::Vec<(usize, i128)> = nets
+        .iter()
+        .enumerate()
+        .filter(|(_, &v)| v < 0)
+        .map(|(i, &v)| (i, -v))
+        .collect();
     let mut merged: std::collections::BTreeMap<(usize, usize), i128> = Default::default();
     while !owe.is_empty() && !due.is_empty() {
-        let (i, j) = (rng.below(owe.len() as u64) as usize, rng.below(due.len() as u64) as usize);
+        let (i, j) = (
+            rng.below(owe.len() as u64) as usize,
+            rng.below(due.len() as u64) as usize,
+        );
         let amt = 1 + rng.below(owe[i].1.min(due[j].1) as u64) as i128;
         *merged.entry((owe[i].0, due[j].0)).or_default() += amt;
         owe[i].1 -= amt;
@@ -91,7 +104,11 @@ fn mutate(rng: &mut Rng, plan: &Plan, n: usize) -> Plan {
             let i = rng.below(p.len() as u64) as usize;
             p[i].1 = rng.below(n as u64) as usize;
         }
-        5 => p.push((rng.below(n as u64) as usize, rng.below(n as u64) as usize, 1 + rng.below(5) as i128)),
+        5 => p.push((
+            rng.below(n as u64) as usize,
+            rng.below(n as u64) as usize,
+            1 + rng.below(5) as i128,
+        )),
         6 => {
             for x in p.iter_mut() {
                 std::mem::swap(&mut x.0, &mut x.1);
@@ -111,7 +128,8 @@ fn the_contracts_validation_agrees_with_an_independent_oracle_on_random_plans() 
     let w = world();
     let accts = [&w.a, &w.b, &w.c, &w.d];
     let mut rng = Rng(0x9E3779B97F4A7C15);
-    let (mut accepted, mut rejected, mut zero_sessions, mut multi_plan_sessions) = (0u32, 0u32, 0u32, 0u32);
+    let (mut accepted, mut rejected, mut zero_sessions, mut multi_plan_sessions) =
+        (0u32, 0u32, 0u32, 0u32);
     for case in 0..120u32 {
         let n = 2 + rng.below(3) as usize; // 2..=4 participants
         let parts = &accts[..n];
@@ -131,19 +149,31 @@ fn the_contracts_validation_agrees_with_an_independent_oracle_on_random_plans() 
             let amt = 1 + rng.below(40) as i128;
             nets[d] += amt;
             nets[c] -= amt;
-            must(submit(&w, &s, &ob(&w, k as u8 + 1, parts[d], parts[c], amt)));
+            must(submit(
+                &w,
+                &s,
+                &ob(&w, k as u8 + 1, parts[d], parts[c], amt),
+            ));
         }
         must(finalize(&w, &s, parts[0])); // all-zero nets are allowed
-        let keys: std::vec::Vec<std::vec::Vec<u8>> = parts.iter().map(|p| xkey(&w.env, &p.addr)).collect();
+        let keys: std::vec::Vec<std::vec::Vec<u8>> =
+            parts.iter().map(|p| xkey(&w.env, &p.addr)).collect();
         if nets.iter().all(|&x| x == 0) {
             zero_sessions += 1;
         }
         let mut digests = std::collections::BTreeSet::new();
         let valid = random_valid_plan(&mut rng, &nets, &keys);
-        assert!(oracle(&nets, &keys, &valid), "generator produced an invalid plan");
+        assert!(
+            oracle(&nets, &keys, &valid),
+            "generator produced an invalid plan"
+        );
         let mut candidates = std::vec![valid.clone()];
         for _ in 0..8 {
-            let base = if rng.below(3) == 0 { random_valid_plan(&mut rng, &nets, &keys) } else { valid.clone() };
+            let base = if rng.below(3) == 0 {
+                random_valid_plan(&mut rng, &nets, &keys)
+            } else {
+                valid.clone()
+            };
             candidates.push(mutate(&mut rng, &base, n));
         }
         for cand in candidates {
@@ -151,7 +181,10 @@ fn the_contracts_validation_agrees_with_an_independent_oracle_on_random_plans() 
             let expect = oracle(&nets, &keys, &cand);
             let got = propose(&w, &s, parts[0], &list);
             let ok = matches!(got, Out::Ok);
-            assert_eq!(ok, expect, "case {case}: nets {nets:?} plan {cand:?} -> {got:?}");
+            assert_eq!(
+                ok, expect,
+                "case {case}: nets {nets:?} plan {cand:?} -> {got:?}"
+            );
             if expect {
                 accepted += 1;
                 digests.insert(std::format!("{cand:?}"));
@@ -165,14 +198,21 @@ fn the_contracts_validation_agrees_with_an_independent_oracle_on_random_plans() 
     }
     println!("property test: accepted {accepted}, rejected {rejected}, all-zero sessions {zero_sessions}, sessions that accepted several different valid plans {multi_plan_sessions}");
     assert!(accepted > 100 && rejected > 100);
-    assert!(multi_plan_sessions > 0, "the generator must exercise sessions with several valid plans");
+    assert!(
+        multi_plan_sessions > 0,
+        "the generator must exercise sessions with several valid plans"
+    );
 }
 
 fn to_instructions(w: &World, accts: &[&Acct; 4], plan: &Plan) -> soroban_sdk::Vec<Instruction> {
     let mut v = soroban_sdk::Vec::new(&w.env);
     for &(p, q, amt) in plan {
         // an index beyond the session's participants refers to an account that exists but never joined
-        v.push_back(Instruction { payer: accts[p.min(3)].addr.clone(), payee: accts[q.min(3)].addr.clone(), amount: amt });
+        v.push_back(Instruction {
+            payer: accts[p.min(3)].addr.clone(),
+            payee: accts[q.min(3)].addr.clone(),
+            amount: amt,
+        });
     }
     v
 }
