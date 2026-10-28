@@ -1,0 +1,22 @@
+{
+  "name": "tobin-mvp1-sdk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Tobin MVP-1 netting engine, digest, SDK and local bridge client. Experimental; no network, no wallet, no deployment. Independent of any web framework.",
+  "engines": {
+    "node": ">=24"
+  },
+  "exports": {
+    "./amount": "./src/amount.ts",
+    "./sha256": "./src/sha256.ts",
+    "./engine": "./src/engine/index.ts",
+    "./sdk": "./src/sdk/index.ts",
+    "./local/bridge": "./src/local/bridge.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node --test test/*.test.ts",
+    "test:unit": "node --test test/primitives.test.ts test/engine.test.ts test/digest.test.ts test/sdk-unit.test.ts test/intent.test.ts"
+  }
+}

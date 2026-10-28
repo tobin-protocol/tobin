@@ -38,29 +38,29 @@ jobs:
           persist-credentials: false
 
       - name: Install the pinned Rust toolchain
-        working-directory: core
+        working-directory: contracts
         run: |
           rustup toolchain install "${RUSTUP_TOOLCHAIN}" --profile minimal --component rustfmt --component clippy --target wasm32v1-none
           rustc --version
           cargo --version
 
       - name: Fetch Rust dependencies (locked)
-        working-directory: core
+        working-directory: contracts
         run: cargo fetch --locked
 
       - name: cargo fmt --check (required)
-        working-directory: core
+        working-directory: contracts
         run: cargo fmt --all --check
 
       - name: cargo clippy (errors fail; warnings are counted and advisory)
-        working-directory: core
+        working-directory: contracts
         run: |
           cargo clippy --locked --workspace --all-targets 2>&1 | tee "$RUNNER_TEMP/clippy.log"
           warnings="$(grep -c '^warning' "$RUNNER_TEMP/clippy.log" || true)"
           echo "### cargo clippy: no errors; ${warnings} warning lines (advisory; -D warnings is not enforced)" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Rust workspace tests (native)
-        working-directory: core
+        working-directory: contracts
         run: cargo test --locked --workspace 2>&1 | tee "$RUNNER_TEMP/rust-test.log"
 
       - name: Summarize Rust tests
@@ -68,11 +68,11 @@ jobs:
         run: node scripts/ci/cargo-test-summary.mjs "$RUNNER_TEMP/rust-test.log" "Rust workspace tests (native)"
 
       - name: Build the Rust development bridge used by the TypeScript tests
-        working-directory: core
+        working-directory: contracts
         run: |
           cargo build --locked -p tobin-clearing-v1 --example bridge
-          test -x "$GITHUB_WORKSPACE/core/target/debug/examples/bridge"
-          echo "TOBIN_BRIDGE_EXE=$GITHUB_WORKSPACE/core/target/debug/examples/bridge" >> "$GITHUB_ENV"
+          test -x "$GITHUB_WORKSPACE/contracts/target/debug/examples/bridge"
+          echo "TOBIN_BRIDGE_EXE=$GITHUB_WORKSPACE/contracts/target/debug/examples/bridge" >> "$GITHUB_ENV"
 
       - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -80,28 +80,36 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Install TypeScript dependencies (lockfile, no install scripts)
-        working-directory: ts
         run: |
           node --version
           npm ci --ignore-scripts
 
       - name: TypeScript typecheck
-        working-directory: ts
         run: npm run typecheck
 
       - name: Console production build
-        working-directory: ts
         run: npm run build:console
 
-      - name: TypeScript tests (with the Rust bridge)
-        working-directory: ts
-        run: npm test 2>&1 | tee "$RUNNER_TEMP/ts-test.log"
+      - name: Landing page lint
+        run: npm run lint --workspace tobin-landing
+
+      - name: Landing page production build
+        run: npm run build --workspace tobin-landing
+
+      - name: SDK tests (with the Rust bridge; no Next.js involved)
+        run: npm test --workspace tobin-mvp1-sdk 2>&1 | tee "$RUNNER_TEMP/ts-test.log"
+
+      - name: Console unit and security tests (with the Rust bridge)
+        run: npm test --workspace tobin-web-console 2>&1 | tee -a "$RUNNER_TEMP/ts-test.log"
 
       - name: Report skipped tests against the explicit allow-list
         if: always()
         run: |
           node scripts/ci/test-skip-report.mjs "$RUNNER_TEMP/ts-test.log" \
             --allow "the known-answer intent fixture is exactly what this code generates=known-answer fixtures are not part of this publication"
+
+      - name: Dependency inventory must match the lockfile
+        run: node scripts/ci/update-npm-baseline.mjs --check
 
       - name: Documentation links
         run: node scripts/ci/check-links.mjs

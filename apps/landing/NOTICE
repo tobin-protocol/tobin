@@ -1,0 +1,34 @@
+Tobin landing page
+Copyright 2026 Tobin Protocol contributors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Trademarks and brand assets
+---------------------------
+The Apache-2.0 licence covers the source code in this repository. It does not
+grant any right to use the Tobin name, the Tobin logo or other Tobin brand
+assets, and the following files are NOT licensed for reuse:
+
+  - brand-pack/
+  - public/brand/
+  - public/icon-192.png, public/icon-512.png, public/icon-maskable-512.png
+  - src/app/icon.svg, src/app/favicon.ico, src/app/apple-icon.png
+  - src/app/opengraph-image.png, src/app/twitter-image.png
+  - src/components/logo-art.ts (generated from brand-pack/svg)
+
+Twenty wordmark artwork files (the lockup SVGs, logo PNGs and social PNGs of the
+original brand pack, also under public/brand/) are not part of this repository,
+and have been removed from its history, because redistribution permission for the
+font they are described as using was not available. This notice does not state
+that any remaining file is cleared for redistribution, and the list above reserves
+rights; it does not grant them.
+
+You may keep these files unmodified when you fork this repository to run or
+study the site, but a fork that is presented to others must replace them with
+its own branding.
+
+Third-party material
+--------------------
+The site loads JetBrains Mono and Instrument Sans through next/font/google. Both
+fonts are licensed under the SIL Open Font License 1.1 by their authors; no font
+files are stored in this repository.

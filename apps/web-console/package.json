@@ -1,0 +1,29 @@
+{
+  "name": "tobin-web-console",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Tobin MVP-1 local-sandbox Console on Next.js (App Router). Experimental; local only: binds to 127.0.0.1, talks to no Stellar network, signs nothing.",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1 --port 8787",
+    "build": "next build",
+    "build:console": "next build",
+    "start": "next start --hostname 127.0.0.1 --port 8787",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node --test test/*.test.ts",
+    "test:unit": "node --test test/guards.test.ts test/api.test.ts test/console-view.test.ts test/console-input.test.ts",
+    "test:browser": "node test/browser/journey.mjs"
+  },
+  "dependencies": {
+    "next": "16.4.3",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0"
+  }
+}
