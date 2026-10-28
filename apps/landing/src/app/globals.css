@@ -1,0 +1,816 @@
+@import "tailwindcss";
+@import "lenis/dist/lenis.css";
+
+/*
+ * Tobin brand palette (from the brand pack, brand-pack/colors.css).
+ * Grounds are paper or core; slate is body text. The iridescent four
+ * (magenta, violet, blue, cyan) belong to the symbol only: never backgrounds,
+ * buttons or text. Blue alone may be used for links. They are declared here so
+ * the symbol and tokens stay in one place, and are deliberately unused elsewhere.
+ * "static" makes Tailwind emit them even though no utility references them.
+ */
+@theme static {
+  --color-core: #08080b;
+  --color-paper: #f8f8f8; /* Hisa */
+  --color-slate: #5b5764; /* Hisa UI grey, 6.6:1 on paper */
+  --color-mist: #e7e6ed; /* Onramper cool grey */
+  --color-magenta: #e45bd0;
+  --color-violet: #8a5cf0;
+  --color-blue: #3f7bff;
+  --color-cyan: #3fd6e8;
+}
+
+/* Brand-pack variable names, pointing at the theme so values live in one place. */
+:root {
+  --tobin-core: var(--color-core);
+  --tobin-paper: var(--color-paper);
+  --tobin-slate: var(--color-slate);
+  --tobin-mist: var(--color-mist);
+  --tobin-magenta: var(--color-magenta);
+  --tobin-violet: var(--color-violet);
+  --tobin-blue: var(--color-blue);
+  --tobin-cyan: var(--color-cyan);
+  --tobin-rim: linear-gradient(135deg, #e45bd0, #8a5cf0 25%, #3f7bff 50%, #3fd6e8 70%, #8a5cf0 88%, #e45bd0);
+  --tobin-font-display: var(--font-display); /* JetBrains Mono: wordmark and headings */
+  --tobin-font-mono: var(--font-mono);
+}
+
+/*
+ * Site tokens. Every colour here was sampled from the reference designs in
+ * /designs (Hisa, Stripe, Onramper); the pastels are tints of those samples.
+ * Ink is text and small chrome (nav pills); navy is the dark section surface.
+ * Light only: this is a reading surface.
+ */
+@theme {
+  --color-surface: #ffffff;
+  --color-ink: #21212b; /* Hisa ink, 15:1 on paper */
+  --color-navy: #0d1838; /* Stripe navy: dark section surfaces */
+  --color-ink-soft: var(--color-slate); /* body copy */
+  --color-ink-faint: #8b8793; /* large display text and decoration only */
+  --color-line: rgb(33 33 43 / 0.1);
+  --color-line-strong: rgb(33 33 43 / 0.18);
+  --color-accent: #6935f1; /* Hisa violet: hero field, tile A. 6.2:1 with white */
+  --color-accent-ink: #5933c8; /* violet text on light, 7.2:1 on paper */
+  --color-accent-tint: #f0ebff;
+  /* Second hue: gold for loud moments (CTAs, tags, highlights). Ink text only. */
+  --color-signal: #d5a857; /* Hisa gold */
+  /* Violet for dark surfaces (text, markers): 6.3:1 on navy. */
+  --color-accent-bright: #a789f6; /* Hisa lavender */
+  /* Third institution hue (A = accent, B = signal, C = sky). Ink text only. */
+  --color-sky: #4488e9; /* Hisa blue */
+  /* Pastel surfaces for stage cards; ink text only. */
+  --color-accent-pastel: #f0ebff;
+  --color-signal-pastel: color-mix(in srgb, #d5a857 28%, #f8f8f8);
+  --color-sky-pastel: #aabaf6; /* Hisa periwinkle */
+
+  /* Body text and UI: Instrument Sans via next/font; the system stack is the fallback. */
+  --font-sans:
+    var(--font-instrument-sans), system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Wordmark, headings, labels and code: JetBrains Mono via next/font. */
+  --font-mono:
+    var(--font-jetbrains-mono), ui-monospace, "SF Mono", "Cascadia Code", Menlo,
+    Consolas, monospace;
+  /* Poster-scale display type is the same face (the `font-display` utility). */
+  --font-display: var(--font-mono);
+
+  --ease-out-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+html {
+  color-scheme: light;
+  background: var(--color-paper);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-optical-sizing: auto;
+}
+
+::selection {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+/* Focus rings follow the surface they sit on, so they always clear 3:1. */
+[data-surface="dark"] :focus-visible,
+[data-surface="dark"]:focus-visible {
+  outline-color: var(--color-accent-bright);
+}
+[data-surface="accent"] :focus-visible,
+[data-surface="accent"]:focus-visible {
+  outline-color: var(--color-paper);
+}
+[data-surface="signal"] :focus-visible,
+[data-surface="signal"]:focus-visible {
+  outline-color: var(--color-ink);
+}
+
+/* In-page anchors clear the sticky navigation. */
+[id] {
+  scroll-margin-top: 5rem;
+}
+
+/* Headings are JetBrains Mono (a monospace face needs tighter tracking than a sans). */
+@layer base {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+  }
+  /* Poster type: same face, heavy, tightened. */
+  .font-display {
+    font-weight: 800;
+    letter-spacing: -0.05em;
+  }
+}
+
+@layer components {
+  /* Type scale: tracking tightens and leading closes up as size grows. */
+  .text-display {
+    font-family: var(--font-mono);
+    font-size: clamp(2.25rem, 1.2rem + 4.4vw, 4.25rem);
+    line-height: 1.02;
+    letter-spacing: -0.045em;
+    font-weight: 700;
+  }
+  .text-title {
+    font-family: var(--font-mono);
+    font-size: clamp(1.75rem, 1.2rem + 2.2vw, 2.75rem);
+    line-height: 1.1;
+    letter-spacing: -0.04em;
+    font-weight: 700;
+  }
+  .text-heading {
+    font-family: var(--font-mono);
+    font-size: 1.125rem;
+    line-height: 1.3;
+    letter-spacing: -0.02em;
+    font-weight: 600;
+  }
+  .text-lead {
+    font-size: clamp(1.0625rem, 1rem + 0.35vw, 1.3125rem);
+    line-height: 1.5;
+    letter-spacing: -0.008em;
+    color: var(--color-ink-soft);
+  }
+  .text-body {
+    font-size: 1rem;
+    line-height: 1.6;
+    color: var(--color-ink-soft);
+  }
+  /* Display: the poster-scale headline. One weight, caps by design. */
+  .text-display-xl {
+    font-family: var(--font-display);
+    font-weight: 800;
+    text-transform: uppercase;
+    font-size: clamp(2.5rem, 1rem + 7vw, 7rem);
+    line-height: 0.9;
+    letter-spacing: -0.05em;
+  }
+  .text-display-lg {
+    font-family: var(--font-display);
+    font-weight: 800;
+    text-transform: uppercase;
+    font-size: clamp(2rem, 1rem + 4vw, 4.5rem);
+    line-height: 0.95;
+    letter-spacing: -0.05em;
+  }
+  /* Mono micro-label: wide-tracked, uppercase. */
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    line-height: 1;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    font-weight: 500;
+    color: var(--color-accent-ink);
+  }
+  [data-surface="dark"] .eyebrow {
+    color: var(--color-accent-bright);
+  }
+  [data-surface="accent"] .eyebrow {
+    color: var(--color-paper);
+  }
+  .spaced {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Buttons: feedback lands on press, not on release. */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    height: 2.875rem;
+    padding-inline: 1.375rem;
+    border-radius: 999px;
+    font-size: 0.9375rem;
+    font-weight: 560;
+    letter-spacing: -0.005em;
+    white-space: nowrap;
+    border: 1px solid transparent;
+    transition:
+      transform 100ms ease-out,
+      background-color 160ms ease,
+      border-color 160ms ease,
+      color 160ms ease;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  .btn:active {
+    transform: scale(0.97);
+  }
+  .btn-sm {
+    height: 2.25rem;
+    padding-inline: 1rem;
+    font-size: 0.875rem;
+  }
+  .btn-primary {
+    background: var(--color-ink);
+    color: var(--color-paper);
+  }
+  .btn-primary:hover {
+    background: color-mix(in srgb, var(--color-ink) 88%, white);
+  }
+  .btn-secondary {
+    background: transparent;
+    color: var(--color-ink);
+    border-color: var(--color-line-strong);
+  }
+  .btn-secondary:hover {
+    background: var(--color-surface);
+  }
+  .btn-signal {
+    background: var(--color-signal);
+    color: var(--color-ink);
+  }
+  .btn-signal:hover {
+    background: #e4b879;
+  }
+  .btn-light {
+    background: var(--color-paper);
+    color: var(--color-ink);
+  }
+  .btn-light:hover {
+    background: #fff;
+  }
+  .btn-outline-light {
+    color: var(--color-paper);
+    border-color: rgb(248 248 248 / 0.28);
+  }
+  .btn-outline-light:hover {
+    background: rgb(248 248 248 / 0.08);
+  }
+  .btn-pending {
+    cursor: default;
+    color: rgb(248 248 248 / 0.72);
+    border: 1px dashed rgb(248 248 248 / 0.3);
+  }
+  .btn-pending:active {
+    transform: none;
+  }
+  .btn-pending-tag {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.125rem 0.4rem;
+    border-radius: 999px;
+    background: rgb(248 248 248 / 0.12);
+  }
+
+  /*
+   * Navigation material. Transparent at rest; once content scrolls under it
+   * becomes a translucent layer, with a soft blurred edge instead of a rule.
+   */
+  .nav-material {
+    position: relative;
+    transition: background-color 220ms ease, backdrop-filter 220ms ease;
+  }
+  .nav-material[data-material="true"] {
+    background: rgb(248 248 248 / 0.86);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+  }
+
+  /* The menu sheet is a larger surface, so it reads thicker. */
+  .sheet-material {
+    background: rgb(255 255 255 / 0.88);
+    -webkit-backdrop-filter: saturate(180%) blur(32px);
+    backdrop-filter: saturate(180%) blur(32px);
+    border: 1px solid rgb(255 255 255 / 0.7);
+  }
+
+  /* Stage progress in the clearing visual. */
+  .stage-tab {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    transition: transform 100ms ease-out;
+  }
+  .stage-tab:active {
+    transform: scale(0.97);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .nav-material[data-material="true"] {
+    background: var(--color-paper);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: 0 1px 0 var(--color-line);
+  }
+  .nav-material::after {
+    display: none;
+  }
+  .sheet-material {
+    background: var(--color-surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --color-ink-soft: #3d3a4a;
+    --color-line: rgb(33 33 43 / 0.35);
+    --color-line-strong: rgb(33 33 43 / 0.55);
+  }
+  .nav-material[data-material="true"] {
+    background: var(--color-paper);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: 0 1px 0 var(--color-ink);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .stage-tab {
+    transition-property: background-color, border-color, color, opacity;
+  }
+  .btn:active,
+  .stage-tab:active {
+    transform: none;
+  }
+}
+
+/* Diagonal seam where a dark curtain meets the page (static, always on). */
+.seam {
+  clip-path: polygon(0 4vw, 100% 0, 100% 100%, 0 100%);
+}
+
+/*
+ * Dark surfaces: body copy flips to paper at 70% (8.6:1 on ink).
+ * Full-opacity paper is required on accent backgrounds (70% is only 3.6:1).
+ */
+[data-surface="dark"] .text-lead,
+[data-surface="dark"] .text-body {
+  color: rgb(248 248 248 / 0.7);
+}
+[data-surface="accent"] .text-lead,
+[data-surface="accent"] .text-body {
+  color: var(--color-paper);
+}
+
+/*
+ * Pinned scenes. A tall outer wrapper holds a sticky, viewport-tall inner; the
+ * next block rides up over it with a negative margin (a "curtain"). Only where
+ * there is room and no reduced-motion preference. Keep in sync with PIN_QUERY.
+ */
+@media (min-width: 1024px) and (min-height: 700px) and (prefers-reduced-motion: no-preference) {
+  .pin-stage {
+    height: 200vh;
+  }
+  .pin-sticky {
+    position: sticky;
+    top: 0;
+    height: 100svh;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    padding-top: 4rem;
+    padding-bottom: 2rem;
+  }
+  .pin-curtain {
+    margin-top: -100vh;
+  }
+  /* Keep the whole visual inside one viewport. */
+  .pin-fit {
+    max-height: calc(100svh - 19rem);
+  }
+}
+
+/*
+ * Navigation tone. The bar follows the surface under it: light (default),
+ * dark (ink sections) or signal (open mobile sheet). Text, mark and CTA all
+ * read from these variables so nothing is ever ink-on-ink.
+ */
+.nav-material {
+  --nav-fg: var(--color-ink);
+  --nav-fg-soft: var(--color-ink-soft);
+  --nav-mark: var(--color-accent);
+  color: var(--nav-fg);
+}
+.nav-material[data-tone="dark"] {
+  --nav-fg: var(--color-paper);
+  --nav-fg-soft: rgb(248 248 248 / 0.82);
+  --nav-mark: var(--color-accent-bright);
+}
+.nav-material[data-tone="signal"] {
+  --nav-fg: var(--color-ink);
+  --nav-fg-soft: var(--color-ink);
+  --nav-mark: var(--color-ink);
+}
+.nav-material[data-tone="dark"][data-material="true"] {
+  background: rgb(33 33 43 / 0.88);
+}
+.nav-material[data-tone="signal"][data-material="true"] {
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.nav-material .nav-mark {
+  color: var(--nav-mark);
+}
+.nav-material[data-tone="dark"] .nav-cta {
+  background: var(--color-signal);
+  color: var(--color-ink);
+}
+.nav-material[data-tone="dark"] .nav-cta:hover {
+  background: #e4b879;
+}
+.nav-link {
+  color: var(--nav-fg-soft);
+  transition: color 160ms ease;
+}
+.nav-link:hover,
+.nav-link:focus-visible {
+  color: var(--nav-fg);
+}
+.nav-bar-line {
+  background: var(--nav-fg);
+}
+
+/*
+ * Roll link: the label rolls away on X (pivot bottom) while a mono-caps copy
+ * of the same label rolls in (pivot top). Spec: perspective 400px, .3s,
+ * [.4,0,.2,1]. Fires on hover and on keyboard focus.
+ */
+.roll {
+  display: inline-grid;
+  perspective: 400px;
+}
+.roll > span {
+  grid-area: 1 / 1;
+  text-align: center;
+  white-space: nowrap;
+  transition:
+    transform 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.roll .roll-front {
+  transform-origin: bottom center;
+}
+.roll .roll-back {
+  transform-origin: top center;
+  transform: rotateX(90deg);
+  opacity: 0;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 600;
+  align-self: center;
+}
+.roll:hover .roll-front,
+.roll:focus-visible .roll-front {
+  transform: rotateX(-90deg);
+  opacity: 0;
+}
+.roll:hover .roll-back,
+.roll:focus-visible .roll-back {
+  transform: rotateX(0);
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .roll .roll-front,
+  .roll .roll-back {
+    transform: none !important;
+  }
+}
+
+/* Static vs pinned renderings of the same section. Keep in sync with PIN_QUERY. */
+.pin-only {
+  display: none;
+}
+@media (min-width: 1024px) and (min-height: 700px) and (prefers-reduced-motion: no-preference) {
+  .pin-only {
+    display: block;
+  }
+  .pin-hide {
+    display: none;
+  }
+}
+
+/* Ink on signal: body copy must be full ink (ink-soft is only 4.3:1 here). */
+[data-surface="signal"] .text-body {
+  color: var(--color-ink);
+}
+
+/* ---- Poster hero + amber curtain ---------------------------------------- */
+
+/* Nav over the blue hero: paper text, translucent blue material, signal CTA. */
+.nav-material[data-tone="accent"] {
+  --nav-fg: var(--color-paper);
+  --nav-fg-soft: var(--color-paper);
+  --nav-mark: var(--color-paper);
+}
+.nav-material[data-tone="accent"][data-material="true"] {
+  background: rgb(105 53 241 / 0.88);
+}
+.nav-material[data-tone="accent"] .nav-cta {
+  background: var(--color-signal);
+  color: var(--color-ink);
+}
+.nav-material[data-tone="accent"] .nav-cta:hover {
+  background: #e4b879;
+}
+
+/* Amber surface: blue eyebrow would be 3.4:1 here, so it goes ink. */
+[data-surface="signal"] .eyebrow {
+  color: var(--color-ink);
+}
+
+/*
+ * Statically (no pinned scenes) a seam pulls up over whatever precedes it, so
+ * its diagonal shows that colour instead of a paper triangle. Pinned layouts
+ * override this with .pin-curtain below.
+ */
+.seam {
+  margin-top: -4vw;
+}
+@media (min-width: 1024px) and (min-height: 700px) and (prefers-reduced-motion: no-preference) {
+  .pin-curtain {
+    margin-top: -100vh;
+  }
+}
+/* A curtain must be at least one viewport tall, or it exposes the scene it covers. */
+@media (min-width: 1024px) and (min-height: 700px) and (prefers-reduced-motion: no-preference) {
+  .pin-curtain {
+    min-height: 100vh;
+  }
+}
+
+/* ---- Problem: tilted dual marquee --------------------------------------- */
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@keyframes marquee-reverse {
+  from { transform: translateX(-50%); }
+  to { transform: translateX(0); }
+}
+.animate-marquee {
+  animation: marquee 30s linear infinite;
+}
+.animate-marquee-reverse {
+  animation: marquee-reverse 36s linear infinite;
+}
+/* Pausing under the pointer or keyboard focus makes the figures readable. */
+.marquee-row:hover,
+.marquee-row:focus-within {
+  animation-play-state: paused;
+}
+
+/* The band is 120vw wide, tilted -3 degrees, so its tilted ends never show. */
+.marquee-band {
+  width: 120vw;
+  margin-left: -10vw;
+  rotate: -3deg;
+  scale: 1.05;
+}
+
+/* Reduced motion: no tilt, no scrolling, no duplicates; the cards simply wrap. */
+@media (prefers-reduced-motion: reduce) {
+  .marquee-band {
+    width: auto;
+    margin-left: 0;
+    rotate: none;
+    scale: none;
+  }
+  .animate-marquee,
+  .animate-marquee-reverse {
+    animation: none;
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 1.5rem;
+    margin-left: 0 !important;
+  }
+  .marquee-dup {
+    display: none;
+  }
+}
+
+/* ---- How It Works: the "session file" scene ------------------------------ */
+
+/* Static by default; pinned (tall outer, scrolling window) only where there is room. */
+@media (min-width: 1024px) and (min-height: 700px) and (prefers-reduced-motion: no-preference) {
+  .pin-scene {
+    height: 320vh;
+  }
+  .pin-window {
+    height: clamp(14rem, calc(100svh - 30rem), 24rem);
+    overflow: hidden;
+  }
+}
+
+/* ---- Strip accordion (How It Works) --------------------------------------- */
+
+/*
+ * A row of tall flat strips; the active one opens into a wide dark panel.
+ * Rows on phones, columns from md up. Per-item
+ * colours come from --acc-bg / --acc-fg (the closed strip) and --c (accent).
+ */
+.acc {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.acc-item {
+  position: relative;
+  height: 4.25rem;
+  transition:
+    height 550ms cubic-bezier(0.4, 0, 0.2, 1),
+    flex 550ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.acc-item[data-active="true"] {
+  height: 30rem;
+}
+.acc-btn {
+  display: block;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  text-align: left;
+  background: var(--acc-bg);
+  color: var(--acc-fg);
+  transition: background-color 400ms ease, color 400ms ease;
+}
+.acc-item[data-active="true"] .acc-btn {
+  background: var(--color-navy);
+  color: var(--color-paper);
+}
+.acc-collapsed {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0 1.25rem;
+  transition: opacity 250ms ease;
+}
+.acc-open {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 300ms ease;
+}
+.acc-item[data-active="true"] .acc-collapsed {
+  opacity: 0;
+}
+.acc-item[data-active="true"] .acc-open {
+  opacity: 1;
+  transition-delay: 180ms;
+}
+.acc-vert {
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.9375rem;
+  white-space: nowrap;
+}
+
+@media (min-width: 768px) {
+  .acc {
+    flex-direction: row;
+    height: var(--acc-h, 26rem);
+  }
+  .acc-item {
+    height: 100%;
+    flex: 0 0 5rem;
+  }
+  .acc-item[data-active="true"] {
+    height: 100%;
+    flex: 1 1 24rem;
+  }
+  .acc-collapsed {
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 0;
+    padding: 1.5rem 0;
+    align-items: center;
+  }
+  .acc-vert {
+    writing-mode: vertical-rl;
+    rotate: 180deg;
+    font-size: 1.0625rem;
+  }
+  .acc-open {
+    min-width: 30rem;
+    padding: 2rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .acc-item,
+  .acc-btn,
+  .acc-collapsed,
+  .acc-open {
+    transition: none;
+  }
+}
+
+/* ---- Principles: widening blocks ------------------------------------------ */
+
+/* Side by side from md up; the hovered (or focused) block widens, the others give way. */
+@media (min-width: 768px) {
+  .pr-row {
+    display: flex;
+  }
+  .pr-item {
+    flex: 1 1 0;
+    min-width: 0;
+    transition: flex 600ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .pr-item:hover,
+  .pr-item:focus-within {
+    flex: 1.4 1 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pr-item {
+    transition: none;
+  }
+}
+
+/* ---- Navigation pills ----------------------------------------------------- */
+
+/* Press feedback lands on pointer-down, like every other button. */
+.btn-press {
+  transition: transform 100ms ease-out, background-color 160ms ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.btn-press:active {
+  transform: scale(0.97);
+}
+@media (prefers-reduced-transparency: reduce) {
+  header .backdrop-blur-md {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: var(--color-ink);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn-press:active {
+    transform: none;
+  }
+}
