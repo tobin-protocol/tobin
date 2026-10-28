@@ -327,7 +327,21 @@
         "role": "founder",
         "approved_on": "2026-10-28",
         "decision_reference": "Founder instruction \"Execute the final Tobin MVP-1 publication task\" of 2026-10-28, transcribed into this file by the assistant at the founder's instruction; the founder's identity and statements are not independently verified."
-      }
+      },
+      "amendments": [
+        {
+          "id": "G12-A1",
+          "title": "Interpretation of \"binaries\" and update of the recorded inventory for the monorepo",
+          "interpretation": "In the source-only standard, \"binaries\" means executable or compiled distribution artifacts (for example Wasm builds, executables, bundles, packages, container images). Ordinary source-controlled image assets such as PNG and ICO files may be included only where redistribution rights are established. This clarification establishes rights for no particular image.",
+          "evidence_update": "ci/dependency-baseline.csv now records 663 rows: 216 Rust entries (214 registry crates and 2 workspace crates, metadata carried over unchanged, residue as above) and, from the root package-lock.json, 444 third-party npm packages and 3 npm workspace packages, with licence expressions exactly as supplied, dependency scope and platform restriction. This remains a metadata inventory, not a legal review, and open licence questions (LGPL-labelled optional sharp packages, caniuse-lite CC-BY-4.0, MPL-labelled packages) are listed in release/PROPOSED-POLICY-UPDATE-MONOREPO.md.",
+          "approval": {
+            "approved_by": "Ebubechi Ihediwa",
+            "role": "founder",
+            "approved_on": "2026-10-28",
+            "decision_reference": "Founder instruction of 2026-10-28 in the finalization session (the message beginning \"Complete the approved finalization and push the clean candidate branch\"), transcribed into this file by the assistant at the founder's instruction; the founder's identity and statements are not independently verified."
+          }
+        }
+      ]
     },
     {
       "id": "E01",
@@ -480,14 +494,27 @@
         "role": "founder",
         "approved_on": "2026-10-28",
         "decision_reference": "Founder instruction \"Execute the final Tobin MVP-1 publication task\" of 2026-10-28, transcribed into this file by the assistant at the founder's instruction; the founder's identity and statements are not independently verified."
-      }
+      },
+      "amendments": [
+        {
+          "id": "PC-1-A1",
+          "title": "Extension of the source-only scope from the MVP-1 tree to the monorepo; image-asset clarification",
+          "description": "The source-only standard of PC-1 applies to the public-source-release of the monorepo (contracts, packages/mvp1-sdk, apps/web-console, apps/landing, documentation, CI and release controls): source, lockfiles and documentation only. No binaries, Wasm releases, container images, packages, deployed or hosted sites are published or authorized, and nothing is production-ready. Ordinary source-controlled image assets such as PNG and ICO files may be part of the source tree only where redistribution rights are established; this amendment establishes rights for no particular image. Executable or compiled distribution artifacts remain excluded. Versioned-release and production keep every original requirement. This is a policy scope statement, not a legal compatibility finding; the original description above is kept as approved on its date.",
+          "approval": {
+            "approved_by": "Ebubechi Ihediwa",
+            "role": "founder",
+            "approved_on": "2026-10-28",
+            "decision_reference": "Founder instruction of 2026-10-28 in the finalization session (the message beginning \"Complete the approved finalization and push the clean candidate branch\"), transcribed into this file by the assistant at the founder's instruction; the founder's identity and statements are not independently verified."
+          }
+        }
+      ]
     }
   ],
   "pending_approvals": [
     {
       "id": "PA-1",
       "title": "Re-approval of the recorded source-publication approvals and of policy change PC-1 for the expanded monorepo scope",
-      "status": "PENDING",
+      "status": "RESOLVED",
       "opened_on": "2026-10-28",
       "affects_gates": [
         "G01",
@@ -501,10 +528,31 @@
         "PC-1"
       ],
       "scope_recorded": "The approvals of 2026-10-28 were recorded for the MVP-1 source tree: the Rust contracts, the TypeScript SDK and plain-DOM Console, documentation, CI and release controls, with an inventory of 214 registry crates plus 2 workspace crates and 3 npm packages.",
-      "scope_now": "The monorepo adds apps/landing (the landing page imported with its own LICENSE, NOTICE, brand assets and 44 commits of history), a Next.js web console, and an npm dependency set of 444 third-party packages in the root lockfile, including LGPL-labelled optional packages, MPL-labelled packages and content-licence entries.",
+      "scope_now": "The candidate branch feat/monorepo-foundation-clean adds, to the MVP-1 source tree: apps/landing, imported by git subtree from the separate tobin-landing repository with its own LICENSE and NOTICE and 44 commits of history, where the history was rewritten before publication (the first 30 commits keep their hashes and 14 commit hashes changed, with authors, committers, dates and messages unchanged) to exclude 20 wordmark artwork files described as Aalto Display-derived, for which no redistribution permission is held, and to repoint the original share images to the existing JetBrains Mono versions; a Next.js web console; and an npm dependency set of 444 third-party packages in the root lockfile, including LGPL-labelled optional packages, MPL-labelled packages and content-licence entries. The separate public tobin-landing repository was not changed and still contains the original files. The symbol, icon and avatar files and the remaining share images are of unrecorded authorship and licence.",
       "proposal": "release/PROPOSED-POLICY-UPDATE-MONOREPO.md",
-      "note": "No gate status was changed. Until a named, dated founder resolution is recorded here, the strict checks treat the listed gates and PC-1 as not satisfied for the targets that require them.",
-      "resolution": null
+      "note": "Resolved by a named founder decision recorded below. The resolution is a policy decision for the source-only target only. It does not state that any asset or dependency is cleared, that a legal review took place, that hosted CI passed, or that any release other than the source-only publication is authorized.",
+      "resolution": {
+        "approved_by": "Ebubechi Ihediwa",
+        "role": "founder",
+        "approved_on": "2026-10-28",
+        "decision_reference": "Founder instruction of 2026-10-28 in the finalization session (the message beginning \"Complete the approved finalization and push the clean candidate branch\"), transcribed into this file by the assistant at the founder's instruction; the founder's identity and statements are not independently verified.",
+        "decision": "The founder approved, for the public-source-release target only, the re-approval of G01, G02, G03, G05, G07, G09, G11, G12 and PC-1 for the monorepo scope described in scope_now, on the terms of release/PROPOSED-POLICY-UPDATE-MONOREPO.md as clarified: (A) ordinary source-controlled image assets (for example PNG and ICO) may be included only where redistribution rights are established, which establishes rights for no particular image; (B) the approval is limited to the source-only publication target and does not authorize binaries, Wasm releases, container images, packages, deployment or hosting, or production use; (C) this entry's scope text is updated to the clean candidate after the history rewrite; (E) PC-1 and the proposal are made consistent through PC-1-A1 and G12-A1.",
+        "action_named": "Push of the branch feat/monorepo-foundation-clean to its corresponding branch on origin (https://github.com/tobin-protocol/tobin.git). No merge into main and no pull request creation or merge is authorized by this resolution.",
+        "policy_decision_versus_automation": "The decision above is the founder's. The following were technical checks run by automation (the assistant) on the candidate, not independent verification: source-tree scan with no findings; the 20 prohibited wordmark paths and 10 wordmark blobs unreachable from the candidate branch; dependency baseline in sync with the lockfile; documentation links; workflow validator; typecheck; console and landing build; SDK and console tests; browser journeys at 1200 px and 420 px. Hosted CI has not run.",
+        "not_established": [
+          "legal review or legal compatibility of any dependency or asset",
+          "redistribution rights for the symbol, icon and avatar files, the remaining share images, or the font licence behind them (only the repository's own statement exists for JetBrains Mono)",
+          "attribution obligations for caniuse-lite (CC-BY-4.0) and the LGPL- and MPL-labelled packages",
+          "G04: dependency and attribution review (still BLOCKED; required for versioned-release and production)",
+          "hosted CI (E01 to E04) and branch protection (E05)",
+          "removal of the original artwork from the separate public tobin-landing repository"
+        ],
+        "limits": [
+          "Does not apply to versioned-release, production, binary, package, container or deployed-site publication; those keep their full requirements and need fresh approvals.",
+          "Not a statement that the repository is cleared, release-ready or production-ready."
+        ]
+      },
+      "scope_now_as_opened": "The monorepo adds apps/landing (the landing page imported with its own LICENSE, NOTICE, brand assets and 44 commits of history), a Next.js web console, and an npm dependency set of 444 third-party packages in the root lockfile, including LGPL-labelled optional packages, MPL-labelled packages and content-licence entries."
     }
   ]
 }

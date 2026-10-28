@@ -1,6 +1,6 @@
-# Proposed policy update for the monorepo scope (for founder review)
+# Policy update for the monorepo scope
 
-**Status: PROPOSAL ONLY. Nothing in this document is an approval, and no gate status was changed.** Pending item: `PA-1` in `release/RELEASE-GATES.json` (status PENDING, no resolution recorded). Until a named, dated, non-AI resolution is recorded there, `node scripts/release/check-gates.mjs --strict` treats G01, G02, G03, G05, G07, G09, G11, G12 and PC-1 as not satisfied for the targets that need them, so strict checking of `public-source-release` refuses to pass. G04 stays BLOCKED. A clean dependency report or `npm audit` is not a legal-compatibility finding.
+**Status: the founder's decision on this proposal was recorded on 2026-10-28 as the resolution of `PA-1` in `release/RELEASE-GATES.json`, with the clarifications in section 8. This document itself remains the proposal text; the approval record is in the gate file.** No gate status other than the `PA-1` resolution changed, and G04 stays BLOCKED. Before that resolution, `node scripts/release/check-gates.mjs --strict` treated G01, G02, G03, G05, G07, G09, G11, G12 and PC-1 as not satisfied for `public-source-release`. A clean dependency report or `npm audit` is not a legal-compatibility finding.
 
 ## 1. What changed in scope
 
@@ -21,7 +21,7 @@ The gate file defines four targets. This proposal concerns only the first public
 | `versioned-release` | a tagged or versioned release with artifacts (binaries, Wasm, packages, container images) | **no**: keeps its full requirements (including G04, G10 and E01 to E05) and needs fresh approvals |
 | `production` | production or real-value deployment (including hosted sites run for real use) | **no**: not intended by this project today |
 
-Proposed wording for PC-1 to cover the whole monorepo: *source, lockfiles and documentation only. No binaries, Wasm releases, container images, packages, deployed or hosted sites are published or authorized, and nothing here is production-ready.* Proposed only; the founder decides.
+Wording of the PC-1 extension to the whole monorepo (recorded as amendment `PC-1-A1` in the gate file): *source, lockfiles and documentation only. No binaries, Wasm releases, container images, packages, deployed or hosted sites are published or authorized, and nothing here is production-ready.*
 
 Limits of this scope, to be stated with it:
 
@@ -46,7 +46,7 @@ Source: `ci/dependency-baseline.csv` (663 rows: 216 Rust, 444 third-party npm, 3
 Definitions come from `release/RELEASE-GATES.json` (`required_for`) and the minimum-policy table in `scripts/release/check-gates.mjs`. This section restates them; it changes nothing.
 
 - **`public-source-release`, today's requirements (PC-1 in force):** G01, G02, G03, G05, G06, G07, G08, G09, G11 and G12. Under PC-1, G04, E01 and E05 are not required for this target (G04 is deferred, and E01 and E05 are replaced by G12); without PC-1 the checker requires G04, E01 and E05 as well. Approvals made under PC-1 are valid only for this target (`valid_for`).
-- **Pending:** PA-1 holds G01, G02, G03, G05, G07, G09, G11, G12 and PC-1 as not satisfied until the founder resolves it for the monorepo scope. G06 and G08 are not in PA-1.
+- **PA-1:** it held G01, G02, G03, G05, G07, G09, G11, G12 and PC-1 as not satisfied until the founder resolved it for the monorepo scope; the resolution is recorded (section 8). G06 and G08 were not in PA-1.
 - **`versioned-release` and `production`:** not covered. They require G04 (still BLOCKED), G10 (BLOCKED), E01 to E05 (NOT VERIFIED) and, for production, P01 to P05. None of these is "not applicable"; they are required for those targets and out of scope here.
 - **Local validation versus hosted evidence.** The Stage D local checks (Rust fmt, tests, clippy, bridge and Wasm builds with the recorded hashes, SDK, Console and landing builds and tests, both browser journeys, link and baseline checks) passed on the founder's machine. Hosted CI has not run on these changes, so E01 to E05 remain NOT VERIFIED. Local results are not hosted evidence.
 
@@ -66,12 +66,22 @@ Details, file inventory with hashes and options: `release/ARTWORK-REMEDIATION-PL
 
 The founder's personal email address appears as author and committer in all 44 landing commits (and in 89 commits repository-wide), as commit metadata only. A scan of the landing tree and history found no occurrence in file contents, no local user paths, and no secret-like strings. **The founder has directed that the imported Git history and the original author and committer metadata be preserved as-is.** That direction is not authorization to publish. The one authorized exception: for the artwork reason in section 5, the 14 unpublished landing commits from `ca46ee2` onward were rewritten to drop the 20 files (the first 30 commits keep their hashes). Authors, committers, dates and messages of all 44 landing commits are unchanged, and no identity was changed. The address is deliberately not written into any repository file.
 
-## 7. Founder decisions and what is not recorded
+## 7. Decisions and what remains open
 
-No approval has been recorded. `PA-1` remains pending.
+PA-1 is resolved by the founder's recorded decision (section 8). It is a policy decision for the source-only target only.
 
-1. **PA-1:** re-approve G01, G02, G03, G05, G07, G09, G11 and PC-1 for the monorepo scope (section 2). Remains pending.
-2. **G12 and the expanded dependency standard** (section 3), including the PC-1 wording. Subject to explicit founder review; remains pending.
-3. **Artwork:** the 20 wordmark files are excluded (section 5). Remaining open: the symbol's authorship and licence, and the redesign.
-4. **Deployment or binary distribution** of anything that includes the LGPL-labelled optional packages or `caniuse-lite`: a separate decision, not made here.
-5. **Hosted CI:** has not run on these changes; E01 to E05 remain NOT VERIFIED.
+1. **G12 and the expanded dependency standard** (section 3): approved as clarified in section 8. The open licence questions in section 3 are not resolved by it.
+2. **Artwork:** the 20 wordmark files are excluded (section 5). Open: the symbol's authorship and licence, the remaining share images, and the redesign.
+3. **Deployment or binary distribution** of anything that includes the LGPL-labelled optional packages or `caniuse-lite`: a separate decision, not made here.
+4. **Hosted CI:** has not run on these changes; E01 to E05 remain NOT VERIFIED. G04 remains BLOCKED.
+
+## 8. Approved clarifications (recorded 2026-10-28)
+
+Recorded in `release/RELEASE-GATES.json` as the `PA-1` resolution, amendment `PC-1-A1` and amendment `G12-A1`. The approver and the decision reference follow the convention of the earlier approvals (the founder's instruction, transcribed by the assistant; identity and statements not independently verified).
+
+- **G12 asset interpretation.** Ordinary source-controlled image assets such as PNG and ICO files may be included in the source tree only where redistribution rights are established. Executable or compiled distribution artifacts remain excluded. This establishes rights for no particular image.
+- **Source-only scope.** The approval is limited to the defined `public-source-release` target. It does not authorize binaries, Wasm releases, container images, packages, deployment or hosting, or production use. This is a scope limit, not a legal compatibility finding.
+- **PA-1 scope text** now describes the clean candidate: the landing history was imported and then rewritten before publication (the first 30 commits keep their hashes, 14 commit hashes changed, authors, committers, dates and messages unchanged) to exclude the 20 wordmark files. The separate public `tobin-landing` repository was not changed.
+- **Action named:** push of `feat/monorepo-foundation-clean` to its corresponding branch on `origin`. No merge into `main` and no pull request is authorized by it.
+- **Technical checks by automation are not part of the decision** and are not independent verification. Hosted CI has not run.
+- **Still not established:** legal review or compatibility, redistribution rights for the symbol, icon and avatar files and the remaining share images, attribution obligations for `caniuse-lite` and the LGPL- and MPL-labelled packages, G04, E01 to E05, and cleanup of the public `tobin-landing` repository.
