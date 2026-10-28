@@ -1,0 +1,19 @@
+{
+  "name": "tobin-mvp1-ts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Tobin MVP-1 local TypeScript: netting engine, digest, SDK and the local-sandbox Console. Experimental; no network, no wallet, no deployment.",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node --test test/*.test.ts",
+    "test:unit": "node --test test/amount.test.ts test/strkey.test.ts test/sha256.test.ts test/engine.test.ts test/digest.test.ts test/sdk-unit.test.ts test/console-view.test.ts",
+    "build:console": "tsc -p console/tsconfig.json",
+    "console": "node console/server.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.43",
+    "typescript": "5.9.3"
+  }
+}

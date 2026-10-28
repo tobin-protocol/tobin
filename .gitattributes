@@ -1,0 +1,5 @@
+# Normalize text files to LF in the repository and in the working tree.
+* text=auto eol=lf
+
+# Keep the CRLF baseline MVP-1 specification byte-for-byte (path-restricted to the root-level layout docs/spec/).
+docs/spec/MVP-1*Implementation*Specification*Draft*0.1.md -text

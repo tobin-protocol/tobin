@@ -1,0 +1,23 @@
+[package]
+name = "tobin-clearing-v1"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "TobinClearingV1: the Soroban clearing contract of the Tobin experimental MVP-1. Not Tobin v0.2; not for deployment."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
+tobin-test-token = { path = "../token" }
+# real ed25519 signatures for the authorization entries of tests/signed.rs (same version the SDK test host resolves)
+ed25519-dalek = "2.2.0"
+# SHA-256 for the narrow local authorization signer (signer/mod.rs); same version already in the lockfile
+sha2 = "0.10.9"
+# the local development bridge (examples/bridge.rs) speaks JSON lines
+serde_json = "1"

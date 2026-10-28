@@ -1,0 +1,315 @@
+{
+  "about": "Expected intents built by the TypeScript SDK for every supported signing call (synthetic parties). Replayed against the real contracts in the Soroban host by tests/authintents.rs.",
+  "network_id_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+  "parties": {
+    "creator_and_debtor": "GAFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWYPX",
+    "joiner_and_creditor": "GAGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYXH2",
+    "minter": "GAHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4IX7"
+  },
+  "session_hex": "5151515151515151515151515151515151515151515151515151515151515151",
+  "obligation": {
+    "id": "0101010101010101010101010101010101010101010101010101010101010101",
+    "debtor": "GAFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWYPX",
+    "creditor": "GAGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYXH2",
+    "amount": "100"
+  },
+  "instructions": [
+    {
+      "payer": "GAFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWYPX",
+      "payee": "GAGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYXH2",
+      "amount": "100"
+    }
+  ],
+  "digest": "162a8b850e021024c14e3e59718fb13304a040e4a42163c9ed70c91e52f9cec6",
+  "calls": [
+    {
+      "name": "create_session",
+      "intent": {
+        "version": 1,
+        "network_passphrase": "Standalone Network ; February 2017",
+        "entries": [
+          {
+            "signer": "GAFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWYPX",
+            "tree": {
+              "contract": "CDA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4CFV6",
+              "fn": "create_session",
+              "args": [
+                {
+                  "t": "addr",
+                  "v": "GAFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWYPX"
+                },
+                {
+                  "t": "bytes32",
+                  "v": "5151515151515151515151515151515151515151515151515151515151515151"
+                },
+                {
+                  "t": "addr",
+                  "v": "CBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHAGEP"
+                },
+                {
+                  "t": "u32",
+                  "v": 4
+                },
+                {
+                  "t": "u32",
+                  "v": 16
+                }
+              ],
+              "subs": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "join_session",
+      "intent": {
+        "version": 1,
+        "network_passphrase": "Standalone Network ; February 2017",
+        "entries": [
+          {
+            "signer": "GAGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYXH2",
+            "tree": {
+              "contract": "CDA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4CFV6",
+              "fn": "join_session",
+              "args": [
+                {
+                  "t": "bytes32",
+                  "v": "5151515151515151515151515151515151515151515151515151515151515151"
+                },
+                {
+                  "t": "addr",
+                  "v": "GAGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYXH2"
+                }
+              ],
+              "subs": []
+            }
+          },
+          {
+            "signer": "GAFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWYPX",
+            "tree": {
+              "contract": "CDA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4CFV6",
+              "fn": "join_session",
+              "args": [
+                {
+                  "t": "bytes32",
+                  "v": "5151515151515151515151515151515151515151515151515151515151515151"
+                },
+                {
+                  "t": "addr",
+                  "v": "GAGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYXH2"
+                }
+              ],
+              "subs": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "submit_obligation",
+      "intent": {
+        "version": 1,
+        "network_passphrase": "Standalone Network ; February 2017",
+        "entries": [
+          {
+            "signer": "GAFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWYPX",
+            "tree": {
+              "contract": "CDA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4CFV6",
+              "fn": "submit_obligation",
+              "args": [
+                {
+                  "t": "bytes32",
+                  "v": "5151515151515151515151515151515151515151515151515151515151515151"
+                },
+                {
+                  "t": "obligation",
+                  "v": {
+                    "id": "0101010101010101010101010101010101010101010101010101010101010101",
+                    "debtor": "GAFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWYPX",
+                    "creditor": "GAGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYXH2",
+                    "amount": "100"
+                  }
+                }
+              ],
+              "subs": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "finalize_obligations",
+      "intent": {
+        "version": 1,
+        "network_passphrase": "Standalone Network ; February 2017",
+        "entries": [
+          {
+            "signer": "GAGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYXH2",
+            "tree": {
+              "contract": "CDA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4CFV6",
+              "fn": "finalize_obligations",
+              "args": [
+                {
+                  "t": "bytes32",
+                  "v": "5151515151515151515151515151515151515151515151515151515151515151"
+                },
+                {
+                  "t": "addr",
+                  "v": "GAGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYXH2"
+                }
+              ],
+              "subs": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "propose_settlement",
+      "intent": {
+        "version": 1,
+        "network_passphrase": "Standalone Network ; February 2017",
+        "entries": [
+          {
+            "signer": "GAFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWYPX",
+            "tree": {
+              "contract": "CDA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4CFV6",
+              "fn": "propose_settlement",
+              "args": [
+                {
+                  "t": "bytes32",
+                  "v": "5151515151515151515151515151515151515151515151515151515151515151"
+                },
+                {
+                  "t": "addr",
+                  "v": "GAFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWYPX"
+                },
+                {
+                  "t": "instructions",
+                  "v": [
+                    {
+                      "payer": "GAFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWYPX",
+                      "payee": "GAGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYXH2",
+                      "amount": "100"
+                    }
+                  ]
+                }
+              ],
+              "subs": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "approve_settlement",
+      "intent": {
+        "version": 1,
+        "network_passphrase": "Standalone Network ; February 2017",
+        "entries": [
+          {
+            "signer": "GAGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYXH2",
+            "tree": {
+              "contract": "CDA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4CFV6",
+              "fn": "approve_settlement",
+              "args": [
+                {
+                  "t": "bytes32",
+                  "v": "5151515151515151515151515151515151515151515151515151515151515151"
+                },
+                {
+                  "t": "addr",
+                  "v": "GAGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYXH2"
+                },
+                {
+                  "t": "bytes32",
+                  "v": "162a8b850e021024c14e3e59718fb13304a040e4a42163c9ed70c91e52f9cec6"
+                }
+              ],
+              "subs": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "settle",
+      "intent": {
+        "version": 1,
+        "network_passphrase": "Standalone Network ; February 2017",
+        "entries": [
+          {
+            "signer": "GAFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWYPX",
+            "tree": {
+              "contract": "CDA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4CFV6",
+              "fn": "settle",
+              "args": [
+                {
+                  "t": "bytes32",
+                  "v": "5151515151515151515151515151515151515151515151515151515151515151"
+                },
+                {
+                  "t": "bytes32",
+                  "v": "162a8b850e021024c14e3e59718fb13304a040e4a42163c9ed70c91e52f9cec6"
+                },
+                {
+                  "t": "i128",
+                  "v": "100"
+                }
+              ],
+              "subs": [
+                {
+                  "contract": "CBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHAGEP",
+                  "fn": "transfer",
+                  "args": [
+                    {
+                      "t": "addr",
+                      "v": "GAFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWYPX"
+                    },
+                    {
+                      "t": "addr",
+                      "v": "GAGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYXH2"
+                    },
+                    {
+                      "t": "i128",
+                      "v": "100"
+                    }
+                  ],
+                  "subs": []
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "mint",
+      "intent": {
+        "version": 1,
+        "network_passphrase": "Standalone Network ; February 2017",
+        "entries": [
+          {
+            "signer": "GAHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4IX7",
+            "tree": {
+              "contract": "CBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHAGEP",
+              "fn": "mint",
+              "args": [
+                {
+                  "t": "addr",
+                  "v": "GAFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWCYLBMFQWYPX"
+                },
+                {
+                  "t": "i128",
+                  "v": "500"
+                }
+              ],
+              "subs": []
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

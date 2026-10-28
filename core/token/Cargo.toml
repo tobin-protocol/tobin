@@ -1,0 +1,16 @@
+[package]
+name = "tobin-test-token"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "TobinTestToken: a custom Soroban test token with a hard supply cap, for the Tobin experimental MVP-1. Test instrument only; not production-grade; no real value."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
