@@ -42,6 +42,11 @@ test('the page, the compiled scripts and the sandbox API are served locally; unr
     const base = `http://127.0.0.1:${port}`;
     const home = await fetch(`${base}/`);
     assert.equal(home.status, 200);
+    // hardening headers: no framing by another site, no MIME sniffing, no referrer, and only same-origin resources
+    assert.equal(home.headers.get('x-frame-options'), 'DENY');
+    assert.equal(home.headers.get('x-content-type-options'), 'nosniff');
+    assert.equal(home.headers.get('referrer-policy'), 'no-referrer');
+    assert.match(home.headers.get('content-security-policy') ?? '', /default-src 'self'.*frame-ancestors 'none'/);
     const html = await home.text();
     assert.match(html, /Tobin Console \(local sandbox\)/);
     assert.match(html, /<script type="module" src="\/dist\/console\/main\.js">/);

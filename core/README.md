@@ -2,8 +2,8 @@
 
 Experimental validation code for the MVP-1 milestone. **Not** Tobin v0.2 (no conformance claim, no v0.2 digest), **not** production-ready, not
 independently audited, test token only, no real value, and not intended for real-value use. These contracts were exercised in the Soroban test host
-(the tests in this directory), on a disposable local network and in a limited run on the Stellar public testnet with disposable accounts and test
-assets (see `../docs/reports/`); they have not been tried with a wallet, and wallet work has not been authorized. Design sources: the baseline
+(the tests in this directory), on a disposable local network and in a limited, author-reported run on the Stellar public testnet with disposable accounts and test
+assets (that run's evidence is not published and cannot be independently verified; see the README and `../docs/reports/`); they have not been tried with a wallet, and wallet work has not been authorized. Design sources: the baseline
 specification `../docs/spec/MVP-1 Implementation Specification — Draft 0.1.md` and the implementation-aligned
 `../docs/reference/MVP-1-ABI-AND-AUTHORIZATION-REFERENCE.md`; the earlier design-phase records, and the `DB-nn` / `EQ-nn` decision identifiers used
 below, are internal and unpublished. Phase A (`../archive/phase-a/`) is unchanged.

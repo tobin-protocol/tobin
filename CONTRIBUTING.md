@@ -32,8 +32,8 @@ Prerequisites: a Rust toolchain, the Stellar CLI and Node.js 24 or later. The ch
 
 ## Licensing of contributions
 
-The code in this repository is licensed under the [Apache License 2.0](LICENSE). The licences for the protocol specification, other documentation (including the README) and the Tobin name, logo and brand assets **have not been decided** (see the [README](README.md#licence)). Until they are, please keep contributions to small corrections and issues, and expect that a maintainer may ask you to confirm the licence under which you offer a contribution.
+The code, documentation and specification in this repository are licensed under the [Apache License 2.0](LICENSE), to the extent the project owner owns or controls them (see the [README](README.md#licence)). The Tobin name, logo and brand assets are not covered by that licence. Please keep contributions to small corrections and issues for now, and expect that a maintainer may ask you to confirm that you have the right to offer a contribution under Apache-2.0.
 
 ## Security
 
-A security policy has not been added yet. No production system is deployed; MVP-1 has only been exercised in test environments, including the Stellar public testnet, with disposable accounts and test assets. Please do not publish exploit details for software or services belonging to the project or its participants in a public issue.
+Please report suspected vulnerabilities privately as described in [SECURITY.md](SECURITY.md). No production system is deployed; MVP-1 has only been exercised in test environments, including a limited run on the Stellar public testnet with disposable accounts and test assets (an author-reported run whose evidence is not published and cannot be independently verified). Please do not publish exploit details for software or services belonging to the project or its participants in a public issue.

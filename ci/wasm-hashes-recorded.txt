@@ -1,0 +1,6 @@
+# Wasm artifact hashes recorded during the local MVP-1 verification (Windows, Rust 1.96.0, Stellar CLI 28.0.0, soroban-sdk 29.0.0,
+# `stellar contract build`). Informational only: CI reports its own hashes next to these and does NOT fail on a difference.
+# It is not yet known whether the build is byte-reproducible across operating systems.
+# size_bytes  sha256  file
+25796  80bea96439b1f6647e08c604cdf29f580fe3f1a4171864b651b5832bb247e5e4  tobin_clearing_v1.wasm
+4965  ef483732039f0ca62665b92b816c3a12dcf094c707f77e1edc53e60ea083241f  tobin_test_token.wasm

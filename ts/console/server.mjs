@@ -62,6 +62,11 @@ async function body(req) {
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1');
+    // Defence in depth for a local sandbox page: it may not be framed by another site, sniffed, or load anything but its own files.
+    res.setHeader('x-content-type-options', 'nosniff');
+    res.setHeader('referrer-policy', 'no-referrer');
+    res.setHeader('x-frame-options', 'DENY');
+    res.setHeader('content-security-policy', "default-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'");
     // A web page in the user's browser must not be able to drive this local sandbox: only this server's own names are accepted as Host (DNS
     // rebinding), a foreign Origin is refused on the API (cross-site requests), and writes must be JSON (a text/plain POST needs no CORS
     // preflight, so the server itself has to refuse it). No CORS header is ever sent.

@@ -45,6 +45,8 @@ Multilateral clearing helps only where several institutions have recurring oblig
 
 ## Core concepts
 
+*These are the concepts of the proposed broader protocol. The experimental MVP-1 implements only part of them and differs in places: for example, every admitted participant approves a settlement proposal in MVP-1, and it has no collateral, Merkle commitments, submission window or cutoff (see [Experimental MVP-1](#experimental-mvp-1)).*
+
 - **Participants**: institutions authorised to take part in a clearing network.
 - **Obligations**: payment liabilities between two participants, in integer base units (no floating point).
 - **Acceptance**: counterparties accept an obligation before it can be cleared.
@@ -125,7 +127,7 @@ Planned broader-protocol package names are `@tobin-protocol/types`, `@tobin-prot
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to give feedback or propose a change |
 | [core/README.md](core/README.md) | MVP-1 Soroban contracts: layout, implemented behaviour and test commands |
 | [ts/README.md](ts/README.md) | MVP-1 TypeScript engine, SDK and local Console: layout and commands |
-| [LICENSE](LICENSE) | Apache License 2.0, for the code (see [Licence](#licence)) |
+| [LICENSE](LICENSE) | Apache License 2.0, for the code, documentation and specification the project owns or controls (see [Licence](#licence)) |
 | <https://tobinprotocol.xyz> | The project site |
 | <https://github.com/tobin-protocol/tobin-landing> | Source of the project site |
 
@@ -133,9 +135,9 @@ The product requirements, the draft protocol specification and the supporting re
 
 ## Licence
 
-The code in this repository is licensed under the [Apache License 2.0](LICENSE). Licences for the protocol specification, other documentation, and the Tobin name, logo and brand assets have not been decided and are not covered by this statement.
+The code, documentation and specification in this repository are licensed under the [Apache License 2.0](LICENSE), to the extent the project owner owns or controls them (copyright notice: Copyright 2026 tobin-protocol; this is a designation, not a statement that a registered legal entity exists). Third-party dependencies are not covered and remain under their own licences. The Tobin name, logo and brand assets are not covered by this licence, and no excluded material (such as the unpublished test-network evidence) is licensed or published here.
 
-Contribution guidelines are in [CONTRIBUTING.md](CONTRIBUTING.md). A security policy has not been added yet.
+Contribution guidelines are in [CONTRIBUTING.md](CONTRIBUTING.md). Security reports go through GitHub private vulnerability reporting; see [SECURITY.md](SECURITY.md).
 
 ## Links
 
