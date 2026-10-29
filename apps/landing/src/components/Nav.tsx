@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { foldProgress, useViewportSync, viewportW } from "@/lib/fold";
 import { lockScroll } from "@/lib/lenis";
 import { links, navLinks } from "@/lib/site";
-import { useCompact, usePinned } from "@/lib/stage";
+import { useCompact, useHeroPinned } from "@/lib/stage";
 import { BrandLockup } from "./BrandMark";
 
 const ease = cubicBezier(0.65, 0, 0.35, 1);
@@ -31,7 +31,7 @@ const BAR_GAP = 12;
  * scrimmed hero, so its text is always white on a dark ground.
  */
 export function Nav() {
-  const pinned = usePinned();
+  const pinned = useHeroPinned();
   const compact = useCompact();
   useViewportSync();
   const [open, setOpen] = useState(false);

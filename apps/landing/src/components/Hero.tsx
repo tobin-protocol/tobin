@@ -12,7 +12,7 @@ import { useEffect, useLayoutEffect, useRef, type CSSProperties } from "react";
 import { compactMode, foldProgress as p, useViewportSync, viewportH, viewportW } from "@/lib/fold";
 import { lockScroll, scrollToY } from "@/lib/lenis";
 import { links } from "@/lib/site";
-import { useCompact, usePinned } from "@/lib/stage";
+import { useCompact, useHeroPinned } from "@/lib/stage";
 import { HeroMedia, HeroMirror } from "./HeroMedia";
 import { Arrow, ButtonLink, Container } from "./ui";
 import { StencilText } from "./StencilText";
@@ -142,7 +142,7 @@ export function Hero() {
   const line2 = useRef<HTMLSpanElement>(null);
   const busy = useRef(false);
   const runRef = useRef<((to: 0 | 1) => void) | null>(null);
-  const pinned = usePinned();
+  const pinned = useHeroPinned();
   const compact = useCompact();
   // Both layouts run the fold; they differ in geometry (compact splits the headline vertically).
   const fold = pinned || compact;

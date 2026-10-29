@@ -3,7 +3,7 @@
 import { m, useTransform } from "motion/react";
 import { foldProgress } from "@/lib/fold";
 import { statusLine } from "@/lib/site";
-import { useCompact, usePinned } from "@/lib/stage";
+import { useCompact, useHeroPinned } from "@/lib/stage";
 import { Arrow } from "./ui";
 
 /**
@@ -14,7 +14,7 @@ import { Arrow } from "./ui";
  * on the right. It is transparent: the hero's top band keeps it legible.
  */
 export function StatusBar() {
-  const pinned = usePinned();
+  const pinned = useHeroPinned();
   const compact = useCompact();
   const folds = pinned || compact;
   const y = useTransform(foldProgress, (v) => `${-Math.min(1, v / 0.3) * 100}%`);
