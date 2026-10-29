@@ -199,8 +199,24 @@
       ],
       "testnet_claims_decision": "retain-qualified-author-reported",
       "evidence": {
-        "description": "No public evidence for the testnet run is published. Only wording that says the run is author-reported, its report and raw evidence are unpublished and it cannot be independently verified is retained (README, CONTRIBUTING, core/README). No transaction hashes, contract identifiers or evidence details are published."
+        "description": "No public evidence for the testnet run is published. Only wording that says the run is author-reported, its report and raw evidence are unpublished and it cannot be independently verified is retained (README, CONTRIBUTING, core/README). No transaction hashes, contract identifiers or evidence details are published, except the specific identifiers in contracts/deployments/testnet.json covered by the supplemental approval below."
       },
+      "supplemental_approvals": [
+        {
+          "id": "G07-S1",
+          "title": "Publication of the Stellar Testnet deployment identifiers",
+          "approved_by": "Ebubechi Ihediwa",
+          "role": "founder",
+          "approved_on": "2026-10-29",
+          "decision_reference": "Founder message of 2026-10-29 headed \"G07 - Supplemental publication approval: Stellar Testnet deployment identifiers\", transcribed into this file by the assistant at the founder's instruction; the founder's identity and statements are not independently verified.",
+          "decision": "Approved to publish the specific public identifiers of Tobin's existing Stellar Testnet contract deployment: contract IDs, deployment transaction hashes, Wasm hashes, network identifier, network passphrase and other non-secret deployment metadata needed to identify and verify the deployed Testnet contracts.",
+          "artifact": "contracts/deployments/testnet.json",
+          "schema": "contracts/deployments/testnet.schema.json",
+          "implementation": "scripts/release/scan.mjs accepts contract-ID-shaped strings in that one file only when it validates against the schema (Testnet network, passphrase and RPC fixed; unknown keys rejected; any Mainnet wording rejected). Contract-ID-shaped strings in every other file, and all other G09 detections (secret seeds, private keys, local paths, excluded paths), are unchanged. Tests: scripts/release/scan.test.mjs.",
+          "exclusions": "Does not authorize publication of private keys, secret seeds, credentials, sensitive operational logs, or unpublished raw testnet evidence beyond the metadata above. Does not authorize publication of Mainnet deployment identifiers and does not change any Mainnet release gate. The raw testnet evidence, its report and the Phase E records stay unpublished; the README wording that they are unpublished remains accurate.",
+          "status_note": "Subject to implementation and CI verification (founder's wording). Not a statement that the deployment is audited, production-ready or independently verified."
+        }
+      ],
       "approval": {
         "approved_by": "Ebubechi Ihediwa",
         "role": "founder",
