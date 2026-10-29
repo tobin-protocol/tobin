@@ -1,0 +1,28 @@
+{
+  "network": "testnet",
+  "rpc": "https://soroban-testnet.stellar.org",
+  "networkPassphrase": "Test SDF Network ; September 2015",
+  "gitCommit": "f9865c5",
+  "recordedAt": "2026-10-29T22:06Z",
+  "note": "Experimental MVP-1 test deployment on the Stellar public testnet. Public identifiers only. Deployer and participants are disposable accounts. Not production, not audited.",
+  "deployer": "GD5ESAZOA4RTEHWDJ4RVYH3TG4DJZFX7OGHXXNHVVDA7G77CD5DQNYPQ",
+  "contracts": {
+    "tobin_test_token": {
+      "contractId": "CD7HOXZPEWOP52LNQKZH7ZN7HLKJGZ5WAJ7I5HHUAJP7SEJ6FJY7UC4O",
+      "wasmHash": "ef483732039f0ca62665b92b816c3a12dcf094c707f77e1edc53e60ea083241f",
+      "deployTx": "050fe47b4c39596d27d8408cbf68f5e9a6fb11ee53ac63ded7fc32df7d9c9dd5",
+      "initialization": "constructor, run in the deploy transaction: minter = deployer, cap = 10000000000000, decimals = 7, name = Tobin Test Token, symbol = TTT"
+    },
+    "tobin_clearing_v1": {
+      "contractId": "CCV3EFECV2T2UT5YW6GBPGKN6PAP75SUTQOL3QYXQW7QWMESD5PPY4DT",
+      "wasmHash": "80bea96439b1f6647e08c604cdf29f580fe3f1a4171864b651b5832bb247e5e4",
+      "deployTx": "0b620e91bebbedeaca7b98cd93414e79c99b8298705ebdf8c804214f24f5c112",
+      "initialization": "none required (no constructor)"
+    }
+  },
+  "functionalChecks": {
+    "mintTx": "3a1419e114150d5e332ecfcbbe6ce45815aaec008a1b45b874b558ea8507dcc4",
+    "createSessionTx": "8926825a493fca2dcde36a1001727ddcfc3ba1e37849ead574a8d503f84b0e95",
+    "sessionId": "c62df9081df9bc3d6a1ccef562da2ab67d79d6afa287e20ee0f42c60dd6f46ee"
+  }
+}
