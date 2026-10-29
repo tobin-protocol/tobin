@@ -1,153 +1,224 @@
 "use client";
 
-import { AnimatePresence, m } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { cubicBezier, m, useMotionValue, useScroll, useTransform } from "motion/react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { foldProgress, useViewportSync, viewportW } from "@/lib/fold";
+import { lockScroll } from "@/lib/lenis";
 import { links, navLinks } from "@/lib/site";
-import { Logo } from "./Logo";
+import { useCompact, usePinned } from "@/lib/stage";
+import { BrandLockup } from "./BrandMark";
+
+const ease = cubicBezier(0.65, 0, 0.35, 1);
+const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+
+/** Width of the pill once the fold is done. */
+const PILL = 792;
+/** Top offset of the pill once the fold is done. */
+const PILL_TOP = 12;
+/** Gap between the status bar and the nav before the fold. */
+const BAR_GAP = 12;
 
 /*
- * Navigation in the Partyverse manner: a centred cluster of floating, rounded
- * pieces with nothing behind them. From md up: logo pill, one pill holding all
- * the links, and a white call to action. Below md: logo pill and a Menu pill
- * that opens a dropdown panel.
+ * Navigation. Compact layout (phones, COMPACT_QUERY): transparent over the hero, then, as the
+ * hero folds, a full-width black bar stuck to the top. Static layout (short or reduced motion): a black rounded bar
+ * 12px from the top (below the status bar until that scrolls away), with a menu
+ * button below 1024px. Pinned layout: 58px tall; over the hero it is 50% glass at
+ * the full content width, 48px down; as the hero folds it turns black (fold progress
+ * 0 to 0.3), rises to 12px and narrows to the 792px pill with Ondo's three-layer
+ * shadow. The fold sets the CSS variables read in globals.css (.nav-bar).
  *
- * The dark pieces are always ink with a hairline border and the call to action
- * is always paper, so the bar reads over every section without tone switching.
+ * There is no per-section tone sampling: the bar is always black or sits over the
+ * scrimmed hero, so its text is always white on a dark ground.
  */
-
-const pill =
-  "pointer-events-auto flex h-12 items-center rounded-2xl border border-paper/15 bg-ink/90 text-paper backdrop-blur-md";
-
-const linkClass =
-  "btn-press flex h-11 items-center rounded-xl px-4 text-[0.9375rem] font-medium text-paper/80 transition-colors hover:bg-paper/10 hover:text-paper";
-
 export function Nav() {
+  const pinned = usePinned();
+  const compact = useCompact();
+  useViewportSync();
   const [open, setOpen] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
-  const firstRef = useRef<HTMLAnchorElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
   const wasOpen = useRef(false);
 
-  // Escape closes; focus moves in on open and back to the button on close.
+  // The status bar sits above the nav and scrolls away: the header follows it up.
+  const statusH = useMotionValue(48);
+  const { scrollY } = useScroll();
+  const scrollTop = useTransform([scrollY, statusH, viewportW], ([y, h, vw]: number[]) =>
+    Math.max(vw < 1024 ? 0 : PILL_TOP, h + BAR_GAP - y),
+  );
+
   useEffect(() => {
+    const bar = document.getElementById("status-bar");
+    if (!bar) return;
+    const measure = () => statusH.set(bar.offsetHeight);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(bar);
+    return () => ro.disconnect();
+  }, [statusH]);
+
+  const a = useTransform(foldProgress, (v) => clamp01(v / 0.3));
+  const narrow = useTransform(foldProgress, (v) => ease(clamp01((v - 0.3) / 0.7)));
+  const width = useTransform([narrow, viewportW], ([t, vw]: number[]) => {
+    const full = Math.min(vw - 88, 1512);
+    return `${full + (PILL - full) * t}px`;
+  });
+  const foldTop = useTransform([narrow, statusH], ([t, h]: number[]) => {
+    const start = h + BAR_GAP;
+    return start + (PILL_TOP - start) * t;
+  });
+
+  // Compact (phones): transparent over the hero at first; the fold turns it into a full-width black
+  // bar stuck to the very top (square corners, no side gutter).
+  const compactTop = useTransform([narrow, statusH], ([t, h]: number[]) => (h + BAR_GAP) * (1 - t));
+  const navRadius = useTransform(narrow, (t) => `${12 * (1 - t)}px`);
+
+  const vars = pinned
+    ? ({ "--nav-a": a, "--nav-w": width } as unknown as CSSProperties)
+    : compact
+      ? ({ "--nav-a": a, "--nav-r": navRadius } as unknown as CSSProperties)
+      : undefined;
+
+  const close = () => setOpen(false);
+
+  // Escape closes, Tab stays inside the menu, focus returns to the button.
+  useEffect(() => {
+    lockScroll(open);
     if (open) {
       wasOpen.current = true;
-      firstRef.current?.focus();
-      const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+      panelRef.current?.querySelector<HTMLElement>("a")?.focus();
+      const onKey = (e: KeyboardEvent) => {
+        if (e.key === "Escape") {
+          setOpen(false);
+          return;
+        }
+        if (e.key !== "Tab") return;
+        // Everything focusable in the header, in DOM order: logo, toggle, then the panel links.
+        const focusable = [
+          ...(headerRef.current?.querySelectorAll<HTMLElement>("a[href], button") ?? []),
+        ].filter((el) => el.getClientRects().length > 0);
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      };
       window.addEventListener("keydown", onKey);
       return () => window.removeEventListener("keydown", onKey);
     }
     if (wasOpen.current) toggleRef.current?.focus();
   }, [open]);
 
-  const cta = links.docs ?? "#protocol";
   const items = [
     ...navLinks.map((l) => ({ ...l, external: false })),
-    ...(links.github ? [{ href: links.github, label: "GitHub", external: true }] : []),
+    ...(links.docs ? [{ href: links.docs, label: "Docs", external: true }] : []),
   ];
-  const close = () => setOpen(false);
+  const ext = (external: boolean) =>
+    external ? { target: "_blank", rel: "noopener noreferrer" } : {};
 
   return (
-    <header className="pointer-events-none fixed inset-x-0 top-0 z-50">
-      {open ? (
-        // Click-outside catcher, a sibling of the panel so no transformed ancestor traps it.
-        <button
-          type="button"
-          aria-label="Close menu"
-          tabIndex={-1}
-          onClick={close}
-          className="pointer-events-auto fixed inset-0 z-[55] cursor-default md:hidden"
-        />
-      ) : null}
-
-      <nav
+    <m.header
+      ref={headerRef}
+      data-surface="dark"
+      className="fixed inset-x-0 z-[999] flex justify-center px-[22px] max-lg:!px-0 md:px-[44px]"
+      style={{
+        top: open ? (compact || viewportW.get() < 1024 ? 0 : PILL_TOP) : pinned ? foldTop : compact ? compactTop : scrollTop,
+      }}
+    >
+      <m.nav
         aria-label="Primary"
-        className="relative z-[60] mx-auto flex w-full max-w-[72rem] items-start justify-between gap-2 px-4 pt-3 sm:px-8 sm:pt-4 md:justify-center"
+        className="nav-bar relative z-[2] flex h-14 max-lg:!w-full max-lg:!rounded-none max-w-[94.5rem] items-center justify-between gap-4 px-3 lg:h-[58px] lg:px-7"
+        style={vars}
       >
-        {/* Logo pill: glossy lockup, 30px, on near-black. Clear space is the pill padding. */}
-        <div data-surface="dark" className={`${pill} px-3.5`}>
-          <a href="#top" aria-label="Tobin, back to top" className="flex h-12 items-center rounded-md">
-            <Logo variant="lockup" theme="dark" height={30} decorative />
-          </a>
-        </div>
+        <a href="#top" aria-label="Tobin, back to top" className="flex min-h-11 items-center">
+          <BrandLockup size={26} />
+        </a>
 
-        {/* Links pill (md+) */}
-        <ul data-surface="dark" className={`${pill} hidden gap-1 px-2 md:flex`}>
+        <ul className="hidden items-center gap-1 lg:flex">
           {items.map((l) => (
             <li key={l.href}>
-              <a
-                href={l.href}
-                className={linkClass}
-                {...(l.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-              >
+              <a href={l.href} className="nav-link" {...ext(l.external)}>
                 {l.label}
               </a>
             </li>
           ))}
         </ul>
 
-        {/* Call to action (md+) */}
-        <a
-          href={cta}
-          className="btn-press pointer-events-auto hidden h-12 items-center rounded-2xl border border-ink/20 bg-paper px-5 text-[0.9375rem] font-semibold text-ink transition-colors hover:bg-white md:flex"
-        >
-          Explore the Protocol
-        </a>
-
-        {/* Menu pill (below md) */}
-        <button
-          ref={toggleRef}
-          type="button"
-          aria-expanded={open}
-          aria-controls="site-menu"
-          onClick={() => setOpen((v) => !v)}
-          data-surface="dark"
-          className={`${pill} btn-press gap-2.5 px-4 text-[0.9375rem] font-medium md:hidden`}
-        >
-          Menu
-          <span className="relative block h-2.5 w-4" aria-hidden="true">
-            <span className={`absolute left-0 h-[1.5px] w-4 rounded bg-current transition-transform duration-200 ease-out ${open ? "top-[4.25px] rotate-45" : "top-0"}`} />
-            <span className={`absolute left-0 h-[1.5px] w-4 rounded bg-current transition-transform duration-200 ease-out ${open ? "top-[4.25px] -rotate-45" : "top-[8.5px]"}`} />
-          </span>
-        </button>
-      </nav>
-
-      {/* Dropdown (below md): scales out from the Menu pill */}
-      <AnimatePresence>
-        {open ? (
-          <m.div
-            id="site-menu"
-            data-surface="dark"
-            className="pointer-events-auto absolute right-4 top-[4.75rem] z-[60] w-[min(20rem,calc(100vw-2rem))] origin-top-right rounded-3xl border border-paper/15 bg-ink/95 p-3 text-paper backdrop-blur-xl sm:right-8 md:hidden"
-            initial={{ opacity: 0, scale: 0.94, y: -6 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.94, y: -6 }}
-            transition={{ type: "spring", bounce: 0, duration: 0.35 }}
-          >
-            <ul>
-              {items.map((l, i) => (
-                <li key={l.href}>
-                  <a
-                    ref={i === 0 ? firstRef : undefined}
-                    href={l.href}
-                    onClick={close}
-                    className="block rounded-2xl px-4 py-3 font-display text-[1.75rem] uppercase leading-none transition-colors hover:bg-paper/10 active:bg-paper/10"
-                    {...(l.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-                  >
-                    {l.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
+        <div className="flex items-center gap-2">
+          {links.github ? (
             <a
-              href={cta}
-              onClick={close}
-              className="btn-press mt-2 flex h-12 items-center justify-center rounded-2xl bg-paper text-[0.9375rem] font-semibold text-ink"
+              href={links.github}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-light inline-flex !px-3 !py-1.5 !text-[0.8125rem] max-lg:!min-h-8 lg:!px-5 lg:!text-[0.875rem]"
             >
-              Explore the Protocol
+              GitHub
+              <span className="sr-only"> (opens in a new tab)</span>
             </a>
-          </m.div>
-        ) : null}
-      </AnimatePresence>
-    </header>
+          ) : null}
+          <button
+            ref={toggleRef}
+            type="button"
+            aria-expanded={open}
+            aria-controls="site-menu"
+            onClick={() => setOpen((v) => !v)}
+            className="t-ui inline-flex min-h-11 min-w-11 items-center gap-3 rounded-btn px-2 lg:hidden"
+          >
+            <span className="max-sm:sr-only">{open ? "Close" : "Menu"}</span>
+            <span className="relative block h-2.5 w-4" aria-hidden="true">
+              <span
+                className={`absolute left-0 h-[1.5px] w-4 bg-current transition-transform duration-200 ease-out ${open ? "top-[4.25px] rotate-45" : "top-0"}`}
+              />
+              <span
+                className={`absolute left-0 h-[1.5px] w-4 bg-current transition-transform duration-200 ease-out ${open ? "top-[4.25px] -rotate-45" : "top-[8.5px]"}`}
+              />
+            </span>
+          </button>
+        </div>
+      </m.nav>
+
+      {/* Full-screen black panel (below 1024px). */}
+      {open ? (
+        <div
+          id="site-menu"
+          ref={panelRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Menu"
+          className="surface-dark fixed inset-0 z-[1] overflow-y-auto px-[22px] pb-10 pt-24 md:px-[44px]"
+        >
+          <ul>
+            {items.map((l) => (
+              <li key={l.href} className="rule-top">
+                <a
+                  href={l.href}
+                  onClick={close}
+                  className="flex min-h-14 items-center py-3 text-[2.25rem] font-medium leading-none tracking-[-0.03em]"
+                  {...ext(l.external)}
+                >
+                  {l.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+          {links.github ? (
+            <a
+              href={links.github}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={close}
+              className="btn btn-light mt-8 w-full"
+            >
+              GitHub
+              <span className="sr-only"> (opens in a new tab)</span>
+            </a>
+          ) : null}
+        </div>
+      ) : null}
+    </m.header>
   );
 }

@@ -1,7 +1,10 @@
-import { Curtain } from "./Curtain";
+import type { ReactNode } from "react";
+import { NetworkStellar } from "@web3icons/react";
 import { Reveal } from "./Reveal";
 import { StackIllustration, type Layer } from "./StackIllustration";
-import { Container } from "./ui";
+import { Container, Eyebrow, Icon, Section } from "./ui";
+import type { IconSvgElement } from "@hugeicons/react";
+import { Orbit01Icon, SourceCodeIcon, Layers01Icon, ArrowDataTransferHorizontalIcon } from "@hugeicons/core-free-icons";
 
 /*
  * Four statements, each with the layer it talks about lit in the picture.
@@ -13,6 +16,9 @@ const ROWS: {
   sentence: string;
   layer: Layer;
   details: [string, string][];
+  icon: IconSvgElement;
+  /** A ready-made mark that replaces the line icon (the Stellar network logo). */
+  mark?: ReactNode;
 }[] = [
   {
     n: "01",
@@ -20,6 +26,8 @@ const ROWS: {
     sentence: "Stellar provides the settlement network.",
     layer: "stellar",
     details: [["Stellar network", "The settlement network"]],
+    icon: Orbit01Icon,
+    mark: <NetworkStellar variant="mono" size={24} color="currentColor" aria-hidden="true" />,
   },
   {
     n: "02",
@@ -27,6 +35,7 @@ const ROWS: {
     sentence: "Soroban supports Tobin's on-chain protocol logic.",
     layer: "soroban",
     details: [["Soroban", "Smart contracts holding Tobin's on-chain protocol logic"]],
+    icon: SourceCodeIcon,
   },
   {
     n: "03",
@@ -37,6 +46,7 @@ const ROWS: {
       ["Tobin clearing layer", "Obligations, clearing sessions, net positions"],
       ["Institutions and integrators", "Submit obligations and receive net positions"],
     ],
+    icon: Layers01Icon,
   },
   {
     n: "04",
@@ -44,72 +54,60 @@ const ROWS: {
     sentence: "SEP-31 stays in place. Tobin is designed to complement it, not replace it.",
     layer: "sep31",
     details: [["Existing standard", "Cross-border payments. Unchanged, and complemented by Tobin."]],
+    icon: ArrowDataTransferHorizontalIcon,
   },
 ];
 
 /**
- * Built for Stellar: an amber header block, then full-width split rows on ink.
- * Each row pairs a number, a large title and its sentence with an isometric
- * wireframe of the stack, alternating sides, with the relevant layer lit.
+ * Built for Stellar: Ondo's section-heading pattern (the second phrase in grey-500)
+ * over four white 24px-radius cards, each a 48px black icon tile, a mono number, a
+ * large title and its sentence, with the isometric stack beside it and the relevant
+ * layer lit.
  */
 export function Stellar() {
   return (
-    <Curtain id="stellar" label="stellar-title" surface="signal" className="pt-24 md:pt-32">
+    <Section id="stellar" labelledBy="stellar-title" tone="grey">
       <Container>
-        <Reveal className="pb-16 md:pb-24">
-          <p className="eyebrow">+ Built for Stellar</p>
-          <h2
-            id="stellar-title"
-            className="font-display mt-5 text-[clamp(1.75rem,7vw,2.75rem)] uppercase leading-[1] text-balance md:whitespace-nowrap md:text-[calc(min(68rem,100vw-4rem)/29)]"
-          >
-            A clearing layer above the rails that already exist.
+        <Reveal>
+          <Eyebrow>Built for Stellar</Eyebrow>
+          <h2 id="stellar-title" className="t-h3 mt-6 max-w-[30ch] text-balance">
+            A clearing layer
+            <span className="block text-grey-500">above the rails that already exist.</span>
           </h2>
         </Reveal>
-      </Container>
 
-      <div data-surface="dark" data-nav-tone="dark" className="bg-navy text-paper">
-        {ROWS.map((r, i) => {
-          const flip = i % 2 === 1;
-          return (
-            <div
-              key={r.term}
-              className="grid border-t border-paper/40 md:min-h-[30rem] md:grid-cols-2"
-            >
-              <div className={`flex flex-col justify-center px-6 py-14 sm:px-10 md:px-16 md:py-20 ${flip ? "md:order-2 md:border-l md:border-paper/15" : ""}`}>
-                <Reveal>
-                  <p className="font-mono text-xs tracking-[0.2em] text-paper/60">{r.n}</p>
-                  <h3 className="font-display mt-4 text-[clamp(3.5rem,6.5vw,6rem)] uppercase leading-[0.9]">
-                    {r.term}
-                  </h3>
-                  <p className="mt-5 max-w-[28rem] text-[1.0625rem] leading-relaxed text-paper/75 md:text-lg">
-                    {r.sentence}
-                  </p>
-                  <dl className="mt-8 max-w-[28rem] space-y-3 border-t border-paper/15 pt-5">
+        <div className="mt-12 flex flex-col gap-4 md:mt-16">
+          {ROWS.map((r, i) => (
+            <Reveal key={r.term} from={i % 2 ? "right" : "left"}>
+              <div className="grid items-center gap-8 rounded-card bg-paper p-6 md:grid-cols-2 md:gap-16 md:p-10">
+                <div>
+                  <div className="flex items-center gap-4">
+                    <span className="tile">
+                      {r.mark ?? <Icon icon={r.icon} />}
+                    </span>
+                    <span className="t-mono text-grey-600">{r.n}</span>
+                  </div>
+                  <h3 className="t-h4 mt-6">{r.term}</h3>
+                  <p className="t-lead mt-4 max-w-[28rem] text-grey-850">{r.sentence}</p>
+                  <dl className="rule-top mt-8 max-w-[28rem] space-y-3 pt-5">
                     {r.details.map(([k, v]) => (
                       <div key={k}>
-                        <dt className="font-mono text-[11px] uppercase tracking-[0.18em] text-paper/60">{k}</dt>
-                        <dd className="mt-1 text-sm leading-snug text-paper/85">{v}</dd>
+                        <dt className="t-label text-grey-600">{k}</dt>
+                        <dd className="t-serif mt-1 text-[0.9375rem] text-ink">{v}</dd>
                       </div>
                     ))}
                   </dl>
-                </Reveal>
-              </div>
-
-              <div
-                className={`flex items-center justify-center border-t border-paper/15 bg-black/30 px-6 py-12 sm:px-10 md:border-t-0 md:px-12 ${flip ? "md:order-1" : "md:border-l md:border-paper/15"}`}
-              >
-                <Reveal className="w-full max-w-[34rem]">
+                </div>
+                <div className="flex justify-center md:justify-end">
                   <StackIllustration active={r.layer} />
-                </Reveal>
+                </div>
               </div>
-            </div>
-          );
-        })}
+            </Reveal>
+          ))}
+        </div>
 
-        <p className="border-t border-paper/40 px-6 py-6 font-mono text-[11px] uppercase tracking-[0.18em] text-paper/60 sm:px-10 md:px-16">
-          Simplified architecture for illustration.
-        </p>
-      </div>
-    </Curtain>
+        <p className="t-label mt-6 text-grey-600">Simplified architecture for illustration.</p>
+      </Container>
+    </Section>
   );
 }

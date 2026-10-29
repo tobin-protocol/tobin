@@ -15,6 +15,7 @@ assets, and the following files are NOT licensed for reuse:
   - src/app/icon.svg, src/app/favicon.ico, src/app/apple-icon.png
   - src/app/opengraph-image.png, src/app/twitter-image.png
   - src/components/logo-art.ts (generated from brand-pack/svg)
+  - src/components/BrandMark.tsx and scripts/build-brand-icons.mjs (the T mark and the generator of the icon set)
 
 Twenty wordmark artwork files (the lockup SVGs, logo PNGs and social PNGs of the
 original brand pack, also under public/brand/) are not part of this repository,
@@ -29,6 +30,15 @@ its own branding.
 
 Third-party material
 --------------------
-The site loads JetBrains Mono and Instrument Sans through next/font/google. Both
-fonts are licensed under the SIL Open Font License 1.1 by their authors; no font
-files are stored in this repository.
+Fonts. The site loads Urbanist, Outfit, Instrument Sans and Space Grotesk through
+next/font/google. Each is published on Google Fonts under the SIL Open Font License 1.1 by its
+authors; no font files are stored in this repository. (JetBrains Mono, which the old brand-pack logo
+used, is no longer loaded because nothing renders in it.)
+
+Software. The charts, icons and image tooling add open-source packages (Recharts, Hugeicons,
+@web3icons, sharp and their dependencies). Their licences, versions and copyright lines are listed in
+THIRD-PARTY-NOTICES.md. That file records what the packages declare; it is not a legal clearance.
+
+Media. The video, photographs and illustrations are credited, as far as their sources can be shown, in
+ASSET-CREDITS.md. The source, creator and licence of several of them are unverified and are marked as
+such there; this notice does not state that they are cleared for redistribution.

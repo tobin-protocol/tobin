@@ -60,3 +60,29 @@ export const EXAMPLE_OBLIGATIONS: Obligation[] = [
 export const EXAMPLE = computeClearing(EXAMPLE_OBLIGATIONS);
 
 export const usd = (n: number) => `$${n.toLocaleString("en-US")}`;
+
+export type Payment = { from: string; to: string; amount: number };
+
+/**
+ * One valid way to move only the net: each payer (net below zero) pays receivers
+ * (net above zero) in party order until its debt is covered. The total moved is
+ * `settled`. Illustrative; the protocol accepts any plan that honours the net positions.
+ */
+export function settlementPlan(positions: Position[]): Payment[] {
+  const receive = positions.filter((p) => p.net > 0).map((p) => ({ party: p.party, left: p.net }));
+  const plan: Payment[] = [];
+  for (const payer of positions.filter((p) => p.net < 0)) {
+    let owed = -payer.net;
+    for (const r of receive) {
+      if (owed === 0) break;
+      const amount = Math.min(owed, r.left);
+      if (amount === 0) continue;
+      plan.push({ from: payer.party, to: r.party, amount });
+      r.left -= amount;
+      owed -= amount;
+    }
+  }
+  return plan;
+}
+
+export const EXAMPLE_PLAN = settlementPlan(EXAMPLE.positions);

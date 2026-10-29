@@ -60,3 +60,7 @@ phase-e-evidence/
 .next/
 next-env.d.ts
 *.tsbuildinfo
+
+# Landing page source images (originals, background-removed PNGs and Unsplash downloads). The optimised
+# files actually served live in apps/landing/public/; the sources are never committed.
+apps/landing/assets-src/
