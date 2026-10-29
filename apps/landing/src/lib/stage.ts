@@ -12,11 +12,11 @@ export const PIN_QUERY =
 
 /**
  * The hero fold, the nav and the status banner need less room than the content scenes (the clearing
- * showcase board needs about 700px), so they fold from 600px of height. Repeated in globals.css (the
+ * showcase board needs about 700px), so they fold at any height (a short window gets a taller stage, see MIN_STAGE_H). Repeated in globals.css (the
  * `.hero` and `.nav-bar` rules).
  */
 export const HERO_PIN_QUERY =
-  "(min-width: 1024px) and (min-height: 600px) and (prefers-reduced-motion: no-preference)";
+  "(min-width: 1024px) and (prefers-reduced-motion: no-preference)";
 
 /**
  * The compact (phone and small tablet) hero: the same fold as the pinned layout, laid out
@@ -25,6 +25,12 @@ export const HERO_PIN_QUERY =
  */
 export const COMPACT_QUERY =
   "(max-width: 1023px) and (min-height: 600px) and (prefers-reduced-motion: no-preference)";
+
+/**
+ * A wide window that is too short for the pinned scenes (a desktop zoomed in, or a small laptop window). The
+ * clearing showcase becomes a tabbed card there (the way Ondo does it) instead of a stack of cards.
+ */
+export const SHORT_QUERY = "(min-width: 1024px) and (max-height: 699px)";
 
 const REDUCE_QUERY = "(prefers-reduced-motion: reduce)";
 
@@ -60,6 +66,7 @@ const pinStore = mediaStore(PIN_QUERY);
 const heroPinStore = mediaStore(HERO_PIN_QUERY);
 const reduceStore = mediaStore(REDUCE_QUERY);
 const compactStore = mediaStore(COMPACT_QUERY);
+const shortStore = mediaStore(SHORT_QUERY);
 
 /** False on the server and until hydration, so the static layout is the default. */
 export function usePinned() {
@@ -69,6 +76,11 @@ export function usePinned() {
 /** Like usePinned, for the hero, nav and status banner (HERO_PIN_QUERY). */
 export function useHeroPinned() {
   return useSyncExternalStore(heroPinStore.subscribe, heroPinStore.get, () => false);
+}
+
+/** True in a wide but short window (see SHORT_QUERY); false on the server and until hydration. */
+export function useShort() {
+  return useSyncExternalStore(shortStore.subscribe, shortStore.get, () => false);
 }
 
 /** True on phones and small tablets (see COMPACT_QUERY); false on the server and until hydration. */
