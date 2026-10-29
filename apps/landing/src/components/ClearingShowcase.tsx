@@ -17,7 +17,7 @@ import { useEffect, useRef, useState } from "react";
 import { EXAMPLE, usd } from "@/lib/clearing";
 import { scrollToY } from "@/lib/lenis";
 import { repoLinks } from "@/lib/site";
-import { useReduceMotion, usePinned } from "@/lib/stage";
+import { useReduceMotion, usePinned, useShort } from "@/lib/stage";
 import { Odometer } from "./Odometer";
 import { ButtonLink, Icon } from "./ui";
 import type { IconSvgElement } from "@hugeicons/react";
@@ -162,6 +162,50 @@ function Row({
   );
 }
 
+/** Tab labels, shorter than the card titles. */
+const TAB_LABELS = ["One by one", "After clearing", "Participants"] as const;
+
+/**
+ * The showcase in a wide but short window (a zoomed-in desktop), laid out the way Ondo lays out its
+ * products there: a row of tabs, then one card and its charts. Pressing a tab switches the card.
+ */
+function TabbedShowcase({ innerRef, near }: { innerRef: React.RefObject<HTMLDivElement | null>; near: boolean }) {
+  const [tab, setTab] = useState<0 | 1 | 2>(0);
+  const onKey = (e: React.KeyboardEvent) => {
+    const d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+    if (!d) return;
+    e.preventDefault();
+    const next = ((tab + d + ITEMS.length) % ITEMS.length) as 0 | 1 | 2;
+    setTab(next);
+    document.getElementById(`showcase-tab-${next}`)?.focus();
+  };
+  return (
+    <div ref={innerRef}>
+      <div role="tablist" aria-label="Settlement example" onKeyDown={onKey} className="mx-auto mb-4 flex w-fit gap-1 rounded-card bg-grey-100 p-1">
+        {TAB_LABELS.map((label, i) => (
+          <button
+            key={label}
+            id={`showcase-tab-${i}`}
+            type="button"
+            role="tab"
+            aria-selected={tab === i}
+            aria-controls="showcase-panel"
+            tabIndex={tab === i ? 0 : -1}
+            onClick={() => setTab(i as 0 | 1 | 2)}
+            className={`t-ui rounded-btn px-4 py-2 transition-colors duration-300 ${tab === i ? "bg-paper text-ink" : "text-grey-850 hover:text-ink"}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div id="showcase-panel" role="tabpanel" aria-labelledby={`showcase-tab-${tab}`} className="rounded-shell bg-grey-100 p-3">
+        <MobileGroup key={tab} item={ITEMS[tab]} index={tab} near={near} />
+      </div>
+      <p className="t-label mt-3 text-grey-600">Illustrative arithmetic, not data.</p>
+    </div>
+  );
+}
+
 /**
  * One group of the phone layout (Ondo's mobile products): a white detail card, then that
  * card's charts stacked under it, all inside the grey shell. Every group repeats, so the three
@@ -208,6 +252,7 @@ function MobileGroup({ item, index, near }: { item: Item; index: 0 | 1 | 2; near
  */
 export function ClearingShowcase() {
   const pinned = usePinned();
+  const short = useShort();
   const reduce = useReduceMotion();
   const [active, setActive] = useState<0 | 1 | 2>(0);
   const track = useRef<HTMLDivElement>(null);
@@ -255,6 +300,8 @@ export function ClearingShowcase() {
     return w.map((x) => `minmax(4.5rem,${x}fr)`).join(" ");
   });
   const bar = useTransform(runProgress, [0, 1], [0, 1]);
+
+  if (!pinned && short) return <TabbedShowcase innerRef={ref} near={near} />;
 
   if (!pinned) {
     return (

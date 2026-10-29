@@ -433,7 +433,7 @@ body {
 .hero-bottom {
   margin-top: 2rem;
 }
-@media (min-width: 1024px) and (min-height: 700px) and (prefers-reduced-motion: no-preference),
+@media (min-width: 1024px) and (prefers-reduced-motion: no-preference),
   (max-width: 1023px) and (min-height: 600px) and (prefers-reduced-motion: no-preference) {
   .hero {
     height: 100svh;
@@ -466,6 +466,13 @@ body {
   }
 }
 
+/* A desktop window shorter than the stage the fold is laid out for (zoomed in, small laptop): the hero is that tall and the page scrolls to the rest. Keep in sync with MIN_STAGE_H. */
+@media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
+  .hero {
+    height: max(100svh, 700px);
+  }
+}
+
 /* ---- Navigation ----------------------------------------------------------- */
 
 /*
@@ -491,7 +498,7 @@ body {
   color: var(--color-paper);
   transition: background-color 1.15s cubic-bezier(0.45, 0, 0.25, 1);
 }
-@media (min-width: 1024px) and (min-height: 700px) and (prefers-reduced-motion: no-preference),
+@media (min-width: 1024px) and (prefers-reduced-motion: no-preference),
   (max-width: 1023px) and (min-height: 600px) and (prefers-reduced-motion: no-preference) {
   .nav-bar {
     --nav-a: 0;

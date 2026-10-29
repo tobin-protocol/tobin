@@ -143,7 +143,7 @@ The hero is a landscape 16:9 video that covers the whole hero (`object-cover`). 
 
 To replace the video keep the file names and the 16:9 shape, and re-encode the same way (`ffmpeg -an -vf "setpts=PTS/0.7,minterpolate=fps=30:mi_mode=blend,scale=1920:1080" -c:v libx264 -crf 28 -movflags +faststart`, and 1280:720 at crf 31; change 0.7 to change the speed). Check every frame for readable brand names, signs, people or plates and blur or crop what shows.
 
-The trust section's backdrop is `public/trust/trust-skyline.jpg` (2000px wide, about 105 KB) under a black tint (70% at the top to 90% at the bottom, so the list under the cards stays readable), and the closing card uses `public/cta/cta-street.jpg` (2000px wide, with two licence plates and a car emblem blurred).
+The trust section's backdrop is `public/trust/trust-event.jpg` (1920px wide, about 285 KB; the text on the projection screens is blurred) under a black tint (70% at the top to 90% at the bottom, so the list under the cards stays readable), and the closing card uses `public/cta/cta-street.jpg` (2000px wide, with two licence plates and a car emblem blurred).
 
 **Provenance.** [ASSET-CREDITS.md](ASSET-CREDITS.md) records where every shipped media file came from and what is unverified; the source, creator and licence of the video, the two photographs and the five illustrations are **not** verified. Do not commit new media without adding it there. The source files are never committed (`assets-src/` is git-ignored).
 

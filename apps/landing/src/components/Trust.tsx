@@ -177,7 +177,7 @@ export function Trust() {
       className="surface-dark relative isolate overflow-hidden py-16 md:py-20 xl:py-[120px]"
     >
       <Parallax distance={70} className="absolute -inset-y-24 inset-x-0 -z-10">
-        <Image src="/trust/trust-skyline.jpg" alt="" fill sizes="100vw" className="object-cover" />
+        <Image src="/trust/trust-event.jpg" alt="" fill sizes="100vw" className="object-cover" />
       </Parallax>
       <div aria-hidden="true" className="absolute inset-0 -z-10 bg-gradient-to-b from-ink/70 to-ink/90" />
 

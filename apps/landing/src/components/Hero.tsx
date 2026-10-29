@@ -12,7 +12,7 @@ import { useEffect, useLayoutEffect, useRef, type CSSProperties } from "react";
 import { compactMode, foldProgress as p, useViewportSync, viewportH, viewportW } from "@/lib/fold";
 import { lockScroll, scrollToY } from "@/lib/lenis";
 import { links } from "@/lib/site";
-import { useCompact, usePinned } from "@/lib/stage";
+import { useCompact, useHeroPinned } from "@/lib/stage";
 import { HeroMedia, HeroMirror } from "./HeroMedia";
 import { Arrow, ButtonLink, Container } from "./ui";
 import { StencilText } from "./StencilText";
@@ -59,6 +59,8 @@ const heroH = motionValue(852);
 /** Room kept clear at the top for the black nav bar, and between the stack and the intro block. */
 const COMPACT_TOP = 82;
 const COMPACT_BOTTOM_GAP = 10;
+/** Pinned fold: the clear gap kept between the folded squares and the intro text under them, in px. */
+const FOLD_GAP = 20;
 
 /** useTransform's typings only take homogeneous inputs, so mixed lists are cast through this. */
 type Mixed = MotionValue<number>[];
@@ -90,12 +92,12 @@ function compactGeom(w: number, H: number, a: number, b: number, hb: number): Co
   };
 }
 
-function useLayer(i: number, geom: MotionValue<CompactGeom>) {
+function useLayer(i: number, geom: MotionValue<CompactGeom>, fit: MotionValue<number>) {
   const { scale: end, radius } = LAYERS[i];
   const compactEnd = COMPACT_LAYERS[i];
-  const scale = useTransform([p, compactMode, geom] as unknown as Mixed, ([v, c, g]: number[]) => {
+  const scale = useTransform([p, compactMode, geom, fit] as unknown as Mixed, ([v, c, g, k]: number[]) => {
     const geo = g as unknown as CompactGeom;
-    return 1 + ((c ? geo.s0 * compactEnd.ratio : end) - 1) * v;
+    return 1 + ((c ? geo.s0 * compactEnd.ratio : end * k) - 1) * v;
   });
   const y = useTransform([p, compactMode, geom] as unknown as Mixed, ([v, c, g]: number[]) =>
     c ? (g as unknown as CompactGeom).shift * v : 0,
@@ -142,7 +144,7 @@ export function Hero() {
   const line2 = useRef<HTMLSpanElement>(null);
   const busy = useRef(false);
   const runRef = useRef<((to: 0 | 1) => void) | null>(null);
-  const pinned = usePinned();
+  const pinned = useHeroPinned();
   const compact = useCompact();
   // Both layouts run the fold; they differ in geometry (compact splits the headline vertically).
   const fold = pinned || compact;
@@ -294,28 +296,33 @@ export function Hero() {
   }, [fold]);
 
   const geom = useTransform([heroW, heroH, hh1, hh2, hbh], ([w, H, a, b, hb]: number[]) => compactGeom(w, H, a, b, hb));
-  const l1 = useLayer(0, geom);
-  const l2 = useLayer(1, geom);
-  const l3 = useLayer(2, geom);
+  // The folded squares are centred, so on a short window their lower edge would run into the intro text
+  // (height `hb`) under them. `fit` shrinks all three so a gap of FOLD_GAP always stays clear of it.
+  const fit = useTransform([viewportH, hbh], ([vh, hb]: number[]) =>
+    Math.max(0.45, Math.min(1, (vh - 2 * (hb + FOLD_GAP)) / (LAYERS[0].scale * vh))),
+  );
+  const l1 = useLayer(0, geom, fit);
+  const l2 = useLayer(1, geom, fit);
+  const l3 = useLayer(2, geom, fit);
 
   // Headline lines. Pinned: shrink, move apart horizontally to either side of the squares and come
   // level (the two lines are 1.05em apart, so half of that closes the gap). Compact: the first block
   // moves up above the square and the second down below it, both shrinking.
-  const target = useTransform([viewportW, viewportH, w1, w2, compactMode], ([vw, vh, a, b, c]: number[]) => {
+  const target = useTransform([viewportW, viewportH, w1, w2, compactMode, fit], ([vw, vh, a, b, c, k]: number[]) => {
     if (c) return COMPACT_LINE_SCALE;
-    const half = (LAYERS[0].scale * vh) / 2;
+    const half = (LAYERS[0].scale * vh * k) / 2;
     const room = vw / 2 - half - 28 - 44;
     const widest = Math.max(a, b) || 1;
     return Math.min(0.85, Math.max(0.35, room / widest));
   });
   const lineScale = useTransform([p, target], ([v, s]: number[]) => 1 + (s - 1) * v);
-  const xLeft = useTransform([p, target, w1, viewportH, compactMode], ([v, s, w, vh, c]: number[]) => {
+  const xLeft = useTransform([p, target, w1, viewportH, compactMode, fit], ([v, s, w, vh, c, k]: number[]) => {
     if (c) return 0;
-    return -v * ((LAYERS[0].scale * vh) / 2 + 28 + (w * s) / 2);
+    return -v * ((LAYERS[0].scale * vh * k) / 2 + 28 + (w * s) / 2);
   });
-  const xRight = useTransform([p, target, w2, viewportH, compactMode], ([v, s, w, vh, c]: number[]) => {
+  const xRight = useTransform([p, target, w2, viewportH, compactMode, fit], ([v, s, w, vh, c, k]: number[]) => {
     if (c) return 0;
-    return v * ((LAYERS[0].scale * vh) / 2 + 28 + (w * s) / 2);
+    return v * ((LAYERS[0].scale * vh * k) / 2 + 28 + (w * s) / 2);
   });
   // Compact: block 1 rises above the square and block 2 sinks below it (positions from compactGeom).
   const yDown = useTransform([p, geom, compactMode] as unknown as Mixed, ([v, g, c]: number[]) => {
