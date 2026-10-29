@@ -114,6 +114,9 @@ jobs:
       - name: Documentation links
         run: node scripts/ci/check-links.mjs
 
+      - name: Release gate scan rules (regression tests)
+        run: node --test scripts/release/scan.test.mjs
+
       - name: Release gate file validity and status (report; unresolved human gates stay visible and do not fail this job)
         run: node scripts/release/check-gates.mjs
 

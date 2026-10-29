@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "tobin/contracts/deployments/testnet.schema.json",
+  "title": "Tobin Stellar Testnet deployment manifest",
+  "description": "Public, non-secret identifiers of the Tobin contracts deployed to the Stellar public testnet. It is the only file whose contract-ID-shaped strings the release-gate scan (G09) accepts, under the supplemental G07 approval recorded in release/RELEASE-GATES.json. Only Stellar Testnet is allowed: the network, passphrase and RPC are fixed by this schema, so a Mainnet manifest fails validation. The subset of JSON Schema used here (type, const, pattern, required, properties, additionalProperties) is what scripts/release/scan.mjs implements.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["network", "rpc", "networkPassphrase", "gitCommit", "recordedAt", "note", "deployer", "contracts", "functionalChecks"],
+  "properties": {
+    "network": { "type": "string", "const": "testnet" },
+    "rpc": { "type": "string", "pattern": "^https://soroban-testnet\\.stellar\\.org/?$" },
+    "networkPassphrase": { "type": "string", "const": "Test SDF Network ; September 2015" },
+    "gitCommit": { "type": "string", "pattern": "^[0-9a-f]{7,40}$" },
+    "recordedAt": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}Z$" },
+    "note": { "type": "string" },
+    "deployer": { "type": "string", "pattern": "^G[A-Z2-7]{55}$" },
+    "contracts": {
+      "type": "object",
+      "required": ["tobin_test_token", "tobin_clearing_v1"],
+      "additionalProperties": false,
+      "properties": {
+        "tobin_test_token": { "$ref": "#/definitions/contract" },
+        "tobin_clearing_v1": { "$ref": "#/definitions/contract" }
+      }
+    },
+    "functionalChecks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mintTx", "createSessionTx", "sessionId"],
+      "properties": {
+        "mintTx": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "createSessionTx": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "sessionId": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    }
+  },
+  "definitions": {
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractId", "wasmHash", "deployTx", "initialization"],
+      "properties": {
+        "contractId": { "type": "string", "pattern": "^C[A-Z2-7]{55}$" },
+        "wasmHash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "deployTx": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "initialization": { "type": "string" }
+      }
+    }
+  }
+}
