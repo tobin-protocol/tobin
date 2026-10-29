@@ -8,6 +8,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { error, summary, warning } from '../ci/lib.mjs';
+import { scanFile } from './scan.mjs';
 
 const args = process.argv.slice(2);
 const opt = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
@@ -75,21 +76,13 @@ function scanTree() {
   const files = execFileSync('git', lsArgs, { encoding: 'utf8', maxBuffer: 1 << 26 }).split('\0').filter(Boolean)
     .filter((f) => !(includeUntracked && f.startsWith('archive/'))); // local, uncommitted archive is reported separately
   const findings = [];
-  const badPath = /(^|\/)(auth-vectors|authvectors|auth-intent)|(^|\/)CLAUDE\.md$|phase-e|PHASE-E|phase-b|PHASE-B|(^|\/)m0-review(\/|$)|(^|\/)(node_modules|dist|target)\/|\.badge-profile|(^|\/)\.env|\.pem$|\.key$|^archive\//;
-  // Synthetic test data only: fixture directories and the strkey codec test (all-zero / 0x..01 addresses, not deployed contracts).
-  const fixtureDirs = /^(contracts\/clearing\/tests\/fixtures\/|packages\/mvp1-sdk\/test\/fixtures\/|packages\/mvp1-sdk\/test\/primitives\.test\.ts$)/;
   for (const f of files) {
-    if (badPath.test(f)) findings.push(`excluded or unsuitable path tracked: ${f}`);
     let st; try { st = statSync(f); } catch { continue; }
-    if (!st.isFile() || st.size > 3_000_000 || /\.(png|ico|wasm|gz|zip)$/i.test(f)) continue;
-    const text = readFileSync(f, 'utf8');
-    const rules = [
-      [/\bS[A-Z2-7]{55}\b/, 'Stellar secret-seed-shaped string'],
-      [/BEGIN [A-Z ]*PRIVATE KEY/, 'private key block'],
-      [/[A-Za-z]:\\Users\\|\/c\/Users\/|\/home\/[a-z]/, 'absolute local user path'],
-    ];
-    for (const [re, label] of rules) if (re.test(text)) findings.push(`${label}: ${f}`);
-    if (!fixtureDirs.test(f) && /\bC[A-Z2-7]{55}\b/.test(text)) findings.push(`contract-id-shaped string outside test fixtures: ${f}`);
+    if (!st.isFile() || st.size > 3_000_000 || /\.(png|ico|wasm|gz|zip)$/i.test(f)) {
+      findings.push(...scanFile(f, '')); // path rules still apply to binary and large files
+      continue;
+    }
+    findings.push(...scanFile(f, readFileSync(f, 'utf8')));
   }
   return { count: files.length, findings };
 }
