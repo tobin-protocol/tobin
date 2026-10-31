@@ -3,7 +3,7 @@
   "networkPassphrase": "Test SDF Network ; September 2015",
   "role": "administration",
   "status": "PENDING_SIGNER_ADDRESSES",
-  "note": "Public metadata only. No account has been created. The founder and security public keys are validated; the technical public key as submitted is invalid (55 characters) and is awaiting a corrected key, so it is null here. Record the account and transactions only after the procedure in docs/governance has been run and verified on Stellar Testnet.",
+  "note": "Public metadata only. No account has been created or funded and no transaction has been signed or submitted. All three signer public keys are validated (format, checksum, distinct, read-only Testnet lookup: none has an account yet). The superseded first submission is kept in accounts/signers-history.json. Record the account and transactions only after the procedure in docs/governance has been run and verified on Stellar Testnet.",
   "accountId": null,
   "signers": [
     {
@@ -14,7 +14,7 @@
     {
       "role": "technical",
       "weight": 2,
-      "publicKey": null
+      "publicKey": "GAE67UNGUDUCBUEHOJKU2OXVF5I6SSGWMH2ZLCS3Q5EXPQ63URNUR26H"
     },
     {
       "role": "security",

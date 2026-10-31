@@ -15,10 +15,10 @@ A dedicated Stellar account, separate from the signer wallets, whose weighted si
 | Role | Public key | Weight | Validation (2026-11-01) |
 |---|---|---:|---|
 | Founder / principal | `GB4NFBRAPQQH7GP24WXR7RKD2SHJWZXTBZH6CTJTEXZWUHTULDUME6OL` | 5 | valid format and checksum; no Testnet account yet |
-| Technical co-signer | unverified input as submitted, not approved configuration (the manifest holds `null`): `GAE67UNGUDUCBUEHOJKU2OXVFQ7JTBF3JXEFNZTONYM3VC4SPHX25AP` | 2 | **invalid: 55 characters.** Needs a corrected key |
+| Technical co-signer | `GAE67UNGUDUCBUEHOJKU2OXVF5I6SSGWMH2ZLCS3Q5EXPQ63URNUR26H` | 2 | valid format and checksum; no Testnet account yet (corrected key, submission 2) |
 | Security co-signer | `GATMFOGT2C25JK3AU635RKUXBFQ7JTBF3JXEFNZTONYM3VC4SPHX25AP` | 1 | valid format and checksum; no Testnet account yet |
 
-The technical and security keys as submitted share a 31-character ending. Genuine keys do not, so at least one was probably mangled when copied. The security key's checksum happens to pass, so confirm **both** from the wallets before use, by reading the key back from the wallet and comparing the first and last characters over a second channel.
+The first submission (2026-11-01) had an invalid 55-character technical key, and its technical and security keys shared a 31-character ending. The corrected technical key was validated and replaced it (submission 2); the two keys no longer share an ending. The superseded values are kept in `accounts/signers-history.json` and `accounts/testnet-admin.signers-submitted.json` as an audit trail. Confirm each key from its wallet before any transaction by comparing the first and last characters over a second channel. All three are valid keys with **no Testnet account yet**; that is normal for a signer key and is not an error.
 
 Thresholds: **low 5, medium 6, high 7.** Total weight 8.
 
@@ -75,7 +75,7 @@ Signing tests (not yet run, because no account exists) will use harmless operati
 - Founder-key loss freezes the account (the other two reach only 3).
 - Technical-key loss blocks signer changes (high needs the technical key).
 - The numbers are the founder's; they have not been independently reviewed.
-- The 55-character technical key must be corrected before any signer transaction.
+- The signer keys are validated for format only. Whether the founder controls each wallet, and that each backup works, is not verified here.
 
 ## Mainnet migration considerations
 
