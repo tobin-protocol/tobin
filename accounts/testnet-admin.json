@@ -1,0 +1,38 @@
+{
+  "network": "testnet",
+  "networkPassphrase": "Test SDF Network ; September 2015",
+  "role": "administration",
+  "status": "PENDING_SIGNER_ADDRESSES",
+  "note": "Public metadata only. No account has been created. The founder and security public keys are validated; the technical public key as submitted is invalid (55 characters) and is awaiting a corrected key, so it is null here. Record the account and transactions only after the procedure in docs/governance has been run and verified on Stellar Testnet.",
+  "accountId": null,
+  "signers": [
+    {
+      "role": "founder",
+      "weight": 5,
+      "publicKey": "GB4NFBRAPQQH7GP24WXR7RKD2SHJWZXTBZH6CTJTEXZWUHTULDUME6OL"
+    },
+    {
+      "role": "technical",
+      "weight": 2,
+      "publicKey": null
+    },
+    {
+      "role": "security",
+      "weight": 1,
+      "publicKey": "GATMFOGT2C25JK3AU635RKUXBFQ7JTBF3JXEFNZTONYM3VC4SPHX25AP"
+    }
+  ],
+  "thresholds": {
+    "low": 5,
+    "medium": 6,
+    "high": 7
+  },
+  "masterKeyWeight": null,
+  "transactions": [],
+  "recordedAt": null,
+  "legacyDeployer": {
+    "accountId": "GD5ESAZOA4RTEHWDJ4RVYH3TG4DJZFX7OGHXXNHVVDA7G77CD5DQNYPQ",
+    "note": "Deployed the existing Testnet contracts (see contracts/deployments/testnet.json) and is the fixed minter of the legacy token. Not the official administrative account. Its key custody is unresolved; do not discard the key."
+  },
+  "custodyModel": "single-person: all three signer wallets are currently controlled by the founder. This is a Testnet test of weighted authorization, not independent multi-party governance."
+}
