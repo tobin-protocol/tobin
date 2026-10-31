@@ -1,5 +1,5 @@
 {
-  "note": "UNVERIFIED INPUT, not approved configuration. These are the signer public keys exactly as submitted by the founder on 2026-11-01, kept only so the validation report is reproducible (npm run validate:signers -- --candidates accounts/testnet-admin.signers-submitted.json). The technical key is 55 characters and fails validation, and the technical and security keys share a 31-character ending, so both must be re-copied from their wallets and re-validated before use. Public keys only. The active configuration is accounts/testnet-admin.json, which holds only validated keys.",
+  "note": "SUPERSEDED by submission 2 in accounts/signers-history.json. UNVERIFIED INPUT, not approved configuration. These are the signer public keys exactly as submitted by the founder on 2026-11-01, kept only so the validation report is reproducible (npm run validate:signers -- --candidates accounts/testnet-admin.signers-submitted.json). The technical key is 55 characters and fails validation, and the technical and security keys share a 31-character ending, so both must be re-copied from their wallets and re-validated before use. Public keys only. The active configuration is accounts/testnet-admin.json, which holds only validated keys.",
   "signers": [
     {
       "role": "founder",

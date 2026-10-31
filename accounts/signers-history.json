@@ -1,0 +1,49 @@
+{
+  "note": "Audit trail of the signer public keys submitted for the Testnet administrative multisig, oldest first. Public keys only. A submission is unverified input until its status says it was validated and adopted. The active configuration is accounts/testnet-admin.json.",
+  "submissions": [
+    {
+      "id": 1,
+      "date": "2026-11-01",
+      "status": "SUPERSEDED: the technical key was invalid (55 characters), and the technical and security keys shared a 31-character ending. Not adopted in full; only the founder and security keys were recorded in the manifest at the time.",
+      "signers": [
+        {
+          "role": "founder",
+          "weight": 5,
+          "publicKey": "GB4NFBRAPQQH7GP24WXR7RKD2SHJWZXTBZH6CTJTEXZWUHTULDUME6OL"
+        },
+        {
+          "role": "technical",
+          "weight": 2,
+          "publicKey": "GAE67UNGUDUCBUEHOJKU2OXVFQ7JTBF3JXEFNZTONYM3VC4SPHX25AP"
+        },
+        {
+          "role": "security",
+          "weight": 1,
+          "publicKey": "GATMFOGT2C25JK3AU635RKUXBFQ7JTBF3JXEFNZTONYM3VC4SPHX25AP"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "date": "2026-11-01",
+      "status": "VALIDATED AND ADOPTED: all three keys pass format and checksum validation, are distinct, are not the legacy deployer, and share no suspicious ending. Fresh read-only Testnet lookups: none of the three has an account yet (not activated).",
+      "signers": [
+        {
+          "role": "founder",
+          "weight": 5,
+          "publicKey": "GB4NFBRAPQQH7GP24WXR7RKD2SHJWZXTBZH6CTJTEXZWUHTULDUME6OL"
+        },
+        {
+          "role": "technical",
+          "weight": 2,
+          "publicKey": "GAE67UNGUDUCBUEHOJKU2OXVF5I6SSGWMH2ZLCS3Q5EXPQ63URNUR26H"
+        },
+        {
+          "role": "security",
+          "weight": 1,
+          "publicKey": "GATMFOGT2C25JK3AU635RKUXBFQ7JTBF3JXEFNZTONYM3VC4SPHX25AP"
+        }
+      ]
+    }
+  ]
+}

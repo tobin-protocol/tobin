@@ -93,3 +93,17 @@ test('a PENDING manifest cannot claim an account or transactions', () => {
   b.transactions = ['a'.repeat(64)];
   assert.notDeepEqual(problems(b), []);
 });
+
+test('the manifest holds the three validated signer keys and the history records the adopted submission', () => {
+  const m = pending();
+  const keys = m.signers.map((s) => s.publicKey);
+  assert.ok(keys.every((k) => isPublicKey(k)));
+  assert.equal(new Set(keys).size, 3);
+  assert.equal(m.status, 'PENDING_SIGNER_ADDRESSES'); // no account exists yet
+  assert.equal(m.accountId, null);
+  assert.deepEqual(m.transactions, []);
+  const history = JSON.parse(readFileSync(new URL('../../accounts/signers-history.json', import.meta.url), 'utf8'));
+  const [first, second] = history.submissions;
+  assert.equal(first.signers.find((s) => s.role === 'technical').publicKey.length, 55); // the superseded, invalid key is preserved
+  assert.deepEqual(second.signers.map((s) => s.publicKey), keys);
+});
