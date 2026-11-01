@@ -4,9 +4,9 @@
 // The account public key comes from a bootstrap key that the founder generates outside the repository (only the public key is ever shared).
 import { arg, buildPlan, LEGACY_DEPLOYER, MANIFEST, PASSPHRASE, readJson } from './lib.mjs';
 
-const account = arg('--account');
-if (!account) { console.error('usage: multisig:prepare -- --account <administrative account public key>'); process.exit(2); }
 const m = readJson(MANIFEST);
+const account = arg('--account') || (m.bootstrapAccount && m.bootstrapAccount.publicKey);
+if (!account) { console.error('usage: multisig:prepare -- --account <administrative account public key> (or record bootstrapAccount in the manifest)'); process.exit(2); }
 const signers = Object.fromEntries(m.signers.map((s) => [s.role, s.publicKey]));
 const { problems, steps } = buildPlan({ account, signers });
 if (problems.length) {
