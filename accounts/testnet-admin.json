@@ -34,5 +34,11 @@
     "accountId": "GD5ESAZOA4RTEHWDJ4RVYH3TG4DJZFX7OGHXXNHVVDA7G77CD5DQNYPQ",
     "note": "Deployed the existing Testnet contracts (see contracts/deployments/testnet.json) and is the fixed minter of the legacy token. Not the official administrative account. Its key custody is unresolved; do not discard the key."
   },
-  "custodyModel": "single-person: all three signer wallets are currently controlled by the founder. This is a Testnet test of weighted authorization, not independent multi-party governance."
+  "custodyModel": "single-person: all three signer wallets are currently controlled by the founder. This is a Testnet test of weighted authorization, not independent multi-party governance.",
+  "bootstrapAccount": {
+    "publicKey": "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ",
+    "status": "PROPOSED_NOT_ACTIVATED",
+    "validatedOn": "2026-11-01",
+    "note": "The proposed address of the dedicated Testnet administrative account (its own master key). Valid format and checksum; read-only Testnet lookup found no account, so it is not activated and has no sequence number, signers or thresholds yet. It is none of the three signers and not the legacy deployer. Its secret is held by the founder outside the repository; that custody is not verified here. accountId stays null until the account exists on Testnet."
+  }
 }

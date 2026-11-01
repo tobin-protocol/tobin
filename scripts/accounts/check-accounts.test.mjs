@@ -8,13 +8,15 @@ import { combinations, isPublicKey, problems } from './check-accounts.mjs';
 const K1 = 'GB4WIKKCYDDQUKLTKBMMMCPLZJVXZWL36CJEGWXMKEYV7NNLS2MDE7G5';
 const K2 = 'GC7YMNS3FEYD4GZ4RMLOX3QOSCWOURVLCFUPY5PDOJPBJTSS22HL23KC';
 const K3 = 'GDJWXD5KEMKFCR5IA43WHNU2J4C5TYAKTA747UAQD2LAMOE7OYRWI3QY';
-const ACCOUNT = 'GD5ESAZOA4RTEHWDJ4RVYH3TG4DJZFX7OGHXXNHVVDA7G77CD5DQNYPQ';
+const ACCOUNT = 'GD5ESAZOA4RTEHWDJ4RVYH3TG4DJZFX7OGHXXNHVVDA7G77CD5DQNYPQ'; // the legacy deployer
+const ADMIN = 'GB4NFBRAPQQH7GP24WXR7RKD2SHJWZXTBZH6CTJTEXZWUHTULDUME6OL'; // a valid key used as the administrative account in the ACTIVE fixture
 
 const pending = () => JSON.parse(readFileSync(new URL('../../accounts/testnet-admin.json', import.meta.url), 'utf8'));
 const active = () => {
   const m = pending();
   m.status = 'ACTIVE';
-  m.accountId = ACCOUNT;
+  m.accountId = ADMIN;
+  m.bootstrapAccount.publicKey = ADMIN;
   m.signers[0].publicKey = K1;
   m.signers[1].publicKey = K2;
   m.signers[2].publicKey = K3;
@@ -106,4 +108,20 @@ test('the manifest holds the three validated signer keys and the history records
   const [first, second] = history.submissions;
   assert.equal(first.signers.find((s) => s.role === 'technical').publicKey.length, 55); // the superseded, invalid key is preserved
   assert.deepEqual(second.signers.map((s) => s.publicKey), keys);
+});
+
+test('the proposed administrative (bootstrap) account is validated and kept apart from the signers and the legacy deployer', () => {
+  const m = pending();
+  assert.ok(isPublicKey(m.bootstrapAccount.publicKey));
+  assert.equal(m.bootstrapAccount.status, 'PROPOSED_NOT_ACTIVATED');
+  assert.equal(m.accountId, null); // not created yet
+  assert.deepEqual(problems(m), []);
+  for (const bad of [K1, ACCOUNT, 'GNOTAKEY']) {
+    const x = pending();
+    x.signers[0].publicKey = K1;
+    x.signers[1].publicKey = K2;
+    x.signers[2].publicKey = K3;
+    x.bootstrapAccount.publicKey = bad;
+    assert.notDeepEqual(problems(x), []); // a signer, the legacy deployer and an invalid key are all rejected
+  }
 });

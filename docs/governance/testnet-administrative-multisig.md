@@ -33,6 +33,10 @@ Thresholds: **low 5, medium 6, high 7.** Total weight 8.
 
 These are weighted authorization expectations, not proof of independent human approval.
 
+## Dedicated account (proposed)
+
+Proposed address: `GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ` (recorded in `accounts/testnet-admin.json` as `bootstrapAccount`, status `PROPOSED_NOT_ACTIVATED`). Read-only checks on 2026-11-01: valid format and checksum; **no account exists on Testnet** (not activated, so no sequence number, signers or thresholds); it is none of the three signers and is not the legacy deployer. It has **not been created or funded**, and nothing has been signed or submitted for it. Its secret is held by the founder outside the repository; that custody is not verified here, and the secret must never be shared. `accountId` stays `null` in the manifest until the account exists on Testnet.
+
 ## What the thresholds actually cover (Stellar's operation mapping)
 
 Stellar assigns each *operation* a threshold category; a transaction needs, for each operation, signatures from that operation's source account whose combined weight meets that category.
@@ -54,7 +58,7 @@ Stellar assigns each *operation* a threshold category; a transaction needs, for 
 
 Preparation is separate from execution. `npm run multisig:prepare -- --account <G…>` only prints the plan (no network, no secret, no signing, no submission).
 
-1. **Generate the account's key outside the repository.** The founder creates a fresh keypair on their own device (hardware wallet or offline machine) for the dedicated account and shares only its public key `G…`. It must not be one of the three signer wallets and must not be the legacy deployer. The seed is never pasted into Claude Code, a ticket, an environment file or Git. If no secure signing path (hardware wallet, or a signing tool that never exposes the seed) is available, stop and arrange one first.
+1. **The account's key is generated outside the repository** (done by the founder for the proposed address above; not verified here). The founder creates a fresh keypair on their own device (hardware wallet or offline machine) for the dedicated account and shares only its public key `G…`. It must not be one of the three signer wallets and must not be the legacy deployer. The seed is never pasted into Claude Code, a ticket, an environment file or Git. If no secure signing path (hardware wallet, or a signing tool that never exposes the seed) is available, stop and arrange one first.
 2. **Fund it** with the Testnet faucet. *Needs authorization.* Cost: test XLM only.
 3. **Apply the configuration in one transaction** (`multisig:prepare` step 1): add Founder (5), Technical (2), Security (1) and set thresholds 5/6/7, as four set-options operations in a single transaction signed by the account's key. One transaction is atomic, so the account is never left half-configured and there is no sequence-number race. *Needs authorization.* Cost: base fee times four operations, in test XLM.
 4. **Verify** with fresh reads: `npm run multisig:verify -- --account <G…>` must pass every check (three weights, three thresholds, no unexpected signers).

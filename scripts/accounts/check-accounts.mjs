@@ -83,6 +83,13 @@ export function problems(m) {
   }
   if (m.status === 'PENDING_SIGNER_ADDRESSES' && (m.accountId || (m.transactions || []).length)) out.push('a PENDING manifest must not record an account or transactions');
   if (m.legacyDeployer && !isPublicKey(m.legacyDeployer.accountId)) out.push('legacyDeployer.accountId must be a valid public key');
+  if (m.bootstrapAccount) {
+    const b = m.bootstrapAccount.publicKey;
+    if (!isPublicKey(b)) out.push('bootstrapAccount.publicKey must be a valid public key');
+    if (keys.includes(b)) out.push('the bootstrap account must not be one of the three signers');
+    if (m.legacyDeployer && b === m.legacyDeployer.accountId) out.push('the bootstrap account must not be the legacy deployer');
+    if (m.accountId && m.accountId !== b) out.push('accountId must equal the bootstrap account once recorded');
+  }
   // Safety properties of the weights themselves.
   const rows = combinations(ROLES.map(([role, weight]) => ({ role, weight })), THRESHOLDS);
   const tOnlyS = rows.find((r) => r.roles.join() === 'technical,security');
