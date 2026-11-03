@@ -18,6 +18,20 @@ The draft protocol specification is not in this repository, so there is nothing 
 2. For a small fix: fork the repository, branch from `main`, keep the change focused, and open a pull request with the reason in the description.
 3. Write imperative commit messages ("Correct the SEP-31 description").
 
+## Change workflow (required for every change)
+
+All changes, including documentation and evidence updates, go through a pull request:
+
+1. Create a dedicated feature branch.
+2. Make and test the intended changes.
+3. Push the feature branch.
+4. Open a GitHub pull request.
+5. Wait for the required CI checks and for review.
+6. Merge through the approved GitHub workflow.
+7. Verify the merged commit and the remote state.
+
+Do not push directly to `main` and do not use bypass permissions for routine changes. Do not change branch protection settings without explicit authorization. A departure from this process is recorded in [release/PROCESS-DEVIATIONS.md](release/PROCESS-DEVIATIONS.md).
+
 Please be respectful and assume good faith.
 
 ## Working on MVP-1
