@@ -8,9 +8,9 @@ const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 const TESTNET_PASSPHRASE = 'Test SDF Network ; September 2015';
 const ROLES = [['founder', 5], ['technical', 2], ['security', 1]];
 const THRESHOLDS = { low: 5, medium: 6, high: 7 };
-const STATUSES = ['PENDING_SIGNER_ADDRESSES', 'ACTIVE'];
+const STATUSES = ['PENDING_SIGNER_ADDRESSES', 'CONFIGURED_MASTER_ENABLED', 'ACTIVE'];
 
-function crc16(bytes) {
+export function crc16(bytes) {
   let crc = 0;
   for (const b of bytes) {
     crc ^= b << 8;
@@ -73,10 +73,11 @@ export function problems(m) {
   if (new Set(keys).size !== keys.length) out.push('signer public keys must be distinct');
   if (m.accountId !== null && !isPublicKey(m.accountId)) out.push('accountId must be null or a valid public key');
   if (m.accountId && keys.includes(m.accountId)) out.push('the account must not be one of its own signers: the master key is disabled');
-  if (m.status === 'ACTIVE') {
+  if (m.status === 'CONFIGURED_MASTER_ENABLED' || m.status === 'ACTIVE') {
     if (keys.length !== ROLES.length) out.push('ACTIVE needs all three signer public keys');
     if (!m.accountId) out.push('ACTIVE needs accountId');
-    if (m.masterKeyWeight !== 0) out.push('ACTIVE needs masterKeyWeight 0 (the master key is disabled)');
+    if (m.status === 'ACTIVE' && m.masterKeyWeight !== 0) out.push('ACTIVE needs masterKeyWeight 0 (the master key is disabled)');
+    if (m.status === 'CONFIGURED_MASTER_ENABLED' && m.masterKeyWeight !== 1) out.push('CONFIGURED_MASTER_ENABLED needs masterKeyWeight 1 (the master key is still enabled)');
     if (!Array.isArray(m.transactions) || m.transactions.length === 0) out.push('ACTIVE needs the confirmed transaction hashes');
     for (const h of m.transactions || []) if (!/^[0-9a-f]{64}$/.test(typeof h === 'string' ? h : h && h.hash)) out.push('transaction hashes must be 64 hex characters');
     if (!/^\d{4}-\d{2}-\d{2}/.test(m.recordedAt || '')) out.push('ACTIVE needs recordedAt');
@@ -107,7 +108,7 @@ function main() {
     console.log(`| ${r.roles.join(' + ')} | ${r.weight} | ${r.low ? 'yes' : 'no'} | ${r.medium ? 'yes' : 'no'} | ${r.high ? 'yes' : 'no'} |`);
   }
   if (p.length) { console.error(p.map((x) => `- ${x}`).join('\n')); process.exit(1); }
-  console.log(m.status === 'ACTIVE' ? 'manifest valid' : 'manifest valid (pending: the signer public keys are still to be supplied)');
+  console.log(m.status === 'PENDING_SIGNER_ADDRESSES' ? 'manifest valid (pending: the account is not configured yet)' : `manifest valid (${m.status})`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

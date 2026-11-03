@@ -11,7 +11,18 @@ const K3 = 'GDJWXD5KEMKFCR5IA43WHNU2J4C5TYAKTA747UAQD2LAMOE7OYRWI3QY';
 const ACCOUNT = 'GD5ESAZOA4RTEHWDJ4RVYH3TG4DJZFX7OGHXXNHVVDA7G77CD5DQNYPQ'; // the legacy deployer
 const ADMIN = 'GB4NFBRAPQQH7GP24WXR7RKD2SHJWZXTBZH6CTJTEXZWUHTULDUME6OL'; // a valid key used as the administrative account in the ACTIVE fixture
 
-const pending = () => JSON.parse(readFileSync(new URL('../../accounts/testnet-admin.json', import.meta.url), 'utf8'));
+const committed = () => JSON.parse(readFileSync(new URL('../../accounts/testnet-admin.json', import.meta.url), 'utf8'));
+// The state before the account existed (kept as a fixture for the PENDING rules).
+const pending = () => {
+  const m = committed();
+  m.status = 'PENDING_SIGNER_ADDRESSES';
+  m.accountId = null;
+  m.masterKeyWeight = null;
+  m.bootstrapAccount.status = 'PROPOSED_NOT_ACTIVATED';
+  m.transactions = [];
+  m.recordedAt = null;
+  return m;
+};
 const active = () => {
   const m = pending();
   m.status = 'ACTIVE';
@@ -124,4 +135,16 @@ test('the proposed administrative (bootstrap) account is validated and kept apar
     x.bootstrapAccount.publicKey = bad;
     assert.notDeepEqual(problems(x), []); // a signer, the legacy deployer and an invalid key are all rejected
   }
+});
+
+test('the committed manifest records the configured account with the master key still enabled', () => {
+  const m = committed();
+  assert.equal(m.status, 'CONFIGURED_MASTER_ENABLED');
+  assert.equal(m.accountId, m.bootstrapAccount.publicKey);
+  assert.equal(m.masterKeyWeight, 1);
+  assert.deepEqual(problems(m), []);
+  assert.equal(m.transactions.length, 2);
+  const bad = committed();
+  bad.masterKeyWeight = 0; // a manifest that claims the master key is disabled must not be accepted in this state
+  assert.notDeepEqual(problems(bad), []);
 });

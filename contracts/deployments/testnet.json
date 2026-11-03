@@ -4,20 +4,79 @@
   "networkPassphrase": "Test SDF Network ; September 2015",
   "gitCommit": "f9865c5",
   "recordedAt": "2026-10-29T22:06Z",
-  "note": "Experimental MVP-1 test deployment on the Stellar public testnet. Public identifiers only. Deployer and participants are disposable accounts. Not production, not audited.",
+  "note": "Experimental MVP-1 test deployment on the Stellar public testnet. Public identifiers only. Deployer and participants are disposable accounts. Not production, not audited. The governed token is the intended MVP token; the legacy token and the clearing contract were not changed.",
   "deployer": "GD5ESAZOA4RTEHWDJ4RVYH3TG4DJZFX7OGHXXNHVVDA7G77CD5DQNYPQ",
   "contracts": {
     "tobin_test_token": {
       "contractId": "CD7HOXZPEWOP52LNQKZH7ZN7HLKJGZ5WAJ7I5HHUAJP7SEJ6FJY7UC4O",
       "wasmHash": "ef483732039f0ca62665b92b816c3a12dcf094c707f77e1edc53e60ea083241f",
       "deployTx": "050fe47b4c39596d27d8408cbf68f5e9a6fb11ee53ac63ded7fc32df7d9c9dd5",
-      "initialization": "constructor, run in the deploy transaction: minter = deployer, cap = 10000000000000, decimals = 7, name = Tobin Test Token, symbol = TTT"
+      "initialization": "constructor, run in the deploy transaction: minter = deployer, cap = 10000000000000, decimals = 7, name = Tobin Test Token, symbol = TTT",
+      "status": "legacy",
+      "note": "Legacy Testnet demonstration token. Its minter is the legacy deployer and cannot be changed. Not governed by the administrative multisig. No longer the intended MVP token."
     },
     "tobin_clearing_v1": {
       "contractId": "CCV3EFECV2T2UT5YW6GBPGKN6PAP75SUTQOL3QYXQW7QWMESD5PPY4DT",
       "wasmHash": "80bea96439b1f6647e08c604cdf29f580fe3f1a4171864b651b5832bb247e5e4",
       "deployTx": "0b620e91bebbedeaca7b98cd93414e79c99b8298705ebdf8c804214f24f5c112",
-      "initialization": "none required (no constructor)"
+      "initialization": "none required (no constructor)",
+      "note": "Immutable and without any administrator or upgrade path. Not governed by the administrative multisig. Unchanged."
+    },
+    "tobin_test_token_governed": {
+      "contractId": "CD5OK4ZSFLAQIEVQZ44D3MFKESLBRYJLCGO2MEH6UKWWCV63LVQNOKYO",
+      "wasmHash": "ef483732039f0ca62665b92b816c3a12dcf094c707f77e1edc53e60ea083241f",
+      "deployTx": "b9496cc94ead0f5069c291608b9821a76caebb5e08e1ac7f7d678587c1af9314",
+      "deployLedger": "5530094",
+      "deployedAt": "2026-11-03T02:48:30Z",
+      "feeChargedStroops": "44036",
+      "minter": "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ",
+      "initialization": "constructor, run in the deploy transaction (source and deployer: the administrative multisig account, signed Founder + Security): minter = the administrative multisig account, cap = 10000000000000, decimals = 7, name = Tobin Test Token, symbol = TTT. Same Wasm and parameters as the legacy token; only the minter differs.",
+      "status": "intended MVP token; mint authority = the administrative multisig (Testnet only)",
+      "note": "Governance scope: mint authority of this token only. The three signer wallets are currently controlled by one person (the founder), so this is not independent multi-party governance. The master key of the administrative account is still enabled at weight 1.",
+      "supply": {
+        "initial": "0",
+        "current": "1",
+        "asOfLedger": "5533978"
+      },
+      "ttl": {
+        "extensionTx": "9e8352978ce14c0b4b9b4b802f525cf833d51aad648e84326469debd4992c32c",
+        "extensionLedger": "5533927",
+        "extensionFeeChargedStroops": "295210",
+        "instanceLiveUntilBefore": "5651053",
+        "instanceLiveUntilAfter": "6570727",
+        "note": "Instance entry only, extended by 1036800 ledgers (about 60 days) with an ExtendFootprintTTL operation, a low-threshold operation signed by the Founder alone. The shared Wasm code entry (live until ledger 6448014) and the legacy entries were not extended."
+      },
+      "authorizationTests": {
+        "A": {
+          "tx": "c54b4e1291540b61261af0f4dee518718a3d87e6b84f2c4cd72f7503e0621f28",
+          "ledger": "5533978",
+          "result": "SUCCESS on-chain (2026-11-03T08:12:10Z): mint of 1 base unit to the administrative account; supply 0 to 1",
+          "signers": "Founder + Security",
+          "weight": "6",
+          "feeChargedStroops": "130150",
+          "supplyBefore": "0",
+          "supplyAfter": "1"
+        },
+        "B": {
+          "tx": "c54b4e1291540b61261af0f4dee518718a3d87e6b84f2c4cd72f7503e0621f28",
+          "ledger": "0",
+          "result": "REJECTED at submission, never included in a ledger: TxFailed with OpBadAuth (the mint operation needs the medium threshold 6; weight 5)",
+          "signers": "Founder alone",
+          "weight": "5",
+          "simulation": "simulation succeeded (it does not check signature weights)"
+        },
+        "C": {
+          "tx": "c54b4e1291540b61261af0f4dee518718a3d87e6b84f2c4cd72f7503e0621f28",
+          "ledger": "0",
+          "result": "REJECTED at submission, never included in a ledger: TxBadAuth (weight 3 is below even the low threshold 5)",
+          "signers": "Technical + Security",
+          "weight": "3",
+          "simulation": "simulation succeeded (it does not check signature weights)"
+        }
+      },
+      "gitCommit": "cb2e617",
+      "recordedAt": "2026-11-03T08:30Z",
+      "recordNote": "gitCommit is the repository commit at which this entry was recorded. The deployed Wasm is the same audited build as the legacy token (hash above); the contract sources were not changed."
     }
   },
   "functionalChecks": {

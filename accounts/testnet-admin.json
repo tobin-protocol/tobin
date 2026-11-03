@@ -2,9 +2,9 @@
   "network": "testnet",
   "networkPassphrase": "Test SDF Network ; September 2015",
   "role": "administration",
-  "status": "PENDING_SIGNER_ADDRESSES",
-  "note": "Public metadata only. No account has been created or funded and no transaction has been signed or submitted. All three signer public keys are validated (format, checksum, distinct, read-only Testnet lookup: none has an account yet). The superseded first submission is kept in accounts/signers-history.json. Record the account and transactions only after the procedure in docs/governance has been run and verified on Stellar Testnet.",
-  "accountId": null,
+  "status": "CONFIGURED_MASTER_ENABLED",
+  "note": "Public metadata only. The administrative account was funded with Testnet Friendbot and configured on Stellar Testnet on 2026-11-03: three signers (5, 2, 1) and thresholds 5/6/7, verified by an independent Horizon read. The bootstrap master key is still ENABLED at weight 1 (an extra weight-1 signer); disabling it needs separate explicit approval after the recovery review. All three signer wallets are controlled by the founder. The superseded first signer submission is kept in accounts/signers-history.json. Evidence: accounts/evidence/testnet-admin-setup-2026-11-03.json.",
+  "accountId": "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ",
   "signers": [
     {
       "role": "founder",
@@ -27,9 +27,20 @@
     "medium": 6,
     "high": 7
   },
-  "masterKeyWeight": null,
-  "transactions": [],
-  "recordedAt": null,
+  "masterKeyWeight": 1,
+  "transactions": [
+    {
+      "kind": "funding (Friendbot)",
+      "hash": "94b7456b3aaacea1adc7d26730973b0f10da9e9d21514a8dae8383643379b7c7"
+    },
+    {
+      "kind": "signer and threshold configuration",
+      "hash": "4aeb0e00b3d601b1d3f0062dcaa79fa68eb40c67d698d7657a21dd894f8fe18e",
+      "ledger": 5529282,
+      "confirmedAt": "2026-11-03T01:40:50Z"
+    }
+  ],
+  "recordedAt": "2026-11-03T01:45Z",
   "legacyDeployer": {
     "accountId": "GD5ESAZOA4RTEHWDJ4RVYH3TG4DJZFX7OGHXXNHVVDA7G77CD5DQNYPQ",
     "note": "Deployed the existing Testnet contracts (see contracts/deployments/testnet.json) and is the fixed minter of the legacy token. Not the official administrative account. Its key custody is unresolved; do not discard the key."
@@ -37,8 +48,8 @@
   "custodyModel": "single-person: all three signer wallets are currently controlled by the founder. This is a Testnet test of weighted authorization, not independent multi-party governance.",
   "bootstrapAccount": {
     "publicKey": "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ",
-    "status": "PROPOSED_NOT_ACTIVATED",
+    "status": "ACTIVATED_AND_CONFIGURED_MASTER_ENABLED",
     "validatedOn": "2026-11-01",
-    "note": "The proposed address of the dedicated Testnet administrative account (its own master key). Valid format and checksum; read-only Testnet lookup found no account, so it is not activated and has no sequence number, signers or thresholds yet. It is none of the three signers and not the legacy deployer. Its secret is held by the founder outside the repository; that custody is not verified here. accountId stays null until the account exists on Testnet."
+    "note": "The dedicated Testnet administrative account (its own master key). Activated with Friendbot and configured on 2026-11-03 (see transactions). Its master key remains enabled at weight 1. Its secret is held by the founder outside the repository; that custody is not verified here."
   }
 }

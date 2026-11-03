@@ -1,6 +1,6 @@
 # Tobin Testnet administrative multisig
 
-Status: **prepared, not provisioned.** No administrative account exists yet. No funding, account creation or signer-management transaction has been made; each needs the founder's explicit authorization first. Scope: **Stellar Testnet only.** No Mainnet account is created or described here.
+Status (updated 2026-11-03): **configured on Stellar Testnet; the master key is still enabled.** The dedicated administrative account was funded with Testnet Friendbot (transaction `94b7456b3aaacea1adc7d26730973b0f10da9e9d21514a8dae8383643379b7c7`) and configured by one atomic transaction (`4aeb0e00b3d601b1d3f0062dcaa79fa68eb40c67d698d7657a21dd894f8fe18e`, ledger 5529282, 2026-11-03T01:40:50Z): Founder 5, Technical 2, Security 1 and thresholds 5/6/7, verified by an independent Horizon read. The evidence is in `accounts/evidence/testnet-admin-setup-2026-11-03.json` and `governed-token-evidence.md`. Scope: **Stellar Testnet only.** No Mainnet account is created or described here. The sections below were written before provisioning and describe the procedure that was followed.
 
 ## Purpose and limits
 
@@ -33,9 +33,9 @@ Thresholds: **low 5, medium 6, high 7.** Total weight 8.
 
 These are weighted authorization expectations, not proof of independent human approval.
 
-## Dedicated account (proposed)
+## Dedicated account
 
-Proposed address: `GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ` (recorded in `accounts/testnet-admin.json` as `bootstrapAccount`, status `PROPOSED_NOT_ACTIVATED`). Read-only checks on 2026-11-01: valid format and checksum; **no account exists on Testnet** (not activated, so no sequence number, signers or thresholds); it is none of the three signers and is not the legacy deployer. It has **not been created or funded**, and nothing has been signed or submitted for it. Its secret is held by the founder outside the repository; that custody is not verified here, and the secret must never be shared. `accountId` stays `null` in the manifest until the account exists on Testnet.
+Address: `GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ` (recorded in `accounts/testnet-admin.json`). History: it was first proposed on 2026-11-01 (read-only checks then: valid format and checksum, no account on Testnet, none of the three signers, not the legacy deployer). On 2026-11-03 it was funded and configured as described in the status line above. Its secret is held by the founder outside the repository; that custody is not verified here, and the secret must never be shared. The master key remains enabled at weight 1 and counts as an extra weight-1 signer until it is disabled, which needs separate approval after a recovery review.
 
 ## What the thresholds actually cover (Stellar's operation mapping)
 
@@ -71,7 +71,7 @@ If a transaction fails: stop, run `multisig:inspect -- <account>`, compare with 
 
 Read-only: `npm run multisig:inspect -- <account>` and `npm run multisig:verify -- --account <account>` (add `--master-disabled` after step 6).
 
-Signing tests (not yet run, because no account exists) will use harmless operations on the new account only, never the legacy deployer, the token or the clearing contract, and will keep these stages distinct: building the transaction, collecting signatures, checking the weights, submitting, and confirming ledger inclusion. Planned matrix: Founder alone, Founder + Security, Founder + Technical, Technical + Security, all three, each against a low operation (bump sequence), a medium operation (a small test-XLM payment) and a high operation (a no-op set-options that changes nothing but the weight of a signer to its current value). Expected: Technical + Security meets none; Founder meets only low. These tests prove Stellar's threshold behavior for this account, not any contract-level approval.
+Signing tests (status after 2026-11-03): the planned five-combination matrix against harmless operations was **not** run in that form. Authorization was instead tested on the governed token's mint (a medium operation) and on a TTL extension (a low operation), and the results are in `governed-token-evidence.md`: Founder + Security (6) succeeded on-chain; Founder alone (5) and Technical + Security (3) were rejected by the network at submission and never included in a ledger; the low-threshold extension was accepted with the Founder alone (5), and a Founder + Security version was rejected as `TxBadAuthExtra` (an unneeded extra signature). **Not tested:** Founder + Technical (7), all three signers, and a high-threshold operation. These tests show Stellar's threshold behavior for this account; they do not show contract-level approval, and they are not independent human governance (the founder controls all three signer wallets).
 
 ## Known limitations
 

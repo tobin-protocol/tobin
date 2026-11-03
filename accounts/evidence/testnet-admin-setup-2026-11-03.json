@@ -1,0 +1,64 @@
+{
+  "note": "Public on-chain evidence only (no secrets). Network: Stellar Testnet.",
+  "account": "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ",
+  "funding": {
+    "hash": "94b7456b3aaacea1adc7d26730973b0f10da9e9d21514a8dae8383643379b7c7",
+    "via": "Stellar Testnet Friendbot"
+  },
+  "configuration": {
+    "hash": "4aeb0e00b3d601b1d3f0062dcaa79fa68eb40c67d698d7657a21dd894f8fe18e",
+    "successful": true,
+    "ledger": 5529282,
+    "createdAt": "2026-11-03T01:40:50Z",
+    "feeChargedStroops": 400,
+    "operationCount": 4,
+    "sequence": "23747277906509825",
+    "operations": [
+      "add GB4NFBRAPQQH7GP24WXR7RKD2SHJWZXTBZH6CTJTEXZWUHTULDUME6OL weight 5",
+      "add GAE67UNGUDUCBUEHOJKU2OXVF5I6SSGWMH2ZLCS3Q5EXPQ63URNUR26H weight 2",
+      "add GATMFOGT2C25JK3AU635RKUXBFQ7JTBF3JXEFNZTONYM3VC4SPHX25AP weight 1",
+      "thresholds low 5, medium 6, high 7"
+    ],
+    "signature": {
+      "hint": "c1efceca",
+      "verifiedAgainst": "the transaction hash with the master key, before submission"
+    }
+  },
+  "accountReadBack": {
+    "readAt": "2026-11-03",
+    "source": "Horizon testnet /accounts",
+    "thresholds": {
+      "low": 5,
+      "medium": 6,
+      "high": 7
+    },
+    "signers": [
+      {
+        "key": "GB4NFBRAPQQH7GP24WXR7RKD2SHJWZXTBZH6CTJTEXZWUHTULDUME6OL",
+        "weight": 5
+      },
+      {
+        "key": "GAE67UNGUDUCBUEHOJKU2OXVF5I6SSGWMH2ZLCS3Q5EXPQ63URNUR26H",
+        "weight": 2
+      },
+      {
+        "key": "GATMFOGT2C25JK3AU635RKUXBFQ7JTBF3JXEFNZTONYM3VC4SPHX25AP",
+        "weight": 1
+      },
+      {
+        "key": "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ",
+        "weight": 1,
+        "role": "master key (enabled)"
+      }
+    ],
+    "flags": {
+      "auth_required": false,
+      "auth_revocable": false,
+      "auth_immutable": false,
+      "auth_clawback_enabled": false
+    },
+    "homeDomain": null
+  },
+  "limits": "All three signer wallets are controlled by the founder; this is not independent governance. The master key is still enabled. Signing-combination tests have not been run on-chain yet.",
+  "laterEvidence": "The \"limits\" statement above describes the situation when this file was written. Signing-combination evidence from later the same day (governed token mint tests, TTL extension) is in docs/governance/governed-token-evidence.md."
+}
