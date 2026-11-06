@@ -34,7 +34,7 @@ Nothing was changed in the W0 library code, the adapter interface, the routes, t
 
 ## 4. CI results
 
-Recorded after the checks completed (see the pull request). If a row below is empty, the check had not finished when this report was committed.
+GitHub Actions on PR #14, all passing: "Rust, TypeScript and documentation checks" (3m50s; the console suite ran with the Rust bridge: **267 tests, 267 passed, 0 failed, 0 skipped**), "W0 browser journey (mock adapter)" (1m43s; new workflow `w0-console.yml`, real Chrome on a Linux runner, **43 of 43 checks passed**, which also shows the `Secure` session cookie is accepted by Chrome on Linux over `http://127.0.0.1`), Vercel and Vercel Preview Comments. The signer workflows did not run (no file under `scripts/` changed).
 
 ## 5. Security implications
 
@@ -61,5 +61,5 @@ No trust boundary changed. The new files are tests, a CI workflow (read-only tok
 | Adapter contract unchanged (four methods) | met, now enforced by a reusable suite |
 | New behaviour tested; existing tests not weakened | met (267 total, 0 failed; no existing test edited) |
 | Documentation updated | met |
-| CI | see section 4 |
+| CI | met (section 4) |
 | W1 marked complete only with evidence | the decision papers are complete as documents, but W1's blocked decisions (D1 to D4) remain open: **the console is not production ready** |
