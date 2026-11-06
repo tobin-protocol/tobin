@@ -71,7 +71,7 @@ Everything above is **self-verification** (same author), plus the independent *i
 
 ## 10. CI results
 
-Recorded after the checks completed; see the pull request. (Filled in the follow-up commit.)
+GitHub Actions on PR #13 on the two content commits of this branch (the later documentation-only commit that records these results re-runs the same checks), all passing: "Rust, TypeScript and documentation checks" (3m14s), "Signer portable suites and baseline verifiers" (29s), "Signer Windows suites (isolated temp and profile)" (47s), Vercel and Vercel Preview Comments. The portable job log shows the B0 acceptance suite at 79 of 79, the approved B0 definition `9b594c54…bacbb7` and approved B1 `83f11a7f…c8733e` each reported `VERIFY: MATCH` by the Node verifier, and B1 `VERIFY: MATCH` by the coreutils reconstruction, on a clean Linux runner after `restore-sdk.cjs`. The Windows job ran the DPAPI-cleanup and Windows suites with dummy input only.
 
 ## 11. Limitations and deferred work
 
