@@ -3,7 +3,7 @@
 .w0-dev { padding: .4rem .6rem; border-left: 3px solid var(--warn); background: var(--warn-bg); color: var(--warn); }
 .w0-note { color: var(--muted); }
 .w0-notice { padding: .4rem .6rem; border-left: 3px solid var(--ok); }
-.w0-error { background: var(--bad); color: #fff; padding: .5rem .8rem; border-radius: 6px; }
+.w0-error { background: var(--bad); color: var(--bg); padding: .5rem .8rem; border-radius: 6px; }
 .w0-blocked { color: var(--warn); font-weight: 600; }
 .w0-security { color: var(--bad); }
 .w0-security-row td { border-bottom-color: var(--bad); }
@@ -20,3 +20,10 @@
 .w0-o-OK { border-color: var(--ok); color: var(--ok); }
 .w0 pre { overflow-x: auto; max-width: 100%; padding: .5rem; border: 1px solid var(--line); }
 .w0 input[size] { max-width: 100%; }
+.w0-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.w0 :is(button, input, select, textarea, a):focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.w0-s-PASS::before { content: '\2713 '; }
+.w0-s-FAIL::before, .w0-o-INTEGRITY_REFUSED::before, .w0-o-ADAPTER_ERROR::before, .w0-o-TIMEOUT::before { content: '\2717 '; }
+.w0-s-BLOCKED::before, .w0-o-UNPINNED::before, .w0-o-REFUSED_APPLICATION::before, .w0-o-USAGE::before { content: '\26D4\FE0E '; }
+.w0-s-UNKNOWN::before { content: '? '; }
+.w0-o-OK::before { content: '\2713 '; }

@@ -53,6 +53,7 @@ Thumbs.db
 target/
 apps/web-console/test/browser/.badge-profile/
 apps/web-console/test/browser/shots/
+apps/web-console/test/browser/w0-out/
 /archive/
 phase-e-evidence/
 

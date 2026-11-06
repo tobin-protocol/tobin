@@ -69,7 +69,7 @@ export class MockSignerAdapter implements SignerAdapter {
   }
 
   async recordApprovalIntent(intent: OperatorApprovalIntent): Promise<void> {
-    this.#d.intents.add(intent); // the console's own store; throws on a reused approvalId
+    this.#d.intents.commit(intent); // the commit step of the service's reserve -> audit -> commit sequence; throws unless the id was reserved
   }
 
   async listAuditEvents(filter: AuditFilter): Promise<AuditEvent[]> {

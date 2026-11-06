@@ -43,9 +43,10 @@ export function parsePreviewRequest(v: unknown): PreviewRequest {
 }
 
 export function parseApprovalIntent(v: unknown): OperatorApprovalIntent {
-  const o = record(v, 'approval intent', ['approvalId', 'operation', 'baselineHash', 'configSha256', 'requestedBy', 'approvedBy', 'approvedAt', 'expiresAt']);
+  const o = record(v, 'approval intent', ['approvalId', 'previewRequestId', 'operation', 'baselineHash', 'configSha256', 'requestedBy', 'approvedBy', 'approvedAt', 'expiresAt']);
   const intent: OperatorApprovalIntent = {
     approvalId: str(o, 'approvalId', UUID),
+    previewRequestId: str(o, 'previewRequestId', UUID),
     operation: parseOperation(o['operation']),
     baselineHash: str(o, 'baselineHash', HASH),
     configSha256: str(o, 'configSha256', HASH),

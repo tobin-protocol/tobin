@@ -3,15 +3,14 @@
 import { can } from './rbac.ts';
 import type { Permission } from './rbac.ts';
 import { redact } from './redact.ts';
-import { StoreError } from './stores.ts';
 import type { AuditStore, InMemoryPreviewStore, IntentStore, PreviewRecord } from './stores.ts';
 import { outcomeFromExitCode } from './mock-adapter.ts';
 import { ValidationError, isHash, parseApprovalIntent, parseAuditFilter, parsePreviewRequest, parseIsoTime } from './validate.ts';
 import { SIGNER_OUTCOMES } from './types.ts';
 import type { AuditEvent, AuditEventType, AuditFilter, Operation, OperatorApprovalIntent, Principal, PreviewResult, ReadinessReport, SignerAdapter, SignerOutcome } from './types.ts';
 
-export type ServiceErrorCode = 'unauthenticated' | 'forbidden' | 'invalid' | 'conflict' | 'not_found' | 'audit_unavailable' | 'rate_limited';
-const STATUS: Record<ServiceErrorCode, number> = { unauthenticated: 401, forbidden: 403, invalid: 400, conflict: 409, not_found: 404, audit_unavailable: 503, rate_limited: 429 };
+export type ServiceErrorCode = 'unauthenticated' | 'forbidden' | 'invalid' | 'conflict' | 'not_found' | 'audit_unavailable' | 'rate_limited' | 'internal';
+const STATUS: Record<ServiceErrorCode, number> = { unauthenticated: 401, forbidden: 403, invalid: 400, conflict: 409, not_found: 404, audit_unavailable: 503, rate_limited: 429, internal: 500 };
 
 export class ServiceError extends Error {
   readonly code: ServiceErrorCode;
@@ -115,7 +114,7 @@ export class ConsoleService {
 
   async recordApprovalIntent(p: Principal, raw: unknown): Promise<OperatorApprovalIntent> {
     this.#authorize(p, 'record_approval_intent', this.#d.newId());
-    const reject = (requestId: string, detail: string, code: ServiceErrorCode = 'invalid', extra: Partial<AuditEvent> = {}): never => {
+    const reject: (requestId: string, detail: string, code?: ServiceErrorCode, extra?: Partial<AuditEvent>) => never = (requestId, detail, code = 'invalid', extra = {}) => {
       this.#auditBestEffort(p.subject, p.role, requestId, 'approval_intent_rejected', { detail, ...extra });
       throw new ServiceError(code, detail);
     };
@@ -126,7 +125,6 @@ export class ConsoleService {
 
     if (intent.approvedBy !== p.subject) reject(rid, 'approvedBy must be the authenticated approver', 'forbidden', ctx);
     if (intent.requestedBy === intent.approvedBy) reject(rid, 'requester and approver must differ', 'forbidden', ctx);
-    if (this.#d.intents.has(intent.approvalId)) reject(rid, 'approvalId already used', 'conflict', ctx);
     if (intent.baselineHash !== this.#d.expected.baselineHash) reject(rid, 'baseline hash does not match the current baseline', 'invalid', ctx);
     if (intent.configSha256 !== this.#d.expected.configSha256) reject(rid, 'configuration hash does not match the current configuration', 'invalid', ctx);
 
@@ -138,13 +136,29 @@ export class ConsoleService {
     if (expiresAt <= approvedAt) reject(rid, 'expiresAt must be after approvedAt', 'invalid', ctx);
     if (expiresAt - approvedAt > MAX_INTENT_LIFETIME_MS) reject(rid, 'approval intent lifetime too long', 'invalid', ctx);
 
-    // The intent must refer to a request that actually exists for that operation by that requester.
-    const known = this.#d.previews.list().some((x) => x.operation === intent.operation && x.requestedBy === intent.requestedBy);
-    if (!known) reject(rid, 'no matching preview request by that requester', 'invalid', ctx);
+    // The intent is evidence about ONE specific preview: it must exist, be the requester's, be for this operation, have completed with OK, and
+    // report the same baseline hash. A failed, refused, pending or unusable preview is never evidence that an operation is ready.
+    const preview = this.#d.previews.get(intent.previewRequestId);
+    if (!preview) reject(rid, 'referenced preview request does not exist', 'invalid', ctx);
+    if (preview.requestedBy !== intent.requestedBy) reject(rid, 'preview was requested by a different identity', 'invalid', ctx);
+    if (preview.operation !== intent.operation) reject(rid, 'preview is for a different operation', 'invalid', ctx);
+    if (!preview.result) reject(rid, 'preview has no completed result', 'invalid', ctx);
+    if (preview.result.outcome !== 'OK') reject(rid, `preview did not complete successfully (${preview.result.outcome})`, 'invalid', ctx);
+    if (preview.result.baselineHash !== intent.baselineHash) reject(rid, 'baseline hash differs from the one the preview reported', 'invalid', ctx);
+    if (this.#d.intents.forPreview(preview.requestId)) reject(rid, 'an approval intent already exists for this preview', 'conflict', ctx);
 
-    this.#audit(p.subject, p.role, rid, 'approval_intent_recorded', { ...ctx, baselineHash: intent.baselineHash, configSha256: intent.configSha256 });
+    // Reserve -> audit -> commit. The stores cannot be updated atomically, so the sequence is arranged so that history stays truthful:
+    //  * audit fails            -> reservation released, nothing stored, nothing logged as recorded, request fails closed;
+    //  * commit fails (defensive; a reserved id cannot normally fail) -> the already written event is followed by an explicit
+    //    approval_intent_rejected event marked as a partial failure, the reservation is released, and the request fails.
+    try { this.#d.intents.reserve(rid); } catch { reject(rid, 'approvalId already used', 'conflict', ctx); }
+    try { this.#audit(p.subject, p.role, rid, 'approval_intent_recorded', { ...ctx, baselineHash: intent.baselineHash, configSha256: intent.configSha256 }); }
+    catch (e) { this.#d.intents.release(rid); throw e; }
     try { await this.#d.adapter.recordApprovalIntent(intent); }
-    catch (e) { return reject(rid, e instanceof StoreError ? 'approvalId already used' : 'intent store failure', 'conflict', ctx); }
+    catch {
+      this.#d.intents.release(rid);
+      reject(rid, 'PARTIAL FAILURE: approval_intent_recorded was logged but the intent was NOT stored', 'internal', ctx);
+    }
     return intent;
   }
 

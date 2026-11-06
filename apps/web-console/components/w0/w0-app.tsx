@@ -30,19 +30,22 @@ export function W0App() {
   const [me, setMe] = useState<Me | null>(null);
   const [choices, setChoices] = useState<Me[]>([]);
   const [idp, setIdp] = useState('');
+  const [idpNote, setIdpNote] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
   const loadSession = useCallback(async () => {
     try {
-      const s = await api<{ authenticated: boolean; principal?: Me; csrf?: string; idp: string; choices?: Me[] }>('GET', '/api/w0/session');
+      const s = await api<{ authenticated: boolean; principal?: Me; csrf?: string; idp: string; idpNote?: string; choices?: Me[] }>('GET', '/api/w0/session');
       setIdp(s.idp);
+      setIdpNote(s.idpNote ?? '');
       if (s.authenticated && s.principal && s.csrf) { csrf = s.csrf; setMe(s.principal); } else { csrf = ''; setMe(null); setChoices(s.choices ?? []); }
     } catch (e) { setError(String(e instanceof Error ? e.message : e)); }
   }, []);
   useEffect(() => { void loadSession(); }, [loadSession]);
 
-  const guard = async (fn: () => Promise<void>) => { setError(''); setNotice(''); try { await fn(); } catch (e) { setError(String(e instanceof Error ? e.message : e)); } };
+  // Stable identity: child effects depend on it, and a new function each render would re-run every list reload and wipe errors as soon as they are shown.
+  const guard = useCallback(async (fn: () => Promise<void>) => { setError(''); try { await fn(); } catch (e) { setError(String(e instanceof Error ? e.message : e)); } }, []);
 
   if (!me) {
     return (
@@ -51,7 +54,7 @@ export function W0App() {
         <section aria-labelledby="signin">
           <h2 id="signin">Sign in</h2>
           <p className="w0-dev" role="note"><strong>DEVELOPMENT IDENTITY, NOT PRODUCTION AUTHENTICATION.</strong> No production identity provider has been selected. These accounts have no credentials and exist only to exercise roles locally.</p>
-          {idp === 'NONE' && <p className="w0-blocked">No identity provider is configured on this server, so nobody can sign in.</p>}
+          {idp === 'NONE' && <p className="w0-blocked" role="status">Sign-in is unavailable. No identity provider is enabled on this server, so nobody can sign in. {idpNote}</p>}
           <ul className="w0-plain">
             {choices.map((c) => (
               <li key={c.subject}><button type="button" onClick={() => guard(async () => { const r = await api<{ principal: Me; csrf: string }>('POST', '/api/w0/session', { subject: c.subject }); csrf = r.csrf; setMe(r.principal); })}>Sign in as {c.subject}</button> <small>role: {c.role}</small></li>
@@ -69,7 +72,7 @@ export function W0App() {
       <p className="w0-dev" role="note">Signed in as <strong>{me.subject}</strong> ({me.role}) through the <strong>{idp}</strong> identity provider (development only).{' '}
         <button type="button" onClick={() => guard(async () => { await api('DELETE', '/api/w0/session'); csrf = ''; setMe(null); await loadSession(); })}>Sign out</button></p>
       <nav aria-label="W0 sections"><ul className="w0-tabs">
-        {TABS.map(([id, label]) => <li key={id}><button type="button" aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}>{label}</button></li>)}
+        {TABS.map(([id, label]) => <li key={id}><button type="button" aria-current={tab === id ? 'page' : undefined} onClick={() => { setNotice(''); setError(''); setTab(id); }}>{label}</button></li>)}
       </ul></nav>
       {error && <p className="w0-error" role="alert">{error}</p>}
       {notice && <p className="w0-notice" role="status">{notice}</p>}
@@ -86,7 +89,7 @@ export function W0App() {
 function Banner() {
   return (
     <div className="w0-banner" role="note">
-      <strong>W0 · MOCK ADAPTER · NON-EXECUTING.</strong> This console is a foundation. It does not invoke the real signer, hold keys, sign, submit transactions, contact Stellar RPC or deploy. Everything shown is mock data and proves nothing about the real signer.
+      <strong>W0 · MOCK ADAPTER · NON-EXECUTING.</strong> This console is a foundation. It does not invoke the real signer, hold keys, sign, submit transactions, contact Stellar RPC or deploy. Everything shown is mock data and proves nothing about the real signer. All records are held in server memory only: they are not durable audit infrastructure and are lost when the server restarts.
     </div>
   );
 }
@@ -118,7 +121,7 @@ function Readiness({ guard }: { guard: (fn: () => Promise<void>) => Promise<void
       {r && <>
         <p>Overall: <span className={`w0-status w0-s-${r.overall === 'BLOCKED' ? 'BLOCKED' : 'PASS'}`}>{r.overall}</span> <small>(generated {r.generatedAt}; source: {r.source})</small></p>
         {r.overall === 'BLOCKED' && <p className="w0-blocked">Blocked is an expected security restriction, not an application failure. A mock result never proves real signer readiness.</p>}
-        <table><thead><tr><th>Check</th><th>Status</th><th>Detail</th></tr></thead><tbody>
+        <table><caption className="w0-sr">Readiness checks (mock data)</caption><thead><tr><th scope="col">Check</th><th scope="col">Status</th><th scope="col">Detail</th></tr></thead><tbody>
           {r.checks.map((c) => <tr key={c.id}><td><code>{c.id}</code></td><td><span className={`w0-status w0-s-${c.status}`}>{c.status}</span></td><td>{c.detail}</td></tr>)}
         </tbody></table>
       </>}
@@ -132,7 +135,7 @@ function Previews({ me, guard, setNotice }: { me: Me; guard: (fn: () => Promise<
   const [op, setOp] = useState<Operation>('deploy');
   const load = useCallback(() => guard(async () => { setItems((await api<{ previews: PreviewRec[] }>('GET', '/api/w0/previews')).previews); }), [guard]);
   useEffect(() => { void load(); }, [load]);
-  const submit = (e: FormEvent) => { e.preventDefault(); void guard(async () => { await api('POST', '/api/w0/previews', { requestId: crypto.randomUUID(), operation: op }); setNotice('Preview requested from the MOCK adapter. This is not an approval and not an execution.'); await load(); }); };
+  const submit = (e: FormEvent) => { e.preventDefault(); setNotice(''); void guard(async () => { await api('POST', '/api/w0/previews', { requestId: crypto.randomUUID(), operation: op }); setNotice('Preview requested from the MOCK adapter. This is not an approval and not an execution.'); await load(); }); };
   return (
     <section aria-labelledby="pv">
       <h2 id="pv">Preview requests <span className="w0-tag">MOCK ADAPTER</span></h2>
@@ -141,7 +144,7 @@ function Previews({ me, guard, setNotice }: { me: Me; guard: (fn: () => Promise<
         <button type="submit" disabled={!CAN_REQUEST.includes(me.role)}>Request preview</button>
         {!CAN_REQUEST.includes(me.role) && <small> Your role ({me.role}) cannot request previews. The server enforces this independently.</small>}
       </form>
-      <table><thead><tr><th>Request</th><th>Operation</th><th>By</th><th>Outcome</th><th>Detail</th></tr></thead><tbody>
+      <table><caption className="w0-sr">Preview requests (mock adapter)</caption><thead><tr><th scope="col">Request</th><th scope="col">Operation</th><th scope="col">By</th><th scope="col">Outcome</th><th scope="col">Detail</th></tr></thead><tbody>
         {items.map((p) => (
           <tr key={p.requestId}>
             <td><code>{p.requestId.slice(0, 8)}</code></td><td>{p.operation}</td><td>{p.requestedBy}</td>
@@ -168,12 +171,13 @@ function Approvals({ me, guard, setNotice }: { me: Me; guard: (fn: () => Promise
   useEffect(() => { void load(); }, [load]);
   const submit = (e: FormEvent) => {
     e.preventDefault();
+    setNotice('');
     const p = previews.find((x) => x.requestId === sel);
     if (!p) return;
     void guard(async () => {
       const now = new Date();
       const intent: OperatorApprovalIntent = {
-        approvalId: crypto.randomUUID(), operation: p.operation, baselineHash: baseline.trim(), configSha256: config.trim(), requestedBy: p.requestedBy,
+        approvalId: crypto.randomUUID(), previewRequestId: p.requestId, operation: p.operation, baselineHash: baseline.trim(), configSha256: config.trim(), requestedBy: p.requestedBy,
         approvedBy: me.subject, approvedAt: now.toISOString().replace(/\.\d+Z$/, 'Z'), expiresAt: new Date(now.getTime() + Number(hours) * 3_600_000).toISOString().replace(/\.\d+Z$/, 'Z'),
       };
       await api('POST', '/api/w0/approvals', intent);
@@ -184,17 +188,18 @@ function Approvals({ me, guard, setNotice }: { me: Me; guard: (fn: () => Promise
   return (
     <section aria-labelledby="ap">
       <h2 id="ap">Approval intents <span className="w0-tag">EVIDENCE ONLY</span></h2>
+      <p className="w0-dev" role="note">The baseline and configuration hashes in W0 are <strong>mock development values</strong> (see W0-ARCHITECTURE.md). They are never real signer approval evidence and the server, not this page, decides what is expected. An intent can only refer to a preview that completed with outcome OK.</p>
       <p className="w0-note">An approval intent is a record. It is not execution authority, not an approved transaction, and cannot trigger the signer or supply the typed confirmation.</p>
       <form onSubmit={submit}>
-        <p><label>Request <select value={sel} onChange={(e) => setSel(e.target.value)}><option value="">choose…</option>{previews.map((p) => <option key={p.requestId} value={p.requestId}>{p.operation} by {p.requestedBy} ({p.requestId.slice(0, 8)})</option>)}</select></label></p>
+        <p><label>Request <select value={sel} onChange={(e) => setSel(e.target.value)}><option value="">choose…</option>{previews.map((p) => <option key={p.requestId} value={p.requestId}>{p.operation} by {p.requestedBy} ({p.requestId.slice(0, 8)}) {p.result ? p.result.outcome : 'no result'}</option>)}</select></label></p>
         <p><label>Baseline hash (from your independent record) <input value={baseline} onChange={(e) => setBaseline(e.target.value)} size={66} spellCheck={false} /></label></p>
         <p><label>Configuration SHA-256 <input value={config} onChange={(e) => setConfig(e.target.value)} size={66} spellCheck={false} /></label></p>
         <p><label>Valid for (hours, max 24) <input value={hours} onChange={(e) => setHours(e.target.value)} size={4} inputMode="decimal" /></label></p>
         <button type="submit" disabled={!CAN_APPROVE.includes(me.role) || !sel}>Record approval intent</button>
         {!CAN_APPROVE.includes(me.role) && <small> Your role ({me.role}) cannot record approval intents. The server enforces this independently.</small>}
       </form>
-      <table><thead><tr><th>Approval</th><th>Operation</th><th>Requested by</th><th>Approved by</th><th>Expires</th></tr></thead><tbody>
-        {items.map((i) => <tr key={i.approvalId}><td><code>{i.approvalId.slice(0, 8)}</code></td><td>{i.operation}</td><td>{i.requestedBy}</td><td>{i.approvedBy}</td><td>{i.expiresAt}</td></tr>)}
+      <table><caption className="w0-sr">Recorded approval intents (evidence only)</caption><thead><tr><th scope="col">Approval</th><th scope="col">Preview</th><th scope="col">Operation</th><th scope="col">Requested by</th><th scope="col">Approved by</th><th scope="col">Expires</th></tr></thead><tbody>
+        {items.map((i) => <tr key={i.approvalId}><td><code>{i.approvalId.slice(0, 8)}</code></td><td><code>{i.previewRequestId.slice(0, 8)}</code></td><td>{i.operation}</td><td>{i.requestedBy}</td><td>{i.approvedBy}</td><td>{i.expiresAt}</td></tr>)}
       </tbody></table>
     </section>
   );
@@ -214,7 +219,7 @@ function Audit({ guard }: { guard: (fn: () => Promise<void>) => Promise<void> })
   return (
     <section aria-labelledby="au">
       <h2 id="au">Audit events <span className="w0-tag">MOCK EVENTS, IN MEMORY</span></h2>
-      <p className="w0-note">These are this console&apos;s own mock events. Real signer state-file events are not shown and are never read in W0.</p>
+      <p className="w0-note">These are this console&apos;s own mock events, kept in server memory: they are not durable, are lost on restart, and are not production audit infrastructure. Real signer state-file events are not shown and are never read in W0.</p>
       <form onSubmit={(e) => { e.preventDefault(); void load(); }}>
         <label>Actor <input value={f.actor} onChange={set('actor')} /></label>{' '}
         <label>Operation <select value={f.operation} onChange={set('operation')}><option value="">any</option>{OPERATIONS.map((o) => <option key={o}>{o}</option>)}</select></label>{' '}
@@ -224,8 +229,8 @@ function Audit({ guard }: { guard: (fn: () => Promise<void>) => Promise<void> })
         <label>To (UTC) <input value={f.to} onChange={set('to')} placeholder="2026-11-07T00:00:00Z" /></label>{' '}
         <button type="submit">Filter</button>
       </form>
-      <table><thead><tr><th>Time</th><th>Type</th><th>Actor</th><th>Operation</th><th>Outcome</th><th /></tr></thead><tbody>
-        {events.map((e) => <tr key={e.eventId} className={e.type === 'integrity_refused' ? 'w0-security-row' : undefined}><td>{e.timestamp}</td><td>{e.type}</td><td>{e.actor}</td><td>{e.operation ?? ''}</td><td>{e.outcome ?? ''}</td><td><button type="button" onClick={() => setOpen(e)}>Inspect</button></td></tr>)}
+      <table><caption className="w0-sr">Audit events (mock, in memory)</caption><thead><tr><th scope="col">Time</th><th scope="col">Type</th><th scope="col">Actor</th><th scope="col">Operation</th><th scope="col">Outcome</th><th scope="col"><span className="w0-sr">Actions</span></th></tr></thead><tbody>
+        {events.map((e) => <tr key={e.eventId} className={e.type === 'integrity_refused' ? 'w0-security-row' : undefined}><td>{e.timestamp}</td><td>{e.type === 'integrity_refused' ? 'SECURITY EVENT: integrity_refused' : e.type}</td><td>{e.actor}</td><td>{e.operation ?? ''}</td><td>{e.outcome ?? ''}</td><td><button type="button" onClick={() => setOpen(e)} aria-label={`Inspect event ${e.eventId.slice(0, 8)}`}>Inspect</button></td></tr>)}
       </tbody></table>
       {open && <div role="region" aria-label="Event detail"><h3>Event {open.eventId.slice(0, 8)} <span className="w0-tag">MOCK</span></h3><pre>{JSON.stringify(open, null, 2)}</pre><button type="button" onClick={() => setOpen(null)}>Close</button></div>}
     </section>
@@ -237,7 +242,7 @@ function Identity({ me, idp }: { me: Me; idp: string }) {
     <section aria-labelledby="id">
       <h2 id="id">Identity and roles</h2>
       <p>Subject <strong>{me.subject}</strong>, role <strong>{me.role}</strong>, identity provider <strong>{idp}</strong> (not production authentication).</p>
-      <table><thead><tr><th>Role</th><th>May</th></tr></thead><tbody>
+      <table><caption className="w0-sr">Web roles and permissions</caption><thead><tr><th scope="col">Role</th><th scope="col">May</th></tr></thead><tbody>
         <tr><td>viewer</td><td>read readiness, previews, approval intents and audit events</td></tr>
         <tr><td>requester</td><td>everything a viewer may, and request a preview</td></tr>
         <tr><td>approver</td><td>everything a viewer may, and record an approval intent (never for their own request)</td></tr>

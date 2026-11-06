@@ -37,7 +37,7 @@ export function build(opts: { scenario?: MockScenario; checks?: MockAdapterDeps[
 
 export function intentFor(over: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    approvalId: uuid(), operation: 'deploy', baselineHash: MOCK_BASELINE_HASH, configSha256: MOCK_CONFIG_SHA256,
+    approvalId: uuid(), previewRequestId: uuid(), operation: 'deploy', baselineHash: MOCK_BASELINE_HASH, configSha256: MOCK_CONFIG_SHA256,
     requestedBy: 'r1', approvedBy: 'a1', approvedAt: '2026-11-06T12:00:00Z', expiresAt: '2026-11-06T13:00:00Z', ...over,
   };
 }

@@ -184,71 +184,6 @@ test('adapter output is redacted before storage', async () => {
   assert.ok(!/someone|SBBB/.test(rec.result?.redactedOutput ?? ''));
 });
 
-// ---------- approval intents ----------
-async function withPreview() {
-  const b = build();
-  await b.service.requestPreview(requester, { requestId: uuid(), operation: 'deploy' });
-  return b;
-}
-test('approver can record a valid intent; the intent is evidence only', async () => {
-  const { service, intents, audit } = await withPreview();
-  const saved = await service.recordApprovalIntent(approver, intentFor());
-  assert.equal(saved.approvedBy, 'a1');
-  assert.equal(intents.list().length, 1);
-  assert.equal(audit.inner.list({ type: 'approval_intent_recorded' }).length, 1);
-});
-test('viewer and requester cannot record intents', async () => {
-  const { service } = await withPreview();
-  assert.equal(await code(service.recordApprovalIntent(viewer, intentFor({ approvedBy: 'v1' }))), 'forbidden');
-  assert.equal(await code(service.recordApprovalIntent(requester, intentFor({ approvedBy: 'r1', requestedBy: 'r2' }))), 'forbidden');
-});
-test('approver cannot approve their own request, and cannot claim to be someone else', async () => {
-  const { service } = await withPreview();
-  assert.equal(await code(service.recordApprovalIntent(approver, intentFor({ requestedBy: 'a1' }))), 'forbidden');
-  assert.equal(await code(service.recordApprovalIntent(approver, intentFor({ approvedBy: 'someone-else' }))), 'forbidden');
-});
-test('intent rejected on baseline hash or configuration hash mismatch', async () => {
-  const { service, intents } = await withPreview();
-  assert.equal(await code(service.recordApprovalIntent(approver, intentFor({ baselineHash: 'a'.repeat(64) }))), 'invalid');
-  assert.equal(await code(service.recordApprovalIntent(approver, intentFor({ configSha256: 'b'.repeat(64) }))), 'invalid');
-  assert.equal(intents.list().length, 0);
-});
-test('intent rejected when expired, not current, inverted, or too long-lived', async () => {
-  const { service } = await withPreview();
-  assert.equal(await code(service.recordApprovalIntent(approver, intentFor({ approvedAt: '2026-11-06T10:00:00Z', expiresAt: '2026-11-06T11:00:00Z' }))), 'invalid'); // expired and backdated
-  assert.equal(await code(service.recordApprovalIntent(approver, intentFor({ expiresAt: '2026-11-06T12:00:00Z' }))), 'invalid'); // expires now
-  assert.equal(await code(service.recordApprovalIntent(approver, intentFor({ approvedAt: '2026-11-06T12:30:00Z', expiresAt: '2026-11-06T12:20:00Z' }))), 'invalid');
-  assert.equal(await code(service.recordApprovalIntent(approver, intentFor({ expiresAt: '2026-11-08T12:00:00Z' }))), 'invalid'); // > 24h
-  assert.equal(await code(service.recordApprovalIntent(approver, intentFor({ approvedAt: 'soon' }))), 'invalid');
-});
-test('intent rejected when it names no real preview request by that requester for that operation', async () => {
-  const { service } = await withPreview();
-  assert.equal(await code(service.recordApprovalIntent(approver, intentFor({ requestedBy: 'r2' }))), 'invalid');
-  assert.equal(await code(service.recordApprovalIntent(approver, intentFor({ operation: 'mint-C' }))), 'invalid');
-});
-test('an approvalId can never be reused to overwrite a record', async () => {
-  const { service, intents } = await withPreview();
-  const first = intentFor();
-  await service.recordApprovalIntent(approver, first);
-  assert.equal(await code(service.recordApprovalIntent(approver, { ...first, expiresAt: '2026-11-06T12:30:00Z' })), 'conflict');
-  assert.equal(intents.list().length, 1);
-  assert.equal(intents.list()[0]?.expiresAt, '2026-11-06T13:00:00Z');
-});
-test('intent expiry is judged against the clock at record time', async () => {
-  const b = await withPreview();
-  b.clock.t += 6 * 60_000; // approvedAt now stale (> 5 min)
-  assert.equal(await code(b.service.recordApprovalIntent(approver, intentFor())), 'invalid');
-});
-test('rejections are audited; recording an intent triggers nothing else (no preview, no adapter call)', async () => {
-  const { service, audit, previews } = await withPreview();
-  const before = previews.list().length;
-  await code(service.recordApprovalIntent(approver, intentFor({ requestedBy: 'a1' })));
-  await service.recordApprovalIntent(approver, intentFor());
-  assert.equal(audit.inner.list({ type: 'approval_intent_rejected' }).length, 1);
-  assert.equal(previews.list().length, before);
-  assert.equal(audit.inner.list({ type: 'preview_requested' }).length, 1);
-});
-
 // ---------- audit ----------
 test('audit store is append-only: no mutators, immutable events, returned copies cannot alter history', () => {
   const s = new InMemoryAuditStore();
@@ -283,12 +218,6 @@ test('a failed audit write after the adapter returns withholds the result', asyn
   b.audit.append = (e: AuditEvent) => { if (++n >= 2) throw new Error('disk full'); real(e); }; // preview_requested ok, preview_completed fails
   assert.equal(await code(b.service.requestPreview(requester, { requestId: uuid(), operation: 'deploy' })), 'audit_unavailable');
   assert.equal(b.previews.list()[0]?.result, null); // no result was recorded or returned
-});
-test('a failed audit write blocks recording an intent', async () => {
-  const b = await withPreview();
-  b.audit.failing = true;
-  assert.equal(await code(b.service.recordApprovalIntent(approver, intentFor())), 'audit_unavailable');
-  assert.equal(b.intents.list().length, 0);
 });
 test('denials are audited (best effort) and a denial stays a denial even when the log is down', async () => {
   const b = build();

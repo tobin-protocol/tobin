@@ -73,7 +73,8 @@ test('process.env is read only in the wiring module, and no secret-bearing varia
   for (const f of files) {
     const src = stripComments(readFileSync(f, 'utf8'));
     if (rel(f) === 'lib/w0/deps.ts') {
-      const names = [...src.matchAll(/env\['([A-Z0-9_]+)'\]/g)].map((m) => m[1]).sort();
+      // unique names; the hosted-environment marker list is read by name from a constant in the same file
+      const names = [...new Set([...src.matchAll(/env\['([A-Z0-9_]+)'\]/g)].map((m) => m[1]))].sort();
       assert.deepEqual(names, ['NODE_ENV', 'W0_ALLOW_DEV_IDP', 'W0_MOCK_SCENARIO']);
     } else assert.ok(!/process\.env/.test(src), `${rel(f)} reads process.env`);
   }

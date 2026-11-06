@@ -1,7 +1,7 @@
 // API-level tests: direct calls (no UI) must not bypass authentication, roles, CSRF or validation.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildDeps, MOCK_BASELINE_HASH, MOCK_CONFIG_SHA256 } from '../lib/w0/deps.ts';
+import { buildDeps, decideDevIdp, HOSTED_ENV_MARKERS, MOCK_BASELINE_HASH, MOCK_CONFIG_SHA256 } from '../lib/w0/deps.ts';
 import { handleW0, RateLimiter } from '../lib/w0/http.ts';
 import type { HttpDeps } from '../lib/w0/http.ts';
 import { T0, uuid } from './w0-helpers.ts';
@@ -28,7 +28,7 @@ async function login(deps: HttpDeps, subject: string): Promise<Client> {
   const setCookie = r.headers.get('set-cookie') ?? '';
   return { deps, cookie: setCookie.split(';')[0] as string, csrf: r.json['csrf'] as string };
 }
-const fresh = (): HttpDeps => buildDeps({ NODE_ENV: 'test' }, () => T0);
+const fresh = (extra: Record<string, string> = {}): HttpDeps => buildDeps({ NODE_ENV: 'test', ...extra }, () => T0);
 
 test('every data route requires authentication, including read-only ones', async () => {
   const d = fresh();
@@ -69,17 +69,21 @@ test('direct API calls cannot bypass role restrictions', async () => {
   assert.equal((await call(d, 'POST', '/api/w0/approvals', { client: viewer, body: {} })).status, 403);
   assert.equal((await call(d, 'GET', '/api/w0/readiness', { client: viewer })).status, 200);
 });
-test('requester flow end to end over HTTP; approver records intent; self-approval and replay refused', async () => {
-  const d = fresh();
+test('requester flow end to end over HTTP; approver records intent bound to the preview; self-approval, replay and transfer refused', async () => {
+  const d = fresh({ W0_MOCK_SCENARIO: 'ok' });
   const req = await login(d, 'dev-requester');
   const app = await login(d, 'dev-approver');
-  const pv = await call(d, 'POST', '/api/w0/previews', { client: req, body: { requestId: uuid(), operation: 'deploy' } });
+  const pid = uuid();
+  const pv = await call(d, 'POST', '/api/w0/previews', { client: req, body: { requestId: pid, operation: 'deploy' } });
   assert.equal(pv.status, 201);
-  assert.equal(((pv.json['preview'] as { result: { outcome: string } }).result).outcome, 'UNPINNED');
-  const intent = { approvalId: uuid(), operation: 'deploy', baselineHash: MOCK_BASELINE_HASH, configSha256: MOCK_CONFIG_SHA256, requestedBy: 'dev-requester', approvedBy: 'dev-approver', approvedAt: '2026-11-06T12:00:00Z', expiresAt: '2026-11-06T13:00:00Z' };
+  assert.equal(((pv.json['preview'] as { result: { outcome: string } }).result).outcome, 'OK');
+  assert.equal(pv.json['origin'], 'mock');
+  const intent = { approvalId: uuid(), previewRequestId: pid, operation: 'deploy', baselineHash: MOCK_BASELINE_HASH, configSha256: MOCK_CONFIG_SHA256, requestedBy: 'dev-requester', approvedBy: 'dev-approver', approvedAt: '2026-11-06T12:00:00Z', expiresAt: '2026-11-06T13:00:00Z' };
   assert.equal((await call(d, 'POST', '/api/w0/approvals', { client: app, body: { ...intent, requestedBy: 'dev-approver', approvalId: uuid() } })).status, 403);
   assert.equal((await call(d, 'POST', '/api/w0/approvals', { client: app, body: intent })).status, 201);
   assert.equal((await call(d, 'POST', '/api/w0/approvals', { client: app, body: intent })).status, 409);
+  assert.equal((await call(d, 'POST', '/api/w0/approvals', { client: app, body: { ...intent, approvalId: uuid() } })).status, 409); // second intent for the same preview
+  assert.equal((await call(d, 'POST', '/api/w0/approvals', { client: app, body: { ...intent, approvalId: uuid(), previewRequestId: uuid() } })).status, 400); // unknown preview
   assert.equal((await call(d, 'GET', '/api/w0/approvals', { client: app })).json['intents'] instanceof Array, true);
   const audit = await call(d, 'GET', '/api/w0/audit?type=approval_intent_recorded', { client: req });
   assert.equal((audit.json['events'] as unknown[]).length, 1);

@@ -47,6 +47,8 @@ export interface PreviewResult {
 
 export interface OperatorApprovalIntent {
   approvalId: string;
+  /** W0 addition to the contract's sketch: the specific preview request this intent is evidence for. Immutable once recorded. */
+  previewRequestId: string;
   operation: Operation;
   baselineHash: string;
   configSha256: string;
