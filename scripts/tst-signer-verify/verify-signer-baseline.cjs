@@ -1,7 +1,7 @@
 'use strict';
 // EXTERNAL, hash-only verifier for the restricted TST signer baseline (Phase 2C, Part A).
 //
-//   node verify-signer-baseline.cjs --signer-dir <dir> --expected <64 lowercase hex> [--sdk-dir <dir>] [--manifest <file>] [--print-manifest]
+//   node verify-signer-baseline.cjs --signer-dir <dir> --expected <64 lowercase hex> [--profile b1|b0|historical-b0] [--sdk-dir <dir>] [--manifest <file>] [--print-manifest] [--json]
 //
 // Use it from a FRESH, TRUSTED copy of this file (never from the signer directory being checked), and give --expected from a record kept
 // independently of that directory. It is an independent implementation: it does NOT import baseline.cjs or anything from the signer. It reads
@@ -16,15 +16,25 @@
 //   * deployment-config.json (when present) is a valid text file; it is hashed, or the label is ABSENT;
 //   * with --manifest, the supplied manifest is well formed and byte-identical to the computed one;
 //   * the SHA-256 of the computed manifest equals --expected.
-// Exit codes: 0 MATCH; 1 MISMATCH (everything was readable but the hash differs); 2 REFUSED (malformed or missing input, unreadable file,
-// unexpected entry, link, policy violation); 3 usage.
+// --profile selects WHICH approved runtime definition is checked (default b1, the live signer). b0 = the approved B0 candidate (8 files incl. pinned.cjs and the
+// original launcher); historical-b0 = the historical Milestone 1 definition (no pinned.cjs). The profile only chooses the file list; it never selects or
+// supplies the expected hash, which always comes from --expected.
+// --json prints ONE JSON object on stdout instead of the human-readable lines: {result, exitCode, profile, computed, expected, reason}.
+// Exit codes (stable, documented in scripts/tst-signer-verify/README.md): 0 MATCH; 1 MISMATCH (everything was readable but the hash differs);
+// 2 REFUSED (malformed or missing input, unreadable file, unexpected entry, link, policy violation); 3 usage.
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const RUNTIME = ['authorization.cjs', 'baseline.cjs', 'dpapi-key.cjs', 'pinned.cjs', 'refusal.cjs', 'sdk-loader.cjs', 'state-store.cjs', 'tst-signer-core.cjs',
-  'tst-signer-main.cjs', 'tst-signer.cjs'];
+const PROFILES = {
+  b1: ['authorization.cjs', 'baseline.cjs', 'dpapi-key.cjs', 'pinned.cjs', 'refusal.cjs', 'sdk-loader.cjs', 'state-store.cjs', 'tst-signer-core.cjs',
+    'tst-signer-main.cjs', 'tst-signer.cjs'],
+  b0: ['authorization.cjs', 'dpapi-key.cjs', 'pinned.cjs', 'refusal.cjs', 'sdk-loader.cjs', 'state-store.cjs', 'tst-signer-core.cjs', 'tst-signer.cjs'],
+  'historical-b0': ['authorization.cjs', 'dpapi-key.cjs', 'refusal.cjs', 'sdk-loader.cjs', 'state-store.cjs', 'tst-signer-core.cjs', 'tst-signer.cjs'],
+};
+// pinned.cjs is not part of the historical definition, but a tree that contains one is not refused for it (it is simply not hashed).
 const NOT_RUNTIME_BUT_ALLOWED = ['make-deployment-config.cjs', 'test'];
+const PROFILE_EXTRA_ALLOWED = { 'historical-b0': ['pinned.cjs'] };
 const CONFIG = 'deployment-config.json';
 const BUILTINS_OK = new Set(['fs', 'path', 'crypto', 'vm', 'child_process', 'readline']);
 const SDK_NAME = '@stellar/stellar-sdk';
@@ -36,16 +46,19 @@ const no = (m) => { throw new Refused(m); };
 const digest = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 
 function parseArgs(argv) {
-  const known = { '--signer-dir': 'signerDir', '--expected': 'expected', '--sdk-dir': 'sdkDir', '--manifest': 'manifestFile' };
-  const a = { printManifest: false };
+  const known = { '--signer-dir': 'signerDir', '--expected': 'expected', '--sdk-dir': 'sdkDir', '--manifest': 'manifestFile', '--profile': 'profile' };
+  const a = { printManifest: false, json: false };
   for (let i = 0; i < argv.length; i++) {
     const t = argv[i];
     if (t === '--print-manifest') { if (a.printManifest) return null; a.printManifest = true; continue; }
+    if (t === '--json') { if (a.json) return null; a.json = true; continue; }
     const key = known[t];
     if (!key || a[key] !== undefined || argv[i + 1] === undefined) return null;
     a[key] = argv[++i];
   }
   if (a.signerDir === undefined || a.expected === undefined) return null;
+  if (a.profile === undefined) a.profile = 'b1';
+  if (!Object.hasOwn(PROFILES, a.profile)) return null;
   return a;
 }
 
@@ -75,7 +88,7 @@ function sameDir(file, expectedParent, what) {
   if (f(path.dirname(r)) !== f(expectedParent)) no(`${what}: resolves to a different directory`);
 }
 
-function checkRequires(name, source) {
+function checkRequires(name, source, RUNTIME) {
   // The closure is only complete if every require() is a string literal that is a closure file or an approved built-in.
   const calls = [...source.matchAll(/\brequire\s*\(([^)]*)\)/g)];
   for (const m of calls) {
@@ -92,12 +105,14 @@ function checkRequires(name, source) {
   if (/\beval\s*\(|\bnew\s+Function\b/.test(source)) no(`${name}: eval or the Function constructor`);
 }
 
-function compute(signerDir, sdkDirArg) {
+function compute(signerDir, sdkDirArg, profile = 'b1') {
+  if (!Object.hasOwn(PROFILES, profile)) no(`unknown profile ${JSON.stringify(profile)}`);
+  const RUNTIME = PROFILES[profile];
   const dir = path.resolve(signerDir);
   if (!statNoLink(dir, 'signer directory').isDirectory()) no('signer directory: not a directory');
   const realDir = fs.realpathSync.native(dir);
   let names; try { names = fs.readdirSync(dir); } catch { no('signer directory: cannot be listed'); }
-  const allowed = new Set([...RUNTIME, ...NOT_RUNTIME_BUT_ALLOWED, CONFIG]);
+  const allowed = new Set([...RUNTIME, ...NOT_RUNTIME_BUT_ALLOWED, ...(PROFILE_EXTRA_ALLOWED[profile] ?? []), CONFIG]);
   for (const n of names) if (!allowed.has(n)) no(`unexpected entry in the signer directory: ${JSON.stringify(n)}`);
   for (const f of RUNTIME) if (!names.includes(f)) no(`runtime file missing: ${f}`);
   for (const t of NOT_RUNTIME_BUT_ALLOWED) if (names.includes(t)) statNoLink(path.join(dir, t), `entry ${t}`);
@@ -105,7 +120,7 @@ function compute(signerDir, sdkDirArg) {
   const rows = [];
   for (const f of RUNTIME) {
     const p = path.join(dir, f); const b = textFile(p, `runtime file ${f}`); sameDir(p, realDir, `runtime file ${f}`);
-    checkRequires(f, b.toString('utf8'));
+    checkRequires(f, b.toString('utf8'), RUNTIME);
     rows.push([`file:${f}`, digest(b)]);
   }
   if (names.includes(CONFIG)) { const p = path.join(dir, CONFIG); const b = textFile(p, CONFIG); sameDir(p, realDir, CONFIG); rows.push([`config:${CONFIG}`, digest(b)]); }
@@ -149,24 +164,33 @@ function checkSuppliedManifest(file, computed) {
 function main(argv) {
   const a = parseArgs(argv);
   if (!a) {
-    process.stderr.write('usage: verify-signer-baseline.cjs --signer-dir <dir> --expected <64 lowercase hex> [--sdk-dir <dir>] [--manifest <file>] [--print-manifest]\n');
+    process.stderr.write('usage: verify-signer-baseline.cjs --signer-dir <dir> --expected <64 lowercase hex> [--profile b1|b0|historical-b0] [--sdk-dir <dir>] [--manifest <file>] [--print-manifest] [--json]\n');
     return 3;
   }
+  const out = (code, extra) => {
+    if (a.json) {
+      const result = code === 0 ? 'MATCH' : code === 1 ? 'MISMATCH' : 'REFUSED';
+      process.stdout.write(JSON.stringify({ result, exitCode: code, profile: a.profile, computed: null, expected: /^[0-9a-f]{64}$/.test(a.expected) ? a.expected : null, reason: null, ...extra }) + '\n');
+    }
+    return code;
+  };
   try {
     if (!/^[0-9a-f]{64}$/.test(a.expected)) no('--expected must be exactly 64 lowercase hexadecimal characters');
-    const c = compute(a.signerDir, a.sdkDir);
-    if (a.printManifest) process.stdout.write(c.text);
+    const c = compute(a.signerDir, a.sdkDir, a.profile);
+    if (a.printManifest && !a.json) process.stdout.write(c.text);
     if (a.manifestFile !== undefined && !checkSuppliedManifest(a.manifestFile, c)) {
-      process.stdout.write(`computed baseline : ${c.hash}\nVERIFY: MISMATCH (the supplied manifest differs from the computed manifest)\n`); return 1;
+      if (!a.json) process.stdout.write(`computed baseline : ${c.hash}\nVERIFY: MISMATCH (the supplied manifest differs from the computed manifest)\n`);
+      return out(1, { computed: c.hash, reason: 'the supplied manifest differs from the computed manifest' });
     }
     const equal = crypto.timingSafeEqual(Buffer.from(c.hash, 'hex'), Buffer.from(a.expected, 'hex'));
-    process.stdout.write(`computed baseline : ${c.hash}\nexpected baseline : ${a.expected}\n`);
-    if (!equal) { process.stdout.write('VERIFY: MISMATCH\n'); return 1; }
-    process.stdout.write('VERIFY: MATCH\n');
-    return 0;
+    if (!a.json) process.stdout.write(`computed baseline : ${c.hash}\nexpected baseline : ${a.expected}\n`);
+    if (!equal) { if (!a.json) process.stdout.write('VERIFY: MISMATCH\n'); return out(1, { computed: c.hash, reason: 'computed baseline differs from the expected baseline' }); }
+    if (!a.json) process.stdout.write('VERIFY: MATCH\n');
+    return out(0, { computed: c.hash });
   } catch (e) {
-    process.stderr.write(`VERIFY: REFUSED: ${e instanceof Refused ? e.message : 'unexpected error: ' + (e && e.message ? e.message : String(e))}\n`);
-    return 2;
+    const reason = e instanceof Refused ? e.message : 'unexpected error: ' + (e && e.message ? e.message : String(e));
+    process.stderr.write(`VERIFY: REFUSED: ${reason}\n`);
+    return out(2, { reason });
   }
 }
 
