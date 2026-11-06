@@ -1,0 +1,4 @@
+// category 33: second vm require
+// applied as: the real sdk-loader.cjs followed by this snippet
+// expected: refused (one of: R1|D1)
+const v2 = require('vm');

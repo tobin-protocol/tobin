@@ -1,0 +1,12 @@
+exact bypass (standalone) [as dpapi-key.cjs]
+   Revision 6.2: ACCEPTED
+   Revision 6.3: refused R1 L3, C1 L5, K1 L5
+exact bypass (standalone) [as state-store.cjs]
+   Revision 6.2: ACCEPTED
+   Revision 6.3: refused R1 L3, C1 L5, K1 L5
+bypass appended to dpapi-key.cjs [as dpapi-key.cjs]
+   Revision 6.2: ACCEPTED
+   Revision 6.3: refused D1 L69, C1 L71, N1 L69, K1 L71
+bypass appended to state-store.cjs [as state-store.cjs]
+   Revision 6.2: ACCEPTED
+   Revision 6.3: refused D1 L204, C1 L206, N1 L204, K1 L206

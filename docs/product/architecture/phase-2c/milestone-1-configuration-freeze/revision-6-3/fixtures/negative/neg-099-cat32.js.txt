@@ -1,0 +1,4 @@
+// category 32: non-ASCII identifier
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: N2)
+const еval = 1;

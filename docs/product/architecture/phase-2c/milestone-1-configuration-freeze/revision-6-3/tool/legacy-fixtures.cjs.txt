@@ -1,0 +1,14 @@
+'use strict';
+// Extracts the three fixture tables (REJECT, BYPASS, R62) from the Revision 6.2 test source, unchanged.
+const fs = require('fs');
+function table(text, name) {
+  const start = text.indexOf(`const ${name} = [`);
+  if (start < 0) throw new Error('table not found: ' + name);
+  const end = text.indexOf('\n];', start);
+  return new Function(`return ${text.slice(start + `const ${name} = `.length, end + 2)}`)();
+}
+function load(file) {
+  const t = fs.readFileSync(file, 'utf8');
+  return { REJECT: table(t, 'REJECT'), BYPASS: table(t, 'BYPASS'), R62: table(t, 'R62') };
+}
+module.exports = { load };

@@ -1,0 +1,4 @@
+// category 17: Function.prototype.apply-style call
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: C1|N1)
+execFileSync.apply(null, ['powershell.exe']);

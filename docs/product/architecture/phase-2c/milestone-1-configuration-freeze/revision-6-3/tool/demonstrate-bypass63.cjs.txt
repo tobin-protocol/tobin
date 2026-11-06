@@ -1,0 +1,21 @@
+'use strict';
+// Reproduces the reported Revision 6.2 bypass against the REAL Revision 6.2 tool and the Revision 6.3 analyzer.
+const fs = require('fs'), path = require('path');
+const t62 = require('./tool-revision-6-2.cjs');
+const { analyze } = require('./ast-policy.cjs');
+const dir = process.argv[2];
+const CLOSURE = ['authorization.cjs', 'dpapi-key.cjs', 'pinned.cjs', 'refusal.cjs', 'sdk-loader.cjs', 'state-store.cjs', 'tst-signer-core.cjs', 'tst-signer.cjs'];
+const BYPASS = "'use strict';\n\nconst cp = require('child_process');\nconst method = process.env.TOBIN_METHOD;\nconst run = cp[method];\n\nrun('powershell.exe', [\n  '-NoProfile',\n  '-Command',\n  '...'\n]);\n";
+const VARIANTS = [
+  ['exact bypass (standalone)', null, BYPASS],
+  ['bypass appended to dpapi-key.cjs', 'dpapi-key.cjs', null],
+  ['bypass appended to state-store.cjs', 'state-store.cjs', null],
+];
+for (const [name, host, standalone] of VARIANTS) {
+  for (const file of host ? [host] : ['dpapi-key.cjs', 'state-store.cjs']) {
+    const code = host ? fs.readFileSync(path.join(dir, file), 'utf8') + '\n' + BYPASS.replace("'use strict';\n", '').replace("const cp = require('child_process');", "const cp = require('child_process');") : standalone;
+    let r62; try { t62.analyzeSource(file, code, CLOSURE.slice()); r62 = 'ACCEPTED'; } catch (e) { r62 = 'refused: ' + String(e.message).split('\n')[0].slice(0, 90); }
+    const r63 = analyze(code, file);
+    console.log(`${name} [as ${file}]\n   Revision 6.2: ${r62}\n   Revision 6.3: ${r63.ok ? 'ACCEPTED' : 'refused'} ${r63.violations.map((v) => v.rule + ' L' + v.line).join(', ')}`);
+  }
+}

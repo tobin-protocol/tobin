@@ -1,0 +1,4 @@
+// category 17: Reflect.construct
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: G1)
+Reflect.construct(Error, []);

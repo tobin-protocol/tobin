@@ -1,0 +1,22 @@
+✔ evaluateOwnerOnly: accepts exactly one explicit FullControl rule for the owner, rejects everything else (2.0495ms)
+✔ ACL: a fresh file inherits access for other principals; restrictOwnerOnly leaves only the current user, judged by inspection (1922.3256ms)
+✔ ACL: the outcome is judged from the real ACL, not from the exit code; any failure refuses (2236.2277ms)
+✔ state store on NTFS: create, update, rename over, read back; owner-only ACL on the temporary AND the final file; no temporary file left (6429.5779ms)
+✔ state store on NTFS: failures leave the previous state intact and no residue; restrict failure creates nothing (2073.6706ms)
+✔ DPAPI: the production decrypt script round-trips a dummy secret; the blob holds no plaintext; nothing is written besides the blob (645.3111ms)
+✔ DPAPI: missing or corrupted blobs give a generic error that reveals no path, secret or child output (997.8685ms)
+✔ DPAPI: loadAdminKey through the production script with a throwaway (never used) key; mismatches refuse without echoing; the buffer is zeroed (1243.5754ms)
+✔ DPAPI: a separate process using the production code prints and logs nothing secret (stdout and stderr captured) (783.2571ms)
+✔ CLI: invalid arguments exit 2 with usage and do nothing (670.9642ms)
+✔ CLI: missing configuration refuses (648.1545ms)
+✔ CLI: unpinned configuration refuses init and execute before any network access, creates no state (432.8362ms)
+✔ CLI: a pinned configuration with a changed byte refuses; with missing state refuses; init creates owner-only state once; tampered state refuses (2822.4938ms)
+✔ CLI: an approved baseline that no longer matches (stale after the configuration changed) is refused by the launcher before the application runs (201.5424ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 14
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 21355.8673

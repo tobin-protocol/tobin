@@ -1,0 +1,4 @@
+// category 15: sequence expression
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: A1)
+(0, execFileSync)('powershell.exe', []);

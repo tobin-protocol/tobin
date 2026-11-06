@@ -1,0 +1,5 @@
+// category 11: module passed to an unrelated function
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: C1)
+function use(x) { return x; }
+use(nodeFs);

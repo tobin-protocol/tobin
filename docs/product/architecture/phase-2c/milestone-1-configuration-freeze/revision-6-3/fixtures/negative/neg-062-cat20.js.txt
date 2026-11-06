@@ -1,0 +1,4 @@
+// category 20: computed loader on globalThis
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: T1)
+globalThis['require']('fs');

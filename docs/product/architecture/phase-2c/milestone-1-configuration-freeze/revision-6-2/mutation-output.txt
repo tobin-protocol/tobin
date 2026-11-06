@@ -1,0 +1,52 @@
+KILLED   M1 original blocker 1: pinned.cjs required but not hashed  (failing tests: 5)
+KILLED   M2 original blocker 2: no loading form beyond literal relative requires is rejected  (failing tests: 265)
+KILLED   M3 dynamic import() no longer forbidden  (failing tests: 3)
+KILLED   M4 non-literal require arguments accepted  (failing tests: 1)
+KILLED   M5 unlisted relative dependency accepted  (failing tests: 2)
+KILLED   M6 approved-use counts ignored  (failing tests: 1)
+KILLED   M7 missing declared dependency not reported  (failing tests: 3)
+KILLED   M8 closure equality check removed  (failing tests: 1)
+KILLED   M9 CR check removed  (failing tests: 3)
+KILLED   M10 invalid-UTF-8 check removed  (failing tests: 2)
+KILLED   N1 6.1: sensitive-root pattern coverage ignored (globalThis/vm outside an approved pattern accepted)  (failing tests: 7)
+KILLED   N2 6.1: computed member access never checked  (failing tests: 13)
+KILLED   N3 6.1: every computed key accepted as simple  (failing tests: 13)
+KILLED   N4 6.1: escape sequences in literals accepted  (failing tests: 1)
+KILLED   N5 6.1: dangerous names as string text accepted  (failing tests: 3)
+KILLED   N6 6.1: 'use strict' not required  (failing tests: 1)
+KILLED   N7 6.1: U+2028/U+2029/NUL/CR not refused  (failing tests: 1)
+KILLED   N8 6.1: ambiguous slash after } accepted  (failing tests: 1)
+KILLED   N9 6.1: an approved pattern may occur more than once  (failing tests: 2)
+KILLED   N10 6.1: process members not restricted  (failing tests: 14)
+KILLED   N11 6.1: .constructor member access accepted  (failing tests: 9)
+KILLED   N12 6.1: optional-chained computed access not recognised  (failing tests: 4)
+KILLED   N13 6.1: getBuiltinModule removed from the forbidden names  (failing tests: 2)
+KILLED   N14 6.1: module restricted to module.exports/require.main no longer enforced  (failing tests: 5)
+KILLED   N15 6.1: forbidden-identifier check disabled  (failing tests: 16)
+KILLED   N16 6.2: global-alias rule (self, window, frames) disabled  (failing tests: 17)
+KILLED   N17 6.2: sensitive-name-as-property rule disabled  (failing tests: 11)
+KILLED   N18 6.2: computed call (dynamic dispatch) rule disabled  (failing tests: 13)
+KILLED   N19 6.2: computed access on a value reached from process allowed  (failing tests: 6)
+KILLED   N20 6.2: self no longer listed as a global alias  (failing tests: 17)
+KILLED   N21 6.2: tagged-template call on a computed member allowed  (failing tests: 2)
+KILLED   N22 6.2: optional computed call x[k]?.() allowed  (failing tests: 2)
+KILLED   N23 6.2: the string 'self' no longer refused  (failing tests: 2)
+KILLED   N24 6.2: vm no longer a forbidden property name  (failing tests: 2)
+KILLED   N25 6.2: process no longer a forbidden property name  (failing tests: 5)
+KILLED   N26 6.2: approved G1 alias token covers every self (alias coverage widened)  (failing tests: 9)
+KILLED   N27 6.2: require('vm') allowed outside pattern V1  (failing tests: 1)
+GROUP A tool mutants: 37, killed: 37, survived: 0
+GROUP B signer-source mutants: 282, refused (killed): 282, accepted (survived): 0
+Group B mutants refused, by the rules that fired (a mutant can trigger several rules):
+    24  R1 require policy
+    40  R2 process member
+   104  R2 root outside pattern
+    43  R3 non-simple computed key
+    16  R4 constructor
+    58  R4 dangerous string
+    72  R4 forbidden identifier
+    24  R6 computed call
+    87  R7 global alias (self/window/frames)
+    66  R8 sensitive name as property
+control (harmless injected code accepted): yes
+exit 0

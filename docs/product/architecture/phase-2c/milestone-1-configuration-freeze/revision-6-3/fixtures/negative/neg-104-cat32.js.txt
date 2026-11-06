@@ -1,0 +1,4 @@
+// category 32: class with a method
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: A1)
+class X2 extends Error { m() {} }

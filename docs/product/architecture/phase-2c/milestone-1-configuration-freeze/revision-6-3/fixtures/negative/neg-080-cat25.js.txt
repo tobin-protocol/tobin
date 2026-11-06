@@ -1,0 +1,4 @@
+// category 25: callback receiving a capability
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: C1)
+[1].forEach(function (x) { return nodeFs; });

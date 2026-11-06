@@ -1,0 +1,4 @@
+// category 23: module.constructor._load
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: M1|N1)
+module.constructor._load('child_process');

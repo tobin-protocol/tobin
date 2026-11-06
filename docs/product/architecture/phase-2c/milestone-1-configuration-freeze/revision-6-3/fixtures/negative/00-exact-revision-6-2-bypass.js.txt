@@ -1,0 +1,11 @@
+'use strict';
+
+const cp = require('child_process');
+const method = process.env.TOBIN_METHOD;
+const run = cp[method];
+
+run('powershell.exe', [
+  '-NoProfile',
+  '-Command',
+  '...'
+]);

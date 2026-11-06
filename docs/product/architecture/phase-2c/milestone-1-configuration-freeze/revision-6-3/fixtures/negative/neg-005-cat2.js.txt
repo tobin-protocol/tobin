@@ -1,0 +1,4 @@
+// category 2: aliased fs import
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: R1|D1)
+const fs2 = require('fs');

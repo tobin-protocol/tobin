@@ -1,0 +1,4 @@
+// category 34: process destructured
+// applied as: the real tst-signer.cjs followed by this snippet
+// expected: refused (one of: C1)
+const { env } = process;

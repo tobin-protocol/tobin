@@ -1,0 +1,4 @@
+// category 14: conditional expression
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: C1)
+const c = process.env.X ? execFileSync : null;

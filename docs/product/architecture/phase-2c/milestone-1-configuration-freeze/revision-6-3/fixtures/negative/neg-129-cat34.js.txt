@@ -1,0 +1,4 @@
+// category 34: process.env keys
+// applied as: the real tst-signer.cjs followed by this snippet
+// expected: refused (one of: E1)
+Object.keys(process.env);

@@ -1,0 +1,50 @@
+PASS  authorization.cjs  (12176 bytes)
+        relative requires : refusal.cjs
+        built-in requires : -
+        watched API uses  : {}
+        sensitive roots   : -
+        computed accesses : [i]@137, [i]@137, [k]@140, [k]@140, [i]@178, [i]@179
+PASS  dpapi-key.cjs  (3633 bytes)
+        relative requires : refusal.cjs
+        built-in requires : child_process
+        watched API uses  : {"execFileSync":2}
+        sensitive roots   : -
+        computed accesses : -
+PASS  pinned.cjs  (389 bytes)
+        relative requires : -
+        built-in requires : -
+        watched API uses  : {}
+        sensitive roots   : -
+        computed accesses : -
+PASS  refusal.cjs  (642 bytes)
+        relative requires : -
+        built-in requires : -
+        watched API uses  : {}
+        sensitive roots   : -
+        computed accesses : -
+PASS  sdk-loader.cjs  (1461 bytes)
+        relative requires : -
+        built-in requires : crypto, fs, path, vm
+        watched API uses  : {"readFileSync":2,"runInThisContext":1}
+        sensitive roots   : vm@7=V1, globalThis@24=G1, globalThis@24=G1, vm@25=V2, globalThis@26=G2, globalThis@27=G3
+        computed accesses : -
+PASS  state-store.cjs  (12572 bytes)
+        relative requires : -
+        built-in requires : child_process, crypto, fs, path
+        watched API uses  : {"execFileSync":4,"exec":9,"load":3,"readFileSync":2,"openSync":1}
+        sensitive roots   : -
+        computed accesses : [k]@143
+PASS  tst-signer-core.cjs  (32655 bytes)
+        relative requires : authorization.cjs, refusal.cjs
+        built-in requires : crypto
+        watched API uses  : {}
+        sensitive roots   : -
+        computed accesses : [0]@113, [0]@154, [part]@198, [part]@198, [part]@199, [part]@199, [part]@202, [part]@202, [opName]@205, [k]@208, [k]@208, [k]@209, [k]@209, [k]@209, [k]@209
+PASS  tst-signer.cjs  (3959 bytes)
+        relative requires : dpapi-key.cjs, pinned.cjs, sdk-loader.cjs, state-store.cjs, tst-signer-core.cjs
+        built-in requires : fs, path, readline
+        watched API uses  : {"readFileSync":1}
+        sensitive roots   : -
+        computed accesses : -
+
+files: 8, pass: 8, fail: 0; rejected constructs found in the real files: 0

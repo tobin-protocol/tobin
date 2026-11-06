@@ -1,0 +1,4 @@
+// category 13: reassigning a capability parameter
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: C2)
+function h5(f = execFileSync) { f = 1; }

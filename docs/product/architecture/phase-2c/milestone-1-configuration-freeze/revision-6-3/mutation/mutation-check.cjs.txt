@@ -1,0 +1,182 @@
+'use strict';
+// Revision 6.3 CANDIDATE (NOT APPROVED): mutation check of the AST policy against the eight real runtime files.
+// Usage: node mutation-check.cjs <signer dir> [--json out.json]
+// Every mutant has an id, source fixture, transformation, expected result, actual result and killed/survived status.
+// Expected: every mutant EXCEPT the declared controls must be refused; every control must be accepted.
+const fs = require('fs');
+const path = require('path');
+const { analyze, loadParser } = require('./ast-policy.cjs');
+
+const dir = process.argv[2];
+const jsonOut = process.argv.includes('--json') ? process.argv[process.argv.indexOf('--json') + 1] : null;
+const FILES = ['authorization.cjs', 'dpapi-key.cjs', 'pinned.cjs', 'refusal.cjs', 'sdk-loader.cjs', 'state-store.cjs', 'tst-signer-core.cjs', 'tst-signer.cjs'];
+const P = loadParser();
+const mutants = [];
+let seq = 0;
+const add = (group, file, transformation, source, expected) => mutants.push({ id: `M${String(++seq).padStart(4, '0')}`, group, file, transformation, source, expected });
+
+// ---- baseline: every real file must pass, otherwise nothing below means anything
+const base = {};
+for (const f of FILES) { base[f] = fs.readFileSync(path.join(dir, f), 'utf8'); if (!analyze(base[f], f).ok) { console.error('BASELINE FAILS for', f); process.exit(2); } }
+
+// ---- Group A: rewrite each real capability call site in place
+const MODS = { fs: 1, nodeFs: 1, path: 1, crypto: 1, readline: 1, vm: 1 };
+const A_OPS = [
+  ['computed literal member', (o, p) => `${o}['${p}']`, 'refuse'],
+  ['computed env-derived member', (o) => `${o}[process.env.TOBIN_M]`, 'refuse'],
+  ['comma-sequence indirect call', (o, p, T) => `(0, ${T})`, 'refuse'],
+  ['optional chaining', (o, p) => `${o}?.${p}`, 'refuse'],
+  ['Reflect.get extraction', (o, p) => `Reflect.get(${o}, '${p}')`, 'refuse'],
+  ['arrow wrapper returning the member', (o, p, T) => `(() => ${T})()`, 'refuse'],
+  ['array storage', (o, p, T) => `[${T}][0]`, 'refuse'],
+  ['object storage', (o, p, T) => `({ f: ${T} }).f`, 'refuse'],
+  ['.call indirection', (o, p, T) => `${T}.call`, 'refuse'],
+  ['logical-or duplicate', (o, p, T) => `(${T} || ${T})`, 'refuse'],
+  ['function wrapper returning the member', (o, p, T) => `(function () { return ${T}; })()`, 'refuse'],
+  ['.bind indirection', (o, p, T) => `${T}.bind(null)`, 'refuse'],
+  ['conditional selection', (o, p, T) => `(process.env.TOBIN_X ? ${T} : ${T})`, 'refuse'],
+  ['parenthesised callee (semantically identical; CONTROL)', (o, p, T) => `(${T})`, 'accept'],
+];
+for (const f of FILES) {
+  const ast = P.parse(base[f], { ecmaVersion: 2022, sourceType: 'script', allowReturnOutsideFunction: true, allowHashBang: true });
+  const sites = [];
+  (function w(n) {
+    if (!n || typeof n.type !== 'string') return;
+    if (n.type === 'CallExpression' && n.callee.type === 'MemberExpression' && !n.callee.computed && n.callee.object.type === 'Identifier' && MODS[n.callee.object.name]) {
+      sites.push({ s: n.callee.start, e: n.callee.end, o: n.callee.object.name, p: n.callee.property.name, T: base[f].slice(n.callee.start, n.callee.end), kind: 'module member call' });
+    }
+    if (n.type === 'CallExpression' && n.callee.type === 'Identifier' && (n.callee.name === 'exec' || n.callee.name === 'execFileSync')) {
+      sites.push({ s: n.callee.start, e: n.callee.end, o: n.callee.name, p: '', T: n.callee.name, kind: 'process-execution call', exec: true });
+    }
+    for (const k of Object.keys(n)) { const v = n[k]; if (Array.isArray(v)) v.forEach(w); else if (v && typeof v.type === 'string') w(v); }
+  })(ast);
+  for (const st of sites) {
+    for (const [name, fn, expected] of A_OPS) {
+      if (st.exec && !/wrapper|array|object|sequence|Reflect|logical|conditional|bind|\.call|parenthesised/.test(name) ) continue;
+      if (st.exec && /Reflect|computed|optional/.test(name)) continue;
+      let rep;
+      if (st.exec) {
+        const T = st.T;
+        rep = ({ 'comma-sequence indirect call': `(0, ${T})`, 'arrow wrapper returning the member': `(() => ${T})()`, 'array storage': `[${T}][0]`, 'object storage': `({ f: ${T} }).f`,
+          '.call indirection': `${T}.call`, 'logical-or duplicate': `(${T} || ${T})`, 'function wrapper returning the member': `(function () { return ${T}; })()`, '.bind indirection': `${T}.bind(null)`,
+          'conditional selection': `(process.env.TOBIN_X ? ${T} : ${T})`, 'parenthesised callee (semantically identical; CONTROL)': `(${T})` })[name];
+        if (!rep) continue;
+      } else rep = fn(st.o, st.p, st.T);
+      add('A', f, `${st.kind} at offset ${st.s} (${st.T}): ${name}`, base[f].slice(0, st.s) + rep + base[f].slice(st.e), expected);
+    }
+  }
+}
+
+// ---- Group B: introduce a sensitive reference of each kind into each file (appended)
+const CAPS = { 'authorization.cjs': [], 'dpapi-key.cjs': ['execFileSync'], 'pinned.cjs': [], 'refusal.cjs': [], 'sdk-loader.cjs': ['fs', 'path', 'crypto', 'vm'],
+  'state-store.cjs': ['nodeFs', 'crypto', 'path', 'execFileSync'], 'tst-signer-core.cjs': ['crypto'], 'tst-signer.cjs': ['fs', 'path', 'readline'] };
+const B_FORMS = [
+  ['alias in a declaration', (c) => `const leak = ${c};`], ['array storage', (c) => `const leak = [${c}];`], ['object storage', (c) => `const leak = { x: ${c} };`],
+  ['shorthand object storage', (c) => `const leak = { ${c} };`], ['sequence expression', (c) => `const leak = (0, ${c});`], ['function return', (c) => `function leak() { return ${c}; }`],
+  ['arrow return', (c) => `const leak = () => ${c};`], ['destructuring from it', (c) => `const { x } = ${c};`], ['computed read with env key', (c) => `const leak = ${c}[process.env.TOBIN_K];`],
+  ['computed call with env key', (c) => `${c}[process.env.TOBIN_K]();`], ['conditional', (c) => `const leak = process.env.TOBIN_X ? ${c} : null;`], ['logical or', (c) => `const leak = ${c} || null;`],
+  ['passed to an unknown function', (c) => `function sink(x) { return x; }\nsink(${c});`], ['assigned to a property', (c) => `const o = {};\no.k = ${c};`],
+  ['optional chaining', (c) => `${c}?.x;`], ['reassigned', (c) => `${c} = null;`], ['spread into an array', (c) => `const leak = [...${c}];`],
+  ['reflective get', (c) => `Reflect.get(${c}, 'x');`], ['getPrototypeOf', (c) => `Object.getPrototypeOf(${c});`], ['constructor access', (c) => `const leak = ${c}.constructor;`],
+  ['template literal', (c) => `const leak = \`\${${c}}\`;`], ['typeof (a value use)', (c) => `const leak = typeof ${c};`], ['callback argument', (c) => `[1].map(${c});`],
+];
+for (const f of FILES) {
+  for (const c of [...CAPS[f], 'process', 'module', 'require', 'globalThis']) {
+    for (const [name, fn] of B_FORMS) add('B', f, `append: ${name} of ${c}`, base[f] + '\n' + fn(c) + '\n', 'refuse');
+  }
+}
+
+// ---- Group C: introduce code-loading and reflective paths into each file
+const C_SNIPPETS = [
+  ['dynamic import (literal)', "import('child_process');"], ['dynamic import (computed)', "import(process.env.TOBIN_M);"], ['aliased require', "const r = require;\nr('fs');"],
+  ['require with variable', "const n = 'fs';\nrequire(n);"], ['require inside function', "function f() { return require('child_process'); }"], ['module.require', "module.require('fs');"],
+  ['createRequire', "const { createRequire } = require('module');"], ['eval', "eval('1');"], ['Function constructor', "new Function('return 1')();"],
+  ['constructor chain', "(function () {}).constructor('return 1')();"], ['Reflect.apply', "Reflect.apply(Error, null, []);"], ['Proxy', "new Proxy({}, {});"],
+  ['process.binding', "process.binding('fs');"], ['getBuiltinModule', "process.getBuiltinModule('fs');"], ['computed process', "process['getBuiltinModule']('fs');"],
+  ['globalThis.process', "globalThis.process;"], ['self.process computed call (6.1 bypass)', "const k = process.env.TOBIN_METHOD;\nself.process[k]('vm');"], ['global', "global.process;"],
+  ['window', "window.x;"], ['frames', "frames.x;"], ['__proto__', "({}).__proto__;"], ['prototype', "Error.prototype;"], ['defineProperty', "Object.defineProperty({}, 'a', {});"],
+  ['getOwnPropertyDescriptor', "Object.getOwnPropertyDescriptor({}, 'a');"], ['setPrototypeOf', "Object.setPrototypeOf({}, null);"], ['whole child_process import', "const cp = require('child_process');\nconst run = cp[process.env.TOBIN_METHOD];\nrun('powershell.exe', ['-NoProfile']);"],
+  ['child_process.exec literal', "const cp = require('child_process');\ncp.exec('calc');"], ['spawn destructured', "const { spawn } = require('child_process');"], ['worker_threads', "const w = require('worker_threads');"],
+  ['http', "const h = require('http');"], ['net', "const n = require('net');"], ['fs second import', "const fsx = require('fs');"], ['vm second import', "const vmx = require('vm');"],
+  ['getter object', "const o = { get a() { return 1; } };"], ['generator', "function* g() {}"], ['this', "const t = this;"], ['while', "while (false) {}"], ['regexp-free tagged template', "String.raw`x`;"],
+  ['unresolved global', "undefinedThing();"], ['shadowed process', "function f(process) { return process; }"], ['non-ASCII identifier', "const еval = 1;"], ['syntax error', "const s = ;"],
+];
+for (const f of FILES) for (const [name, code] of C_SNIPPETS) add('C', f, `append: ${name}`, base[f] + '\n' + code + '\n', 'refuse');
+
+// ---- Group D: edit the approved execution calls and the approved SDK-loader statements
+const D_EDITS = [
+  ['dpapi-key.cjs', "execFileSync('powershell.exe'", "execFileSync('cmd.exe'", 'dpapi target cmd.exe'],
+  ['dpapi-key.cjs', "execFileSync('powershell.exe'", "execFileSync(process.env.PROG", 'dpapi target from env'],
+  ['dpapi-key.cjs', "windowsHide: true,", "windowsHide: true, shell: true,", 'dpapi shell option'],
+  ['dpapi-key.cjs', "windowsHide: true,", "windowsHide: true, cwd: process.env.TEMP,", 'dpapi cwd option'],
+  ['dpapi-key.cjs', "['-NoProfile', '-NonInteractive', '-Command', DPAPI_SCRIPT]", "[...process.argv]", 'dpapi spread args'],
+  ['state-store.cjs', "exec('powershell.exe'", "exec('cmd.exe'", 'inspectAcl target cmd.exe'],
+  ['state-store.cjs', "exec('powershell.exe'", "exec(process.env.PROG", 'inspectAcl target from env'],
+  ['state-store.cjs', "exec('icacls'", "exec('calc.exe'", 'icacls target changed'],
+  ['state-store.cjs', "exec('icacls'", "exec(file", 'icacls target = parameter'],
+  ['state-store.cjs', "{ stdio: 'ignore', windowsHide: true }", "{ stdio: 'ignore', windowsHide: true, shell: true }", 'icacls shell option'],
+  ['state-store.cjs', "{ encoding: 'utf8', windowsHide: true, env:", "{ encoding: 'utf8', windowsHide: true, shell: true, env:", 'inspectAcl shell option'],
+  ['state-store.cjs', "function inspectAcl(file, exec = execFileSync, env = process.env) {", "function inspectAcl(file, exec = execFileSync, env = process) {", 'env default replaced by process'],
+  ['state-store.cjs', "function inspectAcl(file, exec = execFileSync, env = process.env) {", "function inspectAcl(file, exec = nodeFs.readFileSync, env = process.env) {", 'exec default replaced by fs member'],
+  ['state-store.cjs', "const { execFileSync } = require('child_process');", "const execFileSync = require('child_process').execFileSync;", 'destructure turned into member read'],
+  ['state-store.cjs', "const { execFileSync } = require('child_process');", "const { execFileSync, exec } = require('child_process');", 'extra destructured member'],
+  ['state-store.cjs', "const nodeFs = require('fs');", "const nodeFs = require('fs');\nconst nodeFs2 = nodeFs;", 'module alias declaration'],
+  ['sdk-loader.cjs', "vm.runInThisContext(bundle.toString('utf8'));", "vm.runInThisContext(bundle.toString('utf8'));\n  vm.runInThisContext('1');", 'extra runInThisContext'],
+  ['sdk-loader.cjs', "vm.runInThisContext(bundle.toString('utf8'));", "vm.runInNewContext(bundle.toString('utf8'));", 'runInNewContext instead'],
+  ['sdk-loader.cjs', "vm.runInThisContext(bundle.toString('utf8'));", "vm.runInThisContext(bundle);", 'runInThisContext of the buffer'],
+  ['sdk-loader.cjs', "vm.runInThisContext(bundle.toString('utf8'));", "vm.runInThisContext(fs.readFileSync(process.env.X, 'utf8'));", 'runInThisContext of another file'],
+  ['sdk-loader.cjs', "  globalThis.self = globalThis;\n", "  globalThis.self = globalThis;\n  globalThis.self = globalThis;\n", 'duplicate self assignment'],
+  ['sdk-loader.cjs', "  globalThis.self = globalThis;\n", "  globalThis.window = globalThis;\n", 'window alias instead of self'],
+  ['sdk-loader.cjs', "  globalThis.self = globalThis;\n", "  const g = globalThis;\n", 'globalThis into a variable'],
+  ['sdk-loader.cjs', "if (sha !== EXPECTED_BUNDLE_SHA256) throw new Error('SDK bundle hash mismatch: refusing to load');", "if (sha !== EXPECTED_BUNDLE_SHA256) console.log('mismatch');", 'hash mismatch no longer throws'],
+  ['sdk-loader.cjs', "if (sha !== EXPECTED_BUNDLE_SHA256) throw new Error('SDK bundle hash mismatch: refusing to load');\n", "", 'hash check removed'],
+  ['sdk-loader.cjs', "const sha = crypto.createHash('sha256').update(bundle).digest('hex');", "const sha = 'de18071d1f64bf6aa1806a4eb250b3be7c1811a8e8ecdfc3c103013cf1d9b92f';", 'hash constant instead of computed'],
+  ['sdk-loader.cjs', "const bundle = fs.readFileSync(path.join(packageDir, 'dist', 'stellar-sdk.js'));", "const bundle = fs.readFileSync(path.join(packageDir, 'dist', 'other.js'));", 'different bundle file'],
+  ['sdk-loader.cjs', "const EXPECTED_BUNDLE_SHA256 = 'de18071d1f64bf6aa1806a4eb250b3be7c1811a8e8ecdfc3c103013cf1d9b92f';", "const EXPECTED_BUNDLE_SHA256 = process.env.SHA;", 'pinned hash from env'],
+  ['sdk-loader.cjs', "return globalThis.StellarSdk;", "return globalThis;", 'return the global object'],
+  ['sdk-loader.cjs', "return globalThis.StellarSdk;", "return globalThis[process.env.K];", 'return env-selected global'],
+  ['tst-signer-core.cjs', "cfg.resourceLimits[opName]", "cfg.resourceLimits[process.env.K]", 'explicit computed site key from env'],
+  ['tst-signer-core.cjs', "cfg.resourceLimits[opName]", "cfg[opName]", 'explicit computed site moved to another object'],
+  ['tst-signer.cjs', "process.argv.slice(2)", "process.argv", 'argv used whole'],
+  ['tst-signer.cjs', "readline.createInterface({ input: process.stdin, output: process.stdout })", "readline.createInterface({ input: process.stdin, output: process })", 'process passed to readline'],
+  ['tst-signer.cjs', "process.exit(2)", "process.exit.call(process, 2)", 'process.exit via call'],
+];
+for (const [f, from, to, name] of D_EDITS) {
+  if (!base[f].includes(from)) { console.error('EDIT ANCHOR MISSING:', f, name); process.exit(2); }
+  add('D', f, name, base[f].replace(from, to), 'refuse');
+}
+
+// ---- Group E: harmless controls (must stay accepted)
+for (const f of FILES) {
+  add('E', f, 'control: trailing comment mentioning eval, self, process', base[f] + '\n// eval self process require globalThis are only words in a comment\n', 'accept');
+  add('E', f, 'control: extra blank lines', base[f].replace('\n', '\n\n\n'), 'accept');
+  add('E', f, 'control: harmless pure helper function', base[f] + '\nconst harmlessAdd = (a, b) => a + b;\n', 'accept');
+  add('E', f, 'control: harmless bounded loop', base[f] + '\nfor (let i = 0; i < 3; i++) { void [1, 2, 3][i]; }\n', 'accept');
+  add('E', f, 'control: local variable rename inside a new function', base[f] + '\nfunction renamed(first, second) { const third = first + second; return third; }\n', 'accept');
+}
+
+// ---- run
+const results = [];
+const t0 = Date.now();
+for (const m of mutants) {
+  let actual, rules = '';
+  try { const r = analyze(m.source, m.file); actual = r.ok ? 'accept' : 'refuse'; rules = [...new Set(r.violations.map((v) => v.rule))].sort().join(','); }
+  catch (e) { actual = 'refuse'; rules = 'EXC:' + e.message.slice(0, 40); }
+  const killed = actual === m.expected;
+  results.push({ id: m.id, group: m.group, file: m.file, transformation: m.transformation, expected: m.expected, actual, rules, status: killed ? (m.expected === 'accept' ? 'control-ok' : 'killed') : 'SURVIVED' });
+}
+const by = (g, s) => results.filter((r) => r.group === g && r.status === s).length;
+const lines = [];
+lines.push('Revision 6.3 CANDIDATE mutation check (NOT APPROVED). Parser: acorn 8.19.0 (pinned). Seconds: ' + ((Date.now() - t0) / 1000).toFixed(1));
+lines.push('group\tmutants\tkilled(refused)\tcontrols-ok\tsurvived');
+for (const g of ['A', 'B', 'C', 'D', 'E']) lines.push(`${g}\t${results.filter((r) => r.group === g).length}\t${by(g, 'killed')}\t${by(g, 'control-ok')}\t${by(g, 'SURVIVED')}`);
+const surv = results.filter((r) => r.status === 'SURVIVED');
+lines.push(`TOTAL ${results.length}; killed ${results.filter((r) => r.status === 'killed').length}; controls accepted ${results.filter((r) => r.status === 'control-ok').length}; SURVIVED ${surv.length}`);
+for (const s of surv) lines.push(`SURVIVOR ${s.id} [${s.group}] ${s.file}: ${s.transformation} (expected ${s.expected}, got ${s.actual})`);
+// rule histogram of kills
+const hist = {};
+for (const r of results) if (r.status === 'killed') for (const x of r.rules.split(',')) hist[x] = (hist[x] || 0) + 1;
+lines.push('refusals by rule (a mutant may trip several): ' + Object.entries(hist).sort().map(([k, v]) => `${k}=${v}`).join(' '));
+console.log(lines.join('\n'));
+if (jsonOut) fs.writeFileSync(jsonOut, JSON.stringify({ summary: lines, mutants: results }, null, 1));
+process.exit(surv.length ? 1 : 0);

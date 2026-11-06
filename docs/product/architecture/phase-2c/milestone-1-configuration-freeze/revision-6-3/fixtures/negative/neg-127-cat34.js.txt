@@ -1,0 +1,5 @@
+// category 34: process.env passed to a function
+// applied as: the real tst-signer.cjs followed by this snippet
+// expected: refused (one of: E1)
+function sink(x) { return x; }
+sink(process.env);

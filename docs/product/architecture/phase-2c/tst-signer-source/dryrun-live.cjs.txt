@@ -1,0 +1,16 @@
+'use strict';
+// READ-ONLY dry run of the real prepare() path against the live Testnet RPC (protocol 30), using the funded account A only as a
+// STAND-IN for F. Nothing is signed, no key is read, nothing is submitted. Confirms that the exact footprint and resource rules
+// accept a genuine protocol-30 deploy simulation.
+const fs = require('fs'); const crypto = require('crypto');
+const { loadSdk } = require('./sdk-loader.cjs'); const S = loadSdk();
+const core = require('./tst-signer-core.cjs');
+const pub = JSON.parse(fs.readFileSync(process.env.LOCALAPPDATA + '/TobinTestKeys/pub.json', 'utf8'));
+(async () => {
+  const rpc = new S.rpc.Server(core.APPROVED.rpcUrl);
+  const cfg = core.makeConfig(S, { adminAddress: pub.A, saltHex: crypto.randomBytes(32).toString('hex') });
+  const reader = { instanceExists: async (id) => (await rpc.getLedgerEntries(new S.Contract(id).getFootprint())).entries.length > 0 };
+  const lines = [];
+  const r = await core.preview({ S, rpc, reader, log: (s) => lines.push(s) }, cfg, 'deploy');
+  console.log(lines.join('\n').replace(/C[A-Z2-7]{55}/g, 'C<predicted-id>').replace(pub.A, 'G<stand-in>'));
+})().catch((e) => console.log('REFUSED/FAILED:', core.redact(e.message)));

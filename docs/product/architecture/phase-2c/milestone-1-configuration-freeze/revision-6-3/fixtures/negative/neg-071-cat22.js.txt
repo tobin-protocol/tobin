@@ -1,0 +1,4 @@
+// category 22: require inside a function
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: R1)
+function lz() { return require('fs'); }

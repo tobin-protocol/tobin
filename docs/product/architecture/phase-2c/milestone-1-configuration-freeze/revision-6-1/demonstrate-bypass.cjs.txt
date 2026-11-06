@@ -1,0 +1,23 @@
+'use strict';
+// Demonstrates the Revision 6 computed-access bypass and its closure in Revision 6.1, on temporary copies of the real sdk-loader.cjs.
+// Each example REPLACES the approved line `return globalThis.StellarSdk;` so that the Revision 6 name counts stay within their maxima.
+// Offline; reads files only; the examples are never executed, only analyzed.
+// Usage: node demonstrate-bypass.cjs <signer-dir> <revision-6 compute-baseline-hash.cjs> <revision-6.1 compute-baseline-hash.cjs>
+const fs = require('fs'); const os = require('os'); const path = require('path');
+const [signer, oldTool, newTool] = process.argv.slice(2).map((p) => path.resolve(p));
+const OLD = require(oldTool); const NEW = require(newTool);
+const LINE = 'return globalThis.StellarSdk;';
+const EXAMPLES = [
+  ["return globalThis['require']('./unapproved-module');", 'review example 1 (loads an unlisted module)'],
+  ["return globalThis['process']['getBuiltinModule']('fs');", 'review example 2 (gets fs without require)'],
+  ["return globalThis['process']['getBuiltinModule']('vm')['runInThisContext']('1');", 'review example 3 (runs code)'],
+];
+const src = fs.readFileSync(path.join(signer, 'sdk-loader.cjs'), 'utf8'); if (!src.includes(LINE)) throw new Error('anchor');
+const verdict = (api, text) => { try { api.analyzeSource('sdk-loader.cjs', text, api.CLOSURE.slice()); return 'ACCEPTED'; } catch (e) { return 'REFUSED (' + e.message.replace(/^sdk-loader\.cjs: /, '').slice(0, 110) + ')'; } };
+let bad = 0;
+for (const [code, label] of EXAMPLES) {
+  const mutated = src.replace(LINE, code); const o = verdict(OLD, mutated); const n = verdict(NEW, mutated);
+  console.log(`${label}\n  ${code}\n  Revision 6  : ${o}\n  Revision 6.1: ${n}`); if (!o.startsWith('ACCEPTED') || !n.startsWith('REFUSED')) bad++;
+}
+console.log(`\nexamples: ${EXAMPLES.length}; accepted by Revision 6 and refused by Revision 6.1 as required: ${EXAMPLES.length - bad}`);
+process.exit(bad ? 1 : 0);

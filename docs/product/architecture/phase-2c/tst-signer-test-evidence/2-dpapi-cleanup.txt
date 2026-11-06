@@ -1,0 +1,15 @@
+✔ control: the probe reports a SecureString that was never disposed as alive and a disposed one as disposed (317.443ms)
+✔ the BSTR is zeroed and freed on success, and the SecureString is disposed (338.6983ms)
+✔ the BSTR is zeroed and freed when the conversion to text fails after the allocation (351.9013ms)
+✔ nothing is freed when the allocation itself fails (nothing was allocated); the SecureString is still disposed (327.5869ms)
+✔ a failure inside the free step does not skip the disposal, and is not swallowed (348.1061ms)
+✔ with the real unmanaged operations the function round-trips a dummy value, frees without error, and disposes the SecureString (336.5301ms)
+✔ the tested function is the production function, and the production script has the required shape (0.6295ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2117.4095

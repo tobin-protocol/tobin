@@ -1,0 +1,4 @@
+// category 10: closure capture of a module
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: C1)
+const mk = () => nodeFs;

@@ -1,0 +1,20 @@
+'use strict';
+// Runs the loading-policy analyzer on each of the eight runtime files separately and prints the result. Offline; reads files only.
+// Usage: node analyze-files.cjs <signer-dir>
+const fs = require('fs'); const path = require('path');
+const { analyzeSource, CLOSURE } = require('./compute-baseline-hash.cjs');
+const dir = path.resolve(process.argv[2]); let failures = 0;
+for (const f of CLOSURE) {
+  const bytes = fs.readFileSync(path.join(dir, f));
+  try {
+    const r = analyzeSource(f, bytes.toString('utf8'), CLOSURE.slice());
+    console.log(`PASS  ${f}  (${bytes.length} bytes)`);
+    console.log(`        relative requires : ${r.relative.join(', ') || '-'}`);
+    console.log(`        built-in requires : ${r.builtin.join(', ') || '-'}`);
+    console.log(`        watched API uses  : ${JSON.stringify(r.uses)}`);
+    console.log(`        sensitive roots   : ${r.roots.map((x) => `${x.root}@${x.line}=${x.pattern}`).join(', ') || '-'}`);
+    console.log(`        computed accesses : ${r.computed.map((x) => `[${x.key}]@${x.line}`).join(', ') || '-'}`);
+  } catch (e) { failures++; console.log(`FAIL  ${f}: ${e.message}`); }
+}
+console.log(`\nfiles: ${CLOSURE.length}, pass: ${CLOSURE.length - failures}, fail: ${failures}; rejected constructs found in the real files: ${failures}`);
+process.exit(failures ? 1 : 0);

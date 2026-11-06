@@ -1,0 +1,4 @@
+// category 22: unapproved relative module
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: R1)
+const x9 = require('./extra.cjs');

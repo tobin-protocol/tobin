@@ -1,0 +1,4 @@
+// category 7: object shorthand storage
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: C1)
+const h = { execFileSync };

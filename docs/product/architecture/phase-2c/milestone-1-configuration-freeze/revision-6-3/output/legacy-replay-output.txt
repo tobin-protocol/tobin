@@ -1,0 +1,4 @@
+REJECT 26 BYPASS 53 R62 66
+ACCEPTED BYPASS tst-signer-core.cjs "const o = {}; o['k'];" - string-keyed computed access on any object
+ACCEPTED BYPASS sdk-loader.cjs "const o = {}; o['k'];" - string-keyed computed access on any object
+{ total: 290, accepted: 2 }

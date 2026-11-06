@@ -1,0 +1,46 @@
+'use strict';
+// Revision 6.3 CANDIDATE: tests of the verification entry point (AST gate + canonical manifest procedure v1).
+// env: TOBIN_SIGNER_DIR (eight runtime files), TOBIN_SDK_PACKAGE (pinned SDK package dir)
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { spawnSync } = require('child_process');
+const { FILES } = require('./verify-baseline.cjs');
+
+const SIGNER = process.env.TOBIN_SIGNER_DIR || path.join(__dirname, 'in');
+const SDK = process.env.TOBIN_SDK_PACKAGE;
+const B0 = '9b594c5407b7934274f9c41a47f2dfc13a781f4f7b0cc0962a8ab57a52bacbb7';
+const run = (dir, extra = []) => spawnSync(process.execPath, [path.join(__dirname, 'verify-baseline.cjs'), '--signer-dir', dir, '--sdk-package', SDK, ...extra], { encoding: 'utf8' });
+const copy = () => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'tobin-vb-')); for (const f of FILES) fs.copyFileSync(path.join(SIGNER, f), path.join(d, f)); return d; };
+const t = SDK ? test : test.skip;
+
+t('6.3 B0 is reproduced with the AST gate: MATCH, exit 0', () => { const r = run(SIGNER, ['--verify', B0]); assert.equal(r.status, 0, r.stderr); assert.match(r.stdout, /VERIFY: MATCH/); assert.match(r.stdout, /baseline sha256: 9b594c5407b7934274f9c41a47f2dfc13a781f4f7b0cc0962a8ab57a52bacbb7/); });
+t('6.3 a wrong expected hash is a MISMATCH, exit 1', () => { assert.equal(run(SIGNER, ['--verify', 'a'.repeat(64)]).status, 1); });
+t('6.3 a malformed --verify value is refused with exit 3', () => { assert.equal(run(SIGNER, ['--verify', 'xyz']).status, 3); });
+t('6.3 the manifest written has header v1 and 11 entries (8 files, config, 2 SDK files) in label order', () => {
+  const out = path.join(os.tmpdir(), 'tobin-vb-manifest-' + process.pid + '.txt'); run(SIGNER, ['--manifest-out', out]);
+  const m = fs.readFileSync(out, 'utf8'); fs.rmSync(out);
+  assert.equal(m.split('\n').length, 13); assert.ok(m.startsWith('TOBIN-TST-SIGNER-BASELINE v1\nABSENT  config:deployment-config.json\n'));
+});
+t('6.3 the exact Revision 6.2 bypass added to a runtime file is refused by the policy BEFORE any hash is trusted (exit 2)', () => {
+  const d = copy(); fs.appendFileSync(path.join(d, 'dpapi-key.cjs'), "\nconst cp = require('child_process');\nconst method = process.env.TOBIN_METHOD;\nconst run = cp[method];\nrun('powershell.exe', ['-NoProfile']);\n");
+  const r = run(d); assert.equal(r.status, 2); assert.match(r.stderr, /AST policy refused/); fs.rmSync(d, { recursive: true });
+});
+t('6.3 a one-byte harmless change is detected by the hash, not by the policy (exit 1)', () => {
+  const d = copy(); fs.appendFileSync(path.join(d, 'pinned.cjs'), '// c\n'); const r = run(d, ['--verify', B0]); assert.equal(r.status, 1); fs.rmSync(d, { recursive: true });
+});
+t('6.3 CR byte, UTF-8 BOM and invalid UTF-8 are refused (exit 2)', () => {
+  let d = copy(); fs.writeFileSync(path.join(d, 'refusal.cjs'), fs.readFileSync(path.join(d, 'refusal.cjs'), 'utf8').replace('\n', '\r\n')); assert.equal(run(d).status, 2); fs.rmSync(d, { recursive: true });
+  d = copy(); fs.writeFileSync(path.join(d, 'refusal.cjs'), Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), fs.readFileSync(path.join(d, 'refusal.cjs'))])); assert.equal(run(d).status, 2); fs.rmSync(d, { recursive: true });
+  d = copy(); fs.appendFileSync(path.join(d, 'refusal.cjs'), Buffer.from([0xff, 0xfe, 0x41])); assert.equal(run(d).status, 2); fs.rmSync(d, { recursive: true });
+});
+t('6.3 a missing runtime file, or a relative require outside the closure, is refused (exit 2)', () => {
+  let d = copy(); fs.rmSync(path.join(d, 'pinned.cjs')); assert.equal(run(d).status, 2); fs.rmSync(d, { recursive: true });
+  d = copy(); fs.appendFileSync(path.join(d, 'refusal.cjs'), "const extra = require('./extra.cjs');\n"); assert.equal(run(d).status, 2); fs.rmSync(d, { recursive: true });
+});
+t('6.3 a configuration file changes the config entry (pinning behaviour unchanged, nothing is created)', () => {
+  const cfg = path.join(os.tmpdir(), 'tobin-vb-cfg-' + process.pid + '.json'); fs.writeFileSync(cfg, '{"example":true}\n');
+  const r = run(SIGNER, ['--config', cfg, '--verify', B0]); fs.rmSync(cfg); assert.equal(r.status, 1);
+});

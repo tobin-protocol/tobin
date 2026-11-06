@@ -1,0 +1,4 @@
+// category 18: .prototype
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: N1|G1)
+const t = Error.prototype;

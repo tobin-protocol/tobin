@@ -1,0 +1,226 @@
+'use strict';
+// Windows validation with DISPOSABLE data only: a fresh temp directory, dummy secrets, throwaway in-memory keys.
+// Nothing here reads the real key directory, a real DPAPI file or a real wallet key; no network is used.
+//  * the real NTFS ACL of a disposable file is set and then INSPECTED (never inferred from an exit code);
+//  * the PRODUCTION DPAPI script runs against a dummy blob (its LOCALAPPDATA is redirected to the temp directory);
+//  * the state store runs on the real file system; the CLI runs as a child process from a temporary copy.
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const crypto = require('crypto');
+const { execFileSync, spawnSync } = require('child_process');
+const H = require('./helpers.cjs');
+const { S, core, cfg } = H;
+const { createStore, restrictOwnerOnly, verifyOwnerOnly, inspectAcl, evaluateOwnerOnly, StateError } = require('../state-store.cjs');
+const { loadAdminKey, decryptWithDpapi } = require('../dpapi-key.cjs');
+const { makeDeploymentConfigText } = require('../make-deployment-config.cjs');
+
+const WIN = process.platform === 'win32';
+const T = WIN ? {} : { skip: 'Windows-only validation' };
+const ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'tst-win-'));
+test.after(() => { fs.rmSync(ROOT, { recursive: true, force: true }); });
+const sub = (name) => { const d = path.join(ROOT, name); fs.mkdirSync(d, { recursive: true }); return d; };
+const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
+const ps = (script, env = {}, input) => execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', windowsHide: true, env: { ...process.env, ...env }, input });
+// run real commands, except that icacls can be replaced to prove the result is judged from the ACL and not from the exit code
+const realExec = (...a) => execFileSync(...a);
+
+// ---------------------------------------------------------------- pure judgement (any platform)
+test('evaluateOwnerOnly: accepts exactly one explicit FullControl rule for the owner, rejects everything else', () => {
+  const me = 'S-1-5-21-1-2-3-1001';
+  const good = { me, owner: me, protected: true, rules: [{ sid: me, type: 'Allow', rights: 'FullControl', inherited: false }] };
+  assert.equal(evaluateOwnerOnly(good).ok, true);
+  const bad = (o) => evaluateOwnerOnly({ ...good, ...o });
+  assert.match(bad({ protected: false }).problems.join(), /inheritance/);
+  assert.match(bad({ owner: 'S-1-5-32-544' }).problems.join(), /owner/);
+  assert.match(bad({ rules: [] }).problems.join(), /0 access rules/);
+  assert.match(bad({ rules: [good.rules[0], { sid: 'S-1-5-18', type: 'Allow', rights: 'FullControl', inherited: false }] }).problems.join(), /2 access rules/);
+  assert.match(bad({ rules: [{ ...good.rules[0], sid: 'S-1-1-0' }] }).problems.join(), /another principal/);
+  assert.match(bad({ rules: [{ ...good.rules[0], type: 'Deny' }] }).problems.join(), /not an Allow/);
+  assert.match(bad({ rules: [{ ...good.rules[0], inherited: true }] }).problems.join(), /inherited/);
+  assert.match(bad({ rules: [{ ...good.rules[0], rights: 'Read' }] }).problems.join(), /not FullControl/);
+});
+
+// ---------------------------------------------------------------- ACL on the real file system
+test('ACL: a fresh file inherits access for other principals; restrictOwnerOnly leaves only the current user, judged by inspection', T, () => {
+  const f = path.join(sub('acl'), 'probe.json'); fs.writeFileSync(f, '{"dummy":true}');
+  const before = inspectAcl(f);
+  assert.equal(before.protected, false); assert.ok(before.rules.length > 1, 'expected inherited rules for other principals'); assert.equal(evaluateOwnerOnly(before).ok, false);
+  const others = before.rules.filter((r) => r.sid !== before.me).map((r) => r.sid);
+  assert.ok(others.length >= 1);
+  assert.throws(() => verifyOwnerOnly(f), /owner-only access is not in place/);   // verification is meaningful: it fails on a normal file
+  const res = restrictOwnerOnly(f); assert.equal(res.applied, true);
+  const after = inspectAcl(f);
+  assert.equal(after.protected, true); assert.equal(after.owner, after.me); assert.equal(after.rules.length, 1);
+  assert.deepEqual([after.rules[0].sid, after.rules[0].type, after.rules[0].inherited], [after.me, 'Allow', false]); assert.match(after.rules[0].rights, /FullControl/);
+  for (const sid of others) assert.ok(!after.rules.some((r) => r.sid === sid), `principal ${sid} must not retain access`);
+  assert.equal(evaluateOwnerOnly(after).ok, true);
+  fs.writeFileSync(f, '{"dummy":false}'); assert.equal(fs.readFileSync(f, 'utf8'), '{"dummy":false}');   // the intended user retains read and write
+});
+
+test('ACL: the outcome is judged from the real ACL, not from the exit code; any failure refuses', T, () => {
+  const d = sub('acl2');
+  // icacls "succeeds" but changes nothing -> must be refused
+  const f1 = path.join(d, 'a.json'); fs.writeFileSync(f1, 'x');
+  const noop = (cmd, args, o) => (cmd === 'icacls' ? undefined : realExec(cmd, args, o));
+  assert.throws(() => restrictOwnerOnly(f1, { exec: noop }), (e) => e instanceof StateError && /owner-only access is not in place/.test(e.message));
+  // icacls fails -> refused
+  const f2 = path.join(d, 'b.json'); fs.writeFileSync(f2, 'x');
+  const failing = (cmd, args, o) => { if (cmd === 'icacls') throw new Error('exit 1'); return realExec(cmd, args, o); };
+  assert.throws(() => restrictOwnerOnly(f2, { exec: failing }), (e) => e instanceof StateError && /icacls failed/.test(e.message));
+  // inspection fails -> refused
+  const f3 = path.join(d, 'c.json'); fs.writeFileSync(f3, 'x');
+  assert.throws(() => restrictOwnerOnly(f3, { exec: () => { throw new Error('ps down'); } }), (e) => e instanceof StateError && /could not inspect/.test(e.message));
+  assert.throws(() => restrictOwnerOnly(f3, { exec: () => 'not json' }), (e) => e instanceof StateError && /unreadable/.test(e.message));
+  // an extra principal added afterwards is detected
+  const f4 = path.join(d, 'd.json'); fs.writeFileSync(f4, 'x'); restrictOwnerOnly(f4);
+  execFileSync('icacls', [f4, '/grant', '*S-1-1-0:(R)'], { stdio: 'ignore' });                  // grants Everyone read on the DISPOSABLE file
+  assert.throws(() => verifyOwnerOnly(f4), /owner-only access is not in place.*(2 access rules|another principal)/);
+});
+
+// ---------------------------------------------------------------- atomic state on the real file system
+test('state store on NTFS: create, update, rename over, read back; owner-only ACL on the temporary AND the final file; no temporary file left', T, () => {
+  const d = sub('store1'); const file = path.join(d, 'settlement-token-state.json');
+  const seen = [];
+  const restrict = (f) => { const r = restrictOwnerOnly(f); seen.push(['tmp', f, verifyOwnerOnly(f).applied]); return r; }; restrict.verify = (f) => { seen.push(['final', f, verifyOwnerOnly(f).applied]); };
+  const store = createStore(file, { restrict });
+  store.init(cfg);
+  store.markPending(cfg, 'mint-C', { txHash: 'a'.repeat(64), maxTime: 123, now: 1 });
+  store.annotate(cfg, 'mint-C', 'ENQUEUED', 2);
+  store.markResult(cfg, 'mint-C', 'SUCCEEDED', { ledger: 9, now: 3 });
+  assert.equal(store.load().operations[0].status, 'SUCCEEDED'); assert.equal(store.load().operations[0].submission, 'ENQUEUED');
+  assert.deepEqual(fs.readdirSync(d), ['settlement-token-state.json']);                         // no .tmp residue
+  assert.ok(seen.filter((s) => s[0] === 'tmp').length === 4 && seen.filter((s) => s[0] === 'final').length === 4);
+  verifyOwnerOnly(file);                                                                         // the final file after four renames
+  assert.equal(fs.readFileSync(file, 'utf8'), JSON.stringify(store.load(), null, 2));            // read-back equals what is on disk
+});
+
+test('state store on NTFS: failures leave the previous state intact and no residue; restrict failure creates nothing', T, () => {
+  const d = sub('store2'); const file = path.join(d, 'state.json');
+  const store = createStore(file); store.init(cfg);
+  const before = fs.readFileSync(file, 'utf8');
+  // temporary-name collision: exclusive create fails, nothing is overwritten
+  const clash = createStore(file, { randomHex: () => 'fixed' });
+  fs.writeFileSync(path.join(d, '.state.json.fixed.tmp'), 'residue');
+  assert.throws(() => clash.markPending(cfg, 'deploy', { txHash: 'b'.repeat(64), maxTime: 1, now: 1 }), /state write failed before completion/);
+  assert.equal(fs.readFileSync(file, 'utf8'), before); assert.equal(fs.readFileSync(path.join(d, '.state.json.fixed.tmp'), 'utf8'), 'residue');
+  fs.unlinkSync(path.join(d, '.state.json.fixed.tmp'));
+  // a read-only target cannot be replaced: previous state intact, temporary file removed
+  execFileSync('attrib', ['+R', file], { stdio: 'ignore' });
+  let threw = false; try { store.markPending(cfg, 'deploy', { txHash: 'c'.repeat(64), maxTime: 1, now: 1 }); } catch (e) { threw = e instanceof StateError; }
+  execFileSync('attrib', ['-R', file], { stdio: 'ignore' });
+  assert.equal(threw, true); assert.equal(fs.readFileSync(file, 'utf8'), before);    // Windows refuses to replace a read-only target (EPERM): refused cleanly, previous state intact
+  assert.deepEqual(fs.readdirSync(d).filter((n) => n.endsWith('.tmp')), []);
+  // interruption residue: a torn main file is refused, never replaced by an empty state; init never overwrites
+  fs.writeFileSync(file, '{"version":2,"netw');
+  assert.throws(() => store.load(), /not valid JSON/); assert.throws(() => store.init(cfg), /already exists/);
+  // restrict failure on a new store: nothing is created
+  const d2 = sub('store3'); const f2 = path.join(d2, 'state.json');
+  assert.throws(() => createStore(f2, { restrict: () => { throw new StateError('acl'); } }).init(cfg), /state write failed before completion/);
+  assert.deepEqual(fs.readdirSync(d2), []);
+});
+
+// ---------------------------------------------------------------- DPAPI with dummy data
+const DUMMY = 'DUMMY-NOT-A-KEY-' + crypto.randomBytes(12).toString('hex');
+function makeBlob(appData, plaintext) {
+  const dir = path.join(appData, 'TobinTestKeys'); fs.mkdirSync(dir, { recursive: true });
+  const blob = path.join(dir, 'settlement-token-admin.dpapi');
+  ps('$t = [Console]::In.ReadToEnd(); ConvertTo-SecureString $t -AsPlainText -Force | ConvertFrom-SecureString | Set-Content -Path $env:TOBIN_BLOB', { TOBIN_BLOB: blob }, plaintext);
+  return blob;
+}
+const envFor = (appData) => ({ ...process.env, LOCALAPPDATA: appData });
+
+test('DPAPI: the production decrypt script round-trips a dummy secret; the blob holds no plaintext; nothing is written besides the blob', T, () => {
+  const app = sub('dpapi1'); const blob = makeBlob(app, DUMMY);
+  const raw = fs.readFileSync(blob);
+  assert.ok(!raw.toString('latin1').includes(DUMMY) && !raw.toString('utf16le').includes(DUMMY), 'plaintext must not appear in the blob');
+  const out = decryptWithDpapi({ env: envFor(app) });
+  assert.ok(Buffer.isBuffer(out)); assert.equal(sha(out.toString('utf8').trim()), sha(DUMMY));    // compared by hash, never printed
+  const files = []; (function walk(d) { for (const n of fs.readdirSync(d)) { const p = path.join(d, n); fs.statSync(p).isDirectory() ? walk(p) : files.push(p); } })(app);
+  assert.equal(files.length, 1); for (const f of files) assert.ok(!fs.readFileSync(f).toString('latin1').includes(DUMMY));
+});
+
+test('DPAPI: missing or corrupted blobs give a generic error that reveals no path, secret or child output', T, () => {
+  const app = sub('dpapi2');
+  assert.throws(() => decryptWithDpapi({ env: envFor(app) }), (e) => e.message === 'the admin key file is missing or cannot be decrypted');
+  const blob = makeBlob(app, DUMMY); fs.writeFileSync(blob, 'this is not a dpapi blob');
+  assert.throws(() => decryptWithDpapi({ env: envFor(app) }), (e) => e.message === 'the admin key file is missing or cannot be decrypted' && !e.message.includes(DUMMY) && !e.message.includes(app));
+});
+
+test('DPAPI: loadAdminKey through the production script with a throwaway (never used) key; mismatches refuse without echoing; the buffer is zeroed', T, () => {
+  const kp = S.Keypair.random(); const app = sub('dpapi3'); makeBlob(app, kp.secret());
+  const k = loadAdminKey(S, kp.publicKey(), () => decryptWithDpapi({ env: envFor(app) }));
+  assert.equal(k.publicKey(), kp.publicKey());
+  assert.throws(() => loadAdminKey(S, S.Keypair.random().publicKey(), () => decryptWithDpapi({ env: envFor(app) })), (e) => /does not match the configured F/.test(e.message) && !e.message.includes(kp.secret()));
+  let captured; loadAdminKey(S, kp.publicKey(), () => { captured = decryptWithDpapi({ env: envFor(app) }); return captured; });
+  assert.ok(captured.every((b) => b === 0), 'decrypted buffer must be zero-filled after use');
+});
+
+test('DPAPI: a separate process using the production code prints and logs nothing secret (stdout and stderr captured)', T, () => {
+  const kp = S.Keypair.random(); const app = sub('dpapi4'); makeBlob(app, kp.secret());
+  const script = path.join(sub('dpapi4-run'), 'run.cjs');
+  fs.writeFileSync(script, `const { loadSdk } = require(${JSON.stringify(path.resolve(__dirname, '..', 'sdk-loader.cjs'))}); const S = loadSdk();
+const { loadAdminKey } = require(${JSON.stringify(path.resolve(__dirname, '..', 'dpapi-key.cjs'))});
+const k = loadAdminKey(S, ${JSON.stringify(kp.publicKey())}); console.log('OK ' + k.publicKey().slice(0, 6));`);
+  const r = spawnSync(process.execPath, [script], { encoding: 'utf8', env: envFor(app) });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /^OK G/); assert.ok(!(r.stdout + r.stderr).includes(kp.secret())); assert.equal(r.stderr, '');
+});
+
+// ---------------------------------------------------------------- CLI refusal paths (child process, temporary copy)
+const MODULES = ['tst-signer.cjs', 'tst-signer-core.cjs', 'refusal.cjs', 'authorization.cjs', 'state-store.cjs', 'dpapi-key.cjs', 'sdk-loader.cjs', 'pinned.cjs', 'make-deployment-config.cjs'];
+function cliDir(name, { config = true, pinHash = null } = {}) {
+  // a sibling of the signer directory, so the relative path to the SDK download resolves as in production
+  const dir = fs.mkdtempSync(path.join(path.resolve(__dirname, '..', '..'), `tst-cli-${name}-`)); cleanup.push(dir);
+  for (const m of MODULES) fs.copyFileSync(path.resolve(__dirname, '..', m), path.join(dir, m));
+  if (pinHash !== null) fs.writeFileSync(path.join(dir, 'pinned.cjs'), `module.exports = { PINNED_CONFIG_SHA256: ${JSON.stringify(pinHash)} };\n`);
+  let text; if (config) { text = makeDeploymentConfigText(S, S.Keypair.random().publicKey()); fs.writeFileSync(path.join(dir, 'deployment-config.json'), text); }
+  return { dir, text };
+}
+const cleanup = []; test.after(() => { for (const d of cleanup) fs.rmSync(d, { recursive: true, force: true }); });
+function cli(dir, args, appData) {
+  fs.mkdirSync(path.join(appData, 'TobinTestKeys'), { recursive: true });
+  return spawnSync(process.execPath, [path.join(dir, 'tst-signer.cjs'), ...args], { encoding: 'utf8', cwd: dir, env: { ...process.env, LOCALAPPDATA: appData }, timeout: 60000 });
+}
+
+test('CLI: invalid arguments exit 2 with usage and do nothing', T, () => {
+  const { dir } = cliDir('args'); const app = sub('cli-app-args');
+  for (const args of [[], ['sign'], ['preview'], ['execute'], ['execute', 'transfer'], ['execute', 'deploy', 'extra'], ['init', 'deploy'], ['preview', 'mint-E'], ['--help']]) {
+    const r = cli(dir, args, app); assert.equal(r.status, 2, JSON.stringify(args)); assert.match(r.stderr, /usage:/);
+  }
+  assert.deepEqual(fs.readdirSync(path.join(app, 'TobinTestKeys')), []);
+});
+
+test('CLI: missing configuration refuses', T, () => {
+  const { dir } = cliDir('noconf', { config: false }); const app = sub('cli-app-noconf');
+  for (const args of [['init'], ['preview', 'deploy'], ['execute', 'deploy']]) { const r = cli(dir, args, app); assert.equal(r.status, 1); assert.match(r.stderr, /deployment-config\.json is missing/); }
+});
+
+test('CLI: unpinned configuration refuses init and execute before any network access, creates no state', T, () => {
+  const { dir } = cliDir('unpinned'); const app = sub('cli-app-unpinned');
+  let r = cli(dir, ['init'], app); assert.equal(r.status, 1); assert.match(r.stderr, /not pinned/);
+  r = cli(dir, ['execute', 'deploy'], app); assert.equal(r.status, 1); assert.match(r.stderr, /not pinned/);
+  assert.deepEqual(fs.readdirSync(path.join(app, 'TobinTestKeys')), []);
+});
+
+test('CLI: a pinned configuration with a changed byte refuses; with missing state refuses; init creates owner-only state once; tampered state refuses', T, () => {
+  const probe = cliDir('probe'); const pin = sha(Buffer.from(probe.text, 'utf8'));
+  const { dir } = cliDir('pinned', { pinHash: pin }); fs.copyFileSync(path.join(probe.dir, 'deployment-config.json'), path.join(dir, 'deployment-config.json'));
+  const app = sub('cli-app-pinned'); const stateFile = path.join(app, 'TobinTestKeys', 'settlement-token-state.json');
+  // missing state (execute reconciles first, which needs the state; no network is reached)
+  let r = cli(dir, ['execute', 'deploy'], app); assert.equal(r.status, 1); assert.match(r.stderr, /state file is missing or unreadable/);
+  // init creates the state, with owner-only ACL verified
+  r = cli(dir, ['init'], app); assert.equal(r.status, 0, r.stderr); assert.ok(fs.existsSync(stateFile)); verifyOwnerOnly(stateFile);
+  assert.deepEqual(fs.readdirSync(path.join(app, 'TobinTestKeys')), ['settlement-token-state.json']);
+  r = cli(dir, ['init'], app); assert.equal(r.status, 1); assert.match(r.stderr, /already exists/);
+  // tampered state: a changed salt, then a torn file
+  const orig = fs.readFileSync(stateFile, 'utf8'); const st = JSON.parse(orig); st.saltHex = '11'.repeat(31) + '22';
+  fs.writeFileSync(stateFile, JSON.stringify(st)); r = cli(dir, ['execute', 'deploy'], app); assert.equal(r.status, 1); assert.match(r.stderr, /saltHex differs/);
+  fs.writeFileSync(stateFile, orig.slice(0, 40)); r = cli(dir, ['execute', 'deploy'], app); assert.equal(r.status, 1); assert.match(r.stderr, /not valid JSON/);
+  // a changed byte in the pinned configuration
+  fs.writeFileSync(stateFile, orig); fs.appendFileSync(path.join(dir, 'deployment-config.json'), ' ');
+  r = cli(dir, ['execute', 'deploy'], app); assert.equal(r.status, 1); assert.match(r.stderr, /does not match its pinned SHA-256/);
+  assert.ok(!r.stdout.includes('SUCCESS'));
+});

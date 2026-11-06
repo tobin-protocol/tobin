@@ -1,0 +1,9 @@
+PASS authorization.cjs
+PASS dpapi-key.cjs
+PASS pinned.cjs
+PASS refusal.cjs
+PASS sdk-loader.cjs
+PASS state-store.cjs
+PASS tst-signer-core.cjs
+PASS tst-signer.cjs
+files: 8, pass: 8, fail: 0

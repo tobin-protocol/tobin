@@ -1,0 +1,4 @@
+// category 22: require with template specifier
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: R1)
+const m6 = require(`fs`);

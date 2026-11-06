@@ -1,0 +1,4 @@
+// category 18: getter indirection
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: N1)
+const og = { get a() { return 1; } };

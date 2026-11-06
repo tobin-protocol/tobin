@@ -1,0 +1,5 @@
+// category 22: require passed as argument
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: R1)
+function ld(f) { return f('fs'); }
+ld(require);

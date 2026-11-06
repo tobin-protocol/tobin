@@ -1,0 +1,9 @@
+Revision 6.3 CANDIDATE mutation check (NOT APPROVED). Parser: acorn 8.19.0 (pinned). Seconds: 4.5
+group	mutants	killed(refused)	controls-ok	survived
+A	450	417	33	0
+B	1035	1035	0	0
+C	336	336	0	0
+D	35	35	0	0
+E	40	0	40	0
+TOTAL 1896; killed 1823; controls accepted 73; SURVIVED 0
+refusals by rule (a mutant may trip several): A1=201 C1=799 C2=13 D1=10 G1=224 K1=210 M1=176 N1=358 N2=8 P0=8 R1=256 S1=8 T1=262 X1=11

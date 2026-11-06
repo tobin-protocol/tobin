@@ -1,0 +1,4 @@
+// category 31: exec call with new in unapproved function
+// applied as: the real dpapi-key.cjs followed by this snippet
+// expected: refused (one of: X1)
+function e4() { return execFileSync('powershell.exe', ['-NoProfile']); }

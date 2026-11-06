@@ -1,0 +1,112 @@
+'use strict';
+// Mutation check: weaken one rule at a time, run the whole suite, and require at least one failing test. Restores every file.
+const fs = require('fs'); const { spawnSync } = require('child_process');
+const C = 'tst-signer-core.cjs'; const T = 'state-store.cjs';
+const M = [
+  [C, "  if (blocker) {\n    // a rejected envelope", "  if (false) {\n    // a rejected envelope", 'block: a rejected attempt does not block a new one'],
+  [T, "o.status === 'FAILED' && o.reason === 'SUBMISSION_REJECTED');\n  }", "o.status === 'FAILED' && o.reason === 'SUBMISSION_REJECTED' && false);\n  }", 'state: rejected records never block'],
+  [C, "if (!(latest > Number(rec.maxTime) + NETWORK_TIME_MARGIN_SECONDS)) return", "if (false) return", "expiry: ledger close time past the window not required"],
+  [C, "if (oldest > submitted - HISTORY_COVERAGE_MARGIN_SECONDS) return", "if (false) return", "expiry: history coverage not required"],
+  [C, "if (!Number.isFinite(latest) || !Number.isFinite(oldest)) return", "if (false) return", "expiry: malformed network time accepted"],
+  [C, "if (latest > nowSeconds + FUTURE_SANITY_SECONDS) return", "if (false) return", "expiry: future ledger time accepted"],
+  [C, "if (latest < oldest) return", "if (false) return", "expiry: inconsistent evidence accepted"],
+  [C, "g.status !== 'NOT_FOUND') return { closed: false, why: 'the lookup did not return NOT_FOUND' }", "false) return { closed: false, why: 'x' }", "expiry: any status can close the window"],
+  [C, "const v = windowClosedByNetwork(rec, g, now);\n      if (v.closed)", "const v = { closed: now > rec.maxTime + 120, why: 'local clock' };\n      if (v.closed)", "expiry: local clock decides (the old rule)"],
+  [C, "if (!v.closed) refuse(`a previous ${opName} submission was rejected and its window", "if (false) refuse(`a previous ${opName} submission was rejected and its window", "block: lifted without network evidence"],
+  [C, "if (g && (g.status === 'SUCCESS' || g.status === 'FAILED')) refuse(`the chain shows the rejected", "if (false) refuse(`the chain shows the rejected", "block: rejected-but-included transaction ignored"],
+  [C, "refuse(`cannot reach the RPC to verify that the rejected ${opName} envelope has expired; no new attempt was made`)", "(g = { status: 'NOT_FOUND', latestLedgerCloseTime: '9999999999', oldestLedgerCloseTime: '1' })", "block: RPC failure treated as expiry"],
+  [C, "store.resolveRejected(cfg, opName, blocker.txHash, (deps.now || nowDefault)());", "", "block: the lift is not recorded"],
+  [T, "if (created) { try { fs.unlinkSync(tmp); } catch { /* ignore */ } }", "if (true) { try { fs.unlinkSync(tmp); } catch { /* ignore */ } }", "state: cleanup may delete a file this call did not create", 'win'],
+  [T, "      restrict(tmp);\n", "", "state: permissions never applied", 'win'],
+  [T, "      restrict(tmp);\n", "      try { restrict(tmp); } catch { /* ignored */ }\n", "state: permission failure ignored", 'win'],
+  [T, "if (typeof restrict.verify === 'function') {", "if (false) {", "state: final file ACL not verified", 'win'],
+  [T, "if (a.protected !== true) problems.push(", "if (false) problems.push(", "acl: inheritance not required to be blocked", 'win'],
+  [T, "if (a.owner !== a.me) problems.push(", "if (false) problems.push(", "acl: owner not checked", 'win'],
+  [T, "if (a.rules.length !== 1) problems.push(", "if (false) problems.push(", "acl: extra rules tolerated", 'win'],
+  [T, "if (r.sid !== a.me) problems.push(", "if (false) problems.push(", "acl: other principals tolerated", 'win'],
+  [T, "if (r.inherited) problems.push(", "if (false) problems.push(", "acl: inherited rule tolerated", 'win'],
+  [T, "if (!/FullControl/.test(String(r.rights))) problems.push(", "if (false) problems.push(", "acl: user rights not checked", 'win'],
+  [T, "return verifyOwnerOnly(file, { platform, exec, fs });   // the outcome is judged from the real ACL, not from the exit code", "return { applied: true, how: 'unchecked' };   //", "acl: exit code trusted, result not inspected", 'win'],
+  [T, "catch { throw new StateError('icacls failed; owner-only access could not be applied'); }", "catch { /* ignored */ }", "acl: icacls failure ignored", 'win'],
+  [T, "if (!v.ok) throw new StateError(`owner-only access is not in place: ${v.problems.join('; ')}`);", "if (false) throw new StateError(`owner-only access is not in place: ${v.problems.join('; ')}`);", "acl: verification verdict ignored", 'win'],
+  ["dpapi-key.cjs", "'$s = (Get-Content -Raw $f).Trim() | ConvertTo-SecureString; ' +", "'$s = Get-Content -Raw $f | ConvertTo-SecureString; ' +", "dpapi: trailing newline not trimmed (the defect found on Windows)", 'win'],
+  ["dpapi-key.cjs", "if (Buffer.isBuffer(buf)) buf.fill(0);", "", "dpapi: decrypted buffer not zero-filled", 'win'],
+  [C, "if (sent.status === 'DUPLICATE') return { kind: 'ENQUEUED', label: 'DUPLICATE' };", "if (sent.status === 'DUPLICATE') return { kind: 'REJECTED', label: 'DUPLICATE' };", "submission: DUPLICATE treated as a failure"],
+  [C, "if (sent.status === 'TRY_AGAIN_LATER') return { kind: 'NOT_ENQUEUED_NOW', label: 'TRY_AGAIN_LATER' };", "if (sent.status === 'TRY_AGAIN_LATER') return { kind: 'REJECTED', label: 'TRY_AGAIN_LATER' };", "submission: TRY_AGAIN_LATER treated as a failure"],
+  [C, "return sent.errorResult ? { kind: 'REJECTED', label: 'ERROR_RESPONSE' } :", "return true ? { kind: 'REJECTED', label: 'ERROR_RESPONSE' } :", "submission: ERROR without a result treated as a verdict"],
+  [C, "if (sent.hash !== txHash) return", "if (false) return", "submission: hash mismatch accepted"],
+  [C, "if (typeof sent.hash !== 'string' || !/^[0-9a-f]{64}$/.test(sent.hash)) return", "if (false) return", "submission: missing or malformed hash accepted"],
+  [C, "if (typeof sent.status !== 'string' || !SEND_STATUSES.includes(sent.status)) return", "if (false) return", "submission: unknown status accepted"],
+  [C, "if (g && g.status === 'NOT_FOUND') {\n      finish('FAILED', { reason: 'SUBMISSION_REJECTED' });", "if (true) {\n      finish('FAILED', { reason: 'SUBMISSION_REJECTED' });", "submission: rejection recorded without confirming against the chain"],
+  [C, "cls = { kind: 'AMBIGUOUS', label: 'THROWN',", "cls = { kind: 'REJECTED', label: 'THROWN',", "submission: thrown error treated as a rejection"],
+  [C, "try { g = await deps.rpc.getTransaction(txHash); } catch { return { state: 'UNKNOWN' }; }", "try { g = await deps.rpc.getTransaction(txHash); } catch { return { state: 'NOT_FOUND' }; }", "poll: lookup error treated as not found"],
+  [C, "    if (g.status !== 'NOT_FOUND') return { state: 'UNKNOWN' };\n", "", "poll: unknown status treated as not found"],
+  [C, "finish('FAILED', { ledger: outcome.result.ledger, reason: 'ON_CHAIN_FAILED' });", "finish('SUCCEEDED', { ledger: outcome.result.ledger });", "outcome: on-chain failure recorded as success"],
+  [C, "if (outcome.state !== 'SUCCESS') {\n    refuse(`transaction ${txHash} outcome is not known", "if (false) {\n    refuse(`transaction ${txHash} outcome is not known", "outcome: unknown outcome treated as success"],
+  [C, "outcome = await pollTransaction(deps, txHash);\n  }", "await rpc.sendTransaction(p.assembled);\n    outcome = await pollTransaction(deps, txHash);\n  }", "outcome: a second submission after an ambiguous answer"],
+  [C, "    catch (e) { throw new Refusal(redact(`transaction ${txHash} outcome is ${status} but the local record could not be updated", "    catch (e) { throw new Error(redact(`transaction ${txHash} outcome is ${status} but the local record could not be updated", "state failure after submission: not reported as Refusal"],
+  [C, "else if (g.status === 'FAILED') store.markResult(cfg, rec.operation, 'FAILED', { ledger: g.ledger, now, reason: 'ON_CHAIN_FAILED' });", "else if (g.status === 'FAILED') store.markResult(cfg, rec.operation, 'SUCCEEDED', { ledger: g.ledger, now });", "reconcile: on-chain failure recorded as success"],
+  [C, "catch { refuse(`cannot reach the RPC to reconcile", "catch { g = { status: 'NOT_FOUND' }; ({}).x = (`cannot reach the RPC to reconcile", "reconcile: RPC error treated as not found"],
+  [T, "if (o.reason !== undefined && (!REASONS.includes(o.reason)", "if (false && (!REASONS.includes(o.reason)", "state: reason not validated"],
+  [C, "if (op.func.toXDR('base64') !== want) refuse(", "if (false) refuse(", "original: host-function comparison"],
+  [C, "if (tx.source !== cfg.F) refuse(", "if (false) refuse(", "original: source check"],
+  [C, "if (typed !== p.phrase) refuse(", "if (false) refuse(", "original: confirmation check"],
+  [C, "if (networkPassphrase !== cfg.passphrase) refuse('network passphrase", "if (false) refuse('network passphrase", "original: passphrase check"],
+  [C, "if (!Array.isArray(tx.operations) || tx.operations.length !== 1) refuse(", "if (false) refuse(", "original: single-operation check"],
+  [C, "if (got !== cfg.tokenId) refuse('simulated contract ID differs", "if (false) refuse('simulated contract ID differs", "original: predicted-ID comparison"],
+  [C, "if (meta.name !== cfg.name", "if (false && meta.name !== cfg.name", "original: metadata guard"],
+  [C, "if (credentialType(a) !== 'sorobanCredentialsSourceAccount') refuse(", "if (false) refuse(", "original: authorization-type check"],
+  [C, "if (!Number.isFinite(fee) || fee <= 0 || fee > cfg.feeCeilingStroops) refuse(", "if (false) refuse(", "original: fee ceiling"],
+  [C, "if (String(sim.transactionData.build().resourceFee) !== String(sim.minResourceFee)) refuse(", "if (false) refuse(", "fee fields consistency"],
+  [C, "if (tx.signatures && tx.signatures.length !== 0) refuse(", "if (false) refuse(", "original: already-signed check"],
+  [C, "if (!tx.memo || tx.memo.type !== 'none') refuse(", "if (false) refuse(", "original: memo check"],
+  [C, "if (missing.length) refuse(", "if (false) refuse(", 'footprint: missing entries'],
+  [C, "if (extra.length) refuse(", "if (false) refuse(", 'footprint: unexpected entries'],
+  [C, "if (!sameSet(got[part], want[part])) refuse(", "if (false) refuse(", 'footprint: duplicate entries'],
+  [C, "if (used[k] > lim[k]) refuse(", "if (false) refuse(", 'resources: ceilings not enforced'],
+  [C, "if (!Number.isFinite(used[k]) || used[k] < 0) refuse(", "if (false) refuse(", 'resources: missing/NaN report accepted'],
+  [C, "instructions: 1800000", "instructions: 1800000000", 'resources: deploy instruction ceiling raised'],
+  [C, "'mint-C': Object.freeze({ instructions: 1400000, readBytes: 10000, writeBytes: 1200 })", "'mint-C': Object.freeze({ instructions: 1400000, readBytes: 10000, writeBytes: 1200000 })", 'resources: mint-C write ceiling raised'],
+  [C, "if (max <= nowSeconds) refuse(", "if (false) refuse(", 'time: expired accepted'],
+  [C, "if (min > nowSeconds) refuse(", "if (false) refuse(", 'time: not-yet-valid accepted'],
+  [C, "if (max - nowSeconds > cfg.maxTimeoutSeconds + cfg.timeSkewSeconds) refuse(", "if (false) refuse(", 'time: lifetime cap removed'],
+  [C, "if (minRemainingSeconds && max - nowSeconds < minRemainingSeconds) refuse(", "if (false) refuse(", 'time: minimum remaining validity removed'],
+  [C, "if (!Number.isFinite(min) || !Number.isFinite(max)) refuse(", "if (false) refuse(", 'time: malformed accepted'],
+  [C, "if (max === 0) refuse(", "if (false) refuse(", 'time: unbounded accepted'],
+  [C, "minRemainingSeconds: cfg.minRemainingSeconds });", "minRemainingSeconds: 0 });", 'time: no minimum before signing'],
+  [C, "assembled: true, nowSeconds: (deps.now || nowDefault)(), minRemainingSeconds", "assembled: true, nowSeconds: 0, minRemainingSeconds", 'time: stale clock before signing'],
+  [C, "if (o.predictedContractId !== cfg.tokenId) refuse(", "if (false) refuse(", 'config: ID consistency removed'],
+  [C, "if (pinnedSha256 && sha !== pinnedSha256) refuse(", "if (false) refuse(", 'config: pin comparison removed'],
+  [C, "if (!cfg.pinned) refuse('the deployment configuration is not pinned to a reviewed SHA-256; refusing to execute');", "", 'config: execute allowed when unpinned'],
+  [C, "if (/^(.{2})\\1{31}$/.test(saltHex)) refuse(", "if (false) refuse(", 'config: repeated-byte salt accepted'],
+  [T, "if (state[k] !== v) throw new StateError(", "if (false) throw new StateError(", 'state: not matched to the pinned deployment'],
+  [T, "if (back !== text) throw new StateError(", "if (false) throw new StateError(", 'state: read-back not verified'],
+  [T, "try { fs.unlinkSync(tmp); } catch { /* ignore */ }", "", 'state: temp file not cleaned after a failed write'],
+  [T, "fs.openSync(tmp, 'wx', 0o600)", "fs.openSync(tmp, 'wx', 0o666)", 'state: permissive file mode'],
+  [T, "fs.renameSync(tmp, file);", "fs.writeFileSync ? 0 : 0; fs.files = fs.files; /* rename skipped */", 'state: rename (atomic replace) skipped'],
+  [T, "if (seen.has(o.operation) && o.status !== 'FAILED' && o.status !== 'EXPIRED') bad(", "if (false) bad(", 'state: duplicate active record accepted'],
+  [T, "throw new StateError('state file is not valid JSON (possible interrupted write); refusing to continue')", "return { version: 2, network: 'testnet', operations: [] }", 'state: torn file replaced by empty state'],
+  [C, "try { store.markPending(cfg, opName, { txHash, maxTime: p.assembled.timeBounds.maxTime, now: (deps.now || nowDefault)() }); }", "try { /* pending record skipped */ }", 'execute: pending record not written before send'],
+  [C, "  await reconcile(deps, cfg);\n  const st = store.assertMatches(cfg);", "  const st = store.assertMatches(cfg);", 'execute: no reconcile of interrupted runs'],
+];
+const D = 'dpapi-key.cjs';
+const orig = { [C]: fs.readFileSync(C, 'utf8'), [T]: fs.readFileSync(T, 'utf8'), [D]: fs.readFileSync(D, 'utf8') };
+// FAST: the offline suites (a few seconds). WIN: real-Windows validation (ACL, DPAPI with dummy data, NTFS, CLI; tens of seconds).
+const FAST = ['test/tst-signer.test.cjs', 'test/hardening.test.cjs', 'test/submission.test.cjs', 'test/expiry.test.cjs'];
+const WIN = ['test/windows.test.cjs'];
+const run = (files) => { const r = spawnSync(process.execPath, ['--test', ...files], { encoding: 'utf8' }); const f = /ℹ fail (\d+)/.exec(r.stdout); const p = /ℹ pass (\d+)/.exec(r.stdout); return { fail: f ? +f[1] : -1, pass: p ? +p[1] : -1 }; };
+let survived = 0;
+const base = run([...FAST, ...WIN]); console.log('baseline', JSON.stringify(base)); if (base.fail !== 0 || base.pass < 100) { console.log('BASELINE NOT GREEN; aborting'); process.exit(1); }
+const ONLY = process.env.MUT_ONLY ? new RegExp(process.env.MUT_ONLY) : null;
+for (const [file, from, to, label, suite = 'fast'] of M) {
+  if (ONLY && !ONLY.test(label)) continue;
+  const src = orig[file];
+  if (!src.includes(from)) { console.log('NOT APPLIED  ', label); survived++; continue; }
+  fs.writeFileSync(file, src.replace(from, () => to));
+  const r = run(suite === 'win' ? WIN : FAST); fs.writeFileSync(file, src);
+  const killed = r.fail > 0 || r.fail === -1;
+  if (!killed) survived++;
+  console.log(killed ? 'killed       ' : 'SURVIVED     ', `(${r.fail} failing, suite ${suite})`, label);
+}
+for (const f of [C, T, D]) fs.writeFileSync(f, orig[f]);
+console.log(`mutants ${M.length}, survived or not applied ${survived}`);

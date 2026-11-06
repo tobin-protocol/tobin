@@ -1,0 +1,4 @@
+// category 26: unresolved free identifier call
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: G1)
+undefinedThing('x');

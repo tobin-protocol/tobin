@@ -1,0 +1,44 @@
+# Second, separately written reconstruction of the B1 manifest (PowerShell 5.1 / .NET SHA-256). Same author as the Node implementations, so the result is
+# SELF-VERIFIED; it shares no code with baseline.cjs or verify-signer-baseline.cjs. Written from the B1 manifest specification (docs: B1-MANIFEST-ENTRIES.md):
+#   header "TOBIN-TST-SIGNER-BASELINE v1"; "<sha256><two spaces><label>" per input, ordinal order of the label; LF only; final LF; UTF-8 without BOM.
+#   inputs: file:<name> for each of the 10 runtime files; config:deployment-config.json (sha256 or ABSENT); the two external SDK entries.
+#   text inputs (runtime files, config): no CR, no BOM, valid UTF-8; SDK files raw bytes. baseline hash = SHA-256 of the manifest bytes.
+param([Parameter(Mandatory=$true)][string]$SignerDir, [Parameter(Mandatory=$true)][string]$SdkDir, [Parameter(Mandatory=$true)][string]$Expected, [string]$EvidenceManifest = '')
+$ErrorActionPreference = 'Stop'
+$files = 'authorization.cjs','baseline.cjs','dpapi-key.cjs','pinned.cjs','refusal.cjs','sdk-loader.cjs','state-store.cjs','tst-signer-core.cjs','tst-signer-main.cjs','tst-signer.cjs'
+function Hex([byte[]]$b) { $h = [Security.Cryptography.SHA256]::Create().ComputeHash($b); -join ($h | ForEach-Object { $_.ToString('x2') }) }
+function TextBytes([string]$p) {
+  [byte[]]$b = [IO.File]::ReadAllBytes($p)
+  if ($b -contains 13) { throw "REFUSED: CR in $p" }
+  if ($b.Length -ge 3 -and $b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF) { throw "REFUSED: BOM in $p" }
+  try { [void](New-Object Text.UTF8Encoding($false, $true)).GetString($b) } catch { throw "REFUSED: invalid UTF-8 in $p" }
+  return ,$b
+}
+# 1. directory listing: nothing unexpected
+$allowed = $files + 'make-deployment-config.cjs','test','deployment-config.json'
+foreach ($n in (Get-ChildItem -LiteralPath $SignerDir -Force | ForEach-Object { $_.Name })) { if ($allowed -cnotcontains $n) { throw "REFUSED: unexpected entry $n" } }
+# 2. closure by my own require() walk from tst-signer.cjs
+$seen = New-Object 'System.Collections.Generic.HashSet[string]'; $q = New-Object 'System.Collections.Generic.Queue[string]'; $q.Enqueue('tst-signer.cjs'); $builtins = @{}
+while ($q.Count -gt 0) { $f = $q.Dequeue(); if (-not $seen.Add($f)) { continue }; $src = [IO.File]::ReadAllText((Join-Path $SignerDir $f))
+  foreach ($m in [regex]::Matches($src, "require\(\s*'([^']+)'\s*\)")) { $t = $m.Groups[1].Value; if ($t.StartsWith('./')) { $q.Enqueue($t.Substring(2)) } else { $builtins[$t] = 1 } } }
+$walk = [string[]]$seen; [Array]::Sort($walk, [StringComparer]::Ordinal)
+Write-Output ("closure found by require() walk: " + ($walk -join ', '))
+Write-Output ("walk equals the 10 manifest files: " + (-not (Compare-Object $walk ([string[]]($files | Sort-Object)))))
+Write-Output ("built-ins: " + (($builtins.Keys | Sort-Object) -join ', '))
+# 3. manifest
+$e = New-Object 'System.Collections.Generic.Dictionary[string,string]'
+foreach ($f in $files) { $e["file:$f"] = Hex (TextBytes (Join-Path $SignerDir $f)) }
+$cfg = Join-Path $SignerDir 'deployment-config.json'
+if (Test-Path -LiteralPath $cfg) { $e['config:deployment-config.json'] = Hex (TextBytes $cfg) } else { $e['config:deployment-config.json'] = 'ABSENT' }
+$pj = [IO.File]::ReadAllBytes((Join-Path $SdkDir 'package.json')); $meta = [Text.Encoding]::UTF8.GetString($pj) | ConvertFrom-Json
+if ($meta.name -ne '@stellar/stellar-sdk' -or $meta.version -ne '17.4.0') { throw 'REFUSED: SDK identity' }
+$e['external:@stellar/stellar-sdk@17.4.0/package.json'] = Hex $pj
+$e['external:@stellar/stellar-sdk@17.4.0/dist/stellar-sdk.js'] = Hex ([IO.File]::ReadAllBytes((Join-Path (Join-Path $SdkDir 'dist') 'stellar-sdk.js')))
+$labels = [string[]]$e.Keys; [Array]::Sort($labels, [StringComparer]::Ordinal)
+$sb = New-Object Text.StringBuilder; [void]$sb.Append("TOBIN-TST-SIGNER-BASELINE v1`n"); foreach ($l in $labels) { [void]$sb.Append($e[$l] + '  ' + $l + "`n") }
+$bytes = (New-Object Text.UTF8Encoding($false)).GetBytes($sb.ToString()); $hash = Hex $bytes
+Write-Output $sb.ToString().TrimEnd("`n")
+Write-Output "manifest bytes: $($bytes.Length); LF only: $(-not ($bytes -contains 13)); final LF: $($bytes[-1] -eq 10)"
+Write-Output "computed : $hash"; Write-Output "expected : $Expected"
+if ($EvidenceManifest -and (Test-Path -LiteralPath $EvidenceManifest)) { [byte[]]$ev = [IO.File]::ReadAllBytes($EvidenceManifest); Write-Output ("preserved B1 manifest file byte-identical: " + (($ev.Length -eq $bytes.Length) -and (-not (Compare-Object $ev $bytes -SyncWindow 0)))) }
+if ($hash -eq $Expected) { Write-Output 'RESULT: MATCH (SELF-VERIFIED: same author)'; exit 0 } else { Write-Output 'RESULT: MISMATCH'; exit 1 }

@@ -1,0 +1,5 @@
+// category 22: aliased require
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: R1)
+const r2 = require;
+r2('child_process');

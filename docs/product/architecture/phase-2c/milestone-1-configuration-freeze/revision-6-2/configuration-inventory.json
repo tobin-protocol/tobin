@@ -1,0 +1,713 @@
+{
+  "schema": "tobin.tst-signer.configuration-inventory/3",
+  "baselineStatus": "REVISION 6.2 CANDIDATE - NOT APPROVED",
+  "generatedAt": "2026-11-04T18:08:35.415Z",
+  "signerRevision": "revision 5 (working copy; identical bytes to the revision-5 package)",
+  "runtimeLoadingPath": {
+    "cli": "tst-signer.cjs",
+    "configFile": "deployment-config.json next to tst-signer.cjs (__dirname)",
+    "state": "%LOCALAPPDATA%\\TobinTestKeys\\settlement-token-state.json",
+    "dpapi": "%LOCALAPPDATA%\\TobinTestKeys\\settlement-token-admin.dpapi",
+    "closure": [
+      "authorization.cjs",
+      "dpapi-key.cjs",
+      "pinned.cjs",
+      "refusal.cjs",
+      "sdk-loader.cjs",
+      "state-store.cjs",
+      "tst-signer-core.cjs",
+      "tst-signer.cjs"
+    ],
+    "hashedClosure": [
+      "authorization.cjs",
+      "dpapi-key.cjs",
+      "pinned.cjs",
+      "refusal.cjs",
+      "sdk-loader.cjs",
+      "state-store.cjs",
+      "tst-signer-core.cjs",
+      "tst-signer.cjs"
+    ],
+    "loadingPolicy": {
+      "analysis": {
+        "authorization.cjs": {
+          "relative": [
+            "refusal.cjs"
+          ],
+          "builtin": [],
+          "uses": {},
+          "roots": [],
+          "computed": [
+            {
+              "line": 137,
+              "key": "i"
+            },
+            {
+              "line": 137,
+              "key": "i"
+            },
+            {
+              "line": 140,
+              "key": "k"
+            },
+            {
+              "line": 140,
+              "key": "k"
+            },
+            {
+              "line": 178,
+              "key": "i"
+            },
+            {
+              "line": 179,
+              "key": "i"
+            }
+          ]
+        },
+        "dpapi-key.cjs": {
+          "relative": [
+            "refusal.cjs"
+          ],
+          "builtin": [
+            "child_process"
+          ],
+          "uses": {
+            "execFileSync": 2
+          },
+          "roots": [],
+          "computed": []
+        },
+        "pinned.cjs": {
+          "relative": [],
+          "builtin": [],
+          "uses": {},
+          "roots": [],
+          "computed": []
+        },
+        "refusal.cjs": {
+          "relative": [],
+          "builtin": [],
+          "uses": {},
+          "roots": [],
+          "computed": []
+        },
+        "sdk-loader.cjs": {
+          "relative": [],
+          "builtin": [
+            "crypto",
+            "fs",
+            "path",
+            "vm"
+          ],
+          "uses": {
+            "readFileSync": 2,
+            "runInThisContext": 1
+          },
+          "roots": [
+            {
+              "root": "vm",
+              "line": 7,
+              "approved": true,
+              "pattern": "V1"
+            },
+            {
+              "root": "globalThis",
+              "line": 24,
+              "approved": true,
+              "pattern": "G1"
+            },
+            {
+              "root": "globalThis",
+              "line": 24,
+              "approved": true,
+              "pattern": "G1"
+            },
+            {
+              "root": "vm",
+              "line": 25,
+              "approved": true,
+              "pattern": "V2"
+            },
+            {
+              "root": "globalThis",
+              "line": 26,
+              "approved": true,
+              "pattern": "G2"
+            },
+            {
+              "root": "globalThis",
+              "line": 27,
+              "approved": true,
+              "pattern": "G3"
+            }
+          ],
+          "computed": []
+        },
+        "state-store.cjs": {
+          "relative": [],
+          "builtin": [
+            "child_process",
+            "crypto",
+            "fs",
+            "path"
+          ],
+          "uses": {
+            "execFileSync": 4,
+            "exec": 9,
+            "load": 3,
+            "readFileSync": 2,
+            "openSync": 1
+          },
+          "roots": [],
+          "computed": [
+            {
+              "line": 143,
+              "key": "k"
+            }
+          ]
+        },
+        "tst-signer-core.cjs": {
+          "relative": [
+            "authorization.cjs",
+            "refusal.cjs"
+          ],
+          "builtin": [
+            "crypto"
+          ],
+          "uses": {},
+          "roots": [],
+          "computed": [
+            {
+              "line": 113,
+              "key": "0"
+            },
+            {
+              "line": 154,
+              "key": "0"
+            },
+            {
+              "line": 198,
+              "key": "part"
+            },
+            {
+              "line": 198,
+              "key": "part"
+            },
+            {
+              "line": 199,
+              "key": "part"
+            },
+            {
+              "line": 199,
+              "key": "part"
+            },
+            {
+              "line": 202,
+              "key": "part"
+            },
+            {
+              "line": 202,
+              "key": "part"
+            },
+            {
+              "line": 205,
+              "key": "opName"
+            },
+            {
+              "line": 208,
+              "key": "k"
+            },
+            {
+              "line": 208,
+              "key": "k"
+            },
+            {
+              "line": 209,
+              "key": "k"
+            },
+            {
+              "line": 209,
+              "key": "k"
+            },
+            {
+              "line": 209,
+              "key": "k"
+            },
+            {
+              "line": 209,
+              "key": "k"
+            }
+          ]
+        },
+        "tst-signer.cjs": {
+          "relative": [
+            "dpapi-key.cjs",
+            "pinned.cjs",
+            "sdk-loader.cjs",
+            "state-store.cjs",
+            "tst-signer-core.cjs"
+          ],
+          "builtin": [
+            "fs",
+            "path",
+            "readline"
+          ],
+          "uses": {
+            "readFileSync": 1
+          },
+          "roots": [],
+          "computed": []
+        }
+      },
+      "note": "conservative lexical policy (revision 6.2: exact approved patterns, self alias, sensitive properties, computed dispatch for sensitive roots, computed-access rule) enforced by compute-baseline-hash.cjs; not a complete JavaScript static analysis. roots = sensitive-root uses with their approved pattern, computed = computed member accesses"
+    },
+    "notHashed": {
+      "files": [
+        "acl-experiment.cjs",
+        "asm.cjs",
+        "auth-evidence.cjs",
+        "auth-probe.cjs",
+        "dryrun-live.cjs",
+        "evidence.cjs",
+        "finalize-docs-rev4.cjs",
+        "finalize-rev5.cjs",
+        "make-deployment-config.cjs",
+        "mutate-rev4.log",
+        "mutate-rev5-firstrun.log",
+        "mutate-rev5.log",
+        "mutate.cjs",
+        "patch-expiry-tests.cjs",
+        "patch-mutate-rev4.cjs",
+        "patch-rev4.cjs",
+        "patch-rev4b.cjs",
+        "patch-rev4c.cjs",
+        "patch-rev5-auth-layers.cjs",
+        "patch-rev5-core.cjs",
+        "patch-rev5-dpapi.cjs",
+        "patch-rev5-dpapi2.cjs",
+        "patch-rev5-helpers.cjs",
+        "patch-rev5-survivors.cjs",
+        "patch-rev5-tests.cjs",
+        "patch-rev5-tests2.cjs",
+        "patch-tests-rev4.cjs",
+        "preview-sample.cjs",
+        "r5-mutation-notes.md",
+        "review-r5.template.md",
+        "sample-gen.cjs",
+        "sample-preview.txt",
+        "windows-validation.cjs"
+      ],
+      "reason": "not reachable from tst-signer.cjs under the loading policy; make-deployment-config.cjs is not loaded when signing and its OUTPUT is covered by the config hash; the rest are tests, evidence, patch and mutation scripts"
+    }
+  },
+  "values": {
+    "network": {
+      "passphrase": "Test SDF Network ; September 2015",
+      "rpcUrl": "https://soroban-testnet.stellar.org",
+      "source": "tst-signer-core.cjs APPROVED (constants in code)"
+    },
+    "sourceAccountF": {
+      "value": "NOT YET CREATED",
+      "source": "deployment-config.json \"admin\" (absent); the transaction source is pinned to it by verifyTransaction"
+    },
+    "deployment": {
+      "wasmHash": "ef483732039f0ca62665b92b816c3a12dcf094c707f77e1edc53e60ea083241f",
+      "name": "Tobin Settlement Test Token",
+      "symbol": "TST",
+      "decimals": 7,
+      "cap": "30000",
+      "constructorOrder": "minter=F, cap, decimals, name, symbol",
+      "source": "APPROVED in code; rendered by expectedOperation and by authorization.cjs"
+    },
+    "predictedContractId": {
+      "value": "NOT YET DERIVED",
+      "source": "derived from (F, salt, passphrase) by predictContractId; stored in deployment-config.json \"predictedContractId\" and recomputed at load"
+    },
+    "salt": {
+      "value": "NOT YET GENERATED",
+      "source": "deployment-config.json \"saltHex\"; a repeated-byte salt is refused"
+    },
+    "mintC": {
+      "recipient": "GCWK6QC7WTDVUVFY7PAPKXJAIJXOOMNJMSDU3TM2WIXWAMM6VYEXOGWL",
+      "amount": "20000",
+      "source": "APPROVED in code"
+    },
+    "mintD": {
+      "recipient": "GCFEEEECS4IRNQLIT6MFOX3TR6GBZ2IQ7SZ7RANG577QBLJ57TTR2DLJ",
+      "amount": "10000",
+      "source": "APPROVED in code"
+    },
+    "operations": {
+      "list": [
+        "deploy",
+        "mint-C",
+        "mint-D"
+      ],
+      "order": "deploy, then mint-C, then mint-D; enforced by on-chain state guards (mint-C needs supply 0, mint-D needs supply 20,000 with C holding 20,000) and per-operation records, not by a hard-coded sequence number",
+      "source": "APPROVED.ops; checkState"
+    },
+    "authorizationExpectation": {
+      "entriesPerOperation": 1,
+      "credential": "sorobanCredentialsSourceAccount",
+      "subInvocations": 0,
+      "maxDepth": 8,
+      "source": "authorization.cjs expectedAuthorizationEntries (derived from the values above)"
+    },
+    "feeCeilingStroops": {
+      "value": 500000,
+      "xlm": 0.05,
+      "baseFee": "100",
+      "source": "APPROVED"
+    },
+    "resourceCeilings": {
+      "deploy": {
+        "instructions": 1800000,
+        "readBytes": 10000,
+        "writeBytes": 1000
+      },
+      "mint-C": {
+        "instructions": 1400000,
+        "readBytes": 10000,
+        "writeBytes": 1200
+      },
+      "mint-D": {
+        "instructions": 1400000,
+        "readBytes": 10000,
+        "writeBytes": 1200
+      }
+    },
+    "timeBounds": {
+      "maxTimeoutSeconds": 120,
+      "timeSkewSeconds": 10,
+      "minRemainingSeconds": 15,
+      "networkTimeMarginSeconds": 30,
+      "historyCoverageMarginSeconds": 60,
+      "futureSanitySeconds": 300,
+      "pollAttempts": 30,
+      "pollIntervalMs": 2000,
+      "source": "APPROVED and constants in tst-signer-core.cjs"
+    },
+    "sdk": {
+      "name": "@stellar/stellar-sdk",
+      "version": "17.4.0",
+      "bundleSha256": "de18071d1f64bf6aa1806a4eb250b3be7c1811a8e8ecdfc3c103013cf1d9b92f",
+      "location": "relative to the signer directory: ../pk/x-stellar-stellar-sdk-17.4.0/package (sdk-loader.cjs)",
+      "checkedAtRunTime": true
+    },
+    "stateStore": {
+      "file": "settlement-token-state.json under %LOCALAPPDATA%\\TobinTestKeys (tst-signer.cjs)",
+      "ops": [
+        "deploy",
+        "mint-C",
+        "mint-D"
+      ],
+      "statuses": [
+        "PENDING",
+        "SUCCEEDED",
+        "FAILED",
+        "EXPIRED"
+      ],
+      "reasons": [
+        "ON_CHAIN_FAILED",
+        "SUBMISSION_REJECTED",
+        "SUBMISSION_REJECTED_WINDOW_CLOSED",
+        "WINDOW_PASSED_NOT_FOUND"
+      ],
+      "submissions": [
+        "ENQUEUED",
+        "DUPLICATE",
+        "TRY_AGAIN_LATER",
+        "ERROR_RESPONSE",
+        "MALFORMED_RESPONSE",
+        "HASH_MISMATCH",
+        "THROWN"
+      ],
+      "schemaVersion": 2,
+      "ownerOnlyAclRequired": true
+    },
+    "keyFile": {
+      "file": "%LOCALAPPDATA%\\TobinTestKeys\\settlement-token-admin.dpapi (fixed name in the DPAPI script)",
+      "state": "NOT YET CREATED"
+    },
+    "pin": {
+      "currentPinnedConfigSha256": "null",
+      "source": "pinned.cjs (same directory as the signer)"
+    }
+  },
+  "environmentInputs": [
+    {
+      "name": "LOCALAPPDATA",
+      "effect": "selects the directory of the state file (tst-signer.cjs) and of the DPAPI key file (dpapi-key.cjs script)",
+      "pinned": false
+    },
+    {
+      "name": "PATH",
+      "effect": "powershell.exe and icacls are started by bare name and resolved through PATH (dpapi-key.cjs, state-store.cjs)",
+      "pinned": false
+    },
+    {
+      "name": "USERNAME / user SID",
+      "effect": "ACL owner-only check uses the current Windows user SID",
+      "pinned": false
+    },
+    {
+      "name": "system clock",
+      "effect": "time bounds and expiry sanity checks",
+      "pinned": false
+    },
+    {
+      "name": "current working directory",
+      "effect": "none: the config file and SDK are located with __dirname, not the working directory",
+      "pinned": true
+    },
+    {
+      "name": "command-line arguments",
+      "effect": "only init|preview|execute and one of deploy|mint-C|mint-D are accepted; anything else exits 2",
+      "pinned": true
+    }
+  ],
+  "baseline": {
+    "variant": "CODE BASELINE (B0)",
+    "hash": "9b594c5407b7934274f9c41a47f2dfc13a781f4f7b0cc0962a8ab57a52bacbb7",
+    "manifest": "TOBIN-TST-SIGNER-BASELINE v1\nABSENT  config:deployment-config.json\nde18071d1f64bf6aa1806a4eb250b3be7c1811a8e8ecdfc3c103013cf1d9b92f  external:@stellar/stellar-sdk@17.4.0/dist/stellar-sdk.js\nee981053db93fce5c81310620d8198a493aa134ecd35d3e64540296687d72a62  external:@stellar/stellar-sdk@17.4.0/package.json\nae3088b47d683f98b0c987afc086989aaf46c1e837d5c183272064e39bdef1b9  file:authorization.cjs\n7acf06713e5ec9478515180333ba132060d3bb68d75b0c8002923e0c41b589de  file:dpapi-key.cjs\n312ed3f24c83ed1f8e5e7ebc8f3501389374f3b18528698d638830cef8dff361  file:pinned.cjs\n562039b8d581894e4c9a5c79262a182bf7a603b85ce9031f39d3401607b46f3e  file:refusal.cjs\n7bc1fedc451da5ea4e839ce7a25e048696548aad7fb794cfef1c0a14671817a9  file:sdk-loader.cjs\nae59de944e9b3c624d9f33c1c07c78f6eb0bb8c77ef81fdd781513115b5b393e  file:state-store.cjs\n207fc6b722bcad99189c030583bc0aa1b24ece7e5927c6eed084bcefaeafffc3  file:tst-signer-core.cjs\n5f55891425daf0f0f3480b461a9d2152affafbf1cb27e4c0d0837b86f3e93b6a  file:tst-signer.cjs\n"
+  },
+  "checks": [
+    {
+      "id": "C-01",
+      "status": "PASS",
+      "what": "Network passphrase: code vs deployment manifest",
+      "detail": "code=Test SDF Network ; September 2015 | record=Test SDF Network ; September 2015"
+    },
+    {
+      "id": "C-02",
+      "status": "PASS",
+      "what": "Network passphrase: code vs public account record",
+      "detail": "code=Test SDF Network ; September 2015 | record=Test SDF Network ; September 2015"
+    },
+    {
+      "id": "C-03",
+      "status": "PASS",
+      "what": "RPC endpoint: code vs deployment manifest",
+      "detail": "code=https://soroban-testnet.stellar.org | record=https://soroban-testnet.stellar.org"
+    },
+    {
+      "id": "C-04",
+      "status": "PASS",
+      "what": "Debtor C address: code vs public account record (Account C, Debtor 1)",
+      "detail": "code=GCWK6QC7WTDVUVFY7PAPKXJAIJXOOMNJMSDU3TM2WIXWAMM6VYEXOGWL | record=GCWK6QC7WTDVUVFY7PAPKXJAIJXOOMNJMSDU3TM2WIXWAMM6VYEXOGWL (Debtor 1)"
+    },
+    {
+      "id": "C-05",
+      "status": "PASS",
+      "what": "Debtor D address: code vs public account record (Account D, Debtor 2)",
+      "detail": "code=GCFEEEECS4IRNQLIT6MFOX3TR6GBZ2IQ7SZ7RANG577QBLJ57TTR2DLJ | record=GCFEEEECS4IRNQLIT6MFOX3TR6GBZ2IQ7SZ7RANG577QBLJ57TTR2DLJ (Debtor 2)"
+    },
+    {
+      "id": "C-06",
+      "status": "PASS",
+      "what": "C and D are two distinct members of the five recorded disposable accounts",
+      "detail": "5 distinct public addresses recorded"
+    },
+    {
+      "id": "C-07",
+      "status": "PASS",
+      "what": "Wasm hash: code vs manifest (legacy token)",
+      "detail": "code=ef483732039f0ca62665b92b816c3a12dcf094c707f77e1edc53e60ea083241f | record=ef483732039f0ca62665b92b816c3a12dcf094c707f77e1edc53e60ea083241f"
+    },
+    {
+      "id": "C-08",
+      "status": "PASS",
+      "what": "Wasm hash: code vs manifest (governed token, same code)",
+      "detail": "code=ef483732039f0ca62665b92b816c3a12dcf094c707f77e1edc53e60ea083241f | record=ef483732039f0ca62665b92b816c3a12dcf094c707f77e1edc53e60ea083241f"
+    },
+    {
+      "id": "C-09",
+      "status": "PASS",
+      "what": "Approved Wasm is the token Wasm, not the clearing contract Wasm",
+      "detail": "clearing=80bea96439b1f6647e08c604cdf29f580fe3f1a4171864b651b5832bb247e5e4"
+    },
+    {
+      "id": "C-10",
+      "status": "PASS",
+      "what": "Wasm hash appears in ci/wasm-hashes-recorded.txt as tobin_test_token.wasm",
+      "detail": "4965  ef483732039f0ca62665b92b816c3a12dcf094c707f77e1edc53e60ea083241f  tobin_test_token.wasm"
+    },
+    {
+      "id": "C-11",
+      "status": "PASS",
+      "what": "Final manifest document states name / symbol / decimals and the Wasm hash used by the code",
+      "detail": "document: \"Tobin Settlement Test Token / TST / 7\""
+    },
+    {
+      "id": "C-12",
+      "status": "PASS",
+      "what": "Final manifest document states cap 30,000 and allocations C 20,000, D 10,000",
+      "detail": "code: cap=30000, C=20000, D=10000"
+    },
+    {
+      "id": "C-13",
+      "status": "PASS",
+      "what": "Cap equals the sum of the two mints (so no residual mint capability)",
+      "detail": "30000 = 20000 + 10000"
+    },
+    {
+      "id": "C-14",
+      "status": "PASS",
+      "what": "Decimals 7: 30,000 base units = 0.003 TST",
+      "detail": "30000 / 10^7 = 0.003"
+    },
+    {
+      "id": "C-15",
+      "status": "PASS",
+      "what": "Fee ceiling: 500,000 stroops = 0.05 XLM as documented",
+      "detail": "security review: \"at most 0.05 XLM\""
+    },
+    {
+      "id": "C-16",
+      "status": "PASS",
+      "what": "Resource ceilings in code vs the security-review table",
+      "detail": "{\"deploy\":{\"instructions\":1800000,\"readBytes\":10000,\"writeBytes\":1000},\"mint-C\":{\"instructions\":1400000,\"readBytes\":10000,\"writeBytes\":1200},\"mint-D\":{\"instructions\":1400000,\"readBytes\":10000,\"writeBytes\":1200}}"
+    },
+    {
+      "id": "C-17",
+      "status": "PASS",
+      "what": "Maximum transaction lifetime 120 s and 15 s minimum remaining validity as documented",
+      "detail": "code: 120s / 15s"
+    },
+    {
+      "id": "C-18",
+      "status": "PASS",
+      "what": "Typed confirmation phrases in the usage guide match the code (operation, amount, address prefixes)",
+      "detail": "phrases built by confirmationPhrase()"
+    },
+    {
+      "id": "C-19",
+      "status": "PASS",
+      "what": "Revision 5 review: depth limit 8 and one-entry rule match the code",
+      "detail": "MAX_DEPTH=8"
+    },
+    {
+      "id": "C-20",
+      "status": "PASS",
+      "what": "Operation set and order: code vs the manifest table rows (O3 deploy, O4 mint to C, O5 mint to D)",
+      "detail": "[\"deploy\",\"mint-C\",\"mint-D\"]"
+    },
+    {
+      "id": "C-21",
+      "status": "PASS",
+      "what": "SDK bundle SHA-256 constant in sdk-loader.cjs vs the actual file on disk",
+      "detail": "code=de18071d1f64bf6aa1806a4eb250b3be7c1811a8e8ecdfc3c103013cf1d9b92f | record=de18071d1f64bf6aa1806a4eb250b3be7c1811a8e8ecdfc3c103013cf1d9b92f"
+    },
+    {
+      "id": "C-22",
+      "status": "FLAG",
+      "what": "Documents in the tree that still carry values superseded by the approved TST parameters",
+      "detail": "7 document(s); see \"staleDocuments\""
+    },
+    {
+      "id": "G-01",
+      "status": "BLOCKER",
+      "what": "deployment-config.json (admin F, salt, predicted contract ID) does not exist",
+      "detail": "absent: F has not been created"
+    },
+    {
+      "id": "G-02",
+      "status": "BLOCKER",
+      "what": "The in-directory pin is null; no execution-enabling value is set (intentional)",
+      "detail": "null"
+    },
+    {
+      "id": "G-03",
+      "status": "INFO",
+      "what": "No DPAPI key file for F exists (nothing was read; existence only)",
+      "detail": "not present"
+    },
+    {
+      "id": "G-04",
+      "status": "INFO",
+      "what": "Environment-dependent paths (LOCALAPPDATA, PATH) are not covered by any hash",
+      "detail": "see environmentInputs"
+    },
+    {
+      "id": "G-05",
+      "status": "FLAG",
+      "what": "Only the deployment configuration (admin, salt, predicted ID) is pinned today; the code constants that define recipients, amounts, Wasm hash, metadata, ceilings and expectations are NOT covered by any runtime pin",
+      "detail": "pinned.cjs compares only sha256(deployment-config.json)"
+    },
+    {
+      "id": "G-06",
+      "status": "FLAG",
+      "what": "pinned.cjs, deployment-config.json and the signer code share one writable directory: the pin is not an independent boundary",
+      "detail": "known since revision 3"
+    }
+  ],
+  "staleDocuments": [
+    {
+      "file": "account-provisioning-report.md",
+      "supersededMarkerPresent": false,
+      "classification": "NO superseded marker: a reader could take the old values as current",
+      "staleValues": [
+        "allocation C 10,000 / D 6,000"
+      ]
+    },
+    {
+      "file": "disposable-settlement-token-final-manifest.md",
+      "supersededMarkerPresent": true,
+      "classification": "carries a superseded marker or explains what replaced the old values",
+      "staleValues": [
+        "cap 1,000,000",
+        "allocation C 10,000 / D 6,000",
+        "sessions S7/S8 on the legacy token"
+      ]
+    },
+    {
+      "file": "disposable-settlement-token-plan.md",
+      "supersededMarkerPresent": true,
+      "classification": "carries a superseded marker or explains what replaced the old values",
+      "staleValues": [
+        "cap 1,000,000",
+        "allocation 600,000 / 400,000"
+      ]
+    },
+    {
+      "file": "phase-2c-final-approval-package.md",
+      "supersededMarkerPresent": false,
+      "classification": "NO superseded marker: a reader could take the old values as current",
+      "staleValues": [
+        "allocation C 10,000 / D 6,000"
+      ]
+    },
+    {
+      "file": "phase-2c-legacy-token-transfer-plan.md",
+      "supersededMarkerPresent": false,
+      "classification": "NO superseded marker: a reader could take the old values as current",
+      "staleValues": [
+        "allocation C 10,000 / D 6,000"
+      ]
+    },
+    {
+      "file": "phase-2c-setup-transactions.md",
+      "supersededMarkerPresent": false,
+      "classification": "NO superseded marker: a reader could take the old values as current",
+      "staleValues": [
+        "allocation C 10,000 / D 6,000",
+        "sessions S7/S8 on the legacy token"
+      ]
+    },
+    {
+      "file": "test-transaction-plan.md",
+      "supersededMarkerPresent": false,
+      "classification": "NO superseded marker: a reader could take the old values as current",
+      "staleValues": [
+        "allocation C 10,000 / D 6,000"
+      ]
+    }
+  ],
+  "live": null,
+  "summary": {
+    "pass": 21,
+    "flag": 3,
+    "blocker": 2,
+    "info": 2
+  }
+}

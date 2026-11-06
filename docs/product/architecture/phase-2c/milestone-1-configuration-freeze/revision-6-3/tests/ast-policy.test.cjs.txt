@@ -1,0 +1,301 @@
+'use strict';
+// Revision 6.3 CANDIDATE (NOT APPROVED): regression tests for the AST policy.
+// Run: node --test ast-policy.test.cjs   (env: TOBIN_SIGNER_DIR = directory with the eight runtime files)
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { execFileSync } = require('child_process');
+const { analyze, PINNED_PARSER } = require('./ast-policy.cjs');
+const { load } = require('./legacy-fixtures.cjs');
+
+const SIGNER = process.env.TOBIN_SIGNER_DIR || path.join(__dirname, 'in');
+const FILES = ['authorization.cjs', 'dpapi-key.cjs', 'pinned.cjs', 'refusal.cjs', 'sdk-loader.cjs', 'state-store.cjs', 'tst-signer-core.cjs', 'tst-signer.cjs'];
+const src = (f) => fs.readFileSync(path.join(SIGNER, f), 'utf8');
+const rules = (r) => [...new Set(r.violations.map((v) => v.rule))].sort().join(',');
+const append = (file, code) => analyze(src(file) + '\n' + code + '\n', file);
+function refused(file, code, expect) {
+  const r = append(file, code);
+  assert.equal(r.ok, false, `ACCEPTED (must be refused): ${code}`);
+  if (expect) assert.ok(expect.split('|').some((x) => r.violations.some((v) => v.rule === x)), `expected one of ${expect}, got ${rules(r)} for: ${code}`);
+  return r;
+}
+
+// ---------------------------------------------------------------- the demonstrated Revision 6.2 bypass
+test('6.3 the exact Revision 6.2 bypass (computed method extraction from child_process) is refused', () => {
+  const code = "'use strict';\n\nconst cp = require('child_process');\nconst method = process.env.TOBIN_METHOD;\nconst run = cp[method];\n\nrun('powershell.exe', ['-NoProfile']);\n";
+  for (const f of FILES) {
+    const r = analyze(code, f);
+    assert.equal(r.ok, false, f);
+    assert.ok(r.violations.some((v) => v.rule === 'K1'), `${f}: computed extraction refused`);
+    assert.ok(r.violations.some((v) => v.rule === 'R1'), `${f}: require form refused`);
+  }
+  const r = analyze(code, 'state-store.cjs');
+  assert.ok(r.violations.some((v) => v.rule === 'K1' && /capability "cp"/.test(v.msg)), 'computed access on the module binding is refused on its own');
+});
+
+test('6.3 the same extraction on every capability that IS approved is refused for its own reason (not just the require form)', () => {
+  refused('state-store.cjs', "const m = process.env.TOBIN_METHOD;\nconst run = nodeFs[m];\nrun('x');", 'K1');
+  refused('state-store.cjs', "const run = execFileSync[process.env.TOBIN_METHOD];", 'K1');
+  refused('dpapi-key.cjs', "const m = process.env.TOBIN_METHOD;\nconst run = execFileSync[m];\nrun('powershell.exe', ['-NoProfile']);", 'K1');
+});
+
+// ---------------------------------------------------------------- the 30 required variant categories (+ extras)
+// [category number, id, file, code appended to the real file, rules of which at least one must fire]
+const SS = 'state-store.cjs', DP = 'dpapi-key.cjs', SL = 'sdk-loader.cjs', SG = 'tst-signer.cjs', CORE = 'tst-signer-core.cjs';
+const NEG = [
+  [1, 'direct computed method extraction', SS, "const m2 = execFileSync['call'];", 'C1|K1'],
+  [1, 'direct computed read of a module member', SS, "const m3 = nodeFs['readFileSync'];", 'K1|C1'],
+  [1, 'computed call with a bounded literal key on a plain object', SS, "const oc = { f() {} };\noc['f']();", 'K1'],
+  [1, 'computed new with a bounded literal key', SS, "const od = { F: Error };\nnew od['F']();", 'K1'],
+  [1, 'unapproved member of an approved module: fs.rmSync', SS, "nodeFs.rmSync('x');", 'C1'],
+  [1, 'unapproved member of an approved module: fs.readFile', SS, "nodeFs.readFile('x', () => {});", 'C1'],
+  [1, 'unapproved member of an approved module: path.resolve', SS, "path.resolve('x');", 'C1'],
+  [1, 'unapproved member of an approved module: crypto.createCipheriv', SS, "crypto.createCipheriv('aes-256-cbc', 'k', 'iv');", 'C1'],
+  [1, 'approved member read but not called', SS, "const rd = nodeFs.readFileSync;", 'C1'],
+  [1, 'computed call of a module member', SS, "nodeFs['readFileSync']('x');", 'K1'],
+  [2, 'second whole-module import of child_process', SS, "const cp2 = require('child_process');\ncp2.execFileSync('powershell.exe', []);", 'R1|D1'],
+  [2, 'aliased fs import', SS, "const fs2 = require('fs');", 'R1|D1'],
+  [3, 'destructured exec member', SS, "const { execSync } = require('child_process');", 'R1|D1'],
+  [3, 'destructured spawn', DP, "const { spawn } = require('child_process');", 'R1|D1'],
+  [3, 'destructured with rename', SS, "const { execFileSync: ef2 } = require('child_process');", 'R1|D1'],
+  [4, 'destructuring default aliasing a capability (declaration)', SS, "const { a = execFileSync } = {};\na('powershell.exe', []);", 'C2'],
+  [4, 'array-destructuring default aliasing a capability', SS, "const [b = nodeFs] = [];", 'C2'],
+  [4, 'arrow parameter default calling an unapproved target', SS, "const af = (f = execFileSync) => f('calc.exe', []);", 'X1'],
+  [4, 'method extraction then indirect call', SS, "const f = execFileSync;\nf('powershell.exe', ['-x']);", 'C1|C2'],
+  [4, 'extract module member then call', SS, "const w = nodeFs.readFileSync;\nw('x');", 'C1'],
+  [5, 'env-derived method name', SS, "const m = process.env.TOBIN_METHOD;\nconst q = nodeFs[m];\nq('x');", 'K1'],
+  [5, 'env-derived module member through process', SS, "process[process.env.TOBIN_M]('fs');", 'K1|C1'],
+  [6, 'env-derived property name on an object', SS, "const v = ({})[process.env.K];", 'K1'],
+  [6, 'env-derived property name via variable', SS, "const key = process.env.K;\nconst obj = { a: 1 };\nconst v = obj[key];", 'K1'],
+  [6, 'env-derived computed object key', SS, "const ok = { [process.env.K]: 1 };", 'K1'],
+  [7, 'object storage then invocation', SS, "const h = { run: execFileSync };\nh.run('powershell.exe', []);", 'C1'],
+  [7, 'object shorthand storage', SS, "const h = { execFileSync };", 'C1'],
+  [8, 'array storage then invocation', SS, "const a = [execFileSync];\na[0]('powershell.exe', []);", 'C1|K1'],
+  [8, 'array storage of a module', SS, "const a = [nodeFs];", 'C1'],
+  [9, 'function return value', SS, "function g() { return execFileSync; }\ng()('powershell.exe', []);", 'C1'],
+  [9, 'arrow returning capability', SS, "const g = () => nodeFs;", 'C1'],
+  [10, 'closure capture calling exec', SS, "const mk = () => () => execFileSync('cmd.exe', []);", 'X1'],
+  [10, 'closure capture of a module', SS, "const mk = () => nodeFs;", 'C1'],
+  [11, 'parameter passing to an untyped parameter', SS, "function h2(f) { return f('powershell.exe', []); }\nh2(execFileSync);", 'C1'],
+  [11, 'module passed to an unrelated function', SS, "function use(x) { return x; }\nuse(nodeFs);", 'C1'],
+  [12, 'default parameter calling an unapproved target', SS, "function h3(f = execFileSync) { return f('calc.exe', []); }", 'X1'],
+  [12, 'default parameter returning the capability', SS, "function h4(f = execFileSync) { return f; }", 'C1'],
+  [13, 'reassignment into a variable', SS, "let z = 0;\nz = execFileSync;", 'C1'],
+  [13, 'reassigning a capability binding', SS, "execFileSync = null;", 'C2'],
+  [13, 'reassigning a capability parameter', SS, "function h5(f = execFileSync) { f = 1; }", 'C2'],
+  [14, 'conditional expression', SS, "const c = process.env.X ? execFileSync : null;", 'C1'],
+  [14, 'conditional selects module', SS, "const c = process.env.X ? nodeFs : path;", 'C1'],
+  [15, 'sequence expression', SS, "(0, execFileSync)('powershell.exe', []);", 'A1'],
+  [16, 'optional chaining on a module', SS, "nodeFs?.readFileSync('x');", 'A1'],
+  [16, 'optional call', SS, "execFileSync?.('powershell.exe', []);", 'A1'],
+  [17, 'Reflect.apply', SS, "Reflect.apply(execFileSync, null, ['x']);", 'G1'],
+  [17, 'Reflect.get with env key', SS, "Reflect.get(nodeFs, process.env.K);", 'G1'],
+  [17, 'Reflect.construct', SS, "Reflect.construct(Error, []);", 'G1'],
+  [17, 'Proxy', SS, "new Proxy({}, {});", 'G1'],
+  [17, 'Function.prototype.apply-style call', SS, "execFileSync.apply(null, ['powershell.exe']);", 'C1|N1'],
+  [17, 'bind', SS, "const b = execFileSync.bind(null);", 'C1|N1'],
+  [18, 'Object.getPrototypeOf', SS, "Object.getPrototypeOf(nodeFs);", 'G1'],
+  [18, 'Object.setPrototypeOf', SS, "Object.setPrototypeOf({}, null);", 'G1'],
+  [18, 'Object.defineProperty', SS, "Object.defineProperty({}, 'a', { value: 1 });", 'G1'],
+  [18, 'Object.getOwnPropertyDescriptor', SS, "Object.getOwnPropertyDescriptor(nodeFs, 'readFileSync');", 'G1'],
+  [18, 'Object.create', SS, "Object.create(null);", 'G1'],
+  [18, '.constructor', SS, "const p = ({}).constructor;", 'N1'],
+  [18, '__proto__ member', SS, "const q = ({}).__proto__;", 'N1'],
+  [18, '__proto__ object key', SS, "const o2 = { __proto__: null };", 'N1'],
+  [18, '.prototype', SS, "const t = Error.prototype;", 'N1|G1'],
+  [18, 'getter indirection', SS, "const og = { get a() { return 1; } };", 'N1'],
+  [18, 'setter indirection', SS, "const os = { set a(v) {} };", 'N1'],
+  [19, 'eval', SS, "eval('1');", 'G1'],
+  [19, 'new Function', SS, "new Function('return 1')();", 'G1'],
+  [19, 'Function call', SS, "Function('return 1')();", 'G1'],
+  [19, 'constructor of a function', SS, "(function () {}).constructor('return 1')();", 'N1'],
+  [19, 'constructor of an async arrow', SS, "const AF = (async () => {}).constructor;", 'N1'],
+  [19, 'string constructor key (concatenated)', SS, "const k = 'constr' + 'uctor';\nconst c = ({})[k];", 'K1'],
+  [19, 'setTimeout string is not enabled via eval alias', SS, "const e = eval;", 'G1'],
+  [20, 'computed module loader on process', SS, "process['getBuiltinModule']('fs');", 'C1|N1'],
+  [20, 'computed module loader on module', SS, "module['require']('fs');", 'M1'],
+  [20, 'computed loader on globalThis', SS, "globalThis['require']('fs');", 'T1'],
+  [20, 'process.binding', SS, "process.binding('fs');", 'C1'],
+  [20, 'process.mainModule.require', SS, "process.mainModule.require('fs');", 'C1'],
+  [21, 'dynamic import literal', SS, "import('child_process');", 'A1'],
+  [21, 'dynamic import computed', SS, "const mn = process.env.M;\nimport(mn);", 'A1'],
+  [22, 'aliased require', SS, "const r2 = require;\nr2('child_process');", 'R1'],
+  [22, 'require passed as argument', SS, "function ld(f) { return f('fs'); }\nld(require);", 'R1'],
+  [22, 'require with variable specifier', SS, "const mn = 'fs';\nconst m5 = require(mn);", 'R1'],
+  [22, 'require with template specifier', SS, "const m6 = require(`fs`);", 'R1'],
+  [22, 'require inside a function', SS, "function lz() { return require('fs'); }", 'R1'],
+  [22, 'require with two arguments', SS, "const m7 = require('fs', 1);", 'R1'],
+  [22, 'unapproved built-in', SS, "const http = require('http');", 'R1'],
+  [22, 'unapproved relative module', SS, "const x9 = require('./extra.cjs');", 'R1'],
+  [23, 'module.require', SS, "module.require('child_process');", 'M1'],
+  [23, 'module.constructor._load', SS, "module.constructor._load('child_process');", 'M1|N1'],
+  [24, 'createRequire from module', SS, "const { createRequire } = require('module');", 'R1'],
+  [24, 'createRequire identifier', SS, "const cr = createRequire;", 'G1'],
+  [25, 'nested callback calling exec', SS, "[1].forEach(() => { execFileSync('calc.exe', []); });", 'X1'],
+  [25, 'callback receiving a capability', SS, "[1].forEach(function (x) { return nodeFs; });", 'C1'],
+  [26, 'unresolved free identifier call', SS, "undefinedThing('x');", 'G1'],
+  [26, 'unresolved free identifier member', SS, "someGlobal.value;", 'G1'],
+  [26, 'unresolved identifier as argument', SS, "JSON.parse(mystery);", 'G1'],
+  [27, 'shadowing process', SS, "function f4(process) { return process.env; }", 'S1'],
+  [27, 'shadowing require', SS, "function f5(require) { return require('fs'); }", 'S1'],
+  [27, 'shadowing Object', SS, "function f6(Object) { return Object.keys; }", 'S1'],
+  [27, 'shadowing module', SS, "function f7() { var module = {}; }", 'S1'],
+  [27, 'shadowing globalThis', SS, "function f8(globalThis) { return globalThis; }", 'S1'],
+  [28, 'env value through two functions into a computed key', SS, "function a1(x) { return b1(x); }\nfunction b1(y) { return nodeFs[y]; }\na1(process.env.K);", 'K1'],
+  [28, 'env value into require via function', SS, "function ld2(n) { return require(n); }\nld2(process.env.M);", 'R1'],
+  [28, 'env value into exec target', SS, "function e1() { return execFileSync(process.env.PROG, []); }", 'X1'],
+  [29, 'member extraction through an intermediate object', SS, "const o9 = { f: nodeFs };\no9.f.readFileSync('x');", 'C1'],
+  [29, 'intermediate object with exec', SS, "const o10 = { f: execFileSync };", 'C1'],
+  [30, 'extraction through multiple parameter aliases', SS, "function m1(a = execFileSync) { return m2(a); }\nfunction m2(b = execFileSync) { return b('powershell.exe', []); }", 'X1'],
+  [30, 'chain of declarator aliases', SS, "const a1x = nodeFs;\nconst b1x = a1x;", 'C1|C2'],
+  // execution surface
+  [31, 'exec call with a different target', SS, "function e2() { return execFileSync('cmd.exe', []); }", 'X1'],
+  [31, 'exec call with a computed array spread', SS, "function e3() { return execFileSync('powershell.exe', [...process.argv]); }", 'X1|C1'],
+  [31, 'exec call with new in unapproved function', DP, "function e4() { return execFileSync('powershell.exe', ['-NoProfile']); }", 'X1'],
+  [31, 'exec with shell option (inside an approved call)', SS, null, 'X1'],
+  [31, 'exec target replaced', SS, null, 'X1'],
+  [31, 'icacls replaced', SS, null, 'X1'],
+  [31, 'second powershell call in inspectAcl', SS, null, 'X1|D1'],
+  // identity and syntax surface
+  [32, 'non-ASCII identifier', SS, "const еval = 1;", 'N2'],
+  [32, 'unterminated string', SS, "const s = 'abc", 'P0'],
+  [32, 'unbalanced brackets', SS, "function f( {", 'P0'],
+  [32, 'while statement', SS, "while (false) {}", 'A1'],
+  [32, 'labeled statement', SS, "lbl: for (;;) { break lbl; }", 'A1'],
+  [32, 'class with a method', SS, "class X2 extends Error { m() {} }", 'A1'],
+  [32, 'class not extending Error', SS, "class X3 {}", 'A1'],
+  [32, 'generator', SS, "function* g3() {}", 'A1'],
+  [32, 'this', SS, "const t = this;", 'A1'],
+  [32, 'tagged template', SS, "nodeFs.readFileSync`x`;", 'A1'],
+  [32, 'with statement', SS, "with ({}) {}", 'P0'],
+  [32, 'import statement', SS, "import x from 'y';", 'P0'],
+  [32, 'top-level await', SS, "await 1;", 'P0|A1'],
+  [32, 'dangerous name as string', SS, "const k = 'eval';", 'N1'],
+  [32, 'dangerous name in template', SS, "const k = `constructor`;", 'N1'],
+  // sdk-loader exception cannot be widened
+  [33, 'second vm require', SL, "const v2 = require('vm');", 'R1|D1'],
+  [33, 'second runInThisContext', SL, "vm.runInThisContext('1');", 'T1|N1'],
+  [33, 'vm.runInNewContext', SL, "vm.runInNewContext('1');", 'T1|N1'],
+  [33, 'vm alias', SL, "const v3 = vm;", 'T1|C1'],
+  [33, 'vm.createContext', SL, "vm.createContext({});", 'T1|N1'],
+  [33, 'second globalThis.self assignment', SL, "globalThis.self = globalThis;", 'T1'],
+  [33, 'self.process (the 6.1 bypass)', SL, "const k = process.env.TOBIN_METHOD;\nconst m = self.process[k]('vm');\nconst r = process.env.TOBIN_RUN;\nm[r]('1 + 1');", 'G1|N1|K1'],
+  [33, 'self alias', SL, "const g = self;", 'G1'],
+  [33, 'window / frames', SL, "const w = window;\nconst fr = frames;", 'G1'],
+  [33, 'globalThis outside pattern', SL, "const gt = globalThis;", 'T1'],
+  [33, 'globalThis.process', SL, "globalThis.process;", 'T1|N1'],
+  [33, 'global', SL, "global.process;", 'G1'],
+  [33, 'sdk object computed call', SG, "const sdkx = loadSdk();\nsdkx[process.env.K]();", 'K1'],
+  [34, 'process.env passed to a function', SG, "function sink(x) { return x; }\nsink(process.env);", 'E1'],
+  [34, 'process.env aliased', SG, "const pe = process.env;", 'E1'],
+  [34, 'process.env keys', SG, "Object.keys(process.env);", 'E1'],
+  [34, 'process.env computed', SG, "process.env[process.argv[2]];", 'K1|E1|C1'],
+  [34, 'process.stdout computed with env key', SG, "const so = process.stdout[process.env.K];", 'C1|K1'],
+  [34, 'process passed whole', SG, "function sink2(x) { return x; }\nsink2(process);", 'C1'],
+  [34, 'process destructured', SG, "const { env } = process;", 'C1'],
+  [34, 'process returned', SG, "function gp() { return process; }", 'C1'],
+];
+const CASES = NEG.filter((r) => r[3] !== null);
+
+test('6.3 every required variant category (1 to 30) has at least one refused fixture', () => {
+  const cats = new Set(NEG.map((r) => r[0]));
+  for (let i = 1; i <= 30; i++) assert.ok(cats.has(i), `category ${i} missing`);
+});
+for (const [cat, name, file, code, expect] of CASES) {
+  test(`6.3 refused [cat ${cat}] ${name}`, () => { refused(file, code, expect); });
+}
+
+// edits of the real execution calls (rewritten in place, not appended)
+function editRefused(file, from, to, expect, label) {
+  test(`6.3 refused [cat 31] ${label}`, () => {
+    const s = src(file); assert.ok(s.includes(from), 'edit anchor missing');
+    const r = analyze(s.replace(from, to), file); assert.equal(r.ok, false, label);
+    assert.ok(expect.split('|').some((x) => r.violations.some((v) => v.rule === x)), `${expect} vs ${rules(r)}`);
+  });
+}
+editRefused(SS, "windowsHide: true, env: {", "windowsHide: true, shell: true, env: {", 'X1', 'exec option shell:true added to the ACL inspection');
+editRefused(SS, "exec('powershell.exe'", "exec('cmd.exe'", 'X1', 'inspectAcl target replaced by cmd.exe');
+editRefused(SS, "exec('icacls'", "exec('calc.exe'", 'X1', 'restrictOwnerOnly target replaced');
+editRefused(SS, "exec('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ACL_INSPECT_SCRIPT]", "exec(process.env.PROG, ['-NoProfile', '-NonInteractive', '-Command', ACL_INSPECT_SCRIPT]", 'X1', 'inspectAcl target taken from the environment');
+editRefused(DP, "execFileSync('powershell.exe'", "execFileSync('pwsh.exe'", 'X1', 'dpapi target replaced');
+editRefused(DP, "windowsHide: true, env:", "windowsHide: true, shell: true, env:", 'X1', 'dpapi shell option added');
+editRefused(DP, "env: opts.env || process.env }", "env: opts.env || process.env, cwd: '.' }", 'X1', 'dpapi cwd option added');
+editRefused(SS, "function inspectAcl(file, exec = execFileSync, env = process.env) {", "function inspectAcl(file, exec = nodeFs, env = process.env) {", 'X1|C1', 'inspectAcl default parameter changed to another capability');
+editRefused(SL, "vm.runInThisContext(bundle.toString('utf8'));", "vm.runInThisContext(bundle.toString('utf8') + process.env.X);", 'T1', 'vm argument changed');
+editRefused(SL, "if (sha !== EXPECTED_BUNDLE_SHA256) throw", "if (sha === EXPECTED_BUNDLE_SHA256) throw", 'T1', 'hash check inverted');
+editRefused(SL, "const bundle = fs.readFileSync(path.join(packageDir, 'dist', 'stellar-sdk.js'));", "const bundle = fs.readFileSync(process.env.BUNDLE);", 'T1', 'bundle path from the environment');
+editRefused(SL, "'de18071d1f64bf6aa1806a4eb250b3be7c1811a8e8ecdfc3c103013cf1d9b92f'", "'00000000000000000000000000000000000000000000000000000000000000'", 'T1', 'pinned SDK hash changed');
+editRefused(SL, "  globalThis.self = globalThis;\n", "", 'T1', 'G1 pattern removed (exact-once pattern)');
+editRefused(SL, "  if (sha !== EXPECTED_BUNDLE_SHA256) throw new Error('SDK bundle hash mismatch: refusing to load');\n",
+  "  if (sha !== EXPECTED_BUNDLE_SHA256) throw new Error('SDK bundle hash mismatch: refusing to load');\n  if (sha !== EXPECTED_BUNDLE_SHA256) throw new Error('SDK bundle hash mismatch: refusing to load');\n", 'T1', 'harmless duplicate of the hash check (exactly-once rule)');
+for (const m of ['fs', 'path', 'crypto', 'vm']) editRefused(SL, 'function loadSdk(packageDir = DEFAULT_PACKAGE_DIR) {', `function loadSdk(packageDir = DEFAULT_PACKAGE_DIR, ${m} = null) {`, 'T1', `parameter ${m} shadows the module inside an approved pattern (binding identity)`);
+editRefused(SL, 'function loadSdk(packageDir = DEFAULT_PACKAGE_DIR) {', 'function loadSdk(packageDir = DEFAULT_PACKAGE_DIR, globalThis = null) {', 'S1', 'parameter globalThis shadows the global');
+editRefused(SL, 'function loadSdk(packageDir = DEFAULT_PACKAGE_DIR) {', 'function loadSdk(packageDir = DEFAULT_PACKAGE_DIR, bundle = null) {', 'P0', 'parameter bundle clashes with the const declaration (parse error, fail closed)');
+
+// ---------------------------------------------------------------- earlier (Revision 6.0 to 6.2) fixture tables, unchanged
+const LEGACY = load(path.join(__dirname, 'legacy-62-tests.txt'));
+const ACCEPTED_DIFFERENCE = new Set(["const o = {}; o['k'];"]);   // a constant, non-sensitive string key equals dot access; 6.2 refused it only because it was lexical
+test('6.3 legacy fixture tables are present with the expected sizes', () => {
+  assert.equal(LEGACY.REJECT.length, 26); assert.equal(LEGACY.BYPASS.length, 53); assert.equal(LEGACY.R62.length, 66);
+});
+for (const [tableName, rows] of Object.entries(LEGACY)) {
+  for (const file of [CORE, SL]) {
+    test(`6.3 legacy ${tableName} (${rows.length} constructs) all stay refused when injected into ${file}`, () => {
+      const accepted = [];
+      for (const row of rows) { const r = append(file, row[0]); if (r.ok) accepted.push(row[0]); }
+      assert.deepEqual(accepted.filter((c) => !ACCEPTED_DIFFERENCE.has(c)), []);
+    });
+  }
+}
+test('6.3 DOCUMENTED DIFFERENCE: a constant non-sensitive string key on a plain local object is accepted (it equals dot access)', () => {
+  assert.equal(append(CORE, "const o = {}; o['k'];").ok, true);
+  assert.equal(append(CORE, "const o = {}; o['constructor'];").ok, false);
+});
+
+// ---------------------------------------------------------------- positive compatibility
+test('6.3 the eight real runtime files pass unchanged', () => {
+  for (const f of FILES) { const r = analyze(src(f), f); assert.equal(r.ok, true, `${f}: ${JSON.stringify(r.violations)}`); }
+});
+test('6.3 the real files match the expected inventory (requires, patterns, exec calls, env reads)', () => {
+  const ss = analyze(src(SS), SS).inventory, dp = analyze(src(DP), DP).inventory, sl = analyze(src(SL), SL).inventory;
+  assert.deepEqual(ss.exec.map((e) => `${e.fn}:${e.arg0}`).sort(), ['inspectAcl:powershell.exe', 'restrictOwnerOnly:icacls']);
+  assert.deepEqual(dp.exec.map((e) => `${e.fn}:${e.arg0}`), ['decryptWithDpapi:powershell.exe']);
+  assert.deepEqual(sl.patterns.map((p) => p.id), ['P_CONST', 'P_BUNDLE', 'P_SHA', 'P_CHECK', 'G1', 'V2', 'G2', 'G3']);
+  assert.equal(analyze(src('tst-signer-core.cjs'), 'tst-signer-core.cjs').inventory.computed.filter((c) => c.class === 'explicit').length, 1);
+});
+test('6.3 harmless control: whitespace, comments, parenthesised callee, extra pure function and bounded loop keys stay accepted', () => {
+  assert.equal(append(SS, "// self and eval mentioned in a comment only\nconst harmless = (a, b) => a + b;\nconst bounded = {};\nfor (const k of Object.keys(bounded)) { void bounded[k]; }\nfor (let i = 0; i < 2; i++) { void [1, 2][i]; }\nconst t = `x ${harmless(1, 2)} y`;").ok, true);
+  assert.equal(analyze(src(SS).replace('nodeFs.statSync(file)', '(nodeFs.statSync)(file)'), SS).ok, true, 'a parenthesised callee is the same AST');
+  assert.equal(analyze(src(SS).replace('\n', '\n\n\n  '), SS).ok, true);
+  assert.equal(append(SS, "function shadowOk(nodeFs2) { const nodeFsLocal = { readFileSync() {} }; return nodeFsLocal.readFileSync(nodeFs2); }").ok, true);
+  assert.equal(append(SS, "const msg = 'café';").ok, true, 'non-ASCII inside a string literal is allowed');
+});
+test('6.3 documented residual: the explicit computed site cfg.resourceLimits[opName] is accepted ONLY as that exact text, once', () => {
+  const dup = append(CORE, "function res2(cfg, opName) { return cfg.resourceLimits[opName]; }");
+  assert.equal(dup.ok, false, 'a second occurrence of the explicit site exceeds its count');
+  assert.ok(dup.violations.some((v) => v.rule === 'D1'));
+  assert.equal(append(CORE, "function res3(cfg, opName) { return cfg.other[opName]; }").ok, false);
+});
+
+// ---------------------------------------------------------------- parser pin and fail-closed behaviour
+test('6.3 parser identity is pinned and verified before every analysis', () => {
+  assert.equal(PINNED_PARSER.name, 'acorn'); assert.equal(PINNED_PARSER.version, '8.19.0');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tobin-parser-'));
+  fs.cpSync(path.join(__dirname, 'vendor', 'acorn'), dir, { recursive: true });
+  fs.appendFileSync(path.join(dir, 'acorn.js'), '\n// tampered\n');
+  const script = `try{require(${JSON.stringify(path.join(__dirname, 'ast-policy.cjs'))}).analyze("'use strict';",'refusal.cjs',{parserDir:${JSON.stringify(dir)}});console.log('LOADED')}catch(e){console.log('REFUSED:'+e.message)}`;
+  const out = execFileSync(process.execPath, ['-e', script], { encoding: 'utf8' });
+  assert.match(out, /REFUSED:parser file hash mismatch/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+test('6.3 syntax errors fail closed and are never retried with another lexer', () => {
+  const r = analyze("const a = ;", 'refusal.cjs'); assert.equal(r.ok, false); assert.equal(r.violations[0].rule, 'P0');
+});
+test('6.3 an unknown file name is refused (only the eight runtime files have an approval table)', () => {
+  const r = analyze("'use strict';", 'extra.cjs'); assert.equal(r.ok, false);
+});
+test('6.3 results are structured: rule id, line and message on every violation', () => {
+  const r = append(SS, "eval('1');"); assert.ok(r.violations.every((v) => typeof v.rule === 'string' && typeof v.line === 'number' && typeof v.msg === 'string'));
+});

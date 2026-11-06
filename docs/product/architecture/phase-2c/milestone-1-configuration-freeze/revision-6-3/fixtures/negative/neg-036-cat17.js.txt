@@ -1,0 +1,4 @@
+// category 17: Reflect.apply
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: G1)
+Reflect.apply(execFileSync, null, ['x']);

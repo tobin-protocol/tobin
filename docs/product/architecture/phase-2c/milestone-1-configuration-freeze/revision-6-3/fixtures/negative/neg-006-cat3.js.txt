@@ -1,0 +1,4 @@
+// category 3: destructured exec member
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: R1|D1)
+const { execSync } = require('child_process');

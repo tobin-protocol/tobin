@@ -1,0 +1,19 @@
+{
+  "note": "Real authorization entries, public data only. deploy: live protocol-30 simulation with a funded test account as stand-in deployer (never signed). mint: the governed token mint recorded on chain (protocol 29, same Wasm).",
+  "deploy": {
+    "xdr": "AAAAAAAAAAIAAAAAAAAAAAAAAADido944V3ps9mep01+DtTi1TkXvbARf6239jFiU2yZiY6RVYsKGRb3i5GfZfkaCTqUFfWFLUermaZhOB3eT03dAAAAAO9INzIDnwymJmW5K4FsOhLc8JTHB/d+HtxT5g6ggyQfAAAABQAAABIAAAAAAAAAAOJ2j3jhXemz2Z6nTX4O1OLVORe9sBF/rbf2MWJTbJmJAAAACgAAAAAAAAAAAAAAAAAAdTAAAAADAAAABwAAAA4AAAAbVG9iaW4gU2V0dGxlbWVudCBUZXN0IFRva2VuAAAAAA4AAAADVFNUAAAAAAA=",
+    "deployer": "GDRHND3Y4FO6TM6ZT2TU27QO2TRNKOIXXWYBC75NW73DCYSTNSMYT5CR",
+    "saltHex": "8e91558b0a1916f78b919f65f91a093a9415f5852d47ab99a661381dde4f4ddd",
+    "wasmHash": "ef483732039f0ca62665b92b816c3a12dcf094c707f77e1edc53e60ea083241f",
+    "cap": "30000",
+    "decimals": 7,
+    "name": "Tobin Settlement Test Token",
+    "symbol": "TST"
+  },
+  "mint": {
+    "xdr": "AAAAAAAAAAAAAAAB+uVzMirBBBKwzzg9sKoklhjhKxGdphD+oq1hV9tdYNcAAAAEbWludAAAAAIAAAASAAAAAAAAAACyPtPmVZiT37pOrl93NFzCa7WABPA7Mc2750Hywe/OygAAAAoAAAAAAAAAAAAAAAAAAAABAAAAAA==",
+    "contractIdHex": "fae573322ac10412b0cf383db0aa249618e12b119da610fea2ad6157db5d60d7",
+    "to": "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ",
+    "amount": "1"
+  }
+}

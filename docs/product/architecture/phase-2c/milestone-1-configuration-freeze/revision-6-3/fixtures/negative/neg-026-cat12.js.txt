@@ -1,0 +1,4 @@
+// category 12: default parameter calling an unapproved target
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: X1)
+function h3(f = execFileSync) { return f('calc.exe', []); }

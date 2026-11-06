@@ -1,0 +1,63 @@
+'use strict';
+// Revision 6.3 CANDIDATE: mutation check of the ANALYZER itself. Each patch disables or weakens one rule in a private copy;
+// the regression tests and the real-file mutation suite must then fail. Usage: node tool-mutation.cjs <signer dir>
+const fs = require('fs'), path = require('path'), os = require('os');
+const { spawnSync } = require('child_process');
+const here = __dirname, signer = path.resolve(process.argv[2]);
+const SRC = fs.readFileSync(path.join(here, 'ast-policy.cjs'), 'utf8');
+const P = [
+  ['T01 computed callee allowed (CallExpression)', "viol('K1', n, 'a computed member may not be called')", "void 0"],
+  ['T02 computed access on a capability allowed', "if (b && b.cap) { viol('K1', n, `computed access on the capability", "if (false) { viol('K1', n, `computed access on the capability"],
+  ['T03 computed key origin always accepted', "function keyOriginOk(key) {", "function keyOriginOk(key) { return true;"],
+  ['T04 capability flow into any parameter accepted', "function flowOk(r, cap) {", "function flowOk(r, cap) { return true;"],
+  ['T05 environment object accepted in any position', "const envPositionOk = (node, anc_) => {", "const envPositionOk = (node, anc_) => { return true;"],
+  ['T06 exec call table bypassed', "if (!entry) { viol('X1'", "if (false) { viol('X1'"],
+  ['T07 shell option permitted', "const EXEC_OPTION_KEYS = new Set(['encoding', 'stdio', 'windowsHide', 'env']);", "const EXEC_OPTION_KEYS = new Set(['encoding', 'stdio', 'windowsHide', 'env', 'shell', 'cwd']);"],
+  ['T08 require shape not enforced', "if (!okShape) { viol('R1'", "if (false) { viol('R1'"],
+  ['T09 constructor not blocked', "'Reflect', 'Proxy', 'constructor', '__proto__',", "'Reflect', 'Proxy', '__proto__',"],
+  ['T10 module binding identity inside approved patterns not checked', "if (need[r.name] && !(r.binding", "if (false && !(r.binding"],
+  ['T11 pattern occurrence count loosened', "if (hits.length !== 1) {", "if (hits.length < 1) {"],
+  ['T12 reserved declaration names not checked', "if (RESERVED_DECLARATIONS.has(name)) viol(", "if (false) viol("],
+  ['T13 optional chaining allowed', "const ALLOWED_NODE_TYPES = new Set([", "const ALLOWED_NODE_TYPES = new Set(['ChainExpression', "],
+  ['T14 sequence expression allowed', "const ALLOWED_NODE_TYPES = new Set([", "const ALLOWED_NODE_TYPES = new Set(['SequenceExpression', "],
+  ['T15 unknown free identifiers accepted', "viol('G1', r.node, `free identifier \"${nm}\" has no approved origin`);", "void 0;"],
+  ['T16 process.argv accepted anywhere', "if (m === 'argv') ok = par &&", "if (m === 'argv') ok = true || par &&"],
+  ['T17 capability reassignment accepted', "if (r.write && r.binding && r.binding.cap) { viol(", "if (false) { viol("],
+  ['T18 capability not bound when the require form is refused', "if (!spec.startsWith('.')) {\n      if (decl.id.type === 'Identifier')", "if (false) {\n      if (decl.id.type === 'Identifier')"],
+  ['T19 ASCII identifier rule removed', "viol('N2', n,", "void 0 && viol('N2', n,"],
+  ['T20 dynamic import allowed', "const ALLOWED_NODE_TYPES = new Set([", "const ALLOWED_NODE_TYPES = new Set(['ImportExpression', "],
+  ['T21 module usage not restricted', "if (!ok) viol('M1'", "if (false) viol('M1'"],
+  ['T22 alias of a capability through a non-parameter default accepted', "viol('C2', b.node, `\"${b.name}\" would alias a capability outside a parameter default`)", "void 0"],
+  ['T31 bundle binding identity not checked (DOCUMENTED EQUIVALENT: unreachable by construction, JavaScript scoping already forbids it)', "if (r.name === 'bundle' && !(r.binding", "if (false && !(r.binding", 'equivalent'],
+  ['T23 parser file hash not enforced', "if (sha(dist) !== PINNED_PARSER.distSha256) throw", "if (false) throw"],
+  ['T24 constructor call of a computed member accepted', "viol('K1', n, 'a computed member may not be constructed')", "void 0"],
+  ['T25 getter/setter properties accepted', "if (n.kind !== 'init') viol(", "if (false) viol("],
+  ['T26 string-literal blocked names accepted', "case 'Literal': if (typeof n.value === 'string' && isBlockedName(n.value) &&", "case 'Literal': if (false && isBlockedName(n.value) &&"],
+  ['T27 globalThis allowed everywhere', "if (!patternCovered.has(r.node)) viol('T1', r.node, '`globalThis` is allowed only", "if (false) viol('T1', r.node, '`globalThis` is allowed only"],
+  ['T28 vm allowed everywhere', "if (!patternCovered.has(r.node)) viol('T1', r.node, '`vm` may only be used", "if (false) viol('T1', r.node, '`vm` may only be used"],
+  ['T29 module member allowlist ignored', "&& (MODULE_MEMBERS[cap.mod] || []).includes(p.property.name) && isCallee(p, gp);", "&& isCallee(p, gp);"],
+  ['T30 explicit computed site count unchecked', "if (e.file === file && (approvedComputedSeen.get(e) || 0) > e.count) viol('D1'", "if (false) viol('D1'"],
+];
+for (const [name, from] of P) if (!SRC.includes(from)) { console.error('PATCH ANCHOR MISSING:', name); process.exit(2); }
+let survivors = 0, equivalent = 0, n = 0;
+const rows = [];
+for (const [name, from, to, kind] of P) {
+  if (!SRC.includes(from)) { console.error('PATCH ANCHOR MISSING:', name); process.exit(2); }
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'tobin-toolmut-'));
+  fs.cpSync(path.join(here, 'vendor'), path.join(d, 'vendor'), { recursive: true });
+  for (const f of ['ast-policy.test.cjs', 'legacy-fixtures.cjs', 'legacy-62-tests.txt', 'mutation-check.cjs']) fs.copyFileSync(path.join(here, f), path.join(d, f));
+  fs.writeFileSync(path.join(d, 'ast-policy.cjs'), SRC.replace(from, to));
+  const t = spawnSync(process.execPath, ['--test', path.join(d, 'ast-policy.test.cjs')], { encoding: 'utf8', env: { ...process.env, TOBIN_SIGNER_DIR: signer }, cwd: d });
+  const failTests = /ℹ fail (\d+)/.exec(t.stdout || '');
+  const testsFail = failTests ? Number(failTests[1]) : -1;
+  const m = spawnSync(process.execPath, [path.join(d, 'mutation-check.cjs'), signer], { encoding: 'utf8', cwd: d });
+  const mutSurv = /SURVIVED (\d+)/.exec(m.stdout || '');
+  const killedBy = [testsFail !== 0 ? `tests(${testsFail < 0 ? 'crash' : testsFail} failing)` : null, m.status !== 0 ? `mutation-suite(${mutSurv ? mutSurv[1] + ' survivors' : 'exit ' + m.status})` : null].filter(Boolean);
+  n++; if (!killedBy.length && kind !== 'equivalent') survivors++;
+  if (!killedBy.length && kind === 'equivalent') equivalent++;
+  rows.push(`${killedBy.length ? 'KILLED  ' : kind === 'equivalent' ? 'EQUIVALENT' : 'SURVIVED'} ${name}  <- ${killedBy.join(' + ') || 'nothing detected it'}`);
+  fs.rmSync(d, { recursive: true, force: true });
+}
+console.log(rows.join('\n'));
+console.log(`tool mutants: ${n}; killed: ${n - survivors - equivalent}; documented equivalent (not detectable by any test): ${equivalent}; survived: ${survivors}`);
+process.exit(survivors ? 1 : 0);

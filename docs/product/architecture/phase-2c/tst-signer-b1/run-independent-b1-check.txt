@@ -1,0 +1,23 @@
+﻿closure found by require() walk: authorization.cjs, baseline.cjs, dpapi-key.cjs, pinned.cjs, refusal.cjs, sdk-loader.cjs, state-store.cjs, tst-signer-core.cjs, tst-signer-main.cjs, tst-signer.cjs
+walk equals the 10 manifest files: True
+built-ins: child_process, crypto, fs, path, readline, vm
+TOBIN-TST-SIGNER-BASELINE v1
+ABSENT  config:deployment-config.json
+de18071d1f64bf6aa1806a4eb250b3be7c1811a8e8ecdfc3c103013cf1d9b92f  external:@stellar/stellar-sdk@17.4.0/dist/stellar-sdk.js
+ee981053db93fce5c81310620d8198a493aa134ecd35d3e64540296687d72a62  external:@stellar/stellar-sdk@17.4.0/package.json
+ae3088b47d683f98b0c987afc086989aaf46c1e837d5c183272064e39bdef1b9  file:authorization.cjs
+9461162cfea4b3f43636b02507e46a01dad1bfe463b17ec418c40ee7477b2e96  file:baseline.cjs
+7acf06713e5ec9478515180333ba132060d3bb68d75b0c8002923e0c41b589de  file:dpapi-key.cjs
+312ed3f24c83ed1f8e5e7ebc8f3501389374f3b18528698d638830cef8dff361  file:pinned.cjs
+562039b8d581894e4c9a5c79262a182bf7a603b85ce9031f39d3401607b46f3e  file:refusal.cjs
+7bc1fedc451da5ea4e839ce7a25e048696548aad7fb794cfef1c0a14671817a9  file:sdk-loader.cjs
+ae59de944e9b3c624d9f33c1c07c78f6eb0bb8c77ef81fdd781513115b5b393e  file:state-store.cjs
+207fc6b722bcad99189c030583bc0aa1b24ece7e5927c6eed084bcefaeafffc3  file:tst-signer-core.cjs
+3fee267b076070868f2be94218e0f320460ef7f3c340f4c76a04777dbf74196e  file:tst-signer-main.cjs
+ad951774965fe65d70b28ea8ce9e9584ad95c4c5b2134d665ab0f8dc93284980  file:tst-signer.cjs
+manifest bytes: 1170; LF only: True; final LF: True
+computed : 83f11a7f5ca4dce244dde39f69b19442711902137b8cba8ba3beb7f446c8733e
+expected : 83f11a7f5ca4dce244dde39f69b19442711902137b8cba8ba3beb7f446c8733e
+preserved B1 manifest file byte-identical: True
+RESULT: MATCH (SELF-VERIFIED: same author)
+exit code: 0

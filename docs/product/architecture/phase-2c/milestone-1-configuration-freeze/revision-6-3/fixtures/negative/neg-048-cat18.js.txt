@@ -1,0 +1,4 @@
+// category 18: __proto__ member
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: N1)
+const q = ({}).__proto__;

@@ -1,0 +1,16 @@
+== historical Milestone 1 B0 (no pinned.cjs)
+computed: ccea8b5b94bf3358f295ec8dd85435f34505714ef927764e5f58c557c567aa92
+expected: ccea8b5b94bf3358f295ec8dd85435f34505714ef927764e5f58c557c567aa92
+VERIFY: MATCH
+== B0 candidate (with pinned.cjs)
+computed: 9b594c5407b7934274f9c41a47f2dfc13a781f4f7b0cc0962a8ab57a52bacbb7
+expected: 9b594c5407b7934274f9c41a47f2dfc13a781f4f7b0cc0962a8ab57a52bacbb7
+VERIFY: MATCH
+== B1 on live signer dir
+computed: 83f11a7f5ca4dce244dde39f69b19442711902137b8cba8ba3beb7f446c8733e
+expected: 83f11a7f5ca4dce244dde39f69b19442711902137b8cba8ba3beb7f446c8733e
+VERIFY: MATCH
+== B1 on git blobs of ed1dde3 (original PR commit)
+computed: 83f11a7f5ca4dce244dde39f69b19442711902137b8cba8ba3beb7f446c8733e
+expected: 83f11a7f5ca4dce244dde39f69b19442711902137b8cba8ba3beb7f446c8733e
+VERIFY: MATCH

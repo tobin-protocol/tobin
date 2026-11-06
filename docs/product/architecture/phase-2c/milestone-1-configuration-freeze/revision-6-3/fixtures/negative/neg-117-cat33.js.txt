@@ -1,0 +1,4 @@
+// category 33: vm alias
+// applied as: the real sdk-loader.cjs followed by this snippet
+// expected: refused (one of: T1|C1)
+const v3 = vm;

@@ -1,0 +1,5 @@
+// category 30: extraction through multiple parameter aliases
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: X1)
+function m1(a = execFileSync) { return m2(a); }
+function m2(b = execFileSync) { return b('powershell.exe', []); }

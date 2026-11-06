@@ -1,0 +1,26 @@
+'use strict';
+// Prints the Revision 6.3 inventories (requires, process execution, environment, process members, computed reads, approved patterns,
+// AST node-type census) for the eight runtime files, from the analyzer's own structured result. Usage: node inventory-report.cjs <dir>
+const fs = require('fs'), path = require('path');
+const { analyze } = require('./ast-policy.cjs');
+const dir = process.argv[2];
+const FILES = ['authorization.cjs', 'dpapi-key.cjs', 'pinned.cjs', 'refusal.cjs', 'sdk-loader.cjs', 'state-store.cjs', 'tst-signer-core.cjs', 'tst-signer.cjs'];
+const all = { requires: [], exec: [], env: [], process: [], computed: [], patterns: [] };
+const types = {};
+for (const f of FILES) {
+  const r = analyze(fs.readFileSync(path.join(dir, f), 'utf8'), f);
+  if (!r.ok) { console.error('FAIL', f, r.violations); process.exit(1); }
+  for (const k of Object.keys(all)) all[k].push(...r.inventory[k].map((x) => ({ file: f, ...x })));
+  for (const [t, n] of Object.entries(r.inventory.nodeTypes)) types[t] = (types[t] || 0) + n;
+}
+const out = [];
+const tbl = (title, rows, cols) => { out.push(`\n## ${title} (${rows.length})\n`, '| ' + cols.join(' | ') + ' |', '|' + cols.map(() => '---').join('|') + '|'); for (const r of rows) out.push('| ' + cols.map((c) => String(r[c] ?? '').replace(/\|/g, '/')).join(' | ') + ' |'); };
+out.push('# Revision 6.3 CANDIDATE (NOT APPROVED): inventories produced by the analyzer from the eight runtime files');
+tbl('require() calls', all.requires.map((x) => ({ file: x.file, line: x.line, spec: x.spec, form: x.form })), ['file', 'line', 'spec', 'form']);
+tbl('Process-execution calls', all.exec.map((x) => ({ file: x.file, line: x.line, 'AST node': x.node, capability: x.capability, 'called as': x.via, 'in function': x.fn, target: x.arg0 })), ['file', 'line', 'AST node', 'capability', 'called as', 'in function', 'target']);
+tbl('Reads of process.env', all.env, ['file', 'line']);
+tbl('Other process members used', all.process, ['file', 'line', 'member']);
+tbl('Computed member reads (every one has a proven bounded key or an explicit approval)', all.computed.map((x) => ({ file: x.file, line: x.line, text: x.text, class: x.class })), ['file', 'line', 'text', 'class']);
+tbl('Exact approved patterns (sdk-loader.cjs)', all.patterns, ['file', 'line', 'id']);
+out.push('\n## AST node types present in the eight files (all are on the allowlist)\n', Object.entries(types).sort().map(([t, n]) => `${t}: ${n}`).join('\n'));
+console.log(out.join('\n'));

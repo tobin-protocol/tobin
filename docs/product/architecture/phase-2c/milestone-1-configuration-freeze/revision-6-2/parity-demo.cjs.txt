@@ -1,0 +1,26 @@
+'use strict';
+// Prints a side-by-side Node / PowerShell comparison on temporary copies of the signer. Offline; reads files only.
+// Usage: node parity-demo.cjs <signer-dir> <sdk-package-dir>
+const fs = require('fs'); const os = require('os'); const path = require('path'); const { spawnSync } = require('child_process');
+const SIGNER = path.resolve(process.argv[2]); const SDK = path.resolve(process.argv[3]);
+const FILES = ['authorization.cjs', 'dpapi-key.cjs', 'pinned.cjs', 'refusal.cjs', 'sdk-loader.cjs', 'state-store.cjs', 'tst-signer-core.cjs', 'tst-signer.cjs'];
+const root = fs.mkdtempSync(path.join(os.tmpdir(), 'parity-')); let n = 0;
+const copy = () => { const d = path.join(root, 'c' + n++); fs.mkdirSync(d); for (const f of FILES) fs.copyFileSync(path.join(SIGNER, f), path.join(d, f)); return d; };
+const node = (a) => spawnSync(process.execPath, [path.join(__dirname, 'compute-baseline-hash.cjs'), '--sdk-package', SDK, ...a], { encoding: 'utf8' });
+const ps = (a) => spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-File', path.join(__dirname, 'reproduce-in-powershell.ps1'), '-SdkPackage', SDK, ...a], { encoding: 'utf8' });
+const hash = (r) => (/baseline sha256: ([0-9a-f]{64})/.exec(r.stdout) || [])[1] || `REFUSED(exit ${r.status}): ${(r.stderr || '').trim().replace(/^REFUSED: /, '').replace(/^.*?: /, '')}`;
+const rows = [];
+const row = (label, d, cfg) => { const a = node(['--signer-dir', d, ...(cfg ? ['--config', cfg] : [])]); const b = ps(['-SignerDir', d, ...(cfg ? ['-Config', cfg] : [])]); rows.push([label, hash(a), hash(b), a.status, b.status]); };
+row('unchanged, config ABSENT', SIGNER);
+const cfg = path.join(root, 'fixture-config.json'); fs.writeFileSync(cfg, '{"fixture":"throwaway, not a deployment identity"}\n'); row('unchanged, config PRESENT (fixture)', SIGNER, cfg);
+let d = copy(); fs.writeFileSync(path.join(d, 'pinned.cjs'), fs.readFileSync(path.join(d, 'pinned.cjs'), 'utf8').replace('null', '"' + 'ab'.repeat(32) + '"')); row('pinned.cjs changed (pin set to a throwaway value)', d);
+d = copy(); fs.appendFileSync(path.join(d, 'pinned.cjs'), ' '); row('pinned.cjs + one space', d);
+d = copy(); fs.unlinkSync(path.join(d, 'pinned.cjs')); row('pinned.cjs missing', d);
+d = copy(); fs.writeFileSync(path.join(d, 'pinned.cjs'), fs.readFileSync(path.join(d, 'pinned.cjs'), 'utf8').replace(/\n/g, '\r\n')); row('pinned.cjs with CRLF', d);
+d = copy(); fs.writeFileSync(path.join(d, 'pinned.cjs'), Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), fs.readFileSync(path.join(d, 'pinned.cjs'))])); row('pinned.cjs with BOM', d);
+d = copy(); fs.appendFileSync(path.join(d, 'pinned.cjs'), Buffer.from([0xff, 0xfe, 0x41])); row('pinned.cjs with invalid UTF-8', d);
+for (const [name, bytes] of [['CRLF', Buffer.from('{"a":1}\r\n')], ['BOM', Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('{"a":1}\n')])], ['invalid UTF-8', Buffer.from([0x7b, 0xff, 0x7d, 0x0a])]]) { const c = path.join(root, `bad-${n++}.json`); fs.writeFileSync(c, bytes); row(`config with ${name}`, SIGNER, c); }
+let same = 0;
+for (const [label, a, b, sa, sb] of rows) { const eq = (/^[0-9a-f]{64}$/.test(a) ? a === b : (sa === 2 && sb === 2)); if (eq) same++; console.log(`${eq ? 'AGREE   ' : 'DISAGREE'} ${label}\n    node (exit ${sa}): ${a}\n    ps   (exit ${sb}): ${b}`); }
+console.log(`\ncases: ${rows.length}, agreeing (same hash, or both refuse with exit 2): ${same}`);
+fs.rmSync(root, { recursive: true, force: true }); process.exit(same === rows.length ? 0 : 1);

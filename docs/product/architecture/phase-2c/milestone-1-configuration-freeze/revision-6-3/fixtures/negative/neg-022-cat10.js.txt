@@ -1,0 +1,4 @@
+// category 10: closure capture calling exec
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: X1)
+const mk = () => () => execFileSync('cmd.exe', []);

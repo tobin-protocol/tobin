@@ -1,0 +1,82 @@
+'use strict';
+// HASH-ONLY tool. Computes (and optionally verifies) the canonical baseline hash of the Tobin TST signer. It reads files and prints
+// hashes. It cannot sign, decrypt, load a key, contact a network, or run the signer; it has no dependency except Node built-ins.
+//
+// Usage:
+//   node compute-baseline-hash.cjs --signer-dir <dir> [--config <deployment-config.json>] [--sdk-package <dir>] [--manifest-out <file>] [--verify <64 hex>]
+//
+// CANONICAL PROCEDURE (version 1)
+//  1. Inputs, exactly these, no others:
+//       file:<name>      each file of the runtime closure of the CLI entry point, read from the signer directory (list below)
+//       config:deployment-config.json   the deployment configuration (admin F, salt, predicted contract ID); "ABSENT" when not given
+//       external:@stellar/stellar-sdk@17.4.0/package.json and /dist/stellar-sdk.js   the pinned SDK files the loader checks at run time
+//  2. Each input is read as raw bytes and hashed with SHA-256 (hex, lowercase). No newline conversion is ever applied. A file under
+//     file: or config: is REFUSED if it contains a CR byte (0x0D), starts with a UTF-8 BOM, or is not valid UTF-8, so the hash cannot
+//     depend on the checkout's line-ending settings. The external files are hashed exactly as stored.
+//  3. The manifest is UTF-8 text with LF line endings: the header line "TOBIN-TST-SIGNER-BASELINE v1", then one line per input,
+//     "<sha256>  <label>" (two spaces), sorted by label in ordinal (byte) order, and a final LF. An absent configuration is the line
+//     "ABSENT  config:deployment-config.json".
+//  4. The baseline hash is the SHA-256 of the manifest bytes. With the configuration absent it is the CODE BASELINE (B0); with the
+//     configuration present it is the FULL PIN (P).
+//  Excluded on purpose: pinned.cjs (it carries the pin: circular, and superseded by the independent mechanism), make-deployment-config.cjs
+//  (not loaded when signing; its OUTPUT is covered by the config hash), all tests, mutation tools, evidence scripts, the state file,
+//  logs, the DPAPI file and every environment-specific value (LOCALAPPDATA, PATH, clock).
+const fs = require('fs'); const path = require('path'); const crypto = require('crypto');
+
+const CLOSURE = ['authorization.cjs', 'dpapi-key.cjs', 'refusal.cjs', 'sdk-loader.cjs', 'state-store.cjs', 'tst-signer-core.cjs', 'tst-signer.cjs'];
+const NOT_HASHED_BUT_REQUIRED = new Set(['pinned.cjs']);
+const HEADER = 'TOBIN-TST-SIGNER-BASELINE v1';
+const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
+const arg = (n) => { const i = process.argv.indexOf(n); return i >= 0 ? process.argv[i + 1] : undefined; };
+const has = (n) => process.argv.includes(n);
+
+function readCanonicalText(file) {
+  const b = fs.readFileSync(file);
+  if (b.includes(0x0d)) throw new Error(`${file}: contains a CR byte; the baseline requires LF line endings`);
+  if (b.length >= 3 && b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf) throw new Error(`${file}: starts with a UTF-8 BOM`);
+  try { new TextDecoder('utf-8', { fatal: true }).decode(b); } catch { throw new Error(`${file}: is not valid UTF-8`); }
+  return b;
+}
+
+/** Cross-checks the fixed closure list against the real require graph of the entry point, so a new module cannot be added unnoticed. */
+function discoverClosure(dir) {
+  const seen = new Set(); const stack = ['tst-signer.cjs'];
+  while (stack.length) {
+    const f = stack.pop(); if (seen.has(f)) continue; seen.add(f);
+    const src = fs.readFileSync(path.join(dir, f), 'utf8');
+    for (const m of src.matchAll(/require\(['"]\.\/([^'"]+)['"]\)/g)) stack.push(m[1]);
+  }
+  return [...seen].sort();
+}
+
+function build({ signerDir, configFile, sdkPackage }) {
+  const found = discoverClosure(signerDir);
+  const expected = [...CLOSURE, ...NOT_HASHED_BUT_REQUIRED].sort();
+  if (JSON.stringify(found) !== JSON.stringify(expected)) throw new Error(`runtime closure differs from the approved list.\n  found:    ${found.join(', ')}\n  approved: ${expected.join(', ')}`);
+  const lines = [];
+  for (const f of CLOSURE) lines.push([`file:${f}`, sha(readCanonicalText(path.join(signerDir, f)))]);
+  lines.push(['config:deployment-config.json', configFile ? sha(readCanonicalText(configFile)) : 'ABSENT']);
+  const pk = path.resolve(sdkPackage);
+  lines.push(['external:@stellar/stellar-sdk@17.4.0/package.json', sha(fs.readFileSync(path.join(pk, 'package.json')))]);
+  lines.push(['external:@stellar/stellar-sdk@17.4.0/dist/stellar-sdk.js', sha(fs.readFileSync(path.join(pk, 'dist', 'stellar-sdk.js')))]);
+  lines.sort((a, b) => Buffer.compare(Buffer.from(a[0]), Buffer.from(b[0])));
+  const manifest = [HEADER, ...lines.map(([l, h]) => `${h}  ${l}`)].join('\n') + '\n';
+  return { manifest, hash: sha(Buffer.from(manifest, 'utf8')), variant: configFile ? 'FULL PIN (P)' : 'CODE BASELINE (B0)', lines };
+}
+
+if (require.main === module) {
+  try {
+    const signerDir = arg('--signer-dir'); if (!signerDir) throw new Error('--signer-dir is required');
+    const r = build({ signerDir, configFile: arg('--config'), sdkPackage: arg('--sdk-package') || path.join(signerDir, '..', 'pk', 'x-stellar-stellar-sdk-17.4.0', 'package') });
+    if (arg('--manifest-out')) fs.writeFileSync(arg('--manifest-out'), r.manifest, { flag: 'wx' });
+    const want = arg('--verify');
+    console.log(r.manifest.trimEnd()); console.log(`\nvariant: ${r.variant}\nbaseline sha256: ${r.hash}`);
+    // the presence of the flag, not of a value, switches verification on: a missing value must never skip the check
+    if (has('--verify')) {
+      if (!/^[0-9a-f]{64}$/.test(want)) { console.log('VERIFY: REFUSED (the expected value is not 64 lowercase hex characters)'); process.exit(3); }
+      const ok = crypto.timingSafeEqual(Buffer.from(want), Buffer.from(r.hash));
+      console.log(ok ? 'VERIFY: MATCH' : 'VERIFY: MISMATCH'); process.exit(ok ? 0 : 1);
+    }
+  } catch (e) { console.error('REFUSED:', e.message); process.exit(2); }
+}
+module.exports = { build, CLOSURE, HEADER, discoverClosure, readCanonicalText };

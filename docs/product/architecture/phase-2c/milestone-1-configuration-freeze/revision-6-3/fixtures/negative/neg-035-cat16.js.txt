@@ -1,0 +1,4 @@
+// category 16: optional call
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: A1)
+execFileSync?.('powershell.exe', []);

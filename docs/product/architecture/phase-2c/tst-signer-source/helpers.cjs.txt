@@ -1,0 +1,110 @@
+'use strict';
+// Shared test fixtures: fake keys, an in-memory file system with failure injection, a mocked RPC, and dependency factories.
+// Nothing here touches the network, a real key, DPAPI, or the real file system.
+const crypto = require('crypto');
+const { loadSdk } = require('../sdk-loader.cjs');
+const core = require('../tst-signer-core.cjs');
+const { loadAdminKey } = require('../dpapi-key.cjs');
+const { createStore } = require('../state-store.cjs');
+
+const S = loadSdk();
+const x = S.xdr;
+const FAKE_F = S.Keypair.random(); // test-only throwaway; NOT the real F
+const F = FAKE_F.publicKey();
+const OTHER = S.Keypair.random().publicKey();
+const SALT = crypto.randomBytes(32).toString('hex');
+const PIN = 'ab'.repeat(32);
+const cfg = core.makeConfig(S, { adminAddress: F, saltHex: SALT, configSha256: PIN, pinned: true });
+const cfgUnpinned = core.makeConfig(S, { adminAddress: F, saltHex: SALT });
+const P = core.APPROVED.passphrase;
+const STATE = '/keys/settlement-token-state.json';
+const realNow = () => Math.floor(Date.now() / 1000);
+
+// ---------- in-memory file system with failure injection ----------
+function memFs() {
+  const files = new Map(); const fds = new Map(); let n = 3; const hooks = {}; const calls = { openModes: [] };
+  const enoent = () => Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+  const fs = {
+    files, hooks, calls,
+    existsSync: (p) => files.has(p),
+    readFileSync: (p) => { if (!files.has(p)) throw enoent(); const t = files.get(p); return hooks.readTransform ? hooks.readTransform(p, t) : t; },
+    openSync: (p, flag, mode) => { if (hooks.open) hooks.open(p); if (files.has(p)) throw Object.assign(new Error('EEXIST'), { code: 'EEXIST' }); files.set(p, ''); calls.openModes.push([flag, mode]); const fd = n++; fds.set(fd, p); return fd; },
+    writeSync: (fd, t) => { const p = fds.get(fd); if (hooks.write === 'partial') { files.set(p, t.slice(0, Math.floor(t.length / 2))); throw Object.assign(new Error('EIO'), { code: 'EIO' }); } if (hooks.write) hooks.write(); files.set(p, (files.get(p) || '') + t); },
+    fsyncSync: () => { if (hooks.fsync) hooks.fsync(); },
+    closeSync: (fd) => { fds.delete(fd); },
+    renameSync: (a, b) => { if (hooks.rename) hooks.rename(); files.set(b, files.get(a)); files.delete(a); },
+    unlinkSync: (p) => { files.delete(p); },
+  };
+  return fs;
+}
+
+// ---------- expected-structure builders, written independently of the signer (second path) ----------
+const kCode = (hash = cfg.wasmHash) => x.LedgerKey.contractCode(new x.LedgerKeyContractCode({ hash: Buffer.from(hash, 'hex') }));
+const kData = (key, { contract = cfg.tokenId, durability = x.ContractDataDurability.persistent } = {}) => x.LedgerKey.contractData(new x.LedgerKeyContractData({ contract: new S.Address(contract).toScAddress(), key, durability }));
+const kInstance = (o) => kData(x.ScVal.scvLedgerKeyContractInstance(), o);
+const kBalance = (to, o) => kData(x.ScVal.scvVec([x.ScVal.scvSymbol('Balance'), new S.Address(to).toScVal()]), o);
+const goodFootprint = (opName) => {
+  if (opName === 'deploy') return { ro: [kCode()], rw: [kInstance()] };
+  return { ro: [kCode()], rw: [kInstance(), kBalance(opName === 'mint-C' ? cfg.C : cfg.D)] };
+};
+const MEASURED = { deploy: { instructions: 878652, read: 0, write: 408 }, 'mint-C': { instructions: 663465, read: 0, write: 544 }, 'mint-D': { instructions: 663465, read: 0, write: 544 } };
+const dataFor = (opName, { fp, res } = {}) => {
+  const f = fp ?? goodFootprint(opName); const r = { ...MEASURED[opName], ...(res || {}) };
+  const b = new S.SorobanDataBuilder().setFootprint(f.ro, f.rw).setResources(r.instructions, r.read, r.write).setResourceFee(BigInt(r.fee ?? 55971));
+  return new S.SorobanDataBuilder(b.build().toXDR('base64')); // round trip, as a real RPC response is
+};
+
+// ---------- mocked RPC ----------
+function makeRpc(opName, over = {}) {
+  const calls = { sent: 0, simulated: 0, sentOrder: [] };
+  return {
+    calls,
+    getNetwork: async () => ({ passphrase: over.passphrase ?? P }),
+    getAccount: async (a) => new S.Account(a, '100'),
+    simulateTransaction: async () => {
+      calls.simulated++;
+      if (over.simError) return { error: over.simError };
+      return {
+        _parsed: true, id: '1', latestLedger: 100, minResourceFee: String(over.res && over.res.fee !== undefined ? over.res.fee : 55971), restorePreamble: over.restorePreamble ?? {},
+        result: { auth: [], retval: opName === 'deploy' ? new S.Address(over.simId ?? cfg.tokenId).toScVal() : x.ScVal.scvVoid() },
+        transactionData: dataFor(opName, over),
+      };
+    },
+    sendTransaction: async (tx) => {
+      calls.sent++; if (over.onSend) over.onSend(tx);
+      const hash = Buffer.from(tx.hash()).toString('hex');
+      if (over.sendThrows) throw over.sendThrows;
+      if ('sendResponse' in over) return typeof over.sendResponse === 'function' ? over.sendResponse(hash) : over.sendResponse;
+      return { status: over.sendStatus ?? 'PENDING', hash: over.sendHash ?? hash };
+    },
+    getTransaction: async (hash) => (over.getTx ? over.getTx(hash) : { status: over.finalStatus ?? 'SUCCESS', ledger: 777, returnValue: new S.Address(over.returnId ?? cfg.tokenId).toScVal() }),
+  };
+}
+const readerFor = (state) => ({
+  instanceExists: async () => state.exists,
+  call: async (id, fn, args = []) => {
+    if (fn === 'name') return state.name ?? cfg.name; if (fn === 'symbol') return state.symbol ?? cfg.symbol;
+    if (fn === 'decimals') return state.decimals ?? 7; if (fn === 'minter') return state.minter ?? F; if (fn === 'cap') return state.cap ?? 30000n;
+    if (fn === 'total_supply') return state.total ?? 0n;
+    if (fn === 'balance') return (args[0] === cfg.C ? state.balC : args[0] === cfg.D ? state.balD : 0n) ?? 0n;
+    throw new Error('unexpected read');
+  },
+});
+
+function makeDeps(opName, { rpcOver = {}, state, typed, keyFn, fs = memFs(), initStore = true, clock = { offset: 0 }, restrict = () => ({ applied: true }), cfgUsed = cfg } = {}) {
+  const st = state ?? (opName === 'deploy' ? { exists: false } : { exists: true, total: opName === 'mint-D' ? 20000n : 0n, balC: opName === 'mint-D' ? 20000n : 0n, balD: 0n });
+  const log = []; const counters = { keyLoads: 0, confirms: 0 };
+  const store = createStore(STATE, { fs, restrict, randomHex: (() => { let i = 0; return () => `r${i++}`; })() });
+  if (initStore) store.init(cfgUsed);
+  const rpc = makeRpc(opName, rpcOver);
+  return {
+    deps: {
+      S, rpc, store, reader: readerFor(st), log: (s) => log.push(s), sleep: async () => {}, now: () => realNow() + clock.offset,
+      confirm: async () => { counters.confirms++; return typed ?? core.confirmationPhrase(cfgUsed, opName); },
+      loadKey: async (exp) => { counters.keyLoads++; return keyFn ? keyFn(exp) : loadAdminKey(S, exp, () => Buffer.from(FAKE_F.secret())); },
+    },
+    log, counters, rpc, fs, store, clock,
+  };
+}
+
+module.exports = { S, x, core, FAKE_F, F, OTHER, SALT, PIN, cfg, cfgUnpinned, P, STATE, realNow, memFs, kCode, kData, kInstance, kBalance, goodFootprint, MEASURED, dataFor, makeRpc, readerFor, makeDeps, createStore, loadAdminKey };

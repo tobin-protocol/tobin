@@ -1,0 +1,4 @@
+// category 25: nested callback calling exec
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: X1)
+[1].forEach(() => { execFileSync('calc.exe', []); });

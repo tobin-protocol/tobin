@@ -1,0 +1,5 @@
+// category 11: parameter passing to an untyped parameter
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: C1)
+function h2(f) { return f('powershell.exe', []); }
+h2(execFileSync);

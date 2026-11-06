@@ -1,0 +1,6 @@
+// category 5: env-derived method name
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: K1)
+const m = process.env.TOBIN_METHOD;
+const q = nodeFs[m];
+q('x');

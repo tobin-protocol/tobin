@@ -1,0 +1,4 @@
+// category 20: process.binding
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: C1)
+process.binding('fs');

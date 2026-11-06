@@ -1,0 +1,5 @@
+// category 21: dynamic import computed
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: A1)
+const mn = process.env.M;
+import(mn);

@@ -1,0 +1,6 @@
+// category 28: env value through two functions into a computed key
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: K1)
+function a1(x) { return b1(x); }
+function b1(y) { return nodeFs[y]; }
+a1(process.env.K);

@@ -1,0 +1,128 @@
+'use strict';
+// READ-ONLY inventory and consistency review of the configuration that decides what the TST signer may do.
+// Values are READ FROM THE LOADED MODULES (not transcribed). Loading the modules has no side effect: no key, no signing, no network
+// (the optional --live flag makes ONE read-only RPC lookup of the Wasm code entry). Output: JSON on stdout.
+const fs = require('fs'); const path = require('path'); const crypto = require('crypto');
+const POS = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+const SIGNER = path.resolve(POS[0] || path.join(__dirname, '..', 'tst-signer'));
+const REPO = path.resolve(POS[1] || 'C:/Users/Ebubechi/Documents/codes/scf/tobin-protocol/tobin');
+const P2C = path.join(REPO, 'docs', 'product', 'architecture', 'phase-2c');
+const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
+const rd = (p) => fs.readFileSync(p, 'utf8');
+const core = require(path.join(SIGNER, 'tst-signer-core.cjs'));
+const az = require(path.join(SIGNER, 'authorization.cjs'));
+const store = require(path.join(SIGNER, 'state-store.cjs'));
+const sdkl = require(path.join(SIGNER, 'sdk-loader.cjs'));
+const dp = require(path.join(SIGNER, 'dpapi-key.cjs'));
+const { build } = require('./compute-baseline-hash.cjs');
+const A = core.APPROVED;
+const coreSrc = rd(path.join(SIGNER, 'tst-signer-core.cjs')); const cliSrc = rd(path.join(SIGNER, 'tst-signer.cjs')); const pinnedSrc = rd(path.join(SIGNER, 'pinned.cjs'));
+const num = (re, src, what) => { const m = re.exec(src); if (!m) throw new Error('cannot extract ' + what); return Number(m[1]); };
+
+// ---------------- values, read from the code ----------------
+const values = {
+  network: { passphrase: A.passphrase, rpcUrl: A.rpcUrl, source: 'tst-signer-core.cjs APPROVED (constants in code)' },
+  sourceAccountF: { value: 'NOT YET CREATED', source: 'deployment-config.json "admin" (absent); the transaction source is pinned to it by verifyTransaction' },
+  deployment: { wasmHash: A.wasmHash, name: A.name, symbol: A.symbol, decimals: A.decimals, cap: A.cap.toString(), constructorOrder: 'minter=F, cap, decimals, name, symbol', source: 'APPROVED in code; rendered by expectedOperation and by authorization.cjs' },
+  predictedContractId: { value: 'NOT YET DERIVED', source: 'derived from (F, salt, passphrase) by predictContractId; stored in deployment-config.json "predictedContractId" and recomputed at load' },
+  salt: { value: 'NOT YET GENERATED', source: 'deployment-config.json "saltHex"; a repeated-byte salt is refused' },
+  mintC: { recipient: A.C, amount: A.mintC.toString(), source: 'APPROVED in code' },
+  mintD: { recipient: A.D, amount: A.mintD.toString(), source: 'APPROVED in code' },
+  operations: { list: [...A.ops], order: 'deploy, then mint-C, then mint-D; enforced by on-chain state guards (mint-C needs supply 0, mint-D needs supply 20,000 with C holding 20,000) and per-operation records, not by a hard-coded sequence number', source: 'APPROVED.ops; checkState' },
+  authorizationExpectation: { entriesPerOperation: 1, credential: 'sorobanCredentialsSourceAccount', subInvocations: 0, maxDepth: az.MAX_DEPTH, source: 'authorization.cjs expectedAuthorizationEntries (derived from the values above)' },
+  feeCeilingStroops: { value: A.feeCeilingStroops, xlm: A.feeCeilingStroops / 1e7, baseFee: A.baseFee, source: 'APPROVED' },
+  resourceCeilings: JSON.parse(JSON.stringify(A.resourceLimits)),
+  timeBounds: { maxTimeoutSeconds: A.maxTimeoutSeconds, timeSkewSeconds: A.timeSkewSeconds, minRemainingSeconds: A.minRemainingSeconds,
+    networkTimeMarginSeconds: num(/NETWORK_TIME_MARGIN_SECONDS = (\d+)/, coreSrc, 'NETWORK_TIME_MARGIN_SECONDS'), historyCoverageMarginSeconds: num(/HISTORY_COVERAGE_MARGIN_SECONDS = (\d+)/, coreSrc, 'HISTORY_COVERAGE_MARGIN_SECONDS'),
+    futureSanitySeconds: num(/FUTURE_SANITY_SECONDS = (\d+)/, coreSrc, 'FUTURE_SANITY_SECONDS'), pollAttempts: 30, pollIntervalMs: 2000, source: 'APPROVED and constants in tst-signer-core.cjs' },
+  sdk: { name: '@stellar/stellar-sdk', version: sdkl.EXPECTED_VERSION, bundleSha256: sdkl.EXPECTED_BUNDLE_SHA256, location: 'relative to the signer directory: ../pk/x-stellar-stellar-sdk-17.4.0/package (sdk-loader.cjs)', checkedAtRunTime: true },
+  stateStore: { file: 'settlement-token-state.json under %LOCALAPPDATA%\\TobinTestKeys (tst-signer.cjs)', ops: store.OPS, statuses: store.STATUSES, reasons: store.REASONS, submissions: store.SUBMISSIONS, schemaVersion: 2, ownerOnlyAclRequired: true },
+  keyFile: { file: '%LOCALAPPDATA%\\TobinTestKeys\\settlement-token-admin.dpapi (fixed name in the DPAPI script)', state: 'NOT YET CREATED' },
+  pin: { currentPinnedConfigSha256: /PINNED_CONFIG_SHA256: (null|"[0-9a-f]{64}")/.exec(pinnedSrc)[1], source: 'pinned.cjs (same directory as the signer)' },
+};
+
+// ---------------- runtime loading path ----------------
+const entry = { cli: 'tst-signer.cjs', configFile: 'deployment-config.json next to tst-signer.cjs (__dirname)', state: '%LOCALAPPDATA%\\TobinTestKeys\\settlement-token-state.json', dpapi: '%LOCALAPPDATA%\\TobinTestKeys\\settlement-token-admin.dpapi' };
+const closureFiles = build({ signerDir: SIGNER, sdkPackage: path.join(SIGNER, '..', 'pk', 'x-stellar-stellar-sdk-17.4.0', 'package') });
+const environmentInputs = [
+  { name: 'LOCALAPPDATA', effect: 'selects the directory of the state file (tst-signer.cjs) and of the DPAPI key file (dpapi-key.cjs script)', pinned: false },
+  { name: 'PATH', effect: 'powershell.exe and icacls are started by bare name and resolved through PATH (dpapi-key.cjs, state-store.cjs)', pinned: false },
+  { name: 'USERNAME / user SID', effect: 'ACL owner-only check uses the current Windows user SID', pinned: false },
+  { name: 'system clock', effect: 'time bounds and expiry sanity checks', pinned: false },
+  { name: 'current working directory', effect: 'none: the config file and SDK are located with __dirname, not the working directory', pinned: true },
+  { name: 'command-line arguments', effect: 'only init|preview|execute and one of deploy|mint-C|mint-D are accepted; anything else exits 2', pinned: true },
+];
+
+// ---------------- consistency checks ----------------
+const checks = []; const add = (id, status, what, detail) => checks.push({ id, status, what, detail });
+const manifest = JSON.parse(rd(path.join(REPO, 'contracts', 'deployments', 'testnet.json')));
+const pub = JSON.parse(rd(path.join(P2C, 'test-accounts.public.json')));
+const byLabel = Object.fromEntries(pub.accounts.map((a) => [a.label, a]));
+const eq = (id, what, a, b, detail) => add(id, a === b ? 'PASS' : 'FLAG', what, detail ?? `code=${a} | record=${b}`);
+eq('C-01', 'Network passphrase: code vs deployment manifest', A.passphrase, manifest.networkPassphrase);
+eq('C-02', 'Network passphrase: code vs public account record', A.passphrase, pub.networkPassphrase);
+eq('C-03', 'RPC endpoint: code vs deployment manifest', A.rpcUrl, manifest.rpc);
+eq('C-04', 'Debtor C address: code vs public account record (Account C, Debtor 1)', A.C, byLabel['Account C'].address, `code=${A.C} | record=${byLabel['Account C'].address} (${byLabel['Account C'].role})`);
+eq('C-05', 'Debtor D address: code vs public account record (Account D, Debtor 2)', A.D, byLabel['Account D'].address, `code=${A.D} | record=${byLabel['Account D'].address} (${byLabel['Account D'].role})`);
+add('C-06', new Set([A.C, A.D, ...pub.accounts.map((a) => a.address)]).size === pub.accounts.length ? 'PASS' : 'FLAG', 'C and D are two distinct members of the five recorded disposable accounts', `${pub.accounts.length} distinct public addresses recorded`);
+eq('C-07', 'Wasm hash: code vs manifest (legacy token)', A.wasmHash, manifest.contracts.tobin_test_token.wasmHash);
+eq('C-08', 'Wasm hash: code vs manifest (governed token, same code)', A.wasmHash, manifest.contracts.tobin_test_token_governed.wasmHash);
+add('C-09', A.wasmHash !== manifest.contracts.tobin_clearing_v1.wasmHash ? 'PASS' : 'FLAG', 'Approved Wasm is the token Wasm, not the clearing contract Wasm', `clearing=${manifest.contracts.tobin_clearing_v1.wasmHash}`);
+const ciRec = rd(path.join(REPO, 'ci', 'wasm-hashes-recorded.txt')); add('C-10', ciRec.includes(A.wasmHash) ? 'PASS' : 'FLAG', 'Wasm hash appears in ci/wasm-hashes-recorded.txt as tobin_test_token.wasm', (ciRec.split('\n').find((l) => l.includes(A.wasmHash)) || '').trim());
+const finalDoc = rd(path.join(P2C, 'disposable-settlement-token-final-manifest.md'));
+const has = (doc, s) => doc.includes(s);
+add('C-11', has(finalDoc, 'Tobin Settlement Test Token / TST / 7') && has(finalDoc, A.wasmHash) ? 'PASS' : 'FLAG', 'Final manifest document states name / symbol / decimals and the Wasm hash used by the code', 'document: "Tobin Settlement Test Token / TST / 7"');
+add('C-12', has(finalDoc, '30,000 base units = 0.003 TST') && has(finalDoc, 'C 20,000') && has(finalDoc, 'D 10,000') ? 'PASS' : 'FLAG', 'Final manifest document states cap 30,000 and allocations C 20,000, D 10,000', `code: cap=${A.cap}, C=${A.mintC}, D=${A.mintD}`);
+add('C-13', A.cap === A.mintC + A.mintD ? 'PASS' : 'FLAG', 'Cap equals the sum of the two mints (so no residual mint capability)', `${A.cap} = ${A.mintC} + ${A.mintD}`);
+add('C-14', has(finalDoc, '(0.003 TST)') || has(finalDoc, '0.003 TST') ? 'PASS' : 'FLAG', 'Decimals 7: 30,000 base units = 0.003 TST', '30000 / 10^7 = 0.003');
+add('C-15', A.feeCeilingStroops === 500000 && has(rd(path.join(P2C, 'tst-signer-security-review.md')), '0.05 XLM') ? 'PASS' : 'FLAG', 'Fee ceiling: 500,000 stroops = 0.05 XLM as documented', 'security review: "at most 0.05 XLM"');
+const sr = rd(path.join(P2C, 'tst-signer-security-review.md'));
+add('C-16', ['1,800,000', '1,400,000', '1,000', '1,200', '10,000'].every((s) => sr.includes(s)) && A.resourceLimits.deploy.instructions === 1800000 && A.resourceLimits['mint-C'].instructions === 1400000 && A.resourceLimits['mint-C'].writeBytes === 1200 && A.resourceLimits.deploy.writeBytes === 1000 ? 'PASS' : 'FLAG', 'Resource ceilings in code vs the security-review table', JSON.stringify(A.resourceLimits));
+add('C-17', sr.includes('120 s') && A.maxTimeoutSeconds === 120 && A.minRemainingSeconds === 15 ? 'PASS' : 'FLAG', 'Maximum transaction lifetime 120 s and 15 s minimum remaining validity as documented', `code: ${A.maxTimeoutSeconds}s / ${A.minRemainingSeconds}s`);
+const guide = rd(path.join(P2C, 'tst-signer-usage-guide.md'));
+add('C-18', guide.includes('DEPLOY TST CAP 30000 MINTER') && guide.includes('MINT 20000 TO C GCWK6QC7') && guide.includes('MINT 10000 TO D GCFEEEEC') && A.C.startsWith('GCWK6QC7') && A.D.startsWith('GCFEEEEC') ? 'PASS' : 'FLAG', 'Typed confirmation phrases in the usage guide match the code (operation, amount, address prefixes)', 'phrases built by confirmationPhrase()');
+const r5 = rd(path.join(P2C, 'tst-signer-revision-5', 'REVISION-5-REVIEW.md'));
+add('C-19', r5.includes('depth limit 8') && az.MAX_DEPTH === 8 && r5.includes('exactly one') ? 'PASS' : 'FLAG', 'Revision 5 review: depth limit 8 and one-entry rule match the code', `MAX_DEPTH=${az.MAX_DEPTH}`);
+{ const row = (id) => finalDoc.search(new RegExp('^\\| ' + id + ' \\|', 'm')); const o3 = row('O3'), o4 = row('O4'), o5 = row('O5'); const txt = (i) => finalDoc.slice(i, finalDoc.indexOf('\n', i));
+  add('C-20', JSON.stringify(A.ops) === JSON.stringify(['deploy', 'mint-C', 'mint-D']) && o3 > 0 && o3 < o4 && o4 < o5 && /Deploy/.test(txt(o3)) && /Mint to C/.test(txt(o4)) && /Mint to D/.test(txt(o5)) ? 'PASS' : 'FLAG', 'Operation set and order: code vs the manifest table rows (O3 deploy, O4 mint to C, O5 mint to D)', JSON.stringify(A.ops)); }
+eq('C-21', 'SDK bundle SHA-256 constant in sdk-loader.cjs vs the actual file on disk', sdkl.EXPECTED_BUNDLE_SHA256, sha(fs.readFileSync(path.join(SIGNER, '..', 'pk', 'x-stellar-stellar-sdk-17.4.0', 'package', 'dist', 'stellar-sdk.js'))));
+// stale documents that still carry superseded values
+const stale = [];
+for (const f of fs.readdirSync(P2C).filter((n) => n.endsWith('.md'))) {
+  const t = rd(path.join(P2C, f)); const hits = [];
+  if (/cap 1,000,000|Cap \| 1,000,000|1,000,000 base units \(0\.1 TST\)/.test(t)) hits.push('cap 1,000,000');
+  if (/600,000/.test(t) && /400,000/.test(t)) hits.push('allocation 600,000 / 400,000');
+  if (/C 10,000|10,000 and 6,000|C: 10,000|D 6,000/.test(t)) hits.push('allocation C 10,000 / D 6,000');
+  if (/legacy token/i.test(t) && /session token|create_session/.test(t) && !/superseded/i.test(t) && f !== 'legacy-holder-key-investigation.md' && f !== 'disposable-settlement-token-plan.md' && /S7|S8/.test(t)) hits.push('sessions S7/S8 on the legacy token');
+  if (hits.length) stale.push({ file: f, supersededMarkerPresent: /supersed/i.test(t), classification: /supersed/i.test(t) ? 'carries a superseded marker or explains what replaced the old values' : 'NO superseded marker: a reader could take the old values as current', staleValues: hits });
+}
+add('C-22', stale.length ? 'FLAG' : 'PASS', 'Documents in the tree that still carry values superseded by the approved TST parameters', stale.length ? `${stale.length} document(s); see "staleDocuments"` : 'none');
+// gaps (cannot be checked yet)
+add('G-01', 'BLOCKER', 'deployment-config.json (admin F, salt, predicted contract ID) does not exist', fs.existsSync(path.join(SIGNER, 'deployment-config.json')) ? 'exists (unexpected)' : 'absent: F has not been created');
+add('G-02', 'BLOCKER', 'The in-directory pin is null; no execution-enabling value is set (intentional)', values.pin.currentPinnedConfigSha256);
+add('G-03', fs.existsSync(path.join(process.env.LOCALAPPDATA || '', 'TobinTestKeys', 'settlement-token-admin.dpapi')) ? 'FLAG' : 'INFO', 'No DPAPI key file for F exists (nothing was read; existence only)', 'not present');
+add('G-04', 'INFO', 'Environment-dependent paths (LOCALAPPDATA, PATH) are not covered by any hash', 'see environmentInputs');
+add('G-05', 'FLAG', 'Only the deployment configuration (admin, salt, predicted ID) is pinned today; the code constants that define recipients, amounts, Wasm hash, metadata, ceilings and expectations are NOT covered by any runtime pin', 'pinned.cjs compares only sha256(deployment-config.json)');
+add('G-06', 'FLAG', 'pinned.cjs, deployment-config.json and the signer code share one writable directory: the pin is not an independent boundary', 'known since revision 3');
+
+(async () => {
+  let live = null;
+  if (process.argv.includes('--live')) {
+    try {
+      const { loadSdk } = require(path.join(SIGNER, 'sdk-loader.cjs')); const S = loadSdk(); const x = S.xdr;
+      const rpc = new S.rpc.Server(A.rpcUrl); const lat = await rpc.getLatestLedger();
+      const k = x.LedgerKey.contractCode(new x.LedgerKeyContractCode({ hash: Buffer.from(A.wasmHash, 'hex') }));
+      const e = (await rpc.getLedgerEntries(k)).entries[0];
+      const code = Buffer.from(x.LedgerEntryData.fromXDR(e.val.toXDR()).value.code);
+      live = { checkedAt: new Date().toISOString(), latestLedger: lat.sequence, codeEntryPresent: !!e, onChainSha256EqualsApproved: sha(code) === A.wasmHash, bytes: code.length, liveUntilLedger: e.liveUntilLedgerSeq, ledgersRemaining: e.liveUntilLedgerSeq - lat.sequence, daysRemainingAt5s: Number(((e.liveUntilLedgerSeq - lat.sequence) * 5 / 86400).toFixed(1)) };
+      add('C-23', live.onChainSha256EqualsApproved ? 'PASS' : 'FLAG', 'LIVE (read-only): the Wasm code entry on Testnet hashes to the approved value', JSON.stringify(live));
+    } catch (e) { add('C-23', 'INFO', 'LIVE check could not be completed', String(e.message).slice(0, 120)); }
+  }
+  const out = {
+    schema: 'tobin.tst-signer.configuration-inventory/1', generatedAt: new Date().toISOString(), signerRevision: 'revision 5 (working copy; identical bytes to the revision-5 package)',
+    runtimeLoadingPath: { ...entry, closure: ['tst-signer.cjs', 'sdk-loader.cjs', 'tst-signer-core.cjs', 'authorization.cjs', 'refusal.cjs', 'dpapi-key.cjs', 'state-store.cjs', 'pinned.cjs'], hashedClosure: ['authorization.cjs', 'dpapi-key.cjs', 'refusal.cjs', 'sdk-loader.cjs', 'state-store.cjs', 'tst-signer-core.cjs', 'tst-signer.cjs'], notHashed: { 'pinned.cjs': 'carries the pin itself (circular); superseded by the independent mechanism', 'make-deployment-config.cjs': 'not loaded when signing; its output is covered by the config hash' } },
+    values, environmentInputs, baseline: { variant: closureFiles.variant, hash: closureFiles.hash, manifest: closureFiles.manifest }, checks, staleDocuments: stale, live,
+    summary: { pass: checks.filter((c) => c.status === 'PASS').length, flag: checks.filter((c) => c.status === 'FLAG').length, blocker: checks.filter((c) => c.status === 'BLOCKER').length, info: checks.filter((c) => c.status === 'INFO').length },
+  };
+  console.log(JSON.stringify(out, (k, v) => (typeof v === 'bigint' ? v.toString() : v), 2));
+})();

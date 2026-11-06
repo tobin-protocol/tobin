@@ -1,0 +1,44 @@
+'use strict';
+// Read-only evidence gathering (no signing, no submission): protocol-30 deploy simulation footprint/resources and the on-chain
+// footprint/resources of the governed token's real mint transaction (same Wasm).
+const fs = require('fs'); const crypto = require('crypto');
+const { loadSdk } = require('./sdk-loader.cjs'); const S = loadSdk(); const x = S.xdr;
+const M = JSON.parse(fs.readFileSync('C:/Users/Ebubechi/Documents/codes/scf/tobin-protocol/tobin/contracts/deployments/testnet.json', 'utf8'));
+const pub = JSON.parse(fs.readFileSync(process.env.LOCALAPPDATA + '/TobinTestKeys/pub.json', 'utf8'));
+const srv = new S.rpc.Server(M.rpc);
+function describeKey(k) {
+  const t = k.type;
+  if (t === 'contractCode') return `contractCode(${Buffer.from(k.contractCode.hash.toXDR()).toString('hex').slice(0, 12)}…)`;
+  if (t === 'contractData') {
+    const d = k.contractData; const key = d.key;
+    return `contractData(contract=${S.Address.fromScAddress(d.contract).toString().slice(0, 6)}…, key=${key.type ?? Object.keys(key)[0]}, durability=${d.durability.name})`;
+  }
+  return t;
+}
+function dump(label, data) {
+  const r = data.resources; const fp = r.footprint;
+  console.log(`== ${label}`);
+  console.log(' resource fields:', Object.keys(r).join(','));
+  console.log(' instructions', r.instructions, '| diskReadBytes', r.diskReadBytes, '| writeBytes', r.writeBytes, '| readBytes', r.readBytes);
+  console.log(' readOnly :', fp.readOnly.map(describeKey).join(' ; '));
+  console.log(' readWrite:', fp.readWrite.map(describeKey).join(' ; '));
+}
+(async () => {
+  // 1. real protocol-30 simulation of the exact deploy operation, stand-in deployer A (never signed)
+  const salt = crypto.randomBytes(32);
+  const args = [new S.Address(pub.A).toScVal(), S.nativeToScVal(30000n, { type: 'i128' }), S.nativeToScVal(7, { type: 'u32' }), S.nativeToScVal('Tobin Settlement Test Token', { type: 'string' }), S.nativeToScVal('TST', { type: 'string' })];
+  const op = S.Operation.createCustomContract({ address: new S.Address(pub.A), wasmHash: Buffer.from(M.contracts.tobin_test_token.wasmHash, 'hex'), constructorArgs: args, salt });
+  const tx = new S.TransactionBuilder(await srv.getAccount(pub.A), { fee: '100', networkPassphrase: M.networkPassphrase }).addOperation(op).setTimeout(60).build();
+  const sim = await srv.simulateTransaction(tx);
+  console.log('network protocol', (await srv.getNetwork()).protocolVersion, '| minResourceFee', sim.minResourceFee);
+  dump('protocol-30 deploy simulation (stand-in deployer)', sim.transactionData.build());
+  // 2. the governed token's real mint (protocol 29): declared resources and footprint
+  const hash = 'c54b4e1291540b61261af0f4dee518718a3d87e6b84f2c4cd72f7503e0621f28';
+  const g = await srv.getTransaction(hash);
+  console.log('governed mint tx status', g.status, 'ledger', g.ledger);
+  const env = S.xdr.TransactionEnvelope.fromXDR(g.envelopeXdr.toXDR('base64'), 'base64'); console.log('env keys', Object.keys(env), Object.keys(env.value));
+  const inner = env.value.tx;
+  const sdata = inner.ext.value;
+  dump('governed token mint (on-chain, protocol 29, same Wasm)', { resources: sdata.resources, build() { return this; } });
+  console.log(' resourceFee', String(sdata.resourceFee));
+})().catch((e) => console.log('FAIL', String(e).slice(0, 300)));

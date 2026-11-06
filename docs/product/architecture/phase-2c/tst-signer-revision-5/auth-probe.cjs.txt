@@ -1,0 +1,37 @@
+'use strict';
+// READ-ONLY probe of real authorization-entry structures: (1) a live protocol-30 simulation of the exact deploy operation using the
+// funded test account A as a stand-in deployer (never signed); (2) the on-chain governed-token mint (same Wasm), read from the RPC.
+const fs = require('fs'); const crypto = require('crypto');
+const { loadSdk } = require('./sdk-loader.cjs'); const S = loadSdk(); const x = S.xdr;
+const core = require('./tst-signer-core.cjs');
+const pub = JSON.parse(fs.readFileSync(process.env.LOCALAPPDATA + '/TobinTestKeys/pub.json', 'utf8'));
+const M = JSON.parse(fs.readFileSync('C:/Users/Ebubechi/Documents/codes/scf/tobin-protocol/tobin/contracts/deployments/testnet.json', 'utf8'));
+const show = (v, d = 0) => {
+  if (v === null || v === undefined) return String(v);
+  if (typeof v === 'bigint') return `${v}n`;
+  if (typeof v !== 'object') return JSON.stringify(v);
+  if (v.type && Object.keys(v).length <= 3 && d > 6) return `{type:${v.type}}`;
+  if (Buffer.isBuffer(v) || v instanceof Uint8Array) return `bytes(${v.length})`;
+  if (Array.isArray(v)) return `[${v.map((e) => show(e, d + 1)).join(', ')}]`;
+  if (d > 7) return '{…}';
+  const o = Object.entries(v).map(([k, e]) => `${k}:${show(e, d + 1)}`); return `{${o.join(', ')}}`;
+};
+(async () => {
+  const rpc = new S.rpc.Server(M.rpc);
+  const cfg = core.makeConfig(S, { adminAddress: pub.A, saltHex: crypto.randomBytes(32).toString('hex') });
+  const op = core.expectedOperation(S, cfg, 'deploy');
+  const tx = new S.TransactionBuilder(await rpc.getAccount(pub.A), { fee: '100', networkPassphrase: cfg.passphrase }).addOperation(op).setTimeout(60).build();
+  const sim = await rpc.simulateTransaction(tx);
+  console.log('== live protocol-30 deploy simulation: auth entries =', sim.result.auth.length);
+  const e = sim.result.auth[0];
+  console.log('credentials.type =', e.credentials.type, '| rootInvocation.function.type =', e.rootInvocation.function.type, '| subInvocations =', e.rootInvocation.subInvocations.length);
+  console.log('entry keys:', Object.keys(e).join(','), '| rootInvocation keys:', Object.keys(e.rootInvocation).join(','), '| function keys:', Object.keys(e.rootInvocation.function).join(','));
+  console.log('function payload:', show(e.rootInvocation.function).slice(0, 700));
+  const g = await rpc.getTransaction('c54b4e1291540b61261af0f4dee518718a3d87e6b84f2c4cd72f7503e0621f28');
+  const env = x.TransactionEnvelope.fromXDR(g.envelopeXdr.toXDR('base64'), 'base64');
+  const hf = env.value.tx.operations[0].body.value;
+  console.log('== governed mint (on-chain, protocol 29): auth entries =', hf.auth.length);
+  const m = hf.auth[0];
+  console.log('credentials.type =', m.credentials.type, '| function.type =', m.rootInvocation.function.type, '| subInvocations =', m.rootInvocation.subInvocations.length);
+  console.log('function payload:', show(m.rootInvocation.function).slice(0, 500));
+})().catch((e) => console.log('FAIL', String(e).slice(0, 300)));

@@ -1,0 +1,33 @@
+TRANSCRIPTION. The original output file of this run was overwritten by the rerun after the test additions; the lines below are copied
+verbatim from the console output of that first complete run (30 analyzer mutants, six survived), with this header added.
+SURVIVED T01 computed callee allowed (CallExpression)  <- nothing detected it
+KILLED   T02 computed access on a capability allowed  <- tests(1 failing)
+KILLED   T03 computed key origin always accepted  <- tests(6 failing) + mutation-suite(2 survivors)
+KILLED   T04 capability flow into any parameter accepted  <- tests(17 failing) + mutation-suite(337 survivors)
+KILLED   T05 environment object accepted in any position  <- tests(3 failing)
+KILLED   T06 exec call table bypassed  <- tests(11 failing) + mutation-suite(6 survivors)
+KILLED   T07 shell option permitted  <- tests(3 failing) + mutation-suite(4 survivors)
+KILLED   T08 require shape not enforced  <- tests(11 failing)
+KILLED   T09 constructor not blocked  <- tests(9 failing) + mutation-suite(8 survivors)
+SURVIVED T10 bundle binding identity not checked  <- nothing detected it
+SURVIVED T11 pattern occurrence count loosened  <- nothing detected it
+KILLED   T12 reserved declaration names not checked  <- tests(5 failing) + mutation-suite(8 survivors)
+KILLED   T13 optional chaining allowed  <- tests(4 failing) + mutation-suite(26 survivors)
+KILLED   T14 sequence expression allowed  <- tests(1 failing)
+KILLED   T15 unknown free identifiers accepted  <- tests(4 failing) + mutation-suite(8 survivors)
+KILLED   T16 process.argv accepted anywhere  <- mutation-suite(1 survivors)
+KILLED   T17 capability reassignment accepted  <- tests(2 failing)
+KILLED   T18 capability not bound when the require form is refused  <- tests(1 failing)
+KILLED   T19 ASCII identifier rule removed  <- tests(1 failing) + mutation-suite(8 survivors)
+KILLED   T20 dynamic import allowed  <- tests(4 failing) + mutation-suite(8 survivors)
+KILLED   T21 module usage not restricted  <- tests(4 failing) + mutation-suite(120 survivors)
+SURVIVED T22 declarator alias of a capability accepted  <- nothing detected it
+KILLED   T23 parser file hash not enforced  <- tests(1 failing)
+SURVIVED T24 constructor call of a computed member accepted  <- nothing detected it
+KILLED   T25 getter/setter properties accepted  <- tests(2 failing) + mutation-suite(8 survivors)
+KILLED   T26 string-literal blocked names accepted  <- tests(3 failing)
+KILLED   T27 globalThis allowed everywhere  <- tests(5 failing) + mutation-suite(120 survivors)
+KILLED   T28 vm allowed everywhere  <- tests(1 failing) + mutation-suite(13 survivors)
+SURVIVED T29 module member allowlist ignored  <- nothing detected it
+KILLED   T30 explicit computed site count unchecked  <- tests(1 failing)
+tool mutants: 30; killed: 24; survived: 6

@@ -1,0 +1,4 @@
+// category 33: global
+// applied as: the real sdk-loader.cjs followed by this snippet
+// expected: refused (one of: G1)
+global.process;

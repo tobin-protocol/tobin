@@ -1,0 +1,17 @@
+✔ 6.3 B0 is reproduced with the AST gate: MATCH, exit 0 (300.0058ms)
+✔ 6.3 a wrong expected hash is a MISMATCH, exit 1 (241.792ms)
+✔ 6.3 a malformed --verify value is refused with exit 3 (80.0517ms)
+✔ 6.3 the manifest written has header v1 and 11 entries (8 files, config, 2 SDK files) in label order (339.6353ms)
+✔ 6.3 the exact Revision 6.2 bypass added to a runtime file is refused by the policy BEFORE any hash is trusted (exit 2) (291.652ms)
+✔ 6.3 a one-byte harmless change is detected by the hash, not by the policy (exit 1) (318.2501ms)
+✔ 6.3 CR byte, UTF-8 BOM and invalid UTF-8 are refused (exit 2) (391.9782ms)
+✔ 6.3 a missing runtime file, or a relative require outside the closure, is refused (exit 2) (410.8514ms)
+✔ 6.3 a configuration file changes the config entry (pinning behaviour unchanged, nothing is created) (267.2381ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2854.7293

@@ -1,0 +1,26 @@
+'use strict';
+// Demonstrates the Revision 6.1 `self` bypass and its closure in Revision 6.2, on temporary copies of the real files.
+// The examples are never executed, only analyzed. Offline; reads files only.
+// Usage: node demonstrate-bypass62.cjs <signer-dir> <revision-6.1 compute-baseline-hash.cjs> <revision-6.2 compute-baseline-hash.cjs>
+const fs = require('fs'); const path = require('path');
+const [signer, oldTool, newTool] = process.argv.slice(2).map((p) => path.resolve(p));
+const OLD = require(oldTool); const NEW = require(newTool);
+const FILE = 'tst-signer-core.cjs';
+const EXAMPLES = [
+  ["const k = process.env.TOBIN_METHOD;\nconst m = self.process[k]('vm');\nconst r = process.env.TOBIN_RUN;\nm[r]('1 + 1');", 'review bypass (exact)'],
+  ["const g = self;\nconst k = process.env.TOBIN_METHOD;\ng.process[k]('vm');", 'alias of self'],
+  ["const g = globalThis.self;\ng.process['getBuiltinModule']('vm');", 'globalThis.self alias, literal key'],
+  ["const p = self.process;\nconst k = process.env.TOBIN_METHOD;\np[k]('vm');", 'p = self.process'],
+  ["const get = Reflect.get;\nconst p = self.process;\nget(p, process.env.TOBIN_METHOD);", 'Reflect.get with env key'],
+];
+const src = fs.readFileSync(path.join(signer, FILE), 'utf8');
+// the 6.1 tool is asked about the real file plus the appended example; 'Reflect' and 'globalThis' are caught by 6.1 itself, which is reported honestly.
+const verdict = (api, text) => { try { api.analyzeSource(FILE, text, api.CLOSURE.slice()); return 'ACCEPTED'; } catch (e) { return 'REFUSED (' + e.message.replace(/^[^:]+: loading policy violation\(s\): /, '').slice(0, 120) + ')'; } };
+let bad = 0; let acceptedByOld = 0;
+for (const [code, label] of EXAMPLES) {
+  const text = src + '\n' + code + '\n'; const o = verdict(OLD, text); const n = verdict(NEW, text);
+  console.log(`${label}\n${code.split('\n').map((l) => '    ' + l).join('\n')}\n  Revision 6.1: ${o}\n  Revision 6.2: ${n}`);
+  if (o.startsWith('ACCEPTED')) acceptedByOld++; if (!n.startsWith('REFUSED')) bad++;
+}
+console.log(`\nexamples: ${EXAMPLES.length}; accepted by Revision 6.1: ${acceptedByOld}; refused by Revision 6.2: ${EXAMPLES.length - bad}`);
+process.exit(bad ? 1 : 0);
