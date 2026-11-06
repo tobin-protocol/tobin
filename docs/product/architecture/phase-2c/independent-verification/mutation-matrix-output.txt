@@ -1,0 +1,24 @@
+baseline under test: 83f11a7f5ca4dce244dde39f69b19442711902137b8cba8ba3beb7f446c8733e   (S=shell coreutils, N=node external, G=in-signer gate via launcher; exit codes)
+none                               S=0 N=0 G=0  OK
+modify                             S=1 N=1 G=4  OK
+missing                            S=1 N=2 G=4  OK
+extra-file                         S=2 N=2 G=4  OK
+hidden-file                        S=2 N=2 G=4  OK
+crlf                               S=1 N=2 G=4  OK
+bom                                S=1 N=2 G=4  OK
+invalid-utf8                       S=1 N=2 G=4  OK
+config-present                     S=1 N=1 G=4  OK
+pinned-changed                     S=1 N=1 G=4  OK
+dir-as-file                        S=1 N=2 G=4  OK
+symlink                            S=1 N=1 G=4  OK
+traversal-require                  S=1 N=2 G=4  OK
+(unreadable-file case: NOT VERIFIED on this platform, chmod 000 is not enforced on NTFS; it would also let the gate pass and start the application. Not covered here.)
+--- wrong approved pin / malformed pins (gate and external tool; launcher must exit 2 or 4, never run)
+pin=0000000000.. G=4 N=1 S=1
+pin=83F11A7F5C.. G=2 N=2 S=2
+pin=83f11a7f..   G=2 N=2 S=2
+pin=..           G=2 N=2 S=2
+--- malformed manifest (external tool --manifest)
+bad manifest N=2
+header-only manifest N=1
+sandbox leftovers: 0

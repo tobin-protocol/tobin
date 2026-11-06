@@ -71,3 +71,12 @@ Written 2026-11-03. Scope: the Phase 2C brief authorized real-wallet Testnet tes
 - [B0-B1-PROJECT-OWNER-APPROVAL.md](B0-B1-PROJECT-OWNER-APPROVAL.md): project-owner approval of the B0 and B1 baselines (does not authorize execution).
 - [PR-11-SCOPE-REVIEW.md](PR-11-SCOPE-REVIEW.md): scope and public-path review of the pull request.
 - [WITHHELD-FROM-INITIAL-PULL-REQUEST.md](WITHHELD-FROM-INITIAL-PULL-REQUEST.md): twelve evidence files kept in archives, with their reconciliation.
+
+## Final closure records (added 2026-11-06)
+
+- [PHASE-2C-FINAL-CLOSURE-REPORT.md](PHASE-2C-FINAL-CLOSURE-REPORT.md): definitive record of the phase and its limitations.
+- [INDEPENDENT-BASELINE-VERIFICATION.md](INDEPENDENT-BASELINE-VERIFICATION.md): separately written verifier, mutation results, limits.
+- [PROCESS-INVOCATION-HAZARD.md](PROCESS-INVOCATION-HAZARD.md): the `powershell`/`icacls` blocker and its remediation design.
+- [PUBLIC-PATH-EXPOSURE-REVIEW.md](PUBLIC-PATH-EXPOSURE-REVIEW.md): path and secret scan including archive contents.
+- [FINAL-EVIDENCE-RECONCILIATION.md](FINAL-EVIDENCE-RECONCILIATION.md): all hash inventories reconciled against the tree and archives.
+- [../w0/W0-ENTRY-READINESS.md](../w0/W0-ENTRY-READINESS.md): W0 hand-off.
