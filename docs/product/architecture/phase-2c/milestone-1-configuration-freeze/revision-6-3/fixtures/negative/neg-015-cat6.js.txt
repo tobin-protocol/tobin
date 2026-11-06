@@ -1,0 +1,4 @@
+// category 6: env-derived computed object key
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: K1)
+const ok = { [process.env.K]: 1 };

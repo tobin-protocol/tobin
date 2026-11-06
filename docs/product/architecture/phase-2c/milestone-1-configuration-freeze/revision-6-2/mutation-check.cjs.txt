@@ -1,0 +1,108 @@
+'use strict';
+// Mutation checks of the Revision 6.2 baseline tool. Offline; reads files only; no key, network or signing.
+//  GROUP A (tool mutants): each mutant re-introduces a defect into a COPY of the tool; the unchanged test file must then FAIL.
+//          The three PowerShell parity tests are skipped here (TOBIN_SKIP_PS=1) because no mutant touches them; they are run unmutated
+//          in the normal test run.
+//  GROUP B (signer-source mutants): dangerous code is injected into COPIES of each of the eight runtime files, or the approved
+//          sdk-loader patterns are edited; the UNMUTATED tool must refuse every one.
+// Usage: node mutation-check.cjs      (signer directory: TOBIN_SIGNER_DIR or ../tst-signer; SDK: TOBIN_SDK_PACKAGE)
+const fs = require('fs'); const os = require('os'); const path = require('path'); const { spawnSync } = require('child_process');
+const HERE = __dirname; const SIGNER = path.resolve(process.env.TOBIN_SIGNER_DIR || path.join(HERE, '..', 'tst-signer'));
+const SDK = path.resolve(process.env.TOBIN_SDK_PACKAGE || path.join(HERE, '..', 'pk', 'x-stellar-stellar-sdk-17.4.0', 'package'));
+const TOOL = fs.readFileSync(path.join(HERE, 'compute-baseline-hash.cjs'), 'utf8');
+const B = String.fromCharCode(92);
+const MUTANTS = [
+  ['M1 original blocker 1: pinned.cjs required but not hashed', "for (const f of CLOSURE) lines.push([`file:${f}`,", "for (const f of CLOSURE.filter((x) => x !== 'pinned.cjs')) lines.push([`file:${f}`,"],
+  ['M2 original blocker 2: no loading form beyond literal relative requires is rejected', "if (bad.length) throw new Error(`${file}: loading policy violation(s)", "if (false) throw new Error(`${file}: loading policy violation(s)"],
+  ['M3 dynamic import() no longer forbidden', "'Function', 'import', 'export',", "'Function', 'export',"],
+  ['M4 non-literal require arguments accepted', "const ok = next && next.v === '(' && toks[k + 2] && toks[k + 2].t === 'str' &&", "const ok = next && next.v === '(' &&"],
+  ['M5 unlisted relative dependency accepted', "else if (!approvedClosure.includes(target.slice(2))) bad.push(", "else if (false) bad.push("],
+  ['M6 approved-use counts ignored', "if (count > (allowed[name] || 0)) bad.push(", "if (false) bad.push("],
+  ['M7 missing declared dependency not reported', "if (e.code === 'ENOENT') throw new Error(`declared dependency ${f} is missing from ${dir}`); throw e;", "throw e;"],
+  ['M8 closure equality check removed', "if (JSON.stringify(found) !== JSON.stringify(expected)) throw", "if (false) throw"],
+  ['M9 CR check removed', "if (b.includes(0x0d)) throw", "if (false) throw"],
+  ['M10 invalid-UTF-8 check removed', "try { new TextDecoder('utf-8', { fatal: true }).decode(b); } catch { throw", "try { new TextDecoder('utf-8', { fatal: false }).decode(b); } catch { throw"],
+  ['N1 6.1: sensitive-root pattern coverage ignored (globalThis/vm outside an approved pattern accepted)', "if (!p) bad.push(`\"${name}\" used outside", "if (false) bad.push(`\"${name}\" used outside"],
+  ['N2 6.1: computed member access never checked', "if (e < 0 || !simpleKey(toks, k, e)) bad.push(", "if (false) bad.push("],
+  ['N3 6.1: every computed key accepted as simple', "const key = toks.slice(k + 1, e); if (!key.length) return false;", "const key = toks.slice(k + 1, e); return true;"],
+  ['N4 6.1: escape sequences in literals accepted', "if (!Object.prototype.hasOwnProperty.call(SIMPLE_ESCAPES, e)) fail(", "if (false) fail("],
+  ['N5 6.1: dangerous names as string text accepted', "DANGEROUS_STRINGS.has(t.v)) bad.push(", "false) bad.push("],
+  ["N6 6.1: 'use strict' not required", "if (!(toks[0] && toks[0].t === 'str'", "if (false && !(toks[0] && toks[0].t === 'str'"],
+  ['N7 6.1: U+2028/U+2029/NUL/CR not refused', "if (/[" + B + "r" + B + "0" + B + "u2028" + B + "u2029]/.test(src)) fail(", "if (false) fail("],
+  ['N8 6.1: ambiguous slash after } accepted', "if (p && p.t === 'punct' && p.v === '}') fail(", "if (false) fail("],
+  ['N9 6.1: an approved pattern may occur more than once', "if (patternHits[p.id] > 1) bad.push(", "if (false) bad.push("],
+  ['N10 6.1: process members not restricted', "if (!m || !PROCESS_MEMBERS.has(m)) bad.push(", "if (false) bad.push("],
+  ['N11 6.1: .constructor member access accepted', "if (name === 'constructor' && (isMember || !(next && next.v === '('))) {", "if (false) {"],
+  ['N12 6.1: optional-chained computed access not recognised', " || (prev.t === 'punct' && prev.v === '.' && toks[k - 2] && toks[k - 2].v === '?')", ""],
+  ['N13 6.1: getBuiltinModule removed from the forbidden names', "'getBuiltinModule', ", ""],
+  ['N14 6.1: module restricted to module.exports/require.main no longer enforced', "if (!ok) bad.push(`module used other than", "if (false) bad.push(`module used other than"],
+  ['N15 6.1: forbidden-identifier check disabled', "if (FORBIDDEN_IDS.has(name) && !(name === 'exports'", "if (false && FORBIDDEN_IDS.has(name) && !(name === 'exports'"],
+  ["N16 6.2: global-alias rule (self, window, frames) disabled","if (GLOBAL_ALIASES.has(name) && name !== 'globalThis' && name !== 'global' && !aliasCovered.has(k)) {","if (false) {"],
+  ["N17 6.2: sensitive-name-as-property rule disabled","if (isMember && SENSITIVE_MEMBER_NAMES.has(name) && !aliasCovered.has(k)) {","if (false) {"],
+  ["N18 6.2: computed call (dynamic dispatch) rule disabled","if (a && (a.v === '(' && a.t === 'punct'","if (false && a && (a.v === '(' && a.t === 'punct'"],
+  ["N19 6.2: computed access on a value reached from process allowed","if (toks[j] && toks[j].t === 'id' && toks[j].v === 'process') bad.push(","if (false) bad.push("],
+  ["N20 6.2: self no longer listed as a global alias","new Set(['self', 'window', 'frames', 'global', 'globalThis'])","new Set(['window', 'frames', 'global', 'globalThis'])"],
+  ["N21 6.2: tagged-template call on a computed member allowed","(a.t === 'tpl' && src[a.pos - 1] === String.fromCharCode(96))","false"],
+  ["N22 6.2: optional computed call x[k]?.() allowed","(a.v === '?' && b2 && b2.v === '.' && c2 && c2.v === '(' )","false"],
+  ["N23 6.2: the string 'self' no longer refused","'compileFunction', 'self', 'window', 'frames', 'readFileSync',","'compileFunction', 'readFileSync',"],
+  ["N24 6.2: vm no longer a forbidden property name","'frames', 'global', 'vm']);","'frames', 'global']);"],
+  ["N25 6.2: process no longer a forbidden property name","new Set(['process', 'require', 'module', 'globalThis', 'self'","new Set(['require', 'module', 'globalThis', 'self'"],
+  ["N26 6.2: approved G1 alias token covers every self (alias coverage widened)","for (const r of p.aliases || []) aliasCovered.set(k + r, p);","for (const r of p.aliases || []) aliasCovered.set(k + r, p); if (p.id === 'G1') for (let q = 0; q < toks.length; q++) if (toks[q].v === 'self') aliasCovered.set(q, p);"],
+  ["N27 6.2: require('vm') allowed outside pattern V1","if (target === 'vm' && BUILTIN_USERS.vm.includes(file) && !requireCovered.has(k)) {","if (false) {"],
+];
+let survived = 0; const survivors = [];
+for (const [name, from, to] of MUTANTS) {
+  if (TOOL.split(from).length !== 2) { console.log(`INVALID  ${name}: anchor not found exactly once`); survived++; survivors.push(name); continue; }
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'mut-r62-'));
+  fs.writeFileSync(path.join(d, 'compute-baseline-hash.cjs'), TOOL.split(from).join(to));
+  for (const f of ['compute-baseline-hash.test.cjs', 'reproduce-in-powershell.ps1']) fs.copyFileSync(path.join(HERE, f), path.join(d, f));
+  const r = spawnSync(process.execPath, ['--test', path.join(d, 'compute-baseline-hash.test.cjs')], { encoding: 'utf8', env: { ...process.env, TOBIN_SKIP_PS: '1', TOBIN_SIGNER_DIR: SIGNER, TOBIN_SDK_PACKAGE: SDK } });
+  const failed = /ℹ fail (\d+)/.exec(r.stdout); const k = failed ? Number(failed[1]) : -1;
+  const killed = r.status !== 0; if (!killed) { survived++; survivors.push(name); }
+  console.log(`${killed ? 'KILLED  ' : 'SURVIVED'} ${name}  (failing tests: ${k})`);
+  fs.rmSync(d, { recursive: true, force: true });
+}
+console.log(`GROUP A tool mutants: ${MUTANTS.length}, killed: ${MUTANTS.length - survived}, survived: ${survived}`);
+
+// ---- GROUP B: mutate the signer sources, run the unmutated tool ----
+const { discoverClosure, CLOSURE } = require('./compute-baseline-hash.cjs');
+const SNIPPETS = [
+  "globalThis['require']('./unapproved-module');", "globalThis['process']['getBuiltinModule']('fs');", "globalThis['process']['getBuiltinModule']('vm')['runInThisContext']('1');",
+  'const p = globalThis.process;', "process['getBuiltinModule']('fs');", 'const { process: q } = globalThis;', "Reflect.get(globalThis, 'process');",
+  "Object.getOwnPropertyDescriptor(globalThis, 'process');", "({}).constructor.constructor('return process')();", "const k = 'req'; globalThis[k]('./x');",
+  "const k = process.env.TOBIN_METHOD; const m = self.process[k]('vm'); const r = process.env.TOBIN_RUN; m[r]('1 + 1');", 'self.process;', "self['process'];", 'const g = self; g.process;', 'const { process: p2 } = self;',
+  'function gp(x = self) { return x.process; }', 'someFunction(self);', 'const holder = { global: self };', 'const a1 = self; const a2 = a1; a2.process;', 'globalThis.self = globalThis;', 'const gg = globalThis.self; gg.process;',
+  "const q1 = process.env.K; const o1 = {}; o1[q1]('x');", 'const rr = Reflect.get;', 'process.constructor;', 'Object.getPrototypeOf(process);', 'const xx = {}; xx.vm;', "const v2 = require('vm');", 'vm.runInNewContext(1);', 'vm.createContext({});',
+  "eval('1');", "new Function('return 1')();", "import('./x.mjs');", "require('./unlisted.cjs');", 'const r = require; r("./x");',
+];
+const EDITS = [ // [file, from, to]: edits of the approved sdk-loader patterns
+  ['sdk-loader.cjs', 'globalThis.self = globalThis;', 'globalThis.selfX = globalThis;'], ['sdk-loader.cjs', 'globalThis.self = globalThis;', "globalThis['self'] = globalThis;"],
+  ['sdk-loader.cjs', 'if (!globalThis.StellarSdk)', 'if (!globalThis.Buffer)'], ['sdk-loader.cjs', 'return globalThis.StellarSdk;', "return globalThis['StellarSdk'];"],
+  ['sdk-loader.cjs', 'return globalThis.StellarSdk;', 'return globalThis.process;'], ['sdk-loader.cjs', "vm.runInThisContext(bundle.toString('utf8'));", "vm['runInThisContext'](bundle.toString('utf8'));"],
+  ['sdk-loader.cjs', 'vm.runInThisContext(', 'vm.runInNewContext('], ['sdk-loader.cjs', 'vm.runInThisContext(bundle.toString', 'vm.runInThisContext(globalThis.process.env.X + bundle.toString'],
+  ['tst-signer.cjs', "const { loadSdk } = require('./sdk-loader.cjs');", "const { loadSdk } = require('./sdk-loader.cjs'); const hidden = require('./' + 'pinned.cjs');"],
+  ['pinned.cjs', 'module.exports', "globalThis.x = 1; module.exports"],
+];
+const RULES = [[/global alias/, 'R7 global alias (self/window/frames)'], [/reached as a property/, 'R8 sensitive name as property'], [/call of a computed member/, 'R6 computed call'], [/computed member access on a value reached from process/, 'R6 computed on process'], [/computed member access with a key/, 'R3 non-simple computed key'], [/outside an approved exact pattern/, 'R2 root outside pattern'], [/forbidden identifier/, 'R4 forbidden identifier'], [/equals a forbidden or sensitive name/, 'R4 dangerous string'], [/require is not exactly|not an approved|not in the approved closure|not approved to require/, 'R1 require policy'], [/approved pattern w+ occurs/, 'R2 pattern repeated'], [/occurs d+ time/, 'R5 count'], [/process used other than/, 'R2 process member'], [/constructor accessed/, 'R4 constructor'], [/module used other than/, 'R2 module']];
+const ruleHits = {};
+let b = 0, bKilled = 0; const bSurv = [];
+const tryMutant = (label, file, fn) => {
+  b++; const d = fs.mkdtempSync(path.join(os.tmpdir(), 'mutsrc-')); for (const f of CLOSURE) fs.copyFileSync(path.join(SIGNER, f), path.join(d, f));
+  const s = fs.readFileSync(path.join(d, file), 'utf8'); const t = fn(s);
+  if (t === s) { console.log(`INVALID  ${label}`); bSurv.push(label); fs.rmSync(d, { recursive: true, force: true }); return; }
+  fs.writeFileSync(path.join(d, file), t);
+  let refused = false; try { discoverClosure(d); } catch (e) { refused = true; for (const [re, nm] of RULES) if (re.test(e.message)) ruleHits[nm] = (ruleHits[nm] || 0) + 1; }
+  if (refused) bKilled++; else bSurv.push(label);
+  fs.rmSync(d, { recursive: true, force: true });
+};
+for (const f of CLOSURE) for (const sn of SNIPPETS) tryMutant(`${f} + ${sn.slice(0, 50)}`, f, (s) => s + '\n' + sn + '\n');
+for (const [f, from, to] of EDITS) tryMutant(`${f}: ${from.slice(0, 40)} -> ${to.slice(0, 40)}`, f, (s) => s.replace(from, to));
+// control: injected harmless code must NOT be refused (the policy is not rejecting everything)
+const control = fs.mkdtempSync(path.join(os.tmpdir(), 'mutctl-')); for (const f of CLOSURE) fs.copyFileSync(path.join(SIGNER, f), path.join(control, f));
+fs.appendFileSync(path.join(control, 'refusal.cjs'), '\nconst harmless = [1, 2, 3].map((x) => x * 2)[0];\n'); let controlOk = true; try { discoverClosure(control); } catch { controlOk = false; }
+fs.rmSync(control, { recursive: true, force: true });
+console.log(`GROUP B signer-source mutants: ${b}, refused (killed): ${bKilled}, accepted (survived): ${bSurv.length}`); for (const s of bSurv) console.log(`  SURVIVED ${s}`);
+console.log('Group B mutants refused, by the rules that fired (a mutant can trigger several rules):'); for (const [nm, c] of Object.entries(ruleHits).sort()) console.log(`  ${String(c).padStart(4)}  ${nm}`);
+console.log(`control (harmless injected code accepted): ${controlOk ? 'yes' : 'NO'}`);
+for (const s of survivors) console.log(`  SURVIVED tool mutant ${s}`);
+process.exit(survived || bSurv.length || !controlOk ? 1 : 0);

@@ -1,0 +1,4 @@
+// category 23: module.require
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: M1)
+module.require('child_process');

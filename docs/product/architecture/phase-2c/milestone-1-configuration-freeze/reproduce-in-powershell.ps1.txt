@@ -1,0 +1,20 @@
+param([string]$SignerDir, [string]$SdkPackage, [string]$Config = '')
+# INDEPENDENT reimplementation of the canonical baseline procedure in PowerShell (no Node, no shared code). Prints the baseline hash.
+$ErrorActionPreference = 'Stop'
+$closure = 'authorization.cjs','dpapi-key.cjs','refusal.cjs','sdk-loader.cjs','state-store.cjs','tst-signer-core.cjs','tst-signer.cjs'
+function Sha([byte[]]$bytes) { $h = [Security.Cryptography.SHA256]::Create().ComputeHash($bytes); (($h | ForEach-Object { $_.ToString('x2') }) -join '') }
+function Canonical([string]$path) {
+  [byte[]]$b = [IO.File]::ReadAllBytes($path)
+  foreach ($x in $b) { if ($x -eq 13) { throw "$path contains CR" } }
+  if ($b.Length -ge 3 -and $b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF) { throw "$path has a BOM" }
+  Sha $b
+}
+$d = New-Object 'System.Collections.Generic.SortedDictionary[string,string]' ([StringComparer]::Ordinal)
+foreach ($f in $closure) { $d["file:$f"] = Canonical (Join-Path $SignerDir $f) }
+if ($Config) { $d['config:deployment-config.json'] = Canonical $Config } else { $d['config:deployment-config.json'] = 'ABSENT' }
+$d['external:@stellar/stellar-sdk@17.4.0/package.json'] = Sha ([IO.File]::ReadAllBytes((Join-Path $SdkPackage 'package.json')))
+$d['external:@stellar/stellar-sdk@17.4.0/dist/stellar-sdk.js'] = Sha ([IO.File]::ReadAllBytes((Join-Path (Join-Path $SdkPackage 'dist') 'stellar-sdk.js')))
+$sb = New-Object System.Text.StringBuilder
+[void]$sb.Append("TOBIN-TST-SIGNER-BASELINE v1`n")
+foreach ($k in $d.Keys) { [void]$sb.Append($d[$k] + '  ' + $k + "`n") }
+Sha ([Text.Encoding]::UTF8.GetBytes($sb.ToString()))

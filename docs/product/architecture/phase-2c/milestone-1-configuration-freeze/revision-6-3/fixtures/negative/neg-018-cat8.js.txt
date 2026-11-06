@@ -1,0 +1,5 @@
+// category 8: array storage then invocation
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: C1|K1)
+const a = [execFileSync];
+a[0]('powershell.exe', []);

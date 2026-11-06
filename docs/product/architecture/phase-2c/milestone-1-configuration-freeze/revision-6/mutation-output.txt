@@ -1,0 +1,13 @@
+KILLED   M1 original blocker 1: pinned.cjs required but not hashed  (failing tests: 5)
+KILLED   M2 original blocker 2: only literal relative requires are recognised, no other loading form is rejected  (failing tests: 26)
+KILLED   M3 dynamic import() no longer forbidden  (failing tests: 3)
+KILLED   M4 non-literal require arguments accepted  (failing tests: 1)
+KILLED   M5 unlisted relative dependency accepted  (failing tests: 2)
+KILLED   M6 approved-use counts ignored (extra filesystem reads accepted)  (failing tests: 1)
+KILLED   M7 missing declared dependency not reported  (failing tests: 3)
+KILLED   M8 closure equality check removed  (failing tests: 1)
+KILLED   M9 CR check removed  (failing tests: 4)
+KILLED   M10 invalid-UTF-8 check removed  (failing tests: 3)
+mutants: 10, survived: 0
+
+[exited with code 0]

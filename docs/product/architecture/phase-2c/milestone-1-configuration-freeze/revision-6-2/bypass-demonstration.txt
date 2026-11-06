@@ -1,0 +1,32 @@
+review bypass (exact)
+    const k = process.env.TOBIN_METHOD;
+    const m = self.process[k]('vm');
+    const r = process.env.TOBIN_RUN;
+    m[r]('1 + 1');
+  Revision 6.1: ACCEPTED
+  Revision 6.2: REFUSED (global alias "self" used outside the approved pattern (line 464); sensitive name "process" reached as a property (line 4)
+alias of self
+    const g = self;
+    const k = process.env.TOBIN_METHOD;
+    g.process[k]('vm');
+  Revision 6.1: ACCEPTED
+  Revision 6.2: REFUSED (global alias "self" used outside the approved pattern (line 463); sensitive name "process" reached as a property (line 4)
+globalThis.self alias, literal key
+    const g = globalThis.self;
+    g.process['getBuiltinModule']('vm');
+  Revision 6.1: REFUSED ("globalThis" used outside an approved exact pattern (line 463); computed member access with a key that is not a number, )
+  Revision 6.2: REFUSED ("globalThis" used outside an approved exact pattern (line 463); global alias "self" used outside the approved pattern (l)
+p = self.process
+    const p = self.process;
+    const k = process.env.TOBIN_METHOD;
+    p[k]('vm');
+  Revision 6.1: ACCEPTED
+  Revision 6.2: REFUSED (global alias "self" used outside the approved pattern (line 463); sensitive name "process" reached as a property (line 4)
+Reflect.get with env key
+    const get = Reflect.get;
+    const p = self.process;
+    get(p, process.env.TOBIN_METHOD);
+  Revision 6.1: REFUSED (forbidden identifier "Reflect" (line 463))
+  Revision 6.2: REFUSED (forbidden identifier "Reflect" (line 463); global alias "self" used outside the approved pattern (line 464); sensitive n)
+
+examples: 5; accepted by Revision 6.1: 3; refused by Revision 6.2: 5

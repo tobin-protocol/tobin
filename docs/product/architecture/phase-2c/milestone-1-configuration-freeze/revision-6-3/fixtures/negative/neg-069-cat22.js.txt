@@ -1,0 +1,5 @@
+// category 22: require with variable specifier
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: R1)
+const mn = 'fs';
+const m5 = require(mn);

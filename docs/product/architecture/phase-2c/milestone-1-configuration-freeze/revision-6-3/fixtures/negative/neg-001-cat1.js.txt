@@ -1,0 +1,4 @@
+// category 1: direct computed method extraction
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: C1|K1)
+const m2 = execFileSync['call'];

@@ -1,0 +1,5 @@
+// category 2: second whole-module import of child_process
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: R1|D1)
+const cp2 = require('child_process');
+cp2.execFileSync('powershell.exe', []);

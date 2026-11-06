@@ -1,0 +1,23 @@
+'use strict';
+// Disposable-file experiment: what does the CURRENT icacls call really leave in the ACL? Uses only a fresh temp directory.
+const fs = require('fs'); const os = require('os'); const path = require('path');
+const { execFileSync } = require('child_process');
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tst-acl-'));
+const file = path.join(dir, 'probe.json');
+fs.writeFileSync(file, '{"dummy":true}', { mode: 0o600 });
+const INSPECT = [
+  '$p = $env:TOBIN_ACL_PATH',
+  '$acl = Get-Acl -LiteralPath $p',
+  '$me = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value',
+  '$rules = @($acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier]) | ForEach-Object { [pscustomobject]@{ sid = $_.IdentityReference.Value; type = [string]$_.AccessControlType; rights = [string]$_.FileSystemRights; inherited = [bool]$_.IsInherited } })',
+  '[pscustomobject]@{ me = $me; owner = $acl.GetOwner([Security.Principal.SecurityIdentifier]).Value; protected = [bool]$acl.AreAccessRulesProtected; rules = $rules } | ConvertTo-Json -Compress -Depth 4',
+].join('; ');
+const inspect = () => JSON.parse(execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', INSPECT], { encoding: 'utf8', env: { ...process.env, TOBIN_ACL_PATH: file } }));
+const show = (label, a) => console.log(label, JSON.stringify({ owner_is_me: a.owner === a.me, protected: a.protected, rules: a.rules.map((r) => ({ who: r.sid === a.me ? 'ME' : r.sid, type: r.type, inherited: r.inherited, rights: r.rights })) }));
+show('BEFORE (fresh file in temp dir):', inspect());
+let exit = 'ok';
+try { execFileSync('icacls', [file, '/inheritance:r', '/grant:r', `${process.env.USERNAME}:(F)`], { stdio: 'ignore', windowsHide: true }); } catch (e) { exit = `failed (${e.status})`; }
+console.log('icacls exit:', exit, '| USERNAME form used:', JSON.stringify(process.env.USERNAME), '| USERDOMAIN:', JSON.stringify(process.env.USERDOMAIN));
+show('AFTER the current icacls call:', inspect());
+fs.rmSync(dir, { recursive: true, force: true });
+console.log('temp dir removed');

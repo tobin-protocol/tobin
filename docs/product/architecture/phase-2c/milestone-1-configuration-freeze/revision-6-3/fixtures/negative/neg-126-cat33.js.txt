@@ -1,0 +1,5 @@
+// category 33: sdk object computed call
+// applied as: the real tst-signer.cjs followed by this snippet
+// expected: refused (one of: K1)
+const sdkx = loadSdk();
+sdkx[process.env.K]();

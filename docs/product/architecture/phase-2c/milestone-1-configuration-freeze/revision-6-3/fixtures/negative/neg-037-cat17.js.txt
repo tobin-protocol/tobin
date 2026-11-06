@@ -1,0 +1,4 @@
+// category 17: Reflect.get with env key
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: G1)
+Reflect.get(nodeFs, process.env.K);

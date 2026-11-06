@@ -1,0 +1,36 @@
+'use strict';
+// READ-ONLY: compares the entries DERIVED FROM THE SPECIFICATION with real authorization entries, and writes the real entries as public
+// test fixtures (XDR plus the public parameters needed to rebuild the expectation; nothing secret, no contract ID in C... form).
+const fs = require('fs'); const crypto = require('crypto');
+const { loadSdk } = require('./sdk-loader.cjs'); const S = loadSdk(); const x = S.xdr;
+const A = require('./authorization.cjs'); const core = require('./tst-signer-core.cjs');
+const M = JSON.parse(fs.readFileSync('C:/Users/Ebubechi/Documents/codes/scf/tobin-protocol/tobin/contracts/deployments/testnet.json', 'utf8'));
+const pub = JSON.parse(fs.readFileSync(process.env.LOCALAPPDATA + '/TobinTestKeys/pub.json', 'utf8'));
+(async () => {
+  const rpc = new S.rpc.Server(M.rpc);
+  // 1. live protocol-30 deploy simulation (stand-in deployer = funded test account A; never signed)
+  const salt = crypto.randomBytes(32);
+  const spec = { kind: 'deploy', deployer: pub.A, salt, wasmHash: M.contracts.tobin_test_token.wasmHash, minter: pub.A, cap: 30000n, decimals: 7, name: 'Tobin Settlement Test Token', symbol: 'TST' };
+  const cfg = core.makeConfig(S, { adminAddress: pub.A, saltHex: salt.toString('hex') });
+  const tx = new S.TransactionBuilder(await rpc.getAccount(pub.A), { fee: '100', networkPassphrase: cfg.passphrase }).addOperation(core.expectedOperation(S, cfg, 'deploy')).setTimeout(60).build();
+  const sim = await rpc.simulateTransaction(tx);
+  const realDeploy = sim.result.auth[0].toXDR('base64');
+  const expDeploy = A.buildExpectedAuthEntry(S, spec).toXDR('base64');
+  console.log('deploy: specification-derived entry == live protocol-30 simulation entry:', realDeploy === expDeploy);
+  console.log('deploy: validator accepts the real simulated entries:', (() => { try { A.validateAuthorizationEntries(S, cfg, 'deploy', sim.result.auth); return true; } catch (e) { return e.message; } })());
+  // 2. the governed token's real on-chain mint (protocol 29): contract and recipient from the manifest, amount 1
+  const g = await rpc.getTransaction('c54b4e1291540b61261af0f4dee518718a3d87e6b84f2c4cd72f7503e0621f28');
+  const env = x.TransactionEnvelope.fromXDR(g.envelopeXdr.toXDR('base64'), 'base64');
+  const realMint = env.value.tx.operations[0].body.value.auth[0].toXDR('base64');
+  const gov = M.contracts.tobin_test_token_governed;
+  const expMint = A.buildExpectedAuthEntry(S, { kind: 'mint', contract: gov.contractId, to: gov.minter, amount: 1n }).toXDR('base64');
+  console.log('mint: specification-derived entry == real on-chain mint entry (protocol 29):', realMint === expMint);
+  const fixtures = {
+    note: 'Real authorization entries, public data only. deploy: live protocol-30 simulation with a funded test account as stand-in deployer (never signed). mint: the governed token mint recorded on chain (protocol 29, same Wasm).',
+    deploy: { xdr: realDeploy, deployer: pub.A, saltHex: salt.toString('hex'), wasmHash: spec.wasmHash, cap: '30000', decimals: 7, name: spec.name, symbol: spec.symbol },
+    mint: { xdr: realMint, contractIdHex: Buffer.from(S.StrKey.decodeContract(gov.contractId)).toString('hex'), to: gov.minter, amount: '1' },
+  };
+  fs.mkdirSync('test/fixtures', { recursive: true });
+  fs.writeFileSync('test/fixtures/real-auth-entries.json', JSON.stringify(fixtures, null, 2) + '\n');
+  console.log('fixtures written; contains a C-shaped contract id:', /\bC[A-Z2-7]{55}\b/.test(JSON.stringify(fixtures)));
+})().catch((e) => console.log('FAIL', String(e).slice(0, 300)));

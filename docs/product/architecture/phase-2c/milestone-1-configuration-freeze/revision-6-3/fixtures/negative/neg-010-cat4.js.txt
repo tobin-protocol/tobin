@@ -1,0 +1,5 @@
+// category 4: extract module member then call
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: C1)
+const w = nodeFs.readFileSync;
+w('x');

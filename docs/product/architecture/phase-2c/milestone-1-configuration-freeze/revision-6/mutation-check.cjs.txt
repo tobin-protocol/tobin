@@ -1,0 +1,31 @@
+'use strict';
+// Mutation check of the Revision 6 baseline tool: each mutant re-introduces a defect (the two original blockers or a weakening of the
+// loading policy) into a COPY of the tool; the unchanged test file must then FAIL. No key, no network, no signing.
+// Usage: node mutation-check.cjs   (run from the tool directory; the signer directory comes from TOBIN_SIGNER_DIR or ../tst-signer)
+const fs = require('fs'); const os = require('os'); const path = require('path'); const { spawnSync } = require('child_process');
+const HERE = __dirname; const TOOL = fs.readFileSync(path.join(HERE, 'compute-baseline-hash.cjs'), 'utf8');
+const MUTANTS = [
+  ['M1 original blocker 1: pinned.cjs required but not hashed', "for (const f of CLOSURE) lines.push([`file:${f}`,", "for (const f of CLOSURE.filter((x) => x !== 'pinned.cjs')) lines.push([`file:${f}`,"],
+  ['M2 original blocker 2: only literal relative requires are recognised, no other loading form is rejected', "if (bad.length) throw new Error(`${file}: loading policy violation(s)", "if (false) throw new Error(`${file}: loading policy violation(s)"],
+  ['M3 dynamic import() no longer forbidden', "'Function', 'import', 'export',", "'Function', 'export',"],
+  ['M4 non-literal require arguments accepted', "const ok = next && next.v === '(' && toks[k + 2] && toks[k + 2].t === 'str' &&", "const ok = next && next.v === '(' &&"],
+  ['M5 unlisted relative dependency accepted', "else if (!approvedClosure.includes(target.slice(2))) bad.push(", "else if (false) bad.push("],
+  ['M6 approved-use counts ignored (extra filesystem reads accepted)', "if (count > (allowed[name] || 0)) bad.push(", "if (false) bad.push("],
+  ['M7 missing declared dependency not reported', "if (e.code === 'ENOENT') throw new Error(`declared dependency ${f} is missing from ${dir}`); throw e;", "throw e;"],
+  ['M8 closure equality check removed', "if (JSON.stringify(found) !== JSON.stringify(expected)) throw", "if (false) throw"],
+  ['M9 CR check removed', "if (b.includes(0x0d)) throw", "if (false) throw"],
+  ['M10 invalid-UTF-8 check removed', "try { new TextDecoder('utf-8', { fatal: true }).decode(b); } catch { throw", "try { new TextDecoder('utf-8', { fatal: false }).decode(b); } catch { throw"],
+];
+let survived = 0;
+for (const [name, from, to] of MUTANTS) {
+  if (TOOL.split(from).length !== 2) { console.log(`INVALID  ${name}: anchor not found exactly once`); survived++; continue; }
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'mut-r6-'));
+  fs.writeFileSync(path.join(d, 'compute-baseline-hash.cjs'), TOOL.split(from).join(to));
+  for (const f of ['compute-baseline-hash.test.cjs', 'reproduce-in-powershell.ps1']) fs.copyFileSync(path.join(HERE, f), path.join(d, f));
+  const r = spawnSync(process.execPath, ['--test', path.join(d, 'compute-baseline-hash.test.cjs')], { encoding: 'utf8', env: { ...process.env, TOBIN_SIGNER_DIR: path.resolve(process.env.TOBIN_SIGNER_DIR || path.join(HERE, '..', 'tst-signer')), TOBIN_SDK_PACKAGE: path.resolve(process.env.TOBIN_SDK_PACKAGE || path.join(HERE, '..', 'pk', 'x-stellar-stellar-sdk-17.4.0', 'package')) } });
+  const failed = /ℹ fail (\d+)/.exec(r.stdout); const k = failed ? Number(failed[1]) : -1;
+  const killed = r.status !== 0; if (!killed) survived++;
+  console.log(`${killed ? 'KILLED  ' : 'SURVIVED'} ${name}  (failing tests: ${k})`);
+  fs.rmSync(d, { recursive: true, force: true });
+}
+console.log(`mutants: ${MUTANTS.length}, survived: ${survived}`); process.exit(survived ? 1 : 0);

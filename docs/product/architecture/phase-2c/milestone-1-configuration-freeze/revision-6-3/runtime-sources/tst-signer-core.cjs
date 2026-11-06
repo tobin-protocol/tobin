@@ -1,0 +1,461 @@
+'use strict';
+// Restricted signer core for the approved Tobin Settlement Test Token (TST) fixture, Stellar Testnet only.
+// It supports EXACTLY three operations and has no generic transaction-signing interface:
+//   deploy  : create the TST contract from the approved Wasm hash with the approved constructor arguments
+//   mint-C  : mint exactly 20,000 base units to account C
+//   mint-D  : mint exactly 10,000 base units to account D
+// The signer BUILDS each transaction itself from the approved constants; it never accepts a transaction from outside.
+// Everything is dependency-injected (SDK, RPC, key loader, prompt, logger) so it is unit-tested with fakes.
+const crypto = require('crypto');
+
+const APPROVED = Object.freeze({
+  passphrase: 'Test SDF Network ; September 2015',
+  rpcUrl: 'https://soroban-testnet.stellar.org',
+  wasmHash: 'ef483732039f0ca62665b92b816c3a12dcf094c707f77e1edc53e60ea083241f',
+  name: 'Tobin Settlement Test Token',
+  symbol: 'TST',
+  decimals: 7,
+  cap: 30000n,
+  mintC: 20000n,
+  mintD: 10000n,
+  C: 'GCWK6QC7WTDVUVFY7PAPKXJAIJXOOMNJMSDU3TM2WIXWAMM6VYEXOGWL',
+  D: 'GCFEEEECS4IRNQLIT6MFOX3TR6GBZ2IQ7SZ7RANG577QBLJ57TTR2DLJ',
+  feeCeilingStroops: 500000, // 0.05 XLM per transaction
+  baseFee: '100',
+  maxTimeoutSeconds: 120,      // the transaction's maximum lifetime (unchanged from the first version)
+  timeSkewSeconds: 10,         // tolerance for clock difference when checking the maximum lifetime
+  minRemainingSeconds: 15,     // a transaction with less validity left than this is not signed
+  ops: Object.freeze(['deploy', 'mint-C', 'mint-D']),
+  // Per-operation resource ceilings (declared by the simulation). BASIS: deploy = 2x the protocol-30 simulation measured on
+  // 2026-11-03 (878,652 instructions, 0 disk-read bytes, 408 write bytes); mint = 2x the declared resources of the real on-chain
+  // mint of the same Wasm by the governed token (protocol 29, ledger 5,533,978: 663,465 instructions, 0 disk-read bytes,
+  // 544 write bytes), rounded up. No protocol-30 mint measurement exists yet. The read-byte ceiling of 10,000 is a stated
+  // floor (the measured value is 0), not a measurement. Limits are per operation, not shared.
+  resourceLimits: Object.freeze({
+    deploy: Object.freeze({ instructions: 1800000, readBytes: 10000, writeBytes: 1000 }),
+    'mint-C': Object.freeze({ instructions: 1400000, readBytes: 10000, writeBytes: 1200 }),
+    'mint-D': Object.freeze({ instructions: 1400000, readBytes: 10000, writeBytes: 1200 }),
+  }),
+});
+
+const { Refusal, redact, refuse } = require('./refusal.cjs');
+const { validateAuthorizationEntries } = require('./authorization.cjs');
+
+// ---------- configuration and contract-ID prediction ----------
+function predictContractId(S, deployer, saltBuf, passphrase) {
+  const x = S.xdr;
+  const sha = (b) => crypto.createHash('sha256').update(b).digest();
+  const pre = x.HashIdPreimage.envelopeTypeContractId(new x.HashIdPreimageContractId({
+    networkId: sha(Buffer.from(passphrase)),
+    contractIdPreimage: x.ContractIdPreimage.contractIdPreimageFromAddress(
+      new x.ContractIdPreimageFromAddress({ address: new S.Address(deployer).toScAddress(), salt: saltBuf })),
+  }));
+  return S.StrKey.encodeContract(sha(pre.toXDR()));
+}
+
+function makeConfig(S, { adminAddress, saltHex, configSha256 = null, pinned = false }) {
+  if (!S.StrKey.isValidEd25519PublicKey(adminAddress)) refuse('admin address is not a valid public key');
+  if (adminAddress === APPROVED.C || adminAddress === APPROVED.D) refuse('admin F must differ from C and D');
+  if (!/^[0-9a-f]{64}$/.test(saltHex)) refuse('salt must be 32 bytes of lowercase hex');
+  if (/^(.{2})\1{31}$/.test(saltHex)) refuse('salt is a repeated byte pattern and is not acceptable');
+  for (const a of [APPROVED.C, APPROVED.D]) if (!S.StrKey.isValidEd25519PublicKey(a)) refuse('pinned account invalid');
+  const salt = Buffer.from(saltHex, 'hex');
+  const tokenId = predictContractId(S, adminAddress, salt, APPROVED.passphrase);
+  return Object.freeze({ ...APPROVED, F: adminAddress, saltHex, salt, tokenId, configSha256, pinned });
+}
+
+const DEPLOYMENT_KEYS = ['version', 'network', 'admin', 'saltHex', 'predictedContractId'];
+
+/**
+ * The reviewed, immutable deployment identity: {version, network, admin, saltHex, predictedContractId}.
+ * `text` is the exact file content. When `pinnedSha256` is a hash string, the file must hash to it (this is how a reviewed file
+ * is made immutable: a changed byte is a refusal). The predicted contract ID in the file must equal the ID derived from
+ * (admin, salt, network): an inconsistent file is refused.
+ */
+function parseDeploymentConfig(S, text, pinnedSha256) {
+  const sha = crypto.createHash('sha256').update(Buffer.from(text, 'utf8')).digest('hex');
+  if (pinnedSha256 && sha !== pinnedSha256) refuse('deployment configuration does not match its pinned SHA-256');
+  let o;
+  try { o = JSON.parse(text); } catch { refuse('deployment configuration is not valid JSON'); }
+  if (!o || typeof o !== 'object' || Array.isArray(o) || JSON.stringify(Object.keys(o).sort()) !== JSON.stringify([...DEPLOYMENT_KEYS].sort())) refuse('deployment configuration has unexpected or missing fields');
+  if (o.version !== 1) refuse('deployment configuration version is not supported');
+  if (o.network !== 'testnet') refuse('deployment configuration network is not testnet');
+  const cfg = makeConfig(S, { adminAddress: o.admin, saltHex: o.saltHex, configSha256: sha, pinned: Boolean(pinnedSha256) });
+  if (o.predictedContractId !== cfg.tokenId) refuse('predicted contract ID in the configuration is inconsistent with its admin and salt');
+  return cfg;
+}
+
+// ---------- the only operations that can ever be built ----------
+function expectedOperation(S, cfg, opName) {
+  if (!cfg.ops.includes(opName)) refuse(`operation "${opName}" is not in the approved manifest`);
+  const addr = (a) => new S.Address(a).toScVal();
+  const i128 = (v) => S.nativeToScVal(v, { type: 'i128' });
+  if (opName === 'deploy') {
+    return S.Operation.createCustomContract({
+      address: new S.Address(cfg.F),
+      wasmHash: Buffer.from(cfg.wasmHash, 'hex'),
+      salt: cfg.salt,
+      constructorArgs: [
+        addr(cfg.F), i128(cfg.cap), S.nativeToScVal(cfg.decimals, { type: 'u32' }),
+        S.nativeToScVal(cfg.name, { type: 'string' }), S.nativeToScVal(cfg.symbol, { type: 'string' }),
+      ],
+    });
+  }
+  const to = opName === 'mint-C' ? cfg.C : cfg.D;
+  const amount = opName === 'mint-C' ? cfg.mintC : cfg.mintD;
+  return new S.Contract(cfg.tokenId).call('mint', addr(to), i128(amount));
+}
+
+/** The approved host function as base64 XDR, read back by decoding a throwaway transaction (a different path from the transaction under test). */
+function expectedFuncBase64(S, cfg, opName) {
+  const probe = new S.TransactionBuilder(new S.Account(cfg.F, '0'), { fee: '100', networkPassphrase: cfg.passphrase })
+    .addOperation(expectedOperation(S, cfg, opName)).setTimeout(30).build();
+  return probe.operations[0].func.toXDR('base64');
+}
+
+function buildTransaction(S, cfg, opName, account) {
+  return new S.TransactionBuilder(account, { fee: cfg.baseFee, networkPassphrase: cfg.passphrase })
+    .addOperation(expectedOperation(S, cfg, opName))
+    .setTimeout(cfg.maxTimeoutSeconds)
+    .build();
+}
+
+// ---------- verification (what will actually be signed must equal the manifest, field for field) ----------
+
+/**
+ * Time bounds must be present, numeric, ordered, not expired, not yet in the future, and no wider than the approved lifetime.
+ * With `minRemainingSeconds` the transaction must also have at least that much validity left (checked again immediately
+ * before signing).
+ */
+function checkTimeBounds(cfg, tb, nowSeconds, minRemainingSeconds = 0) {
+  if (!tb || tb.minTime === undefined || tb.maxTime === undefined) refuse('time bounds are missing');
+  const num = (v) => (/^\d+$/.test(String(v)) ? Number(v) : NaN);
+  const min = num(tb.minTime); const max = num(tb.maxTime);
+  if (!Number.isFinite(min) || !Number.isFinite(max)) refuse('time bounds are malformed');
+  if (max === 0) refuse('time bounds are unbounded (maximum time is zero)');
+  if (min > max) refuse('time bounds are malformed (minimum after maximum)');
+  if (min > nowSeconds) refuse('transaction is not valid yet (minimum time is in the future)');
+  if (max <= nowSeconds) refuse('transaction has expired');
+  if (max - nowSeconds > cfg.maxTimeoutSeconds + cfg.timeSkewSeconds) refuse('time bounds exceed the approved maximum lifetime');
+  if (minRemainingSeconds && max - nowSeconds < minRemainingSeconds) refuse('transaction has too little validity left to sign safely; re-run');
+  return { min, max };
+}
+
+function verifyTransaction(S, cfg, opName, tx, { networkPassphrase, assembled = false, nowSeconds = Math.floor(Date.now() / 1000), minRemainingSeconds = 0 } = {}) {
+  if (networkPassphrase !== cfg.passphrase) refuse('network passphrase is not the approved Testnet passphrase');
+  if (!cfg.ops.includes(opName)) refuse(`operation "${opName}" is not in the approved manifest`);
+  if (tx.source !== cfg.F) refuse('source account is not the approved admin F');
+  if (!Array.isArray(tx.operations) || tx.operations.length !== 1) refuse('transaction must contain exactly one operation');
+  if (tx.signatures && tx.signatures.length !== 0) refuse('transaction is already signed');
+  if (!tx.memo || tx.memo.type !== 'none') refuse('memo is not allowed');
+  const fee = Number(tx.fee);
+  if (!Number.isFinite(fee) || fee <= 0 || fee > cfg.feeCeilingStroops) refuse('fee is outside the approved ceiling');
+  checkTimeBounds(cfg, tx.timeBounds, nowSeconds, minRemainingSeconds);
+  const op = tx.operations[0];
+  if (op.type !== 'invokeHostFunction') refuse('operation type is not invokeHostFunction');
+  if (op.source !== undefined && op.source !== cfg.F) refuse('operation source differs from F');
+  const want = expectedFuncBase64(S, cfg, opName);
+  if (op.func.toXDR('base64') !== want) refuse('host function (contract, function name or arguments) differs from the approved manifest');
+  const auth = op.auth || [];
+  if (!assembled && auth.length !== 0) refuse('unexpected authorization entries before simulation');
+  if (assembled) validateAuthorizationEntries(S, cfg, opName, auth);   // exact count, credential kind, invocation tree, arguments, nesting
+  return true;
+}
+
+// ---------- footprint: exact expected structure per operation ----------
+// Expected ledger-key sets, built independently with the XDR constructors and compared as exact sets of base64 XDR.
+// Evidence for each structure:
+//   deploy : OBSERVED in a live protocol-30 simulation of this exact operation (2026-11-03, stand-in deployer):
+//            readOnly  = { ContractCode(approved Wasm hash) }
+//            readWrite = { ContractData(new contract, key = ContractInstance, durability = persistent) }
+//   mint   : OBSERVED in the on-chain footprint of the governed token's real mint of the same Wasm (protocol 29, ledger 5,533,978):
+//            readOnly  = { ContractCode(approved Wasm hash) }
+//            readWrite = { ContractData(contract, key = ContractInstance, persistent),
+//                          ContractData(contract, key = Vec[Symbol("Balance"), recipient address], persistent) }
+//            and consistent with the token source (mint writes the supply in instance storage and the recipient's persistent balance).
+//            NOT YET OBSERVED at protocol 30 for a fresh instance: a real protocol-30 mint preview may legitimately differ; the signer
+//            then REFUSES (fail closed) and the difference must be reviewed by a person before any change to this table.
+function expectedFootprint(S, cfg, opName) {
+  const x = S.xdr;
+  const code = x.LedgerKey.contractCode(new x.LedgerKeyContractCode({ hash: Buffer.from(cfg.wasmHash, 'hex') })).toXDR('base64');
+  const data = (key) => x.LedgerKey.contractData(new x.LedgerKeyContractData({
+    contract: new S.Address(cfg.tokenId).toScAddress(), key, durability: x.ContractDataDurability.persistent })).toXDR('base64');
+  const instance = data(x.ScVal.scvLedgerKeyContractInstance());
+  if (opName === 'deploy') return { readOnly: [code], readWrite: [instance] };
+  const to = opName === 'mint-C' ? cfg.C : cfg.D;
+  const balance = data(x.ScVal.scvVec([x.ScVal.scvSymbol('Balance'), new S.Address(to).toScVal()]));
+  return { readOnly: [code], readWrite: [instance, balance] };
+}
+
+const sameSet = (a, b) => a.length === b.length && JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
+
+function verifyFootprint(S, cfg, opName, sim) {
+  const res = sim.transactionData.build().resources;
+  const fp = res.footprint;
+  const got = { readOnly: fp.readOnly.map((k) => k.toXDR('base64')), readWrite: fp.readWrite.map((k) => k.toXDR('base64')) };
+  const want = expectedFootprint(S, cfg, opName);
+  for (const part of ['readOnly', 'readWrite']) {
+    const missing = want[part].filter((k) => !got[part].includes(k));
+    const extra = got[part].filter((k) => !want[part].includes(k));
+    if (missing.length) refuse(`footprint ${part} is missing ${missing.length} required entr${missing.length === 1 ? 'y' : 'ies'}`);
+    if (extra.length) refuse(`footprint ${part} contains ${extra.length} unexpected entr${extra.length === 1 ? 'y' : 'ies'} (wrong key, durability, contract, Wasm hash or access class)`);
+    if (!sameSet(got[part], want[part])) refuse(`footprint ${part} does not equal the approved structure (duplicates?)`);
+  }
+  // resource ceilings (declared by the simulation), per operation
+  const lim = cfg.resourceLimits[opName];
+  const used = { instructions: Number(res.instructions), readBytes: Number(res.diskReadBytes ?? res.readBytes ?? NaN), writeBytes: Number(res.writeBytes) };
+  for (const k of Object.keys(lim)) {
+    if (!Number.isFinite(used[k]) || used[k] < 0) refuse(`simulation did not report ${k}`);
+    if (used[k] > lim[k]) refuse(`simulated ${k} (${used[k]}) exceeds the ${opName} limit (${lim[k]})`);
+  }
+  return used;
+}
+
+// ---------- simulation ----------
+async function simulateAndAssemble(S, rpc, cfg, opName, tx, nowSeconds = Math.floor(Date.now() / 1000)) {
+  const sim = await rpc.simulateTransaction(tx);
+  if (!sim || sim.error) refuse(`simulation failed: ${sim && sim.error ? String(sim.error).replace(/\s+/g, ' ').slice(0, 200) : 'no response'}`);
+  if (sim.restorePreamble && Object.keys(sim.restorePreamble).length > 0) refuse('simulation requires a state restore, which is not an approved operation');
+  if (!sim.result || !sim.transactionData) refuse('simulation returned no result or resource data');
+  const info = verifyFootprint(S, cfg, opName, sim);
+  validateAuthorizationEntries(S, cfg, opName, sim.result.auth);   // never trust the entries the simulation recorded
+  // the SDK builds the transaction fee from the Soroban data's resource fee; the reported minimum must agree with it
+  if (String(sim.transactionData.build().resourceFee) !== String(sim.minResourceFee)) refuse('simulation fee fields are inconsistent');
+  if (opName === 'deploy') {
+    let got;
+    try { got = S.scValToNative(sim.result.retval); } catch { got = undefined; }
+    if (got !== cfg.tokenId) refuse('simulated contract ID differs from the predicted contract ID');
+  }
+  const assembled = S.rpc.assembleTransaction(tx, sim).build();
+  verifyTransaction(S, cfg, opName, assembled, { networkPassphrase: cfg.passphrase, assembled: true, nowSeconds });
+  return { assembled, sim, info: { ...info, minResourceFee: sim.minResourceFee, totalFee: assembled.fee } };
+}
+
+// ---------- state guards (prevent double deploy / double mint, and wrong-token minting) ----------
+async function checkState(cfg, opName, reader) {
+  if (opName === 'deploy') {
+    if (await reader.instanceExists(cfg.tokenId)) refuse('a contract already exists at the predicted ID');
+    return;
+  }
+  if (!(await reader.instanceExists(cfg.tokenId))) refuse('the TST contract does not exist yet; deploy first');
+  const get = (fn, args) => reader.call(cfg.tokenId, fn, args);
+  const meta = { name: await get('name'), symbol: await get('symbol'), decimals: Number(await get('decimals')), minter: await get('minter'), cap: BigInt(await get('cap')) };
+  if (meta.name !== cfg.name || meta.symbol !== cfg.symbol || meta.decimals !== cfg.decimals || meta.minter !== cfg.F || meta.cap !== cfg.cap) refuse('the contract at the predicted ID does not have the approved metadata');
+  const total = BigInt(await get('total_supply'));
+  const balC = BigInt(await get('balance', [cfg.C]));
+  const balD = BigInt(await get('balance', [cfg.D]));
+  if (opName === 'mint-C' && !(total === 0n && balC === 0n && balD === 0n)) refuse('mint-C requires total supply 0 and zero balances');
+  if (opName === 'mint-D' && !(total === cfg.mintC && balC === cfg.mintC && balD === 0n)) refuse('mint-D requires supply 20,000, C 20,000 and D 0');
+}
+
+// ---------- human-readable intent and the exact confirmation phrase ----------
+function confirmationPhrase(cfg, opName) {
+  if (opName === 'deploy') return `DEPLOY TST CAP ${cfg.cap} MINTER ${cfg.F.slice(0, 8)}`;
+  if (opName === 'mint-C') return `MINT ${cfg.mintC} TO C ${cfg.C.slice(0, 8)}`;
+  if (opName === 'mint-D') return `MINT ${cfg.mintD} TO D ${cfg.D.slice(0, 8)}`;
+  return refuse('unknown operation');
+}
+
+function intentText(cfg, opName, info) {
+  const lines = [
+    `Network:   Stellar Testnet (${cfg.passphrase})`,
+    `RPC:       ${cfg.rpcUrl}`,
+    `Source:    F ${cfg.F}`,
+    `Operation: ${opName}`,
+  ];
+  if (opName === 'deploy') {
+    lines.push(`  create contract from Wasm ${cfg.wasmHash}`, `  salt ${cfg.saltHex}`, `  predicted contract ID ${cfg.tokenId}`,
+      `  constructor: minter=F, cap=${cfg.cap}, decimals=${cfg.decimals}, name="${cfg.name}", symbol="${cfg.symbol}"`);
+  } else {
+    const to = opName === 'mint-C' ? cfg.C : cfg.D; const amt = opName === 'mint-C' ? cfg.mintC : cfg.mintD;
+    lines.push(`  contract ${cfg.tokenId}`, `  mint(to=${opName.slice(-1)} ${to}, amount=${amt} base units)`);
+  }
+  lines.push(`Simulation: OK | minimum resource fee ${info.minResourceFee} stroops | total fee ${info.totalFee} stroops (ceiling ${cfg.feeCeilingStroops})`,
+    `Resources:  instructions ${info.instructions}, read bytes ${info.readBytes}, write bytes ${info.writeBytes}`,
+    `Authorization: source-account only (envelope signed by F)`);
+  return lines.join('\n');
+}
+
+// ---------- main flows ----------
+const nowDefault = () => Math.floor(Date.now() / 1000);
+
+async function prepare(deps, cfg, opName) {
+  const { S, rpc, reader } = deps;
+  const now = (deps.now || nowDefault)();
+  const net = await rpc.getNetwork();
+  if (!net || net.passphrase !== cfg.passphrase) refuse('the RPC reports a network other than the approved Testnet');
+  if (deps.store) deps.store.assertMatches(cfg); // the local state must belong to exactly this pinned deployment
+  await checkState(cfg, opName, reader);
+  const account = await rpc.getAccount(cfg.F);
+  const built = buildTransaction(S, cfg, opName, account);
+  verifyTransaction(S, cfg, opName, built, { networkPassphrase: net.passphrase, nowSeconds: now });
+  const { assembled, info } = await simulateAndAssemble(S, rpc, cfg, opName, built, now);
+  return { assembled, info, intent: intentText(cfg, opName, info), phrase: confirmationPhrase(cfg, opName) };
+}
+
+async function preview(deps, cfg, opName) {
+  const p = await prepare(deps, cfg, opName);
+  if (!cfg.pinned) deps.log('WARNING: the deployment configuration is NOT pinned to a reviewed SHA-256; execution will be refused until it is.');
+  deps.log(p.intent);
+  deps.log(`(preview only: nothing was signed or submitted; execution requires typing: ${p.phrase})`);
+  return { intent: p.intent, phrase: p.phrase };
+}
+
+// ---------- submission classification and reconciliation ----------
+// Evidence for the semantics (Soroban RPC `sendTransaction` documentation, fetched 2026-11-03, and @stellar/stellar-sdk 17.4.0):
+//  * The RPC "simply validates and enqueues the transaction" and "does not wait for transaction completion"; "clients should call
+//    getTransaction to learn about transaction success/failure". The documentation does NOT promise that an enqueued transaction is
+//    included, and it does not define the statuses beyond examples. Statuses: PENDING, DUPLICATE, TRY_AGAIN_LATER, ERROR.
+//  * SDK 17.4.0: `sendTransaction` returns the RPC `result` object, decoding `errorResultXdr` into `errorResult` when present. A JSON-RPC
+//    `error` member is thrown as-is (not an Error instance); HTTP failures throw; a missing result or an undecodable errorResultXdr throws.
+//  * getTransaction statuses (SDK `GetTransactionStatus`): SUCCESS and FAILED mean the transaction was INCLUDED in a ledger
+//    (FAILED = included and failed, the sequence number and the fee are consumed); NOT_FOUND means "not seen yet or never included".
+// Classification (kind): ENQUEUED = accepted into the queue, outcome unknown; NOT_ENQUEUED_NOW = not accepted by the node at this
+// moment, but the signed envelope stays valid and could land through another path, so it is NOT recorded as failed; REJECTED = the
+// node returned a TransactionResult for it; AMBIGUOUS = the submission may or may not have reached the network.
+// No kind ever causes a second submission: the signer submits each signed transaction at most once.
+const SEND_STATUSES = ['PENDING', 'DUPLICATE', 'TRY_AGAIN_LATER', 'ERROR'];
+function classifySubmission(sent, txHash) {
+  if (sent === null || typeof sent !== 'object' || Array.isArray(sent)) return { kind: 'AMBIGUOUS', label: 'MALFORMED_RESPONSE', detail: 'no usable response' };
+  if (typeof sent.status !== 'string' || !SEND_STATUSES.includes(sent.status)) return { kind: 'AMBIGUOUS', label: 'MALFORMED_RESPONSE', detail: 'unknown or missing status' };
+  if (typeof sent.hash !== 'string' || !/^[0-9a-f]{64}$/.test(sent.hash)) return { kind: 'AMBIGUOUS', label: 'MALFORMED_RESPONSE', detail: 'missing or malformed hash' };
+  if (sent.hash !== txHash) return { kind: 'AMBIGUOUS', label: 'HASH_MISMATCH', detail: 'the RPC answered for a different transaction hash' };
+  if (sent.status === 'PENDING') return { kind: 'ENQUEUED', label: 'ENQUEUED' };
+  if (sent.status === 'DUPLICATE') return { kind: 'ENQUEUED', label: 'DUPLICATE' }; // already seen by the node: it is queued or already applied
+  if (sent.status === 'TRY_AGAIN_LATER') return { kind: 'NOT_ENQUEUED_NOW', label: 'TRY_AGAIN_LATER' };
+  return sent.errorResult ? { kind: 'REJECTED', label: 'ERROR_RESPONSE' } : { kind: 'AMBIGUOUS', label: 'MALFORMED_RESPONSE', detail: 'ERROR without a decodable result' };
+}
+
+/** Polls getTransaction for one hash. Returns {state: SUCCESS|FAILED|NOT_FOUND|UNKNOWN, result}. A thrown or malformed answer is UNKNOWN, never a verdict. */
+async function pollTransaction(deps, txHash, attempts = 30) {
+  let last;
+  for (let i = 0; i < attempts; i++) {
+    let g;
+    try { g = await deps.rpc.getTransaction(txHash); } catch { return { state: 'UNKNOWN' }; }
+    if (!g || typeof g !== 'object' || typeof g.status !== 'string') return { state: 'UNKNOWN' };
+    if (g.status === 'SUCCESS' || g.status === 'FAILED') return { state: g.status, result: g };
+    if (g.status !== 'NOT_FOUND') return { state: 'UNKNOWN' };
+    last = { state: 'NOT_FOUND' };
+    if (i < attempts - 1) await deps.sleep(2000);
+  }
+  return last;
+}
+
+// ---------- is the validity window of a transaction provably closed? ----------
+// A transaction is valid only in ledgers whose close time is <= its maximum time. A NOT_FOUND answer proves expiry only when the
+// SAME answer shows (1) the RPC has ingested a ledger that closed after the window (latestLedgerCloseTime > maxTime + margin), so
+// no ledger that could still have included it is missing, and (2) the RPC's history reaches back before the submission
+// (oldestLedgerCloseTime <= submittedAt - margin), so an earlier inclusion would still be visible. The local clock is NOT used to
+// decide expiry; it is only a sanity bound against an implausible future ledger time. Anything missing, malformed or stale
+// leaves the record PENDING: the signer never invents certainty.
+const NETWORK_TIME_MARGIN_SECONDS = 30;
+const HISTORY_COVERAGE_MARGIN_SECONDS = 60;
+const FUTURE_SANITY_SECONDS = 300;
+function windowClosedByNetwork(rec, g, nowSeconds) {
+  if (!g || typeof g !== 'object' || g.status !== 'NOT_FOUND') return { closed: false, why: 'the lookup did not return NOT_FOUND' };
+  const num = (v) => ((typeof v === 'number' && Number.isInteger(v) && v >= 0) ? v : (typeof v === 'string' && /^\d+$/.test(v) ? Number(v) : NaN));
+  const latest = num(g.latestLedgerCloseTime); const oldest = num(g.oldestLedgerCloseTime);
+  if (!Number.isFinite(latest) || !Number.isFinite(oldest)) return { closed: false, why: 'network time evidence is missing or malformed' };
+  if (latest < oldest) return { closed: false, why: 'network time evidence is inconsistent (latest earlier than oldest)' };
+  if (latest > nowSeconds + FUTURE_SANITY_SECONDS) return { closed: false, why: 'reported ledger time is implausibly far in the future' };
+  const submitted = Date.parse(rec.submittedAt) / 1000;
+  if (!Number.isFinite(submitted)) return { closed: false, why: 'the record has no usable submission time' };
+  if (oldest > submitted - HISTORY_COVERAGE_MARGIN_SECONDS) return { closed: false, why: 'the RPC history does not clearly cover the submission window' };
+  if (!(latest > Number(rec.maxTime) + NETWORK_TIME_MARGIN_SECONDS)) return { closed: false, why: `the latest ledger close time (${latest}) has not passed the end of the validity window (${rec.maxTime}); the RPC may be lagging or the window is still open` };
+  return { closed: true, why: `ledger close time ${latest} is past the validity window end ${rec.maxTime} and the RPC history covers the submission` };
+}
+
+/** Settles any PENDING record left by an interrupted or ambiguous run against the chain before anything new is attempted. */
+async function reconcile(deps, cfg) {
+  const { store } = deps;
+  const state = store.assertMatches(cfg);
+  for (const rec of state.operations.filter((o) => o.status === 'PENDING')) {
+    let g;
+    try { g = await deps.rpc.getTransaction(rec.txHash); } catch { refuse(`cannot reach the RPC to reconcile the previous ${rec.operation} transaction; the record stays PENDING; no new attempt was made`); }
+    const now = (deps.now || nowDefault)();
+    if (!g || typeof g !== 'object' || typeof g.status !== 'string') refuse(`the RPC answer for the previous ${rec.operation} transaction is malformed; the record stays PENDING`);
+    if (g.status === 'SUCCESS') store.markResult(cfg, rec.operation, 'SUCCEEDED', { ledger: g.ledger, now });
+    else if (g.status === 'FAILED') store.markResult(cfg, rec.operation, 'FAILED', { ledger: g.ledger, now, reason: 'ON_CHAIN_FAILED' });
+    else if (g.status === 'NOT_FOUND') {
+      const v = windowClosedByNetwork(rec, g, now);
+      if (v.closed) store.markResult(cfg, rec.operation, 'EXPIRED', { now, reason: 'WINDOW_PASSED_NOT_FOUND' });
+      else refuse(`the outcome of a previous ${rec.operation} transaction is not known yet (NOT_FOUND; ${v.why}); the record stays PENDING; wait and re-run`);
+    } else refuse(`the outcome of a previous ${rec.operation} transaction is not known yet (status ${g.status}); wait and re-run`);
+  }
+}
+
+async function execute(deps, cfg, opName) {
+  const { S, rpc, store } = deps;
+  if (!store) refuse('no state store; refusing to execute');
+  if (!cfg.pinned) refuse('the deployment configuration is not pinned to a reviewed SHA-256; refusing to execute');
+  await reconcile(deps, cfg);
+  const st = store.assertMatches(cfg);
+  if (store.active(st, opName)) refuse(`${opName} is already recorded as done`);
+  const blocker = store.blocking(st, opName);
+  if (blocker) {
+    // a rejected envelope may still be valid; a new attempt waits until the NETWORK shows its window has closed
+    let g; try { g = await rpc.getTransaction(blocker.txHash); } catch { refuse(`cannot reach the RPC to verify that the rejected ${opName} envelope has expired; no new attempt was made`); }
+    if (g && (g.status === 'SUCCESS' || g.status === 'FAILED')) refuse(`the chain shows the rejected ${opName} transaction as included (status ${g.status}); manual review is needed; no new attempt was made`);
+    const v = windowClosedByNetwork(blocker, g, (deps.now || nowDefault)());
+    if (!v.closed) refuse(`a previous ${opName} submission was rejected and its window cannot yet be proven closed: ${v.why}; no new attempt was made`);
+    store.resolveRejected(cfg, opName, blocker.txHash, (deps.now || nowDefault)());
+  }
+  const p = await prepare(deps, cfg, opName);
+  deps.log(p.intent);
+  const typed = await deps.confirm(`Type exactly "${p.phrase}" to sign and submit this ONE transaction: `);
+  if (typed !== p.phrase) refuse('confirmation does not match; nothing was signed');
+  // validity is re-checked immediately before signing, against a fresh clock reading
+  verifyTransaction(S, cfg, opName, p.assembled, { networkPassphrase: cfg.passphrase, assembled: true, nowSeconds: (deps.now || nowDefault)(), minRemainingSeconds: cfg.minRemainingSeconds });
+  const keypair = await deps.loadKey(cfg.F); // decrypts in memory and verifies the public key equals F
+  p.assembled.sign(keypair);
+  const txHash = Buffer.from(p.assembled.hash()).toString('hex');
+  // the intention is recorded durably BEFORE submission; if this cannot be recorded, nothing is sent
+  try { store.markPending(cfg, opName, { txHash, maxTime: p.assembled.timeBounds.maxTime, now: (deps.now || nowDefault)() }); }
+  catch (e) { refuse(`could not record the pending operation, so nothing was submitted: ${e.message}`); }
+  const finish = (status, extra = {}) => {
+    try { store.markResult(cfg, opName, status, { ...extra, now: (deps.now || nowDefault)() }); }
+    catch (e) { throw new Refusal(redact(`transaction ${txHash} outcome is ${status} but the local record could not be updated (${e.message}); do not re-run; reconcile first`)); }
+  };
+  const annotate = (label) => { try { store.annotate(cfg, opName, label, (deps.now || nowDefault)()); } catch { /* informational only; the record stays PENDING */ } };
+
+  // ---- the single submission, and what its answer does and does not prove ----
+  let cls;
+  try { cls = classifySubmission(await rpc.sendTransaction(p.assembled), txHash); }
+  catch (e) { cls = { kind: 'AMBIGUOUS', label: 'THROWN', detail: redact(String((e && e.message) || e)).slice(0, 120) }; }
+  annotate(cls.label);
+
+  let outcome;
+  if (cls.kind === 'REJECTED') {
+    // the node refused it; confirm once that it did not land by another path before recording a failure
+    let g; try { g = await rpc.getTransaction(txHash); } catch { g = undefined; }
+    if (g && g.status === 'NOT_FOUND') {
+      finish('FAILED', { reason: 'SUBMISSION_REJECTED' });
+      refuse(`transaction ${txHash} was rejected at submission (not accepted); recorded FAILED; a new attempt is blocked until its validity window has passed`);
+    }
+    outcome = g && (g.status === 'SUCCESS' || g.status === 'FAILED') ? { state: g.status, result: g } : { state: 'UNKNOWN' };
+  } else {
+    // ENQUEUED, NOT_ENQUEUED_NOW and AMBIGUOUS are all resolved only by what getTransaction later shows
+    outcome = await pollTransaction(deps, txHash);
+  }
+  if (outcome.state === 'FAILED') {
+    finish('FAILED', { ledger: outcome.result.ledger, reason: 'ON_CHAIN_FAILED' });
+    refuse(`transaction ${txHash} was included in a ledger and failed; recorded FAILED; its sequence number is consumed; no retry was made`);
+  }
+  if (outcome.state !== 'SUCCESS') {
+    refuse(`transaction ${txHash} outcome is not known (submission ${cls.label}${cls.detail ? `: ${cls.detail}` : ''}; latest status ${outcome.state}); its record stays PENDING; it will be reconciled on the next run; it was not and will not be submitted again`);
+  }
+  finish('SUCCEEDED', { ledger: outcome.result.ledger });
+  const record = { operation: opName, hash: txHash, ledger: outcome.result.ledger, status: 'SUCCEEDED' };
+  if (opName === 'deploy') {
+    let got; try { got = S.scValToNative(outcome.result.returnValue); } catch { got = undefined; }
+    if (got !== cfg.tokenId) refuse('deployed contract ID differs from the predicted ID');
+    record.contractId = got;
+  }
+  return record;
+}
+
+module.exports = {
+  APPROVED, Refusal, redact, predictContractId, makeConfig, parseDeploymentConfig, expectedOperation, expectedFootprint,
+  buildTransaction, verifyTransaction, checkTimeBounds, verifyFootprint, simulateAndAssemble, checkState, confirmationPhrase,
+  intentText, prepare, preview, reconcile, execute, classifySubmission, pollTransaction, windowClosedByNetwork,
+};

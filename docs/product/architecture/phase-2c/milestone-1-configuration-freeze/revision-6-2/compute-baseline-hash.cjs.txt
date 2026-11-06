@@ -1,0 +1,346 @@
+'use strict';
+// HASH-ONLY tool. Computes (and optionally verifies) the canonical baseline hash of the Tobin TST signer. It reads files and prints
+// hashes. It cannot sign, decrypt, load a key, contact a network, or run the signer; it has no dependency except Node built-ins.
+// REVISION 6.1 (candidate): the loading policy now ENFORCES exact approved token patterns for every use of a sensitive root
+// (globalThis, vm, process, require, module) instead of counting names, and bans computed member access with string or template keys.
+//
+// Usage:
+//   node compute-baseline-hash.cjs --signer-dir <dir> [--config <deployment-config.json>] [--sdk-package <dir>] [--manifest-out <file>] [--verify <64 hex>]
+//
+// CANONICAL PROCEDURE (version 1, unchanged since Revision 6)
+//  1. Inputs, exactly these, no others:
+//       file:<name>      each file of the runtime closure of the CLI entry point, read from the signer directory (list below)
+//       config:deployment-config.json   the deployment configuration (admin F, salt, predicted contract ID); "ABSENT" when not given
+//       external:@stellar/stellar-sdk@17.4.0/package.json and /dist/stellar-sdk.js   the pinned SDK files the loader checks at run time
+//  2. Each input is read as raw bytes and hashed with SHA-256 (hex, lowercase). No newline conversion is ever applied. A file under
+//     file: or config: is REFUSED if it contains a CR byte (0x0D), starts with a UTF-8 BOM, or is not valid UTF-8, so the hash cannot
+//     depend on the checkout's line-ending settings. The external files are hashed exactly as stored.
+//  3. The manifest is UTF-8 text with LF line endings: the header line "TOBIN-TST-SIGNER-BASELINE v1", then one line per input,
+//     "<sha256>  <label>" (two spaces), sorted by label in ordinal (byte) order, and a final LF. An absent configuration is the line
+//     "ABSENT  config:deployment-config.json".
+//  4. The baseline hash is the SHA-256 of the manifest bytes. With the configuration absent it is the CODE BASELINE (B0); with the
+//     configuration present it is the FULL PIN (P).
+//  Hashed because loaded: every file the entry point loads, INCLUDING pinned.cjs. pinned.cjs holds the hash of the reviewed
+//  deployment-config.json, never the baseline hash; the EXPECTED baseline hash is supplied from outside (--verify) and is stored in
+//  none of the hashed files. Not hashed (not loaded by the CLI): make-deployment-config.cjs (its OUTPUT is hashed), tests, mutation
+//  tools, evidence and patch scripts, the state file, logs, the DPAPI file and every environment-specific value. They are listed by
+//  name in the build result (`notHashed`).
+//
+// LOADING POLICY (conservative, fail closed; a LEXICAL analysis, NOT a JavaScript parser and NOT a sandbox)
+//  Lexing. Strings, templates (with substitutions), comments, regex literals, brackets. Refused: unterminated literals or comments;
+//  unbalanced brackets; non-ASCII/control characters outside literals and comments; CR, NUL, U+2028 and U+2029 ANYWHERE (they end
+//  lines for the engine but not for this lexer); a backslash outside a literal; any escape in a string or template other than
+//  \n \t \\ \' \" \` \$ (so a name cannot be spelled with \u or \x); a '/' whose regex-or-division reading is ambiguous (after '}'
+//  or after '++'/'--', or after ')' of if/while/for/with is read as a regex; every other ')' as division). Every file must begin
+//  with 'use strict' (so a plain function call does not receive the global object as `this`).
+//  Rules.
+//   R1 require is exactly require('<literal>'); relative targets './<name>' must be in the approved closure; built-ins only for the
+//      files approved for them (BUILTIN_USERS).
+//   R2 SENSITIVE ROOTS (globalThis, vm): every occurrence must lie inside an EXACT approved token pattern for that file
+//      (ROOT_PATTERNS), at most the approved number of times. Anything else - aliasing, destructuring, passing as an argument,
+//      computed or optional access, a new property, a new occurrence - is refused. process may only be followed by '.' and an
+//      approved member (PROCESS_MEMBERS); module only as module.exports or require.main === module.
+//   R3 Computed member access (a '[' that follows an operand, '?.', ')' or ']') may use only a number, one plain identifier, or
+//      arithmetic over identifiers and numbers ('+' only next to a number); a string, template, call or nested bracket key is refused.
+//   R4 Forbidden identifiers anywhere (FORBIDDEN_IDS: eval, Function, import, createRequire, Module, getBuiltinModule, Reflect,
+//      Proxy, reflective Object APIs, createContext, __proto__, prototype, ...); `.constructor` member access; string and template
+//      text equal to a forbidden or sensitive name (DANGEROUS_STRINGS).
+//   R5 Filesystem-read and code-execution API names only in the files and at most the number of times reviewed (APPROVED_USES).
+//   R6 (6.2) a computed member may not be CALLED or tag a template; no computed access on a value reached from process.
+//   R7 (6.2) global-object aliases (self, window, frames, global) are refused everywhere except the single aliasing token of pattern G1.
+//   R8 (6.2) process, require, module, globalThis, self, window, frames, global and vm may not be a PROPERTY of anything (self.process, x?.require);
+//      require('vm') is allowed only inside pattern V1.
+//  LIMITS (see the Revision 6.2 review): not a complete JavaScript analysis; obfuscation that uses none of the listed names is not
+//  proven absent; an approved API (fs read, child_process exec of a program) can still be used with a hostile argument; behaviour of
+//  the SDK bundle is covered by its hash, not by this analysis. It narrows what a reviewed change can introduce unnoticed.
+const fs = require('fs'); const path = require('path'); const crypto = require('crypto');
+
+const ENTRY = 'tst-signer.cjs';
+const CLOSURE = ['authorization.cjs', 'dpapi-key.cjs', 'pinned.cjs', 'refusal.cjs', 'sdk-loader.cjs', 'state-store.cjs', 'tst-signer-core.cjs', 'tst-signer.cjs'];
+const HEADER = 'TOBIN-TST-SIGNER-BASELINE v1';
+const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
+const arg = (n) => { const i = process.argv.indexOf(n); return i >= 0 ? process.argv[i + 1] : undefined; };
+const has = (n) => process.argv.includes(n);
+
+// ---- loading policy tables (reviewed constants; changing one is a change to the baseline tool itself) ----
+const BUILTIN_USERS = { // built-in module -> files approved to require it
+  fs: ['sdk-loader.cjs', 'state-store.cjs', 'tst-signer.cjs'], path: ['sdk-loader.cjs', 'state-store.cjs', 'tst-signer.cjs'],
+  crypto: ['sdk-loader.cjs', 'state-store.cjs', 'tst-signer-core.cjs'], vm: ['sdk-loader.cjs'],
+  child_process: ['dpapi-key.cjs', 'state-store.cjs'], readline: ['tst-signer.cjs'],
+};
+const FORBIDDEN_IDS = new Set(['eval', 'Function', 'import', 'export', 'exports', 'createRequire', 'Module', 'mainModule', 'binding', 'dlopen', '_load', '_resolveFilename',
+  '_compile', 'WebAssembly', 'Worker', 'importScripts', 'global', 'Reflect', 'Proxy', 'SharedArrayBuffer', 'getBuiltinModule', 'createContext', '__proto__', 'prototype',
+  'getPrototypeOf', 'setPrototypeOf', 'getOwnPropertyDescriptor', 'getOwnPropertyDescriptors', 'getOwnPropertyNames', 'getOwnPropertySymbols', 'defineProperty',
+  'defineProperties', '__defineGetter__', '__defineSetter__', '__lookupGetter__', '__lookupSetter__', 'prepareStackTrace', 'caller', 'callee', 'AsyncFunction', 'GeneratorFunction']);
+// strings and template text that equal one of these are refused (a dangerous name must not be spelled as data either)
+const DANGEROUS_STRINGS = new Set([...FORBIDDEN_IDS, 'constructor', 'require', 'process', 'module', 'globalThis', 'runInThisContext', 'runInNewContext', 'runInContext',
+  'compileFunction', 'self', 'window', 'frames', 'readFileSync', 'readFile', 'execFileSync', 'execSync', 'execFile', 'spawn', 'spawnSync', 'fork']);
+const WATCHED_IDS = new Set(['readFile', 'readFileSync', 'createReadStream', 'readSync', 'openSync', 'open', 'opendir', 'opendirSync', 'readdir', 'readdirSync', 'promises',
+  'runInThisContext', 'runInNewContext', 'runInContext', 'compileFunction', 'Script', 'exec', 'execSync', 'execFile', 'execFileSync', 'spawn', 'spawnSync', 'fork',
+  'load', 'compile', 'register', 'children', 'cache']);
+// reviewed maximum occurrences of each watched identifier per file (anything not listed is 0).
+const APPROVED_USES = {
+  'sdk-loader.cjs': { readFileSync: 2, runInThisContext: 1 },
+  'state-store.cjs': { readFileSync: 2, execFileSync: 4, exec: 9, load: 3, openSync: 1 },
+  'dpapi-key.cjs': { execFileSync: 2 },
+  'tst-signer.cjs': { readFileSync: 1 },
+};
+// R2: the ONLY approved uses of the sensitive roots. `seq` is the exact token text sequence ('str' tokens in single quotes);
+// `roots` are the indexes in `seq` that are the root identifier; each pattern may occur at most once.
+const ROOT_NAMES = new Set(['globalThis', 'vm']);
+const ROOT_PATTERNS = {
+  'sdk-loader.cjs': [
+    { id: 'G1', seq: 'globalThis . self = globalThis ;', roots: [0, 4], aliases: [2], property: 'self', purpose: 'the SDK bundle is a UMD/browser bundle that reads `self`; the loader points it at the global object before running the bundle' },
+    { id: 'G2', seq: 'if ( ! globalThis . StellarSdk )', roots: [3], property: 'StellarSdk', purpose: 'checks that running the hash-verified bundle defined the StellarSdk global' },
+    { id: 'G3', seq: 'return globalThis . StellarSdk ;', roots: [1], property: 'StellarSdk', purpose: 'returns the SDK object that the bundle defined' },
+    { id: 'V1', seq: "const vm = require ( 'vm' ) ;", roots: [1], requires: [3], property: 'n/a (module import)', purpose: 'imports the vm module; sdk-loader.cjs is the only file approved to require it' },
+    { id: 'V2', seq: 'vm . runInThisContext (', roots: [0], property: 'runInThisContext', purpose: 'runs the SDK bundle after its package name, version and SHA-256 were verified against constants; no other code is run this way' },
+  ],
+};
+// Revision 6.2: names that denote the global object or a route to it. They are refused EVERYWHERE (as identifier, property name,
+// object key, string text) except the single `aliases` token of an approved pattern (G1: the property `self` assigned onto globalThis).
+const GLOBAL_ALIASES = new Set(['self', 'window', 'frames', 'global', 'globalThis']);
+// names of sensitive objects that may never be reached as a PROPERTY of anything (x.process, x?.require, ...), whatever x is.
+const SENSITIVE_MEMBER_NAMES = new Set(['process', 'require', 'module', 'globalThis', 'self', 'window', 'frames', 'global', 'vm']);
+const PROCESS_MEMBERS = new Set(['env', 'argv', 'exit', 'exitCode', 'stdin', 'stdout', 'stderr', 'platform', 'cwd', 'hrtime', 'on', 'once', 'emitWarning', 'nextTick', 'version', 'versions', 'pid']);
+const KEYWORDS_BEFORE_REGEX = new Set(['return', 'typeof', 'case', 'do', 'else', 'in', 'of', 'instanceof', 'new', 'delete', 'void', 'throw', 'yield', 'await']);
+const NOT_OPERAND = new Set([...KEYWORDS_BEFORE_REGEX, 'const', 'let', 'var', 'async', 'static', 'get', 'set']);
+const CONTROL_PAREN = new Set(['if', 'while', 'for', 'with']);
+const SIMPLE_ESCAPES = { n: '\n', t: '\t', '\\': '\\', '\'': '\'', '"': '"', '`': '`', $: '$' };
+
+function lex(file, src) {
+  const toks = []; let i = 0; const n = src.length; const stack = [];
+  const fail = (m) => { throw new Error(`${file}: loading policy: ${m} (line ${src.slice(0, Math.min(i, n)).split('\n').length})`); };
+  if (/[\r\0\u2028\u2029]/.test(src)) fail('contains CR, NUL, U+2028 or U+2029');
+  const isIdStart = (c) => /[A-Za-z_$]/.test(c); const isIdPart = (c) => /[A-Za-z0-9_$]/.test(c);
+  const prevSig = () => toks[toks.length - 1];
+  const push = (t) => { t.pos = t.pos === undefined ? i : t.pos; toks.push(t); };
+  const readEscape = () => { const e = src[i + 1]; if (!Object.prototype.hasOwnProperty.call(SIMPLE_ESCAPES, e)) fail('escape sequence other than \\n \\t \\\\ \\\' \\" \\` \\$ in a literal'); i += 2; return SIMPLE_ESCAPES[e]; };
+  const scanTemplate = () => { // positioned just after a ` or a closing } of a substitution
+    const pos = i; let v = '';
+    for (;;) {
+      if (i >= n) fail('unterminated template literal');
+      const c = src[i];
+      if (c === '\\') { v += readEscape(); continue; }
+      if (c === '`') { i++; toks.push({ t: 'tpl', v, pos }); return; }
+      if (c === '$' && src[i + 1] === '{') { i += 2; stack.push({ k: 'tpl' }); toks.push({ t: 'tpl', v, pos }); return; }
+      v += c; i++;
+    }
+  };
+  if (src.startsWith('#!')) { while (i < n && src[i] !== '\n') i++; }
+  let lastClosedControl = false; // the ')' just emitted closed an if/while/for/with head
+  while (i < n) {
+    const c = src[i]; const code = src.charCodeAt(i);
+    if (c === ' ' || c === '\t' || c === '\n') { i++; continue; }
+    if (code < 0x20 || code > 0x7e) fail('control or non-ASCII character outside a literal or comment');
+    if (c === '/' && src[i + 1] === '/') { while (i < n && src[i] !== '\n') i++; continue; }
+    if (c === '/' && src[i + 1] === '*') { const e = src.indexOf('*/', i + 2); if (e < 0) fail('unterminated block comment'); i = e + 2; continue; }
+    if (c === '\'' || c === '"') {
+      const pos = i; let j = i + 1; let v = ''; i = j;
+      for (;;) {
+        if (i >= n || src[i] === '\n') fail('unterminated string literal');
+        if (src[i] === '\\') { v += readEscape(); continue; }
+        if (src[i] === c) break; v += src[i]; i++;
+      }
+      i++; toks.push({ t: 'str', v, pos }); continue;
+    }
+    if (c === '`') { i++; scanTemplate(); continue; }
+    if (isIdStart(c)) { let j = i + 1; while (j < n && isIdPart(src[j])) j++; toks.push({ t: 'id', v: src.slice(i, j), pos: i }); i = j; continue; }
+    if (/[0-9]/.test(c)) { let j = i + 1; while (j < n && /[0-9A-Za-z_.]/.test(src[j])) j++; toks.push({ t: 'num', v: src.slice(i, j), pos: i }); i = j; continue; }
+    if (c === '/') {
+      const p = prevSig(); const pp = toks[toks.length - 2];
+      if (p && p.t === 'punct' && p.v === '}') fail('ambiguous "/" after "}" (block or object literal: regex or division)');
+      if (p && p.t === 'punct' && (p.v === '+' || p.v === '-') && pp && pp.t === 'punct' && pp.v === p.v) fail('ambiguous "/" after "++" or "--"');
+      const regexOk = !p || (p.t === 'punct' && p.v !== ')' && p.v !== ']') || (p.t === 'punct' && p.v === ')' && lastClosedControl) || (p.t === 'id' && KEYWORDS_BEFORE_REGEX.has(p.v));
+      if (regexOk) {
+        const pos = i; let j = i + 1; let cls = false;
+        for (;;) {
+          if (j >= n || src[j] === '\n') { i = j; fail('unterminated regular expression literal'); }
+          if (src[j] === '\\') { j += 2; continue; }
+          if (src[j] === '[') cls = true; else if (src[j] === ']') cls = false; else if (src[j] === '/' && !cls) break;
+          j++;
+        }
+        j++; while (j < n && isIdPart(src[j])) j++;
+        i = j; toks.push({ t: 're', pos }); continue;
+      }
+    }
+    if (c === '\\') fail('backslash outside a literal');
+    lastClosedControl = false;
+    if ('([{'.includes(c)) { const p = prevSig(); stack.push({ k: c, control: c === '(' && p && p.t === 'id' && CONTROL_PAREN.has(p.v) }); }
+    else if (')]}'.includes(c)) {
+      const top = stack.pop();
+      if (c === '}' && top && top.k === 'tpl') { i++; scanTemplate(); continue; }
+      if (!top || '([{'.indexOf(top.k) !== ')]}'.indexOf(c)) fail('unbalanced brackets');
+      if (c === ')') lastClosedControl = !!top.control;
+    }
+    toks.push({ t: 'punct', v: c, pos: i }); i++;
+  }
+  if (stack.length) fail('unbalanced brackets at end of file');
+  return toks;
+}
+
+const tokText = (t) => (t.t === 'str' ? `'${t.v}'` : t.t === 'id' || t.t === 'punct' || t.t === 'num' ? t.v : `<${t.t}>`);
+const lineOf = (src, pos) => src.slice(0, pos).split('\n').length;
+
+/** Finds the matching ']' for the '[' at index k; returns its index or -1. */
+function matchBracket(toks, k) {
+  let d = 0;
+  for (let m = k; m < toks.length; m++) { const t = toks[m]; if (t.t !== 'punct') continue; if ('([{'.includes(t.v)) d++; else if (')]}'.includes(t.v)) { d--; if (d === 0) return m; } }
+  return -1;
+}
+/** R3: is the key between '[' (k) and its ']' (e) a statically simple number / identifier / arithmetic expression? */
+function simpleKey(toks, k, e) {
+  const key = toks.slice(k + 1, e); if (!key.length) return false;
+  let expectOperand = true; let operands = 0; let sawNum = false;
+  for (let m = 0; m < key.length; m++) {
+    const t = key[m];
+    if (expectOperand) {
+      if (t.t === 'num') { sawNum = true; operands++; expectOperand = false; continue; }
+      if (t.t === 'id' && !NOT_OPERAND.has(t.v)) { operands++; expectOperand = false; while (key[m + 1] && key[m + 1].v === '.' && key[m + 2] && key[m + 2].t === 'id') m += 2; continue; }
+      return false;
+    }
+    if (t.t === 'punct' && ['-', '*', '/', '%'].includes(t.v)) { expectOperand = true; continue; }
+    if (t.t === 'punct' && t.v === '+') { const l = key[m - 1], r = key[m + 1]; if (!((l && l.t === 'num') || (r && r.t === 'num'))) return false; expectOperand = true; continue; }
+    return false;
+  }
+  return !expectOperand && operands > 0 && (sawNum || operands >= 1);
+}
+
+/** Applies the loading policy to one file. Returns { relative, builtin, uses, roots, computed } or throws an Error listing every violation. */
+function analyzeSource(file, src, approvedClosure) {
+  const toks = lex(file, src); const bad = []; const relative = new Set(); const builtin = new Set(); const uses = {}; const roots = []; const computed = [];
+  const L = (t) => (t && t.pos !== undefined ? ` (line ${lineOf(src, t.pos)})` : '');
+  const v = (k) => toks[k] && toks[k].t === 'id' ? toks[k].v : undefined;
+  if (!(toks[0] && toks[0].t === 'str' && toks[0].v === 'use strict' && toks[1] && toks[1].v === ';')) bad.push("file does not begin with 'use strict';");
+  // R2: which root occurrences lie inside an approved exact pattern
+  const covered = new Map(); const aliasCovered = new Map(); const requireCovered = new Set(); const patternHits = {};
+  for (const p of ROOT_PATTERNS[file] || []) {
+    const seq = p.seq.split(' ');
+    for (let k = 0; k + seq.length <= toks.length; k++) {
+      if (seq.every((s, m) => tokText(toks[k + m]) === s)) {
+        patternHits[p.id] = (patternHits[p.id] || 0) + 1;
+        for (const r of p.roots) covered.set(k + r, p);
+        for (const r of p.aliases || []) aliasCovered.set(k + r, p);
+        for (const r of p.requires || []) requireCovered.add(k + r);
+        if (patternHits[p.id] > 1) bad.push(`approved pattern ${p.id} occurs ${patternHits[p.id]} times; 1 approved`);
+      }
+    }
+  }
+  for (let k = 0; k < toks.length; k++) {
+    const t = toks[k]; const prev = toks[k - 1]; const next = toks[k + 1];
+    if ((t.t === 'str' || t.t === 'tpl') && DANGEROUS_STRINGS.has(t.v)) bad.push(`${t.t === 'str' ? 'string' : 'template'} text "${t.v}" equals a forbidden or sensitive name${L(t)}`);
+    // R3: computed member access
+    if (t.t === 'punct' && t.v === '[') {
+      const isMemberBracket = prev && ((prev.t === 'id' && !NOT_OPERAND.has(prev.v)) || prev.t === 'str' || prev.t === 'tpl' || prev.t === 'num' || (prev.t === 'punct' && [')', ']', '}'].includes(prev.v)) || (prev.t === 'punct' && prev.v === '.' && toks[k - 2] && toks[k - 2].v === '?'));
+      if (isMemberBracket) {
+        const e = matchBracket(toks, k);
+        if (e < 0 || !simpleKey(toks, k, e)) bad.push(`computed member access with a key that is not a number, identifier or simple arithmetic${L(t)}`);
+        else {
+          // R6 (6.2): a computed member may not be CALLED or tag a template: x[k](...) is dynamic dispatch whose target no lexical rule can name
+          const a = toks[e + 1]; const b2 = toks[e + 2]; const c2 = toks[e + 3];
+          if (a && (a.v === '(' && a.t === 'punct' || (a.t === 'tpl' && src[a.pos - 1] === String.fromCharCode(96)) || (a.v === '?' && b2 && b2.v === '.' && c2 && c2.v === '(' ))) bad.push(`call of a computed member (dynamic dispatch)${L(t)}`);
+          // R6: no computed access on anything reached from process (process.env[k], process.stdout[k], ...)
+          let j = k - 1; while (toks[j] && toks[j].t === 'id' && toks[j - 1] && toks[j - 1].v === '.') j -= 2;
+          if (toks[j] && toks[j].t === 'id' && toks[j].v === 'process') bad.push(`computed member access on a value reached from process${L(t)}`);
+          computed.push({ line: lineOf(src, t.pos), key: toks.slice(k + 1, e).map(tokText).join(' ') });
+        }
+      }
+    }
+    if (t.t !== 'id') continue;
+    const name = t.v; const isMember = prev && prev.t === 'punct' && prev.v === '.';
+    // R7 (6.2): global-object aliases are refused everywhere except the single approved alias token (G1)
+    if (GLOBAL_ALIASES.has(name) && name !== 'globalThis' && name !== 'global' && !aliasCovered.has(k)) { bad.push(`global alias "${name}" used outside the approved pattern${L(t)}`); continue; }
+    // R8 (6.2): a sensitive object name may not be a property of anything, in any syntax (self.process, x?.require, o.vm, ...)
+    if (isMember && SENSITIVE_MEMBER_NAMES.has(name) && !aliasCovered.has(k)) { bad.push(`sensitive name "${name}" reached as a property${L(t)}`); continue; }
+    if (ROOT_NAMES.has(name) && !isMember) {
+      const p = covered.get(k);
+      roots.push({ root: name, line: lineOf(src, t.pos), approved: !!p, pattern: p ? p.id : null });
+      if (!p) bad.push(`"${name}" used outside an approved exact pattern${L(t)}`);
+      continue;
+    }
+    if (name === 'require' && !isMember) {
+      const ok = next && next.v === '(' && toks[k + 2] && toks[k + 2].t === 'str' && toks[k + 3] && toks[k + 3].v === ')' && !(prev && prev.t === 'id' && prev.v === 'new');
+      if (!ok) { bad.push(`require is not exactly require('<string literal>')${L(t)}`); continue; }
+      const target = toks[k + 2].v;
+      if (target === 'vm' && BUILTIN_USERS.vm.includes(file) && !requireCovered.has(k)) { bad.push(`require('vm') outside the approved pattern V1${L(t)}`); continue; } // 6.2: no second or aliased vm module value
+      if (target.startsWith('.')) {
+        if (!/^\.\/[A-Za-z0-9_-]+(\.[a-z]+)?$/.test(target)) bad.push(`relative require target "${target}" is not of the form ./<name>`);
+        else if (!approvedClosure.includes(target.slice(2))) bad.push(`require of "${target}" which is not in the approved closure`);
+        else relative.add(target.slice(2));
+      } else if (!Object.prototype.hasOwnProperty.call(BUILTIN_USERS, target)) bad.push(`require of "${target}" which is not an approved built-in`);
+      else if (!BUILTIN_USERS[target].includes(file)) bad.push(`${file} is not approved to require built-in "${target}"`);
+      else builtin.add(target);
+      continue;
+    }
+    if (name === 'require') { bad.push(`member named require${L(t)}`); continue; }
+    if (FORBIDDEN_IDS.has(name) && !(name === 'exports' && isMember && prev && toks[k - 2] && toks[k - 2].v === 'module')) { bad.push(`forbidden identifier "${name}"${L(t)}`); continue; }
+    if (name === 'constructor' && (isMember || !(next && next.v === '('))) { bad.push(`constructor accessed as a member${L(t)}`); continue; }
+    if (name === 'process' && !isMember) {
+      const m = next && next.v === '.' ? v(k + 2) : undefined;
+      if (!m || !PROCESS_MEMBERS.has(m)) bad.push(`process used other than as process.<approved member> (found "${m}")${L(t)}`);
+    }
+    if (name === 'module' && !isMember) {
+      const ok = (next && next.v === '.' && v(k + 2) === 'exports') || (prev && prev.v === '===');
+      if (!ok) bad.push(`module used other than as module.exports or require.main === module${L(t)}`);
+    }
+    if (WATCHED_IDS.has(name)) uses[name] = (uses[name] || 0) + 1;
+  }
+  const allowed = APPROVED_USES[file] || {};
+  for (const [name, count] of Object.entries(uses)) if (count > (allowed[name] || 0)) bad.push(`"${name}" occurs ${count} time(s); ${allowed[name] || 0} approved in ${file}`);
+  if (bad.length) throw new Error(`${file}: loading policy violation(s): ${[...new Set(bad)].join('; ')}`);
+  return { relative: [...relative].sort(), builtin: [...builtin].sort(), uses, roots, computed };
+}
+
+function readCanonicalText(file) {
+  const b = fs.readFileSync(file);
+  if (b.includes(0x0d)) throw new Error(`${file}: contains a CR byte; the baseline requires LF line endings`);
+  if (b.length >= 3 && b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf) throw new Error(`${file}: starts with a UTF-8 BOM`);
+  try { new TextDecoder('utf-8', { fatal: true }).decode(b); } catch { throw new Error(`${file}: is not valid UTF-8`); }
+  return b;
+}
+
+/** Walks the real static require graph from the entry point under the loading policy and compares it with the approved list. */
+function discoverClosure(dir, approved = CLOSURE) {
+  const seen = new Map(); const stack = [ENTRY];
+  while (stack.length) {
+    const f = stack.pop(); if (seen.has(f)) continue;
+    if (!approved.includes(f)) throw new Error(`runtime closure differs from the approved list: ${f} is required but not approved`);
+    let b; try { b = readCanonicalText(path.join(dir, f)); } catch (e) { if (e.code === 'ENOENT') throw new Error(`declared dependency ${f} is missing from ${dir}`); throw e; }
+    const r = analyzeSource(f, b.toString('utf8'), approved); seen.set(f, r);
+    for (const d of r.relative) stack.push(d);
+  }
+  const found = [...seen.keys()].sort(); const expected = [...approved].sort();
+  if (JSON.stringify(found) !== JSON.stringify(expected)) throw new Error(`runtime closure differs from the approved list.\n  found:    ${found.join(', ')}\n  approved: ${expected.join(', ')}`);
+  return { files: found, analysis: Object.fromEntries(found.map((f) => [f, seen.get(f)])) };
+}
+
+function build({ signerDir, configFile, sdkPackage }) {
+  const graph = discoverClosure(signerDir);
+  const lines = [];
+  for (const f of CLOSURE) lines.push([`file:${f}`, sha(readCanonicalText(path.join(signerDir, f)))]);
+  lines.push(['config:deployment-config.json', configFile ? sha(readCanonicalText(configFile)) : 'ABSENT']);
+  const pk = path.resolve(sdkPackage);
+  lines.push(['external:@stellar/stellar-sdk@17.4.0/package.json', sha(fs.readFileSync(path.join(pk, 'package.json')))]);
+  lines.push(['external:@stellar/stellar-sdk@17.4.0/dist/stellar-sdk.js', sha(fs.readFileSync(path.join(pk, 'dist', 'stellar-sdk.js')))]);
+  lines.sort((a, b) => Buffer.compare(Buffer.from(a[0]), Buffer.from(b[0])));
+  const manifest = [HEADER, ...lines.map(([l, h]) => `${h}  ${l}`)].join('\n') + '\n';
+  const notHashed = fs.readdirSync(signerDir, { withFileTypes: true }).filter((e) => e.isFile() && !CLOSURE.includes(e.name)).map((e) => e.name).sort();
+  return { manifest, hash: sha(Buffer.from(manifest, 'utf8')), variant: configFile ? 'FULL PIN (P)' : 'CODE BASELINE (B0)', lines, runtimeLoaded: graph.files, hashed: [...CLOSURE].sort(), notHashed, analysis: graph.analysis };
+}
+
+if (require.main === module) {
+  try {
+    const signerDir = arg('--signer-dir'); if (!signerDir) throw new Error('--signer-dir is required');
+    const r = build({ signerDir, configFile: arg('--config'), sdkPackage: arg('--sdk-package') || path.join(signerDir, '..', 'pk', 'x-stellar-stellar-sdk-17.4.0', 'package') });
+    if (arg('--manifest-out')) fs.writeFileSync(arg('--manifest-out'), r.manifest, { flag: 'wx' });
+    const want = arg('--verify');
+    console.log(r.manifest.trimEnd()); console.log(`\nvariant: ${r.variant}\nbaseline sha256: ${r.hash}`);
+    // the presence of the flag, not of a value, switches verification on: a missing value must never skip the check
+    if (has('--verify')) {
+      if (!/^[0-9a-f]{64}$/.test(want)) { console.log('VERIFY: REFUSED (the expected value is not 64 lowercase hex characters)'); process.exit(3); }
+      const ok = crypto.timingSafeEqual(Buffer.from(want), Buffer.from(r.hash));
+      console.log(ok ? 'VERIFY: MATCH' : 'VERIFY: MISMATCH'); process.exit(ok ? 0 : 1);
+    }
+  } catch (e) { console.error('REFUSED:', e.message); process.exit(2); }
+}
+module.exports = { build, CLOSURE, ENTRY, HEADER, discoverClosure, readCanonicalText, analyzeSource, lex, APPROVED_USES, ROOT_PATTERNS, FORBIDDEN_IDS, DANGEROUS_STRINGS, PROCESS_MEMBERS, BUILTIN_USERS };

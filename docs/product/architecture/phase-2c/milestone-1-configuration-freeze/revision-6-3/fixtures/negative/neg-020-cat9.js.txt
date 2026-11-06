@@ -1,0 +1,5 @@
+// category 9: function return value
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: C1)
+function g() { return execFileSync; }
+g()('powershell.exe', []);

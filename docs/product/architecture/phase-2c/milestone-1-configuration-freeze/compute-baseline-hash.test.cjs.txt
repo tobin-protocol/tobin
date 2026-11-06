@@ -1,0 +1,76 @@
+'use strict';
+// Self-tests of the hash-only baseline tool, on temporary copies of the signer files. No key, no network, no signing.
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('fs'); const os = require('os'); const path = require('path'); const crypto = require('crypto');
+const { spawnSync } = require('child_process');
+const { build, CLOSURE } = require('./compute-baseline-hash.cjs');
+
+const SIGNER = path.resolve(__dirname, '..', 'tst-signer');
+const SDK = path.resolve(__dirname, '..', 'pk', 'x-stellar-stellar-sdk-17.4.0', 'package');
+const TOOL = path.join(__dirname, 'compute-baseline-hash.cjs');
+const ALL = [...CLOSURE, 'pinned.cjs'];
+const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tst-baseline-')); test.after(() => fs.rmSync(root, { recursive: true, force: true }));
+let n = 0;
+const copy = () => { const d = path.join(root, 'c' + n++); fs.mkdirSync(d); for (const f of ALL) fs.copyFileSync(path.join(SIGNER, f), path.join(d, f)); return d; };
+const run = (args) => spawnSync(process.execPath, [TOOL, ...args], { encoding: 'utf8' });
+const base = build({ signerDir: SIGNER, sdkPackage: SDK }).hash;
+
+test('the hash is deterministic and equals the hash of a copy of the same bytes', () => {
+  assert.equal(build({ signerDir: SIGNER, sdkPackage: SDK }).hash, base);
+  assert.equal(build({ signerDir: copy(), sdkPackage: SDK }).hash, base);
+});
+
+test('changing a single byte of any hashed file changes the hash', () => {
+  for (const f of CLOSURE) { const d = copy(); fs.appendFileSync(path.join(d, f), ' '); assert.notEqual(build({ signerDir: d, sdkPackage: SDK }).hash, base, f); }
+});
+
+test('pinned.cjs, tests and other non-closure files are NOT hashed: changing pinned.cjs does not change the baseline (it is superseded by the independent pin)', () => {
+  const d = copy(); fs.writeFileSync(path.join(d, 'pinned.cjs'), 'module.exports = { PINNED_CONFIG_SHA256: "' + 'ab'.repeat(32) + '" };\n');
+  assert.equal(build({ signerDir: d, sdkPackage: SDK }).hash, base);
+});
+
+test('CR bytes, a BOM and invalid UTF-8 are refused (so the hash cannot depend on line-ending settings)', () => {
+  const crlf = copy(); fs.writeFileSync(path.join(crlf, 'refusal.cjs'), fs.readFileSync(path.join(crlf, 'refusal.cjs'), 'utf8').replace(/\n/g, '\r\n'));
+  assert.throws(() => build({ signerDir: crlf, sdkPackage: SDK }), /CR byte/);
+  const bom = copy(); fs.writeFileSync(path.join(bom, 'refusal.cjs'), Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), fs.readFileSync(path.join(bom, 'refusal.cjs'))]));
+  assert.throws(() => build({ signerDir: bom, sdkPackage: SDK }), /BOM/);
+  const bad = copy(); fs.appendFileSync(path.join(bad, 'refusal.cjs'), Buffer.from([0xff, 0xfe, 0x41]));
+  assert.throws(() => build({ signerDir: bad, sdkPackage: SDK }), /not valid UTF-8/);
+});
+
+test('a new module in the runtime closure, or a missing one, is refused until the approved list is changed', () => {
+  const extra = copy(); fs.writeFileSync(path.join(extra, 'extra.cjs'), '// new\n'); fs.appendFileSync(path.join(extra, 'tst-signer.cjs'), "\nrequire('./extra.cjs');\n");
+  assert.throws(() => build({ signerDir: extra, sdkPackage: SDK }), /runtime closure differs/);
+  const missing = copy(); fs.unlinkSync(path.join(missing, 'state-store.cjs'));
+  assert.throws(() => build({ signerDir: missing, sdkPackage: SDK }), /ENOENT|closure|no such file/);
+});
+
+test('the deployment configuration is part of the full pin: absent and present produce different hashes, and any change to the config changes the hash', () => {
+  const cfg = path.join(root, 'deployment-config.json'); fs.writeFileSync(cfg, '{"example":"throwaway fixture, not a real deployment identity"}\n');
+  const p1 = build({ signerDir: SIGNER, configFile: cfg, sdkPackage: SDK }); assert.notEqual(p1.hash, base); assert.equal(p1.variant, 'FULL PIN (P)');
+  fs.appendFileSync(cfg, ' '); assert.notEqual(build({ signerDir: SIGNER, configFile: cfg, sdkPackage: SDK }).hash, p1.hash);
+  fs.writeFileSync(cfg, '{"a":1}\r\n'); assert.throws(() => build({ signerDir: SIGNER, configFile: cfg, sdkPackage: SDK }), /CR byte/);
+  assert.throws(() => build({ signerDir: SIGNER, configFile: path.join(root, 'nonexistent.json'), sdkPackage: SDK }));
+});
+
+test('the SDK identity is part of the hash: a changed bundle changes it', () => {
+  const pk = path.join(root, 'sdk'); fs.mkdirSync(path.join(pk, 'dist'), { recursive: true });
+  fs.copyFileSync(path.join(SDK, 'package.json'), path.join(pk, 'package.json')); fs.copyFileSync(path.join(SDK, 'dist', 'stellar-sdk.js'), path.join(pk, 'dist', 'stellar-sdk.js'));
+  assert.equal(build({ signerDir: SIGNER, sdkPackage: pk }).hash, base);
+  fs.appendFileSync(path.join(pk, 'dist', 'stellar-sdk.js'), ' '); assert.notEqual(build({ signerDir: SIGNER, sdkPackage: pk }).hash, base);
+});
+
+test('--verify fails closed: a mismatch exits 1, a malformed expected value exits 3, a missing directory exits 2, only the exact hash exits 0', () => {
+  const ok = run(['--signer-dir', SIGNER, '--verify', base]); assert.equal(ok.status, 0); assert.match(ok.stdout, /VERIFY: MATCH/);
+  const flip = base.slice(0, -1) + (base.endsWith('0') ? '1' : '0'); const bad = run(['--signer-dir', SIGNER, '--verify', flip]); assert.equal(bad.status, 1); assert.match(bad.stdout, /VERIFY: MISMATCH/);
+  for (const v of ['', 'abc', base.toUpperCase(), base + '0', ' ' + base, 'g'.repeat(64)]) { const r = run(['--signer-dir', SIGNER, '--verify', v]); assert.equal(r.status, 3, JSON.stringify(v)); assert.match(r.stdout, /REFUSED/); }
+  assert.equal(run([]).status, 2); assert.equal(run(['--signer-dir', path.join(root, 'nope')]).status, 2);
+  const noValue = run(['--signer-dir', SIGNER, '--verify']); assert.notEqual(noValue.status, 0);
+});
+
+test('the tool has no capability beyond reading and hashing files', () => {
+  const src = fs.readFileSync(TOOL, 'utf8');
+  assert.ok(!/child_process|http|net\b|fetch\(|eval\(|new Function|spawn|exec/i.test(src.replace(/\/\/.*$/gm, '')), 'no process, network or dynamic-code API');
+  assert.deepEqual([...src.matchAll(/require\('([^']+)'\)/g)].map((m) => m[1]).sort(), ['crypto', 'fs', 'path']);
+});

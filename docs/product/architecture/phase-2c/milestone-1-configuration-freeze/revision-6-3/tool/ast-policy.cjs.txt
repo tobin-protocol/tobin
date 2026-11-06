@@ -1,0 +1,590 @@
+'use strict';
+// Tobin TST signer loading policy, Revision 6.3 CANDIDATE (NOT APPROVED).
+// AST allowlist + binding resolution + capability-origin tracking over a PINNED acorn parser.
+// It is NOT a sandbox: it decides whether a source file stays inside a deliberately narrow language
+// that the eight reviewed runtime files use. Anything not explicitly allowed is refused (fail closed).
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+
+const PINNED_PARSER = Object.freeze({
+  name: 'acorn', version: '8.19.0',
+  distSha256: 'b95392d79457d0357555c5ed3e56302d074b92dff119bcf3b44179500b10e9df',
+  packageJsonSha256: '04d6fecaafb5e3d20a38fc3b64fed84bb3830a7759a8c00400ebcb87331fec00',
+  lockIntegrity: 'sha512-oJlA3XiRm7Cyk6qFD2Jn8ak9B7jSy0qy00ADO3+8dpT0LSjFihQYv4C02LFCSYJV3Q37xYwwRy5m+IpIiUzqWw==',
+});
+const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
+
+let acorn = null;
+function loadParser(dir = path.join(__dirname, 'vendor', 'acorn')) {
+  if (acorn) return acorn;
+  const dist = fs.readFileSync(path.join(dir, 'acorn.js'));
+  const pkg = fs.readFileSync(path.join(dir, 'package.json'));
+  if (sha(dist) !== PINNED_PARSER.distSha256) throw new Error('parser file hash mismatch: refusing to analyze');
+  if (sha(pkg) !== PINNED_PARSER.packageJsonSha256) throw new Error('parser package.json hash mismatch: refusing to analyze');
+  const p = JSON.parse(pkg.toString('utf8'));
+  if (p.name !== PINNED_PARSER.name || p.version !== PINNED_PARSER.version) throw new Error('parser identity mismatch');
+  const m = { exports: {} };
+  // The parser is loaded from the pinned, hash-checked file only (CommonJS build of acorn).
+  acorn = require(path.join(dir, 'acorn.js'));
+  if (typeof acorn.parse !== 'function' || acorn.version !== PINNED_PARSER.version) throw new Error('parser did not load as pinned');
+  void m;
+  return acorn;
+}
+const PARSE_OPTS = { ecmaVersion: 2022, sourceType: 'script', allowReturnOutsideFunction: true, allowHashBang: true, locations: true };
+
+// ---- policy tables (the authority; the documents explain them) -------------------------------------------
+const ALLOWED_NODE_TYPES = new Set(['ArrayExpression', 'ArrayPattern', 'ArrowFunctionExpression', 'AssignmentExpression', 'AssignmentPattern',
+  'AwaitExpression', 'BinaryExpression', 'BlockStatement', 'CallExpression', 'CatchClause', 'ClassBody', 'ClassDeclaration', 'ConditionalExpression',
+  'ExpressionStatement', 'ForOfStatement', 'ForStatement', 'FunctionDeclaration', 'FunctionExpression', 'Identifier', 'IfStatement', 'Literal',
+  'LogicalExpression', 'MemberExpression', 'NewExpression', 'ObjectExpression', 'ObjectPattern', 'Program', 'Property', 'RestElement',
+  'ReturnStatement', 'SpreadElement', 'SwitchCase', 'SwitchStatement', 'TemplateElement', 'TemplateLiteral', 'ThrowStatement', 'TryStatement',
+  'UnaryExpression', 'UpdateExpression', 'VariableDeclaration', 'VariableDeclarator']);
+// Refused on purpose (not used by the eight files): ImportExpression, ChainExpression (optional chaining), SequenceExpression,
+// TaggedTemplateExpression, ThisExpression, Super, MetaProperty, YieldExpression, WithStatement, LabeledStatement, While/DoWhile/ForIn,
+// ClassExpression, MethodDefinition, PropertyDefinition, StaticBlock, BreakStatement/ContinueStatement, DebuggerStatement, Regexp via Literal.regex.
+
+const BLOCKED_NAMES = new Set(['process', 'require', 'module', 'exports', 'globalThis', 'global', 'self', 'window', 'frames', 'vm', 'eval', 'Function',
+  'Reflect', 'Proxy', 'constructor', '__proto__', 'prototype', '__defineGetter__', '__defineSetter__', '__lookupGetter__', '__lookupSetter__',
+  'getPrototypeOf', 'setPrototypeOf', 'defineProperty', 'defineProperties', 'getOwnPropertyDescriptor', 'getOwnPropertyDescriptors',
+  'getOwnPropertyNames', 'getOwnPropertySymbols', 'create', 'getBuiltinModule', 'binding', 'mainModule', 'dlopen', 'createRequire', 'runInThisContext',
+  'runInNewContext', 'runInContext', 'createContext', 'compileFunction', 'Script', 'apply', 'bind', 'import', 'child_process', 'exec', 'execSync',
+  'execFile', 'spawn', 'spawnSync', 'fork', 'Worker', 'WebAssembly', 'AsyncFunction', 'GeneratorFunction', 'Atomics', 'SharedArrayBuffer',
+  'sandbox', 'inspector', 'repl', 'cluster', 'worker_threads', 'wasi', 'ffi']);
+const EXEC_API_NAMES = new Set(['exec', 'execSync', 'execFile', 'spawn', 'spawnSync', 'fork']);   // blocked as member names and strings; an identifier-keyed local binding named exec is the approved parameter
+const RESERVED_DECLARATIONS = new Set(['process', 'require', 'module', 'exports', 'globalThis', 'global', 'self', 'window', 'frames', 'eval', 'Function',
+  'Reflect', 'Proxy', 'arguments', 'undefined', 'NaN', 'Infinity', 'Object', 'JSON', 'Math', 'Number', 'String', 'Buffer', 'Array', 'Date', 'Promise',
+  'console', 'Error', 'Set', 'Symbol', 'BigInt', 'Boolean', 'Uint8Array', 'isFinite', 'setTimeout', '__dirname', '__filename']);
+
+// Free (global) identifiers allowed in the eight files, and how they may be used.
+const SAFE_NAMESPACES = { Object: ['keys', 'entries', 'freeze'], JSON: ['parse', 'stringify'], Math: ['floor'], Number: ['isFinite', 'isInteger'],
+  Buffer: ['from', 'isBuffer'], Array: ['isArray'], Date: ['now', 'parse'], console: ['log', 'error'] };
+const SAFE_CALLABLES = new Set(['Number', 'String', 'BigInt', 'Boolean', 'Symbol', 'Uint8Array', 'Set', 'Promise', 'Error', 'Date', 'isFinite', 'setTimeout']);
+const SAFE_VALUES = new Set(['undefined', 'NaN', 'Infinity', '__dirname']);
+
+// Built-in modules: which require forms are approved per file, and which members of each module may be called.
+const MODULE_MEMBERS = {
+  fs: ['chmodSync', 'closeSync', 'existsSync', 'fsyncSync', 'openSync', 'readFileSync', 'renameSync', 'statSync', 'unlinkSync', 'writeSync'],
+  path: ['basename', 'dirname', 'join'], crypto: ['createHash', 'randomBytes'], readline: ['createInterface'], vm: ['runInThisContext'],
+};
+const FN_CAPS = { child_process: ['execFileSync'] };
+const APPROVED_REQUIRES = {
+  'authorization.cjs': { './refusal.cjs': 'local' },
+  'dpapi-key.cjs': { child_process: 'destructure', './refusal.cjs': 'local' },
+  'pinned.cjs': {},
+  'refusal.cjs': {},
+  'sdk-loader.cjs': { fs: 'whole', path: 'whole', crypto: 'whole', vm: 'whole' },
+  'state-store.cjs': { fs: 'whole', crypto: 'whole', path: 'whole', child_process: 'destructure' },
+  'tst-signer-core.cjs': { crypto: 'whole', './refusal.cjs': 'local', './authorization.cjs': 'local' },
+  'tst-signer.cjs': { fs: 'whole', path: 'whole', readline: 'whole', './sdk-loader.cjs': 'local', './tst-signer-core.cjs': 'local',
+    './dpapi-key.cjs': 'local', './state-store.cjs': 'local', './pinned.cjs': 'local' },
+};
+// Every accepted process-execution call. File, enclosing function, first argument, and the count are exact.
+const APPROVED_EXEC = [
+  { file: 'dpapi-key.cjs', fn: 'decryptWithDpapi', arg0: 'powershell.exe', count: 1 },
+  { file: 'state-store.cjs', fn: 'inspectAcl', arg0: 'powershell.exe', count: 1 },
+  { file: 'state-store.cjs', fn: 'restrictOwnerOnly', arg0: 'icacls', count: 1 },
+];
+const EXEC_OPTION_KEYS = new Set(['encoding', 'stdio', 'windowsHide', 'env']);
+// Computed reads allowed with a key whose origin is not a free string. Any other key origin is refused.
+const APPROVED_COMPUTED_EXPLICIT = [
+  { file: 'tst-signer-core.cjs', text: 'cfg.resourceLimits[opName]', count: 1,
+    reason: 'opName is a function parameter (set from the command line by the caller); the object is the pinned resourceLimits table; the result is only read by Object.keys/arithmetic' },
+];
+const SDK_LOADER_PATTERNS = [
+  ['P_CONST', "const EXPECTED_BUNDLE_SHA256 = 'de18071d1f64bf6aa1806a4eb250b3be7c1811a8e8ecdfc3c103013cf1d9b92f';", 'program'],
+  ['P_BUNDLE', "const bundle = fs.readFileSync(path.join(packageDir, 'dist', 'stellar-sdk.js'));", 'loadSdk'],
+  ['P_SHA', "const sha = crypto.createHash('sha256').update(bundle).digest('hex');", 'loadSdk'],
+  ['P_CHECK', "if (sha !== EXPECTED_BUNDLE_SHA256) throw new Error('SDK bundle hash mismatch: refusing to load');", 'loadSdk'],
+  ['G1', 'globalThis.self = globalThis;', 'loadSdk'],
+  ['V2', "vm.runInThisContext(bundle.toString('utf8'));", 'loadSdk'],
+  ['G2', "if (!globalThis.StellarSdk) throw new Error('SDK bundle did not initialise');", 'loadSdk'],
+  ['G3', 'return globalThis.StellarSdk;', 'loadSdk'],
+];
+
+// ---- helpers ---------------------------------------------------------------------------------------------
+function shape(n) {
+  if (Array.isArray(n)) return n.map(shape);
+  if (n && typeof n === 'object') {
+    const o = {};
+    for (const k of Object.keys(n)) { if (k === 'start' || k === 'end' || k === 'loc' || k === 'raw') continue; o[k] = shape(n[k]); }
+    return o;
+  }
+  return n;
+}
+const shapeKey = (n) => JSON.stringify(shape(n));
+function patternShapeKey(code) {
+  const a = loadParser().parse(`function _(){${code}\n}`, PARSE_OPTS);
+  return shapeKey(a.body[0].body.body[0]);
+}
+const capKey = (c) => c ? `${c.kind}:${c.mod || ''}:${c.member || ''}` : '';
+
+function analyze(src, file, opts = {}) {
+  const P = loadParser(opts.parserDir);
+  const V = [];
+  const viol = (rule, n, msg) => V.push({ rule, line: n && n.loc ? n.loc.start.line : 0, msg });
+  const inv = { requires: [], exec: [], env: [], computed: [], patterns: [], process: [], nodeTypes: {} };
+  let ast;
+  try { ast = P.parse(src, PARSE_OPTS); } catch (e) { return { ok: false, violations: [{ rule: 'P0', line: 0, msg: `parse failure (fail closed): ${e.message}` }], inventory: inv }; }
+  const approvedReq = APPROVED_REQUIRES[file];
+  if (!approvedReq) return { ok: false, violations: [{ rule: 'P0', line: 0, msg: `unknown file name "${file}": not one of the eight runtime files` }], inventory: inv };
+
+  // ---------- pass 1: node types, scopes, declarations, references ----------
+  const refs = [];                       // {node, name, binding, anc, write}
+  const identBinding = new Map();        // Identifier node -> binding
+  const bindings = [];
+  const newScope = (parent, fnLevel, node) => ({ parent, fnLevel, vars: new Map(), node });
+  const declare = (scope, name, kind, node, extra = {}) => {
+    if (RESERVED_DECLARATIONS.has(name)) viol('S1', node, `declaration shadows or reuses the reserved name "${name}"`);
+    if (scope.vars.has(name) && kind !== 'function' && kind !== 'var') viol('S1', node, `duplicate declaration of "${name}"`);
+    const b = { name, kind, node, scope, cap: null, ...extra };
+    scope.vars.set(name, b); bindings.push(b); return b;
+  };
+  const lookup = (scope, name) => { for (let s = scope; s; s = s.parent) if (s.vars.has(name)) return s.vars.get(name); return null; };
+  const fnScopeOf = (s) => { while (!s.fnLevel) s = s.parent; return s; };
+
+  function patIds(p, cb, defaults = null) {   // identifiers declared by a binding pattern
+    if (!p) return;
+    switch (p.type) {
+      case 'Identifier': cb(p, defaults); break;
+      case 'ObjectPattern': for (const q of p.properties) { if (q.type === 'RestElement') patIds(q.argument, cb); else patIds(q.value, cb); } break;
+      case 'ArrayPattern': for (const q of p.elements) patIds(q, cb); break;
+      case 'RestElement': patIds(p.argument, cb); break;
+      case 'AssignmentPattern': patIds(p.left, cb, p.right); break;
+      default: viol('A1', p, `binding pattern of type ${p.type} is not allowed`);
+    }
+  }
+  function hoistVars(node, fnScope) {         // var declarations anywhere in a function body, not crossing functions
+    if (!node || typeof node.type !== 'string') return;
+    if (/Function/.test(node.type) && node.type !== 'FunctionDeclaration') return;
+    if (node.type === 'FunctionDeclaration') return;
+    if (node.type === 'VariableDeclaration' && node.kind === 'var') { for (const d of node.declarations) patIds(d.id, (id, def) => declare(fnScope, id.name, 'var', id, { defaultExpr: def })); }
+    for (const k of Object.keys(node)) { const v = node[k]; if (Array.isArray(v)) v.forEach((c) => hoistVars(c, fnScope)); else if (v && typeof v.type === 'string') hoistVars(v, fnScope); }
+  }
+  function lexicals(stmts, scope) {
+    for (const s of stmts) {
+      if (s.type === 'VariableDeclaration' && s.kind !== 'var') for (const d of s.declarations) patIds(d.id, (id, def) => declare(scope, id.name, s.kind, id, { defaultExpr: def, declarator: d }));
+      else if (s.type === 'FunctionDeclaration') declare(scope, s.id.name, 'function', s, { fn: s });
+      else if (s.type === 'ClassDeclaration') declare(scope, s.id.name, 'class', s);
+    }
+  }
+
+  const anc = [];
+  function ref(node, scope, write = false) {
+    refs.push({ node, name: node.name, binding: lookup(scope, node.name), anc: anc.slice(), write });
+    const b = refs[refs.length - 1].binding; if (b) identBinding.set(node, b);
+  }
+  function walkPattern(p, scope, write) {      // expression parts inside binding/assignment patterns
+    if (!p) return;
+    anc.push(p);
+    switch (p.type) {
+      case 'Identifier': if (write) ref(p, scope, true); break;
+      case 'ObjectPattern':
+        for (const q of p.properties) {
+          if (q.type === 'RestElement') { walkPattern(q.argument, scope, write); continue; }
+          anc.push(q); if (q.computed) walk(q.key, scope); walkPattern(q.value, scope, write); anc.pop();
+        } break;
+      case 'ArrayPattern': for (const q of p.elements) walkPattern(q, scope, write); break;
+      case 'RestElement': walkPattern(p.argument, scope, write); break;
+      case 'AssignmentPattern': walkPattern(p.left, scope, write); walk(p.right, scope); break;
+      case 'MemberExpression': anc.pop(); walk(p, scope); anc.push(p); break;
+      default: viol('A1', p, `pattern of type ${p.type} is not allowed`);
+    }
+    anc.pop();
+  }
+  function walkFunction(n, scope) {
+    const fs_ = newScope(scope, true, n);
+    if (n.type === 'FunctionExpression' && n.id) declare(fs_, n.id.name, 'fname', n);
+    n.params.forEach((p, i) => patIds(p, (id, def) => declare(fs_, id.name, 'param', id, { defaultExpr: def, fn: n, paramIndex: i })));
+    anc.push(n);
+    n.params.forEach((p) => walkPattern(p, fs_, false));
+    if (n.body.type === 'BlockStatement') {
+      hoistVars(n.body, fs_); lexicals(n.body.body, fs_);
+      anc.push(n.body); for (const s of n.body.body) walk(s, fs_); anc.pop();
+    } else walk(n.body, fs_);
+    anc.pop();
+  }
+  function walk(n, scope) {
+    if (!n || typeof n.type !== 'string') return;
+    inv.nodeTypes[n.type] = (inv.nodeTypes[n.type] || 0) + 1;
+    if (!ALLOWED_NODE_TYPES.has(n.type)) { viol('A1', n, `syntax node ${n.type} is not in the allowlist`); return; }
+    switch (n.type) {
+      case 'Identifier': ref(n, scope); return;
+      case 'Literal': return;
+      case 'FunctionDeclaration': case 'FunctionExpression': case 'ArrowFunctionExpression':
+        if (n.generator) viol('A1', n, 'generators are not allowed'); walkFunction(n, scope); return;
+      case 'BlockStatement': {
+        const bs = newScope(scope, false, n); lexicals(n.body, bs); anc.push(n); n.body.forEach((s) => walk(s, bs)); anc.pop(); return;
+      }
+      case 'ForStatement': case 'ForOfStatement': {
+        const fs_ = newScope(scope, false, n);
+        const head = n.type === 'ForStatement' ? n.init : n.left;
+        if (n.type === 'ForOfStatement' && n.await) viol('A1', n, 'for await is not allowed');
+        if (head && head.type === 'VariableDeclaration' && head.kind !== 'var') for (const d of head.declarations) patIds(d.id, (id, def) => declare(fs_, id.name, head.kind, id, { defaultExpr: def, declarator: d, loopHead: n }));
+        anc.push(n);
+        if (n.type === 'ForStatement') { if (n.init) walk(n.init, fs_); if (n.test) walk(n.test, fs_); if (n.update) walk(n.update, fs_); }
+        else { if (head.type === 'VariableDeclaration') head.declarations.forEach((d) => walkPattern(d.id, fs_, false)); else walkPattern(head, fs_, true); walk(n.right, fs_); }
+        walk(n.body, fs_); anc.pop(); return;
+      }
+      case 'SwitchStatement': {
+        const ss = newScope(scope, false, n); walk(n.discriminant, scope); anc.push(n);
+        lexicals(n.cases.flatMap((c) => c.consequent), ss);
+        n.cases.forEach((c) => { anc.push(c); if (c.test) walk(c.test, ss); c.consequent.forEach((s) => walk(s, ss)); anc.pop(); }); anc.pop(); return;
+      }
+      case 'TryStatement': {
+        anc.push(n); walk(n.block, scope);
+        if (n.handler) {
+          const cs = newScope(scope, false, n.handler);
+          if (n.handler.param) patIds(n.handler.param, (id) => declare(cs, id.name, 'catch', id));
+          anc.push(n.handler); if (n.handler.param) walkPattern(n.handler.param, cs, false); walk(n.handler.body, cs); anc.pop();
+        }
+        if (n.finalizer) walk(n.finalizer, scope);
+        anc.pop(); return;
+      }
+      case 'VariableDeclaration': anc.push(n); n.declarations.forEach((d) => { anc.push(d); walkPattern(d.id, scope, false); if (d.init) walk(d.init, scope); anc.pop(); }); anc.pop(); return;
+      case 'MemberExpression': anc.push(n); walk(n.object, scope); if (n.computed) walk(n.property, scope); anc.pop(); return;
+      case 'Property': anc.push(n); if (n.computed) walk(n.key, scope); walk(n.value, scope); anc.pop(); return;
+      case 'AssignmentExpression': anc.push(n);
+        if (n.left.type === 'Identifier' || n.left.type === 'MemberExpression') { if (n.left.type === 'Identifier') ref(n.left, scope, true); else walk(n.left, scope); } else walkPattern(n.left, scope, true);
+        walk(n.right, scope); anc.pop(); return;
+      case 'UpdateExpression': anc.push(n); if (n.argument.type === 'Identifier') ref(n.argument, scope, true); else walk(n.argument, scope); anc.pop(); return;
+      case 'ClassDeclaration': anc.push(n); if (n.superClass) walk(n.superClass, scope); walk(n.body, scope); anc.pop(); return;
+      case 'CatchClause': return;
+      case 'Program': return;
+      default: {
+        anc.push(n);
+        for (const k of Object.keys(n)) {
+          if (k === 'type' || k === 'start' || k === 'end' || k === 'loc') continue;
+          const v = n[k];
+          if (Array.isArray(v)) v.forEach((c) => c && typeof c.type === 'string' && walk(c, scope)); else if (v && typeof v.type === 'string') walk(v, scope);
+        }
+        anc.pop();
+      }
+    }
+  }
+  const prog = newScope(null, true, ast);
+  hoistVars(ast, prog); lexicals(ast.body, prog);
+  anc.push(ast); ast.body.forEach((s) => walk(s, prog)); anc.pop();
+  inv.nodeTypes.Program = 1;
+
+  // ---------- pass 2: capability origins ----------
+  const parentOf = (r) => r.anc[r.anc.length - 1];
+  const reqCalls = new Set();
+  // 2a. require()
+  const seenReq = new Map();
+  for (const r of refs) {
+    if (r.name !== 'require' || r.binding) continue;
+    const call = parentOf(r);
+    const decl = r.anc[r.anc.length - 2];
+    const declaration = r.anc[r.anc.length - 3];
+    const top = r.anc[r.anc.length - 4];
+    const okShape = call && call.type === 'CallExpression' && call.callee === r.node && call.arguments.length === 1 && call.arguments[0].type === 'Literal'
+      && typeof call.arguments[0].value === 'string' && decl && decl.type === 'VariableDeclarator' && decl.init === call
+      && declaration && declaration.type === 'VariableDeclaration' && declaration.kind === 'const' && top && top.type === 'Program';
+    if (!okShape) { viol('R1', r.node, 'require is allowed only as `const <binding> = require("<literal>")` at program level'); continue; }
+    const spec = call.arguments[0].value;
+    const form = approvedReq[spec];
+    // Bind the capability even when the require itself is refused, so every later rule still applies independently.
+    if (!spec.startsWith('.')) {
+      if (decl.id.type === 'Identifier') { const b0 = identOfDecl(decl.id); if (b0) b0.cap = { kind: 'module', mod: spec }; }
+      else if (decl.id.type === 'ObjectPattern') for (const q of decl.id.properties) if (q.type === 'Property' && q.value && q.value.type === 'Identifier') { const b0 = identOfDecl(q.value); if (b0) b0.cap = { kind: 'fn', mod: spec, member: q.key && q.key.name }; }
+    }
+    if (!form) { viol('R1', r.node, `require("${spec}") is not approved for ${file}`); continue; }
+    seenReq.set(spec, (seenReq.get(spec) || 0) + 1);
+    if (seenReq.get(spec) > 1) { viol('D1', r.node, `require("${spec}") appears more than once`); continue; }
+    reqCalls.add(call);
+    inv.requires.push({ file, line: call.loc.start.line, spec, form });
+    const isLocal = spec.startsWith('./');
+    if (isLocal) continue;                      // local closure member: ordinary values, closure is checked by the manifest tool
+    if (form === 'whole') {
+      if (decl.id.type !== 'Identifier') { viol('R1', r.node, `require("${spec}") must be bound to a single identifier`); continue; }
+      const b = identOfDecl(decl.id); if (b) b.cap = { kind: 'module', mod: spec };
+    } else if (form === 'destructure') {
+      if (decl.id.type !== 'ObjectPattern') { viol('R1', r.node, `require("${spec}") must be destructured`); continue; }
+      for (const q of decl.id.properties) {
+        if (q.type !== 'Property' || q.computed || q.key.type !== 'Identifier' || q.value.type !== 'Identifier' || q.key.name !== q.value.name
+          || !(FN_CAPS[spec] || []).includes(q.key.name)) { viol('R1', q, `only { ${(FN_CAPS[spec] || []).join(', ')} } may be taken from ${spec}`); continue; }
+        const b = identOfDecl(q.value); if (b) b.cap = { kind: 'fn', mod: spec, member: q.key.name };
+      }
+    }
+  }
+  for (const spec of Object.keys(approvedReq)) if (!seenReq.has(spec)) { /* an approved require that is absent is fine */ }
+  function identOfDecl(idNode) { return bindings.find((b) => b.node === idNode) || null; }
+  // 2b. aliases only through parameter defaults
+  const capOfExpr = (e) => {
+    if (!e) return null;
+    if (e.type === 'Identifier') { const b = identBinding.get(e); return b ? b.cap : null; }
+    if (e.type === 'MemberExpression' && !e.computed && e.object.type === 'Identifier' && !identBinding.get(e.object) && e.object.name === 'process'
+      && e.property.type === 'Identifier' && e.property.name === 'env') return { kind: 'env' };
+    return null;
+  };
+  for (let again = true, guard = 0; again && guard < 20; guard++) {
+    again = false;
+    for (const b of bindings) {
+      if (b.defaultExpr && b.kind === 'param' && !b.cap) { const c = capOfExpr(b.defaultExpr); if (c) { b.cap = c; b.alias = true; again = true; } }
+    }
+  }
+  // a capability reached through a declarator or any other binding form is not an approved alias
+  for (const b of bindings) {
+    if (b.kind !== 'param' && b.defaultExpr && capOfExpr(b.defaultExpr)) viol('C2', b.node, `"${b.name}" would alias a capability outside a parameter default`);
+  }
+
+  // ---------- pass 3: reference rules ----------
+  const isBlockedName = (s) => BLOCKED_NAMES.has(s);
+  const isCallee = (node, p) => p && p.type === 'CallExpression' && p.callee === node;
+  const localFnParam = (call, argIndex) => {            // the parameter node a local function declares for argument #argIndex
+    if (!call || call.type !== 'CallExpression' || call.callee.type !== 'Identifier') return null;
+    const b = identBinding.get(call.callee); if (!b || b.kind !== 'function') return null;
+    return b.fn.params[argIndex] || null;
+  };
+  const paramCapKinds = (p) => {                        // capability kinds an incoming parameter slot can legitimately receive
+    const out = [];
+    const take = (q) => { if (!q) return; if (q.type === 'AssignmentPattern' && q.left.type === 'Identifier') { const b = identBinding.get(q.left) || bindings.find((x) => x.node === q.left); if (b && b.cap) out.push(b.cap); } };
+    if (!p) return out;
+    if (p.type === 'AssignmentPattern' && p.left.type === 'ObjectPattern') p.left.properties.forEach((q) => take(q.value));
+    else take(p);
+    return out;
+  };
+  const execSites = [];
+  const patternCovered = new Set();                     // nodes proven by an exact approved pattern
+  const patternNodes = {};
+
+  // sdk-loader exact patterns (structure + binding identity), before the generic walk
+  if (file === 'sdk-loader.cjs') {
+    const loadFn = ast.body.find((s) => s.type === 'FunctionDeclaration' && s.id.name === 'loadSdk');
+    const bodies = { program: ast.body, loadSdk: loadFn ? loadFn.body.body : [] };
+    let lastIdx = -1;
+    for (const [id, code, where] of SDK_LOADER_PATTERNS) {
+      const want = patternShapeKey(code);
+      const hits = bodies[where].map((s, i) => [s, i]).filter(([s]) => shapeKey(s) === want);
+      if (hits.length !== 1) { viol('T1', null, `approved pattern ${id} must occur exactly once in ${where} (found ${hits.length})`); continue; }
+      const [stmt, idx] = hits[0];
+      if (where === 'loadSdk') { if (idx <= lastIdx) viol('T1', stmt, `approved pattern ${id} is out of order`); lastIdx = idx; }
+      patternNodes[id] = stmt; inv.patterns.push({ id, line: stmt.loc.start.line });
+      (function mark(n) { if (!n || typeof n.type !== 'string') return; patternCovered.add(n); for (const k of Object.keys(n)) { const v = n[k]; if (Array.isArray(v)) v.forEach(mark); else if (v && typeof v.type === 'string') mark(v); } })(stmt);
+    }
+    // binding identity: names inside the patterns must resolve to the approved bindings
+    const need = { fs: 'fs', path: 'path', crypto: 'crypto', vm: 'vm' };
+    for (const r of refs) {
+      if (!patternCovered.has(r.node)) continue;
+      if (need[r.name] && !(r.binding && r.binding.cap && r.binding.cap.kind === 'module' && r.binding.cap.mod === need[r.name])) viol('T1', r.node, `${r.name} inside an approved pattern does not resolve to require("${need[r.name]}")`);
+      if (r.name === 'globalThis' && r.binding) viol('T1', r.node, 'globalThis inside an approved pattern is shadowed');
+      // `bundle` shares loadSdk's scope with its declaration, so JavaScript scoping already makes another binding impossible (a duplicate declaration is a parse error): defence in depth, unreachable by construction
+      if (r.name === 'bundle' && !(r.binding && r.binding.kind === 'const' && patternNodes.P_BUNDLE && patternCovered.has(r.binding.node))) viol('T1', r.node, '`bundle` does not resolve to the hash-checked constant');
+    }
+  }
+
+  const FREE_SENSITIVE = new Set(['globalThis', 'global', 'self', 'window', 'frames', 'eval', 'Function', 'Reflect', 'Proxy', 'require', 'module', 'exports', 'process']);
+  const envPositionOk = (node, anc_) => {               // node is a value of kind "env"
+    const p = anc_[anc_.length - 1], gp = anc_[anc_.length - 2];
+    if (!p) return false;
+    if (p.type === 'MemberExpression' && p.object === node && !p.computed && p.property.type === 'Identifier' && !isBlockedName(p.property.name)) return true;
+    if (p.type === 'SpreadElement' && gp && gp.type === 'ObjectExpression') return true;
+    if (p.type === 'Property' && p.value === node && !p.computed && p.key.type === 'Identifier' && p.key.name === 'env' && gp && gp.type === 'ObjectExpression') return true;
+    if (p.type === 'AssignmentPattern' && p.right === node) return true;
+    if (p.type === 'LogicalExpression' && p.operator === '||') return envPositionOk(p, anc_.slice(0, -1));
+    return false;
+  };
+
+  for (const r of refs) {
+    const p = parentOf(r);
+    // --- declared-name safety is in S1; here only references ---
+    if (r.write && r.binding && r.binding.cap) { viol('C2', r.node, `"${r.name}" is a capability and may not be reassigned`); continue; }
+    if (!r.binding) {                                           // free identifier
+      const nm = r.name;
+      if (nm === 'require') continue;                           // checked in 2a (any other use is refused there)
+      if (nm === 'module') {
+        const gp = r.anc[r.anc.length - 2], top = r.anc[r.anc.length - 3];
+        const ok = p && p.type === 'MemberExpression' && p.object === r.node && !p.computed && p.property.type === 'Identifier' && p.property.name === 'exports'
+          && gp && gp.type === 'AssignmentExpression' && gp.left === p && gp.operator === '=' && gp.right.type === 'ObjectExpression' && top && top.type === 'ExpressionStatement'
+          && r.anc[r.anc.length - 4] === ast;
+        if (!ok) viol('M1', r.node, '`module` may only appear in the top-level statement `module.exports = { ... };`');
+        continue;
+      }
+      if (nm === 'process') {
+        const gp = r.anc[r.anc.length - 2];
+        if (!(p && p.type === 'MemberExpression' && p.object === r.node && !p.computed && p.property.type === 'Identifier')) { viol('C1', r.node, '`process` may only be used as `process.<member>`'); continue; }
+        const m = p.property.name;
+        if (m === 'env') { inv.env.push({ file, line: r.node.loc.start.line }); if (!envPositionOk(p, r.anc.slice(0, -1))) viol('E1', p, 'process.env may only be read as process.env.NAME, spread into an options object, or passed as an `env` option'); continue; }
+        inv.process.push({ file, line: r.node.loc.start.line, member: m });
+        const ar = r.anc.slice(0, -1);
+        const par = ar[ar.length - 1], gpar = ar[ar.length - 2];
+        let ok = false;
+        if (m === 'argv') ok = par && par.type === 'MemberExpression' && par.object === p && !par.computed && par.property.name === 'slice' && gpar && isCallee(par, gpar);
+        else if (m === 'exit') ok = isCallee(p, par);
+        else if (m === 'platform') ok = par && ((par.type === 'AssignmentPattern' && par.right === p) || par.type === 'BinaryExpression');
+        else if (m === 'stdin' || m === 'stdout') {
+          const call = ar[ar.length - 3];
+          ok = par && par.type === 'Property' && par.value === p && !par.computed && gpar && gpar.type === 'ObjectExpression' && call && call.type === 'CallExpression'
+            && call.arguments.includes(gpar) && call.callee.type === 'MemberExpression' && call.callee.property.name === 'createInterface';
+        } else viol('C1', p, `process.${m} is not an approved process member`);
+        if (!ok && PROC_OK(m)) viol('C1', p, `process.${m} is used in a position that is not approved`);
+        continue;
+      }
+      if (nm === 'globalThis') { if (!patternCovered.has(r.node)) viol('T1', r.node, '`globalThis` is allowed only inside the approved SDK-loader patterns'); continue; }
+      if (FREE_SENSITIVE.has(nm)) { viol('G1', r.node, `free identifier "${nm}" is not allowed`); continue; }
+      if (SAFE_VALUES.has(nm)) continue;
+      if (SAFE_NAMESPACES[nm] && p && p.type === 'MemberExpression' && p.object === r.node) {
+        const ok = !p.computed && p.property.type === 'Identifier' && SAFE_NAMESPACES[nm].includes(p.property.name) && isCallee(p, r.anc[r.anc.length - 2]);
+        if (!ok) viol('G1', r.node, `${nm} may only be used as a call to ${nm}.<${SAFE_NAMESPACES[nm].join('|')}>`);
+        continue;
+      }
+      if (SAFE_NAMESPACES[nm] && !SAFE_CALLABLES.has(nm)) { viol('G1', r.node, `${nm} may only be used as a call to ${nm}.<${SAFE_NAMESPACES[nm].join('|')}>`); continue; }
+      if (SAFE_CALLABLES.has(nm)) {
+        const ok = p && ((p.type === 'CallExpression' && p.callee === r.node) || (p.type === 'NewExpression' && p.callee === r.node) || (p.type === 'ClassDeclaration' && p.superClass === r.node && nm === 'Error')
+          || (p.type === 'BinaryExpression' && p.operator === 'instanceof' && p.right === r.node));
+        if (!ok) viol('G1', r.node, `${nm} may only be called, constructed, extended (Error) or used with instanceof`);
+        continue;
+      }
+      viol('G1', r.node, `free identifier "${nm}" has no approved origin`);
+      continue;
+    }
+    const cap = r.binding.cap;
+    if (!cap) continue;
+    // --- capability references ---
+    const gp = r.anc[r.anc.length - 2];
+    if (cap.kind === 'module') {
+      const ok = p && p.type === 'MemberExpression' && p.object === r.node && !p.computed && p.property.type === 'Identifier'
+        && (MODULE_MEMBERS[cap.mod] || []).includes(p.property.name) && isCallee(p, gp);
+      if (cap.mod === 'vm') { if (!patternCovered.has(r.node)) viol('T1', r.node, '`vm` may only be used inside the approved SDK-loader pattern'); continue; }
+      if (ok) continue;
+      // passing a module alias on is allowed only into a matching local-function parameter
+      if (flowOk(r, cap)) continue;
+      viol('C1', r.node, `module "${cap.mod}" capability "${r.name}" may only be used as ${r.name}.<approved member>(...) (computed, aliased, stored, returned or passed use is refused)`);
+      continue;
+    }
+    if (cap.kind === 'fn') {
+      if (isCallee(r.node, p)) { execSites.push({ r, call: p }); continue; }
+      if (flowOk(r, cap)) continue;
+      viol('C1', r.node, `process-execution capability "${r.name}" may only be called directly with an approved target`);
+      continue;
+    }
+    if (cap.kind === 'env') {
+      if (!envPositionOk(r.node, r.anc)) viol('E1', r.node, 'environment object is used in a position that is not approved');
+      continue;
+    }
+  }
+  function PROC_OK() { return true; }
+  function flowOk(r, cap) {              // passing a capability to a same-file local function whose parameter is declared to receive it
+    const p = parentOf(r), gp = r.anc[r.anc.length - 2], ggp = r.anc[r.anc.length - 3];
+    if (p && p.type === 'AssignmentPattern' && p.right === r.node) return true;                       // parameter default (alias creation)
+    if (p && p.type === 'CallExpression') { const i = p.arguments.indexOf(r.node); const prm = i >= 0 && localFnParam(p, i); return !!prm && paramCapKinds(prm).some((c) => capKey(c) === capKey(cap)) && prm.type === 'AssignmentPattern'; }
+    if (p && p.type === 'Property' && p.value === r.node && !p.computed && p.key.type === 'Identifier' && gp && gp.type === 'ObjectExpression' && ggp && ggp.type === 'CallExpression') {
+      const i = ggp.arguments.indexOf(gp); const prm = i >= 0 && localFnParam(ggp, i);
+      if (!prm || prm.type !== 'AssignmentPattern' || prm.left.type !== 'ObjectPattern') return false;
+      const q = prm.left.properties.find((x) => x.type === 'Property' && !x.computed && x.key.name === p.key.name);
+      if (!q || q.value.type !== 'AssignmentPattern') return false;
+      const b = bindings.find((x) => x.node === q.value.left); return !!(b && b.cap && capKey(b.cap) === capKey(cap));
+    }
+    return false;
+  }
+
+  // ---------- exec call-table ----------
+  const enclosingFn = (anc_) => { for (let i = anc_.length - 1; i >= 0; i--) if (anc_[i].type === 'FunctionDeclaration') return anc_[i].id.name; return null; };
+  const execCount = new Map();
+  for (const { r, call } of execSites) {
+    const fnName = enclosingFn(r.anc);
+    const a0 = call.arguments[0];
+    const entry = APPROVED_EXEC.find((e) => e.file === file && e.fn === fnName && a0 && a0.type === 'Literal' && a0.value === e.arg0);
+    const rec = { file, line: call.loc.start.line, node: 'CallExpression', capability: `child_process.${r.binding.cap.member}`, via: r.name, fn: fnName, arg0: a0 && a0.value };
+    inv.exec.push(rec);
+    if (!entry) { viol('X1', call, `process-execution call is not in the approved table (function ${fnName}, target ${a0 && a0.type === 'Literal' ? a0.value : '<non-literal>'})`); continue; }
+    execCount.set(entry, (execCount.get(entry) || 0) + 1);
+    const [, a1, a2] = call.arguments;
+    if (call.arguments.length < 2 || call.arguments.length > 3 || !a1 || a1.type !== 'ArrayExpression' || a1.elements.some((e) => !e || e.type === 'SpreadElement')) viol('X1', call, 'arguments must be (literal target, array without spread, options object)');
+    if (a2) {
+      if (a2.type !== 'ObjectExpression') viol('X1', call, 'options must be an object literal');
+      else for (const q of a2.properties) if (q.type !== 'Property' || q.computed || q.key.type !== 'Identifier' || !EXEC_OPTION_KEYS.has(q.key.name)) viol('X1', q, 'options may only contain encoding, stdio, windowsHide and env (no shell, no spread, no computed keys)');
+    }
+  }
+  for (const e of APPROVED_EXEC) if (e.file === file && (execCount.get(e) || 0) > e.count) viol('D1', null, `more than ${e.count} execution call(s) in ${e.fn}`);
+
+  // ---------- generic syntax rules over the whole tree ----------
+  const genericAnc = [];
+  const approvedComputedSeen = new Map();
+  function generic(n) {
+    if (!n || typeof n.type !== 'string') return;
+    const pa = genericAnc[genericAnc.length - 1];
+    switch (n.type) {
+      case 'Identifier': if (!/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(n.name)) viol('N2', n, `identifier "${n.name}" is not plain ASCII`); break;
+      case 'MemberExpression':
+        if (!n.computed) {
+          const nm = n.property.name;
+          const isModuleExports = nm === 'exports' && n.object.type === 'Identifier' && n.object.name === 'module';
+          const isVmRun = patternCovered.has(n) && (nm === 'runInThisContext' || nm === 'self');
+          if (isBlockedName(nm) && !isModuleExports && !isVmRun) viol('N1', n, `property name "${nm}" is blocked`);
+        } else computedRule(n);
+        break;
+      case 'Property':
+        if (n.kind !== 'init') viol('N1', n, 'getter/setter properties are not allowed');
+        if (n.computed) viol('K1', n, 'computed object keys are not allowed');
+        else { const k = n.key.type === 'Identifier' ? n.key.name : String(n.key.value); if (isBlockedName(k) && !(n.key.type === 'Identifier' && EXEC_API_NAMES.has(k))) viol('N1', n, `object key "${k}" is blocked`); }
+        break;
+      case 'Literal': if (typeof n.value === 'string' && isBlockedName(n.value) && !(pa && pa.type === 'CallExpression' && reqCalls.has(pa))) viol('N1', n, `string "${n.value}" is blocked`); break;
+      case 'TemplateElement': if (isBlockedName(n.value.cooked)) viol('N1', n, `template text "${n.value.cooked}" is blocked`); break;
+      case 'CallExpression': if (n.callee.type === 'MemberExpression' && n.callee.computed) viol('K1', n, 'a computed member may not be called'); break;
+      case 'NewExpression': if (n.callee.type === 'MemberExpression' && n.callee.computed) viol('K1', n, 'a computed member may not be constructed'); break;
+      case 'AssignmentExpression':
+        if (n.left.type === 'MemberExpression' && n.left.computed) viol('K1', n, 'assignment to a computed member is not allowed');
+        if (n.left.type === 'MemberExpression' && !n.left.computed) {
+          const okModule = n.left.object.type === 'Identifier' && n.left.object.name === 'module' && n.left.property.name === 'exports';
+          const okGlobal = patternCovered.has(n);
+          const okVerify = n.left.property.name === 'verify' && n.left.object.type === 'Identifier' && n.right.type === 'Identifier' && identBinding.get(n.right) && identBinding.get(n.right).kind === 'function' && identBinding.get(n.left.object) && identBinding.get(n.left.object).kind === 'function';
+          if (!(okModule || okGlobal || okVerify || n.left.object.type === 'Identifier' || n.left.object.type === 'MemberExpression')) viol('N1', n, 'assignment target not allowed');
+          if (n.left.object.type === 'Identifier' && !identBinding.get(n.left.object) && !okModule && !okGlobal) viol('N1', n, 'assignment to a property of a free identifier is not allowed');
+        }
+        break;
+      case 'ClassDeclaration': if (n.body.body.length) viol('A1', n, 'class bodies must be empty'); if (!n.superClass || n.superClass.type !== 'Identifier' || n.superClass.name !== 'Error') viol('A1', n, 'classes may only extend Error'); break;
+      case 'UnaryExpression': if (!['!', 'typeof', '-', '+', 'void'].includes(n.operator)) viol('A1', n, `unary operator ${n.operator} is not allowed`); break;
+      default: break;
+    }
+    genericAnc.push(n);
+    for (const k of Object.keys(n)) { if (k === 'loc') continue; const v = n[k]; if (Array.isArray(v)) v.forEach(generic); else if (v && typeof v.type === 'string') generic(v); }
+    genericAnc.pop();
+  }
+  function keyOriginOk(key) {
+    if (key.type === 'Literal') return typeof key.value === 'number' || (typeof key.value === 'string' && !isBlockedName(key.value));
+    if (key.type !== 'Identifier') return false;
+    const b = identBinding.get(key); if (!b) return false;
+    // loop index: for (let i = 0; ...; i++)
+    if (b.loopHead && b.loopHead.type === 'ForStatement' && b.declarator && b.declarator.init && b.declarator.init.type === 'Literal' && typeof b.declarator.init.value === 'number') return true;
+    // for (const k of <Object.keys(x) | Object.keys(x).sort() | a local const bound to that | an array literal of non-blocked strings>)
+    const fromKeys = (e) => {
+      if (!e) return false;
+      if (e.type === 'CallExpression' && e.callee.type === 'MemberExpression' && !e.callee.computed) {
+        if (e.callee.object.type === 'Identifier' && e.callee.object.name === 'Object' && !identBinding.get(e.callee.object) && ['keys', 'entries'].includes(e.callee.property.name)) return true;
+        if (e.callee.property.name === 'sort' && fromKeys(e.callee.object)) return true;
+      }
+      if (e.type === 'Identifier') { const bb = identBinding.get(e); return !!(bb && bb.kind === 'const' && bb.declarator && bb.declarator.init && fromKeys(bb.declarator.init)); }
+      if (e.type === 'ArrayExpression') return e.elements.every((x) => x && x.type === 'Literal' && typeof x.value === 'string' && !isBlockedName(x.value));
+      return false;
+    };
+    if (b.loopHead && b.loopHead.type === 'ForOfStatement' && b.declarator && b.declarator.id.type === 'Identifier' && fromKeys(b.loopHead.right)) return true;
+    if (b.loopHead && b.loopHead.type === 'ForOfStatement' && b.declarator && b.declarator.id.type === 'ArrayPattern' && b.declarator.id.elements[0] && b.declarator.id.elements[0].name === b.name
+      && b.loopHead.right.type === 'CallExpression' && b.loopHead.right.callee.type === 'MemberExpression' && b.loopHead.right.callee.property.name === 'entries'
+      && b.loopHead.right.callee.object.type === 'Identifier' && b.loopHead.right.callee.object.name === 'Object' && !identBinding.get(b.loopHead.right.callee.object)) return true;
+    // index parameter of an array callback: (item, i) => ... passed directly to .forEach/.map
+    if (b.kind === 'param' && b.paramIndex === 1 && b.fn && (b.fn.type === 'ArrowFunctionExpression' || b.fn.type === 'FunctionExpression') && !b.defaultExpr) {
+      let found = false;
+      (function f(n) { if (found || !n || typeof n.type !== 'string') return; if (n.type === 'CallExpression' && n.arguments[0] === b.fn && n.callee.type === 'MemberExpression' && !n.callee.computed && ['forEach', 'map'].includes(n.callee.property.name)) found = true; for (const k of Object.keys(n)) { if (k === 'loc') continue; const v = n[k]; if (Array.isArray(v)) v.forEach(f); else if (v && typeof v.type === 'string') f(v); } })(ast);
+      return found;
+    }
+    return false;
+  }
+  function computedRule(n) {
+    const text = src.slice(n.start, n.end);
+    const explicit = APPROVED_COMPUTED_EXPLICIT.find((e) => e.file === file && e.text === text);
+    if (n.object.type === 'Identifier') { const b = identBinding.get(n.object); if (b && b.cap) { viol('K1', n, `computed access on the capability "${n.object.name}" is refused`); return; } if (!b) { viol('K1', n, 'computed access on a free identifier is refused'); return; } }
+    if (n.object.type === 'MemberExpression' && n.object.object.type === 'Identifier' && n.object.object.name === 'process' && !identBinding.get(n.object.object)) { viol('K1', n, 'computed access on a value reached from process is refused'); return; }
+    if (explicit) { approvedComputedSeen.set(explicit, (approvedComputedSeen.get(explicit) || 0) + 1); inv.computed.push({ file, line: n.loc.start.line, text, class: 'explicit', reason: explicit.reason }); return; }
+    if (keyOriginOk(n.property)) { inv.computed.push({ file, line: n.loc.start.line, text, class: 'bounded-key' }); return; }
+    viol('K1', n, `computed access ${text.slice(0, 60)} has a key of unproven origin`);
+  }
+  generic(ast);
+  for (const e of APPROVED_COMPUTED_EXPLICIT) if (e.file === file && (approvedComputedSeen.get(e) || 0) > e.count) viol('D1', null, `explicit computed site "${e.text}" occurs more than ${e.count} time(s)`);
+
+  // ---------- exact-count of required top-level shape: the file must contain its own module.exports (or be pinned) ----------
+  return { ok: V.length === 0, violations: V, inventory: inv };
+}
+
+module.exports = { analyze, loadParser, PINNED_PARSER, APPROVED_EXEC, APPROVED_REQUIRES, APPROVED_COMPUTED_EXPLICIT, ALLOWED_NODE_TYPES, BLOCKED_NAMES, SAFE_NAMESPACES, SAFE_CALLABLES, MODULE_MEMBERS, SDK_LOADER_PATTERNS };

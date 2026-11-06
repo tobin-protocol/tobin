@@ -1,0 +1,4 @@
+// category 12: default parameter returning the capability
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: C1)
+function h4(f = execFileSync) { return f; }

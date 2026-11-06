@@ -1,0 +1,4 @@
+// category 3: destructured spawn
+// applied as: the real dpapi-key.cjs followed by this snippet
+// expected: refused (one of: R1|D1)
+const { spawn } = require('child_process');

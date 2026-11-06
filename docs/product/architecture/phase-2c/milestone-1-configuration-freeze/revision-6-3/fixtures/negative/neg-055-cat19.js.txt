@@ -1,0 +1,4 @@
+// category 19: Function call
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: G1)
+Function('return 1')();

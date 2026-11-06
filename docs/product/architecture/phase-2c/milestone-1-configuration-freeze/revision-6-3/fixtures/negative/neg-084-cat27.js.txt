@@ -1,0 +1,4 @@
+// category 27: shadowing process
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: S1)
+function f4(process) { return process.env; }

@@ -1,0 +1,9 @@
+# SHA-256 of the milestone-1 evidence files (SHA256SUMS.txt itself excluded). Computed 2026-11-04.
+2930ba11f7da2a3f19f421c145643df735198f702a6a78a4c77a7fa69c8d4abe  PHASE-2C-MILESTONE-1-CONFIGURATION-REVIEW.md
+2834b3ef67c5c76d01333ef37dc537f9f404f9eb399246b65dcdaf08479c9893  baseline-hash-B0.sha256
+ccea8b5b94bf3358f295ec8dd85435f34505714ef927764e5f58c557c567aa92  baseline-manifest-B0.txt
+c6988fb0d15f77738227dcfb76426bfc81e421a05656b0d251eae46b3d04a362  compute-baseline-hash.cjs.txt
+a7112a1d2209970a496e24a408c8c56ffe3bba80cb86a44a2a881b4d16c87466  compute-baseline-hash.test.cjs.txt
+160b42b2776b30f4987e0195b03e06c5b3b173bde800e7117e9a3db30200cb48  config-inventory.cjs.txt
+4de5e424b975a31424819c4e77247575a767d02a2a64b5b04d256e4601e9b2c4  configuration-inventory.json
+7b5c510cf56c09941263f92407bfd9286c2cfff913284df6948199e0b3e622c7  reproduce-in-powershell.ps1.txt

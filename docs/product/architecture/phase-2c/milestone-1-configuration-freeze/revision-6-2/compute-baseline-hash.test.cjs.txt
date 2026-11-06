@@ -1,0 +1,413 @@
+'use strict';
+// Self-tests of the hash-only baseline tool (Revision 6), on temporary copies of the signer files. No key, no network, no signing.
+// The PowerShell parity tests start powershell.exe locally to run reproduce-in-powershell.ps1 (offline, reads files only).
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('fs'); const os = require('os'); const path = require('path');
+const { spawnSync } = require('child_process');
+const { build, CLOSURE, analyzeSource, discoverClosure } = require('./compute-baseline-hash.cjs');
+
+const SIGNER = path.resolve(process.env.TOBIN_SIGNER_DIR || path.join(__dirname, '..', 'tst-signer'));
+const SDK = path.resolve(process.env.TOBIN_SDK_PACKAGE || path.join(__dirname, '..', 'pk', 'x-stellar-stellar-sdk-17.4.0', 'package'));
+const TOOL = path.join(__dirname, 'compute-baseline-hash.cjs');
+const PS1 = path.join(__dirname, 'reproduce-in-powershell.ps1');
+const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tst-baseline-')); test.after(() => fs.rmSync(root, { recursive: true, force: true }));
+let n = 0;
+const copy = () => { const d = path.join(root, 'c' + n++); fs.mkdirSync(d); for (const f of CLOSURE) fs.copyFileSync(path.join(SIGNER, f), path.join(d, f)); return d; };
+const run = (args) => spawnSync(process.execPath, [TOOL, ...args], { encoding: 'utf8' });
+const ps = (args) => spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-File', PS1, ...args], { encoding: 'utf8' });
+const base = build({ signerDir: SIGNER, sdkPackage: SDK }).hash;
+const edit = (dir, file, fn) => fs.writeFileSync(path.join(dir, file), fn(fs.readFileSync(path.join(dir, file), 'utf8')));
+const psTest = (name, fn) => test(name, { skip: !!process.env.TOBIN_SKIP_PS }, fn); // TOBIN_SKIP_PS is used ONLY by the mutation run of policy mutants
+const refused = (dir, re) => assert.throws(() => build({ signerDir: dir, sdkPackage: SDK }), re);
+
+test('the hash is deterministic and equals the hash of a copy of the same bytes', () => {
+  assert.equal(build({ signerDir: SIGNER, sdkPackage: SDK }).hash, base);
+  assert.equal(build({ signerDir: copy(), sdkPackage: SDK }).hash, base);
+});
+
+test('changing a single byte of any hashed file changes the hash', () => {
+  for (const f of CLOSURE) { const d = copy(); fs.appendFileSync(path.join(d, f), ' '); assert.notEqual(build({ signerDir: d, sdkPackage: SDK }).hash, base, f); }
+});
+
+// ---- Correction A: pinned.cjs is hashed ----
+test('pinned.cjs is part of the loaded set, of the hashed set and of the manifest', () => {
+  const r = build({ signerDir: SIGNER, sdkPackage: SDK });
+  assert.ok(r.runtimeLoaded.includes('pinned.cjs') && r.hashed.includes('pinned.cjs') && CLOSURE.includes('pinned.cjs'));
+  assert.deepEqual(r.runtimeLoaded, r.hashed);
+  assert.match(r.manifest, /^[0-9a-f]{64}  file:pinned\.cjs$/m);
+  assert.ok(!r.notHashed.includes('pinned.cjs'));
+});
+
+test('pinned.cjs: unchanged bytes give a deterministic hash; a one-byte change, a missing file and a malformed file are all refused or change B0', () => {
+  const d = copy(); assert.equal(build({ signerDir: d, sdkPackage: SDK }).hash, base);
+  fs.appendFileSync(path.join(d, 'pinned.cjs'), ' '); assert.notEqual(build({ signerDir: d, sdkPackage: SDK }).hash, base);
+  const d2 = copy(); edit(d2, 'pinned.cjs', (s) => s.replace('PINNED_CONFIG_SHA256: null', 'PINNED_CONFIG_SHA256: "' + 'ab'.repeat(32) + '"'));
+  const changed = build({ signerDir: d2, sdkPackage: SDK }).hash; assert.notEqual(changed, base);
+  const miss = copy(); fs.unlinkSync(path.join(miss, 'pinned.cjs')); refused(miss, /declared dependency pinned\.cjs is missing/);
+  const crlf = copy(); edit(crlf, 'pinned.cjs', (s) => s.replace(/\n/g, '\r\n')); refused(crlf, /CR byte/);
+  const bom = copy(); fs.writeFileSync(path.join(bom, 'pinned.cjs'), Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), fs.readFileSync(path.join(bom, 'pinned.cjs'))])); refused(bom, /BOM/);
+  const bad = copy(); fs.appendFileSync(path.join(bad, 'pinned.cjs'), Buffer.from([0xff, 0xfe, 0x41])); refused(bad, /not valid UTF-8/);
+});
+
+test('the expected hash is never stored in the hashed files: pinned.cjs holds only the config pin and the tool contains no 64-hex expected value', () => {
+  assert.match(fs.readFileSync(path.join(SIGNER, 'pinned.cjs'), 'utf8'), /PINNED_CONFIG_SHA256: (null|"[0-9a-f]{64}")/);
+  assert.ok(!/[0-9a-f]{64}/.test(fs.readFileSync(TOOL, 'utf8')), 'no hash literal in the tool');
+  for (const f of CLOSURE) assert.ok(!fs.readFileSync(path.join(SIGNER, f), 'utf8').includes(base), `${f} must not embed the baseline hash`);
+});
+
+test('CR bytes, a BOM and invalid UTF-8 are refused (so the hash cannot depend on line-ending settings)', () => {
+  const crlf = copy(); edit(crlf, 'refusal.cjs', (s) => s.replace(/\n/g, '\r\n')); refused(crlf, /CR byte/);
+  const bom = copy(); fs.writeFileSync(path.join(bom, 'refusal.cjs'), Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), fs.readFileSync(path.join(bom, 'refusal.cjs'))])); refused(bom, /BOM/);
+  const bad = copy(); fs.appendFileSync(path.join(bad, 'refusal.cjs'), Buffer.from([0xff, 0xfe, 0x41])); refused(bad, /not valid UTF-8/);
+});
+
+// ---- Correction B: loading policy ----
+test('all currently approved static dependencies pass the loading policy, with the expected graph', () => {
+  const g = discoverClosure(SIGNER);
+  assert.deepEqual(g.files, [...CLOSURE].sort());
+  assert.deepEqual(g.analysis['tst-signer.cjs'].relative, ['dpapi-key.cjs', 'pinned.cjs', 'sdk-loader.cjs', 'state-store.cjs', 'tst-signer-core.cjs']);
+  assert.deepEqual(g.analysis['tst-signer-core.cjs'].relative, ['authorization.cjs', 'refusal.cjs']);
+  assert.deepEqual(g.analysis['pinned.cjs'].relative, []);
+});
+
+const inject = (code) => { const d = copy(); fs.appendFileSync(path.join(d, 'tst-signer-core.cjs'), '\n' + code + '\n'); return d; };
+const REJECT = [
+  ['require(moduleName)', 'const moduleName = "x"; require(moduleName);', /require is not exactly/],
+  ["require('./' + moduleName)", "const m = 'a'; require('./' + m);", /require is not exactly/],
+  ['require(`./${m}`)', 'const m = "a"; require(`./${m}`);', /require is not exactly/],
+  ['aliased require', 'const r = require; r("./pinned.cjs");', /require is not exactly/],
+  ['require.resolve / member require', 'module.require("./x.cjs");', /member named require|module used/],
+  ['import(moduleName)', 'const m = "x"; import(m);', /forbidden identifier "import"/],
+  ["import('./' + moduleName)", "const m = 'a'; import('./' + m);", /forbidden identifier "import"/],
+  ["import('./literal.mjs')", "import('./literal.mjs');", /forbidden identifier "import"/],
+  ['eval', 'eval("1");', /forbidden identifier "eval"/],
+  ['new Function', 'new Function("return 1")();', /forbidden identifier "Function"/],
+  ['globalThis.eval-style access', 'global.process;', /forbidden identifier "global"/],
+  ['.constructor gadget', '(() => {}).constructor("return 1")();', /constructor accessed as a member/],
+  ['string-built dangerous key', "this['ev' + 'al'];", /computed member access/],
+  ['dangerous name as string', "const k = 'eval';", /text "eval" equals a forbidden or sensitive name/],
+  ['filesystem read of an unlisted source file (extra readFileSync)', "const t = require('fs').readFileSync('./other.cjs', 'utf8');", /not approved to require built-in "fs"|"readFileSync" occurs/],
+  ['vm outside the loader', "require('vm').runInThisContext('1');", /not approved to require built-in "vm"/],
+  ['unapproved built-in', "require('http');", /not an approved built-in/],
+  ['node_modules package', "require('left-pad');", /not an approved built-in/],
+  ['literal relative dependency outside the closure', "require('./extra.cjs');", /not in the approved closure/],
+  ['parent-directory require', "require('../evil.cjs');", /not of the form/],
+  ['sub-directory require', "require('./sub/evil.cjs');", /not of the form/],
+  ['process member outside the list', 'process.binding("fs");', /forbidden identifier "binding"|process member/],
+  ['unlexable source (unterminated string)', 'const s = "abc', /unterminated string literal/],
+  ['unlexable source (unbalanced brackets)', 'function f( {', /unbalanced brackets/],
+  ['non-ASCII identifier / homoglyph', 'const еval = 1;', /non-ASCII/],
+  ['unicode-escaped identifier', 'const x = \\u0065val;', /backslash outside a literal/],
+];
+for (const [name, code, re] of REJECT) test(`loading policy rejects: ${name}`, () => refused(inject(code), re));
+
+test('loading policy: a filesystem read in a file where none is approved is rejected, and one extra read in an approved file is rejected', () => {
+  const a = copy(); fs.appendFileSync(path.join(a, 'refusal.cjs'), "\nrequire('fs').readFileSync('./authorization.cjs');\n"); refused(a, /not approved to require built-in "fs"/);
+  const b = copy(); fs.appendFileSync(path.join(b, 'tst-signer.cjs'), "\nfs.readFileSync(path.join(__dirname, 'x.cjs'), 'utf8');\n"); refused(b, /"readFileSync" occurs 2 time\(s\); 1 approved/);
+});
+
+test('loading policy: a new relative dependency is rejected while it is also absent from the approved list, and a missing declared dependency is rejected', () => {
+  const extra = copy(); fs.writeFileSync(path.join(extra, 'extra.cjs'), '// new\n'); fs.appendFileSync(path.join(extra, 'tst-signer.cjs'), "\nrequire('./extra.cjs');\n");
+  refused(extra, /not in the approved closure/);
+  const missing = copy(); fs.unlinkSync(path.join(missing, 'state-store.cjs')); refused(missing, /declared dependency state-store\.cjs is missing/);
+  const unused = copy(); edit(unused, 'tst-signer.cjs', (s) => s.replace(/^const \{ createStore \} = require\('\.\/state-store\.cjs'\);$/m, ''));
+  refused(unused, /runtime closure differs|unbalanced|not in/);
+});
+
+test('loading policy: comments and string text that merely mention forbidden words do not trigger it, but real code does', () => {
+  assert.doesNotThrow(() => analyzeSource('refusal.cjs', "'use strict';\n// eval import( require(x) new Function\n/* eval( */ const s = 'import eval Function'; const t = `a ${1} b`;\n", CLOSURE.slice()));
+  assert.throws(() => analyzeSource('refusal.cjs', 'const t = `${eval("1")}`;', CLOSURE.slice()), /forbidden identifier "eval"/);
+  assert.doesNotThrow(() => analyzeSource('refusal.cjs', "'use strict';\nconst r = /a[/]b\\//g; const q = 4 / 2 / 1; module.exports = { r, q };", CLOSURE.slice()));
+});
+
+test('loading policy output is deterministic (same sources, same analysis, any run)', () => {
+  assert.deepEqual(JSON.stringify(discoverClosure(SIGNER)), JSON.stringify(discoverClosure(copy())));
+});
+
+test('a new module in the runtime closure, or a missing one, is refused until the approved list is changed', () => {
+  const extra = copy(); fs.writeFileSync(path.join(extra, 'extra.cjs'), '// new\n'); fs.appendFileSync(path.join(extra, 'tst-signer.cjs'), "\nrequire('./extra.cjs');\n");
+  refused(extra, /approved closure|runtime closure differs/);
+  const missing = copy(); fs.unlinkSync(path.join(missing, 'state-store.cjs')); refused(missing, /missing/);
+});
+
+test('files outside the closure are listed as not hashed and never change the hash', () => {
+  const d = copy(); fs.writeFileSync(path.join(d, 'make-deployment-config.cjs'), '// not loaded\n'); fs.writeFileSync(path.join(d, 'notes.txt'), 'x\n');
+  const r = build({ signerDir: d, sdkPackage: SDK }); assert.equal(r.hash, base); assert.deepEqual(r.notHashed, ['make-deployment-config.cjs', 'notes.txt']);
+});
+
+test('the deployment configuration is part of the full pin: absent and present produce different hashes, and any change to the config changes the hash', () => {
+  const cfg = path.join(root, 'deployment-config.json'); fs.writeFileSync(cfg, '{"example":"throwaway fixture, not a real deployment identity"}\n');
+  const p1 = build({ signerDir: SIGNER, configFile: cfg, sdkPackage: SDK }); assert.notEqual(p1.hash, base); assert.equal(p1.variant, 'FULL PIN (P)');
+  fs.appendFileSync(cfg, ' '); assert.notEqual(build({ signerDir: SIGNER, configFile: cfg, sdkPackage: SDK }).hash, p1.hash);
+  fs.writeFileSync(cfg, '{"a":1}\r\n'); assert.throws(() => build({ signerDir: SIGNER, configFile: cfg, sdkPackage: SDK }), /CR byte/);
+  assert.throws(() => build({ signerDir: SIGNER, configFile: path.join(root, 'nonexistent.json'), sdkPackage: SDK }));
+});
+
+test('the SDK identity is part of the hash: a changed bundle changes it', () => {
+  const pk = path.join(root, 'sdk'); fs.mkdirSync(path.join(pk, 'dist'), { recursive: true });
+  fs.copyFileSync(path.join(SDK, 'package.json'), path.join(pk, 'package.json')); fs.copyFileSync(path.join(SDK, 'dist', 'stellar-sdk.js'), path.join(pk, 'dist', 'stellar-sdk.js'));
+  assert.equal(build({ signerDir: SIGNER, sdkPackage: pk }).hash, base);
+  fs.appendFileSync(path.join(pk, 'dist', 'stellar-sdk.js'), ' '); assert.notEqual(build({ signerDir: SIGNER, sdkPackage: pk }).hash, base);
+});
+
+test('--verify fails closed: a mismatch exits 1, a malformed expected value exits 3, a missing directory exits 2, only the exact hash exits 0', () => {
+  const sa = ['--signer-dir', SIGNER, '--sdk-package', SDK];
+  const ok = run([...sa, '--verify', base]); assert.equal(ok.status, 0); assert.match(ok.stdout, /VERIFY: MATCH/);
+  const flip = base.slice(0, -1) + (base.endsWith('0') ? '1' : '0'); const bad = run([...sa, '--verify', flip]); assert.equal(bad.status, 1); assert.match(bad.stdout, /VERIFY: MISMATCH/);
+  for (const v of ['', 'abc', base.toUpperCase(), base + '0', ' ' + base, 'g'.repeat(64)]) { const r = run([...sa, '--verify', v]); assert.equal(r.status, 3, JSON.stringify(v)); assert.match(r.stdout, /REFUSED/); }
+  assert.equal(run([]).status, 2); assert.equal(run(['--signer-dir', path.join(root, 'nope')]).status, 2);
+  assert.notEqual(run([...sa, '--verify']).status, 0);
+});
+
+test('the tool has no capability beyond reading and hashing files', () => {
+  const { lex } = require('./compute-baseline-hash.cjs'); const src = fs.readFileSync(TOOL, 'utf8');
+  const toks = lex('tool', src); const ids = new Set(toks.filter((t, k) => t.t === 'id' && !(toks[k + 1] && toks[k + 1].v === ':')).map((t) => t.v)); // object keys of the policy tables are data, not calls
+  for (const bad of ['eval', 'Function', 'fetch', 'spawn', 'spawnSync', 'exec', 'execSync', 'execFile', 'execFileSync', 'fork', 'XMLHttpRequest', 'WebSocket', 'import', 'createRequire']) assert.ok(!ids.has(bad), 'no process, network or dynamic-code API: ' + bad);
+  const reqs = []; toks.forEach((t, k) => { if (t.t === 'id' && t.v === 'require' && toks[k + 2] && toks[k + 2].t === 'str') reqs.push(toks[k + 2].v); });
+  assert.deepEqual(reqs.sort(), ['crypto', 'fs', 'path']);
+});
+
+// ---- Correction C: PowerShell parity ----
+const psArgs = (d, extra = []) => ['-SignerDir', d, '-SdkPackage', SDK, ...extra];
+const nodeArgs = (d, extra = []) => ['--signer-dir', d, '--sdk-package', SDK, ...extra];
+const hashOf = (out) => /(?:baseline sha256:) ([0-9a-f]{64})/.exec(out)[1];
+
+psTest('PowerShell parity: identical manifest bytes and hash, config absent and present', () => {
+  const mn = path.join(root, 'm-node.txt'), mp = path.join(root, 'm-ps.txt');
+  const a = run(nodeArgs(SIGNER, ['--manifest-out', mn])); const b = ps(psArgs(SIGNER, ['-ManifestOut', mp]));
+  assert.equal(a.status, 0); assert.equal(b.status, 0, b.stderr);
+  assert.ok(fs.readFileSync(mn).equals(fs.readFileSync(mp)), 'manifest bytes equal'); assert.equal(hashOf(a.stdout), hashOf(b.stdout)); assert.equal(hashOf(a.stdout), base);
+  const cfg = path.join(root, 'parity-config.json'); fs.writeFileSync(cfg, '{"fixture":"not a real identity"}\n');
+  const mn2 = path.join(root, 'm2-node.txt'), mp2 = path.join(root, 'm2-ps.txt');
+  const a2 = run(nodeArgs(SIGNER, ['--config', cfg, '--manifest-out', mn2])); const b2 = ps(psArgs(SIGNER, ['-Config', cfg, '-ManifestOut', mp2]));
+  assert.equal(a2.status, 0); assert.equal(b2.status, 0, b2.stderr);
+  assert.ok(fs.readFileSync(mn2).equals(fs.readFileSync(mp2))); assert.notEqual(hashOf(a2.stdout), base);
+  assert.match(fs.readFileSync(mn, 'utf8'), /^ABSENT  config:deployment-config\.json$/m); assert.match(fs.readFileSync(mp, 'utf8'), /^ABSENT  config:deployment-config\.json$/m);
+});
+
+psTest('PowerShell parity: both reject CR, BOM and invalid UTF-8 in a closure file (including pinned.cjs) and in the configuration', () => {
+  const cases = [['CR', (b) => Buffer.from(b.toString('utf8').replace(/\n/g, '\r\n')), /CR byte/], ['BOM', (b) => Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), b]), /BOM/], ['UTF-8', (b) => Buffer.concat([b, Buffer.from([0xff, 0xfe, 0x41])]), /not valid UTF-8/]];
+  for (const file of ['pinned.cjs', 'refusal.cjs']) for (const [name, fn, re] of cases) {
+    const d = copy(); fs.writeFileSync(path.join(d, file), fn(fs.readFileSync(path.join(d, file))));
+    const a = run(nodeArgs(d)); const b = ps(psArgs(d));
+    assert.equal(a.status, 2, `node ${name} ${file}`); assert.match(a.stderr, re); assert.equal(b.status, 2, `ps ${name} ${file}: ${b.stdout}`); assert.match(b.stderr, /CR byte|BOM|not valid UTF-8/);
+  }
+  for (const [name, fn] of cases) {
+    const cfg = path.join(root, `bad-${name}.json`); fs.writeFileSync(cfg, fn(Buffer.from('{"a":1}\n')));
+    assert.equal(run(nodeArgs(SIGNER, ['--config', cfg])).status, 2, `node config ${name}`); assert.equal(ps(psArgs(SIGNER, ['-Config', cfg])).status, 2, `ps config ${name}`);
+  }
+});
+
+psTest('PowerShell parity: changing pinned.cjs changes the hash in both; a missing pinned.cjs fails in both; -Verify behaves like --verify', () => {
+  const d = copy(); edit(d, 'pinned.cjs', (s) => s.replace('PINNED_CONFIG_SHA256: null', 'PINNED_CONFIG_SHA256: "' + 'cd'.repeat(32) + '"'));
+  const a = run(nodeArgs(d)); const b = ps(psArgs(d)); assert.equal(a.status, 0); assert.equal(b.status, 0, b.stderr);
+  assert.equal(hashOf(a.stdout), hashOf(b.stdout)); assert.notEqual(hashOf(a.stdout), base);
+  const m = copy(); fs.unlinkSync(path.join(m, 'pinned.cjs')); assert.equal(run(nodeArgs(m)).status, 2); assert.equal(ps(psArgs(m)).status, 2);
+  assert.equal(ps(psArgs(SIGNER, ['-Verify', base])).status, 0); assert.equal(ps(psArgs(SIGNER, ['-Verify', base.slice(0, -1) + (base.endsWith('0') ? '1' : '0')])).status, 1);
+  for (const v of ['abc', base.toUpperCase(), '']) assert.equal(ps(psArgs(SIGNER, ['-Verify', v])).status, 3, JSON.stringify(v));
+});
+
+test('PowerShell script states its limits and does not claim closure or policy checking', () => {
+  const src = fs.readFileSync(PS1, 'utf8');
+  assert.match(src, /NON-AUTHORITATIVE/); assert.match(src, /does NOT discover the require graph and does NOT apply the loading policy/);
+});
+
+// ====================== Revision 6.1: computed property access and sensitive roots ======================
+const { ROOT_PATTERNS } = require('./compute-baseline-hash.cjs');
+const injectInto = (file, code) => { const d = copy(); fs.appendFileSync(path.join(d, file), '\n' + code + '\n'); return d; };
+const FAIL = /loading policy/;
+const policyRefuses = (file, code, re = FAIL) => refused(injectInto(file, code), re);
+
+// the three expressions the independent review showed to be accepted, plus the variants asked for in the task
+const BYPASS = [
+  ["globalThis['require']('./unapproved-module');", 'review example 1'],
+  ["globalThis['process']['getBuiltinModule']('fs');", 'review example 2'],
+  ["globalThis['process']['getBuiltinModule']('vm')['runInThisContext']('1');", 'review example 3'],
+  ["globalThis.require('./unapproved-module');", 'dot access'],
+  ["globalThis[\"require\"]('./unapproved-module');", 'double-quoted key'],
+  ["globalThis[`require`]('./unapproved-module');", 'template key'],
+  ["process['getBuiltinModule']('fs');", 'process computed'],
+  ["process[\"getBuiltinModule\"]('vm');", 'process computed, double quotes'],
+  ["const p = globalThis['process']; p['getBuiltinModule']('vm');", 'alias of globalThis.process'],
+  ["const loader = globalThis['require']; loader('./unapproved-module');", 'alias of a loader'],
+  ['const { process: p } = globalThis;', 'destructuring from globalThis'],
+  ["const loaderName = 'require'; globalThis[loaderName]('./unapproved-module');", 'variable key'],
+  ["globalThis?.['require']?.('./unapproved-module');", 'optional chaining, computed'],
+  ["globalThis?.process?.getBuiltinModule?.('fs');", 'optional chaining, dot'],
+  ["(globalThis)['require']('./unapproved-module');", 'parenthesized root'],
+  ["((globalThis))[('req' + 'uire')]('./unapproved-module');", 'nested parentheses, concatenated key'],
+  ["globalThis['req' + 'uire']('./unapproved-module');", 'concatenated key'],
+  ["globalThis[`req${'uire'}`]('./unapproved-module');", 'template with substitution'],
+  [String.raw`globalThis['\u0072equire']('./unapproved-module');`, 'escaped property name in a string'],
+  [String.raw`globalThis.\u0072equire('./unapproved-module');`, 'escaped identifier'],
+  [String.raw`globalThis['\x72equire']('./unapproved-module');`, 'hex escape'],
+  ["const g = globalThis; g.process.getBuiltinModule('fs');", 'alias of globalThis'],
+  ['function f(x) { return x; } f(globalThis);', 'passed as an argument'],
+  ['function f(g = globalThis) { return g; }', 'default parameter'],
+  ["Reflect.get(globalThis, 'process');", 'Reflect.get'],
+  ["Object.getOwnPropertyDescriptor(globalThis, 'process');", 'descriptor access'],
+  ["Object.getPrototypeOf(async function () {}).constructor('return 1')();", 'prototype/constructor chain'],
+  ["({}).constructor.constructor('return process')();", 'constructor chain'],
+  ['[].constructor;', 'array constructor'],
+  ['({}).__proto__;', '__proto__'],
+  ['Object.prototype;', 'prototype'],
+  ["process.getBuiltinModule('vm');", 'process dot getBuiltinModule'],
+  ["const v = process; v.getBuiltinModule('fs');", 'alias of process'],
+  ['const { getBuiltinModule } = process;', 'destructured getBuiltinModule'],
+  ['const { env } = process;', 'destructuring from process'],
+  ["process?.['getBuiltinModule']?.('fs');", 'process optional computed'],
+  ["module['require']('./unapproved-module');", 'module computed'],
+  ["module.require('./unapproved-module');", 'module.require'],
+  ['module.constructor._load("fs");', 'module constructor'],
+  ["require.main.require('./unapproved-module');", 'require.main.require'],
+  ["const r = require; r('./unapproved-module');", 'alias of require'],
+  ["const o = {}; o['k'];", 'string-keyed computed access on any object'],
+  ["const o = {}; o?.['k'];", 'optional-chained string key on any object'],
+  ['const o = { getBuiltinModule: 1 };', 'forbidden name even as a property of another object'],
+  ['const m = module; m.x;', 'alias of module'],
+  ['module.parent;', 'module.parent'],
+  ['module.children;', 'module.children'],
+  ['const o = {}; const a = 1; const b = 2; o[a + b];', 'identifier + identifier key'],
+  ['const o = {}; o[Math.floor(1)];', 'call in key'],
+  ['const o = []; o[[1][0]];', 'nested bracket in key'],
+  ['const o = {}; o[`k`];', 'template key on any object'],
+  ["setTimeout(globalThis['eval'], 0);", 'eval via computed key'],
+  ["this.constructor('return 1')();", 'this.constructor'],
+];
+for (const [code, label] of BYPASS) {
+  test(`6.1 rejects in a file where globalThis is NOT approved: ${label}: ${code.slice(0, 60)}`, () => policyRefuses('tst-signer-core.cjs', code));
+  test(`6.1 rejects in sdk-loader.cjs (where approved globalThis patterns exist): ${label}: ${code.slice(0, 60)}`, () => policyRefuses('sdk-loader.cjs', code));
+}
+
+test('6.1 sdk-loader.cjs: vm uses other than the two approved patterns are rejected', () => {
+  for (const code of ["vm['runInThisContext']('1');", "vm.runInThisContext('1');", 'const v2 = vm; v2.runInThisContext("1");', 'const { runInThisContext } = vm;', "vm.runInNewContext('1');", "vm.compileFunction('1');", "vm.createContext({});", "new vm.Script('1');"])
+    policyRefuses('sdk-loader.cjs', code);
+  assert.throws(() => analyzeSource('refusal.cjs', "'use strict';\nconst vm = 1;\n", CLOSURE.slice()), FAIL);
+});
+
+test('6.1 sdk-loader.cjs: every approved pattern is exact: any edit of its property, shape or count is rejected', () => {
+  const edits = [
+    ['globalThis.self = globalThis;', 'globalThis.selfX = globalThis;'], ['globalThis.self = globalThis;', "globalThis['self'] = globalThis;"],
+    ['globalThis.self = globalThis;', 'globalThis.self = globalThis, globalThis.x = 1;'],
+    ['if (!globalThis.StellarSdk)', 'if (!globalThis.Buffer)'], ['return globalThis.StellarSdk;', 'return globalThis.process;'],
+    ['return globalThis.StellarSdk;', "return globalThis['StellarSdk'];"], ['return globalThis.StellarSdk;', 'return (globalThis.StellarSdk);'],
+    ['vm.runInThisContext(bundle.toString(\'utf8\'));', "vm['runInThisContext'](bundle.toString('utf8'));"], ['vm.runInThisContext(', 'vm.runInNewContext('],
+    ["const vm = require('vm');", "const vm = require('vm'), v2 = require('vm');"],
+  ];
+  for (const [from, to] of edits) { const d = copy(); const s = fs.readFileSync(path.join(d, 'sdk-loader.cjs'), 'utf8'); assert.ok(s.includes(from), from); fs.writeFileSync(path.join(d, 'sdk-loader.cjs'), s.replace(from, to)); refused(d, FAIL); }
+  const dup = copy(); edit(dup, 'sdk-loader.cjs', (s) => s.replace('return globalThis.StellarSdk;', 'return globalThis.StellarSdk;\n  return globalThis.StellarSdk;'));
+  refused(dup, /approved pattern G3 occurs 2 times/);
+});
+
+test('6.1 a new globalThis occurrence in any other runtime file is rejected until reviewed and allowlisted', () => {
+  for (const f of CLOSURE.filter((x) => x !== 'sdk-loader.cjs')) policyRefuses(f, 'const gt = globalThis.StellarSdk;', /"globalThis" used outside an approved exact pattern/);
+});
+
+test('6.1 files must begin with use strict; U+2028/U+2029, NUL and escapes are refused; ambiguous slash is refused', () => {
+  const strict = (code) => analyzeSource('refusal.cjs', code, CLOSURE.slice());
+  assert.throws(() => strict('const a = 1;\n'), /use strict/);
+  assert.throws(() => strict("'use strict';\n// comment " + String.fromCharCode(0x2028) + ' globalThis.eval(1)\n'), /U\+2028/);
+  assert.throws(() => strict("'use strict';\nconst a = 1;\u0000\n"), /NUL/);
+  assert.throws(() => strict("'use strict';\nconst a = {} / 2; globalThis['x']; /1/;\n"), /ambiguous "\/" after "}"/);
+  assert.throws(() => strict("'use strict';\nlet i = 1; i++ / 2; globalThis['x']; /1/;\n"), /ambiguous "\/" after "\+\+"/);
+  assert.throws(() => strict("'use strict';\nconst s = '\\u0065val';\n"), /escape sequence/);
+  assert.throws(() => strict("'use strict';\nconst s = `\\x65val`;\n"), /escape sequence/);
+  assert.throws(() => strict("'use strict';\nif (a) /[//]/.test(b); globalThis['x'];\n"), FAIL);
+  assert.doesNotThrow(() => strict("'use strict';\nconst a = (1 + 2) / 3; const b = [1, 2][0]; const c = 'a\\n'; if (a) /x/.test(c);\nmodule.exports = { a, b };\n"));
+});
+
+test('6.1 positive: the eight original runtime files pass individually, with exactly the approved sensitive-root uses', () => {
+  const g = discoverClosure(SIGNER); const roots = [];
+  for (const f of CLOSURE) {
+    const r = analyzeSource(f, fs.readFileSync(path.join(SIGNER, f), 'utf8'), CLOSURE.slice());
+    assert.deepEqual(r.uses, require('./compute-baseline-hash.cjs').APPROVED_USES[f] || {}, `${f}: watched API uses equal the reviewed maxima`);
+    for (const x of r.roots) roots.push(`${f}:${x.line}:${x.root}:${x.pattern}`);
+    for (const c of r.computed) assert.match(c.key, /^(\d+|[A-Za-z_$][\w$]*( [-*\/%] [\w$]+| \+ \d+)*)$/, `${f}:${c.line}: computed key must be a number, an identifier or simple arithmetic`);
+  }
+  assert.deepEqual(roots.map((x) => x.replace(/:\d+:/, ':')).sort(), ['sdk-loader.cjs:globalThis:G1', 'sdk-loader.cjs:globalThis:G1', 'sdk-loader.cjs:globalThis:G2', 'sdk-loader.cjs:globalThis:G3', 'sdk-loader.cjs:vm:V1', 'sdk-loader.cjs:vm:V2']);
+  assert.equal(roots.length, 6); assert.ok(roots.every((x) => !x.endsWith(':null')) && roots.every((x) => x.startsWith('sdk-loader.cjs')));
+  assert.deepEqual(Object.keys(ROOT_PATTERNS), ['sdk-loader.cjs']); assert.equal(ROOT_PATTERNS['sdk-loader.cjs'].length, 5);
+  assert.deepEqual(g.files, [...CLOSURE].sort());
+});
+
+test('6.1 positive: the policy output and the baseline hash are deterministic and unchanged by the policy strengthening', () => {
+  assert.equal(JSON.stringify(discoverClosure(SIGNER)), JSON.stringify(discoverClosure(copy())));
+  assert.equal(base, '9b594c5407b7934274f9c41a47f2dfc13a781f4f7b0cc0962a8ab57a52bacbb7', 'the hashed inputs did not change, so B0 is the Revision 6 candidate value');
+});
+
+// ====================== Revision 6.2: self alias, sensitive properties, computed dispatch, environment-derived keys ======================
+const R62 = [
+  // the exact bypass of the independent review (as one block, then split) and its variants
+  ["const k = process.env.TOBIN_METHOD;\nconst m = self.process[k]('vm');\nconst r = process.env.TOBIN_RUN;\nm[r]('1 + 1');", 'review bypass, exact'],
+  ["const k = process.env.TOBIN_METHOD; const m = self.process[k]('vm');", 'self.process[k](...)'],
+  ["const m = {}; const r = process.env.TOBIN_RUN; m[r]('1 + 1');", 'env-derived key, computed call'],
+  ["const g = self; const k = process.env.TOBIN_METHOD; g.process[k]('vm');", 'alias of self, env key'],
+  ["const g = globalThis.self; g.process['getBuiltinModule']('vm');", 'globalThis.self alias, literal key'],
+  ["const p = self.process; const k = process.env.TOBIN_METHOD; p[k]('vm');", 'p = self.process; p[k](...)'],
+  ["const get = Reflect.get; const p = self.process; get(p, process.env.TOBIN_METHOD);", 'Reflect.get with env key'],
+  // self
+  ['self.process;', 'self.process'], ["self['process'];", "self['process']"], ['const g = self; g.process;', 'alias then dot'], ["const g = self; g['process'];", 'alias then computed'],
+  ['const { process: p } = self;', 'destructuring from self'], ['function getProcess(x = self) { return x.process; }', 'default parameter self'],
+  ['someFunction(self);', 'self as argument'], ['const holder = { global: self };', 'self stored in object'], ['function f() { return self; }', 'return self'],
+  ['const a = self; const b = a; const c = b; c.process;', 'alias chain of three'], ['let g = 1; g = self;', 'reassignment to self'], ['self = 1;', 'assigning self'],
+  ['const a = [self];', 'self in array'], ['module.exports = self;', 'export self'], ['(() => self)();', 'closure capture of self'], ['self?.process;', 'optional chaining on self'],
+  ['(self).process;', 'parenthesized self'], ['const { self: s } = globalThis;', 'destructure self out of globalThis'], ['globalThis.self.process;', 'globalThis.self.process'],
+  ['globalThis.self = globalThis;', 'a SECOND copy of the approved assignment'], ['window.process;', 'window'], ['frames.process;', 'frames'], ['x.self;', 'self as a property'],
+  ['const o = { self: 1 };', 'self as an object key'], ["'self';", "string 'self'"], ['global.process;', 'global'],
+  // sensitive names as properties, any syntax
+  ['const x = {}; x.process;', 'x.process'], ['const x = {}; x?.process;', 'x?.process'], ['const x = {}; x.vm;', 'x.vm'], ['const x = {}; x.require;', 'x.require'], ['const x = {}; x.globalThis;', 'x.globalThis'],
+  ['const x = {}; x.module;', 'x.module'],
+  // computed dispatch
+  ['const o = {}; const k = 1; o[k]();', 'o[k]()'], ['const o = {}; const k = 1; o[k]`x`;', 'o[k] tagged template'], ['const o = {}; const k = 1; o?.[k]?.();', 'o?.[k]?.()'],
+  ['const o = {}; const k = 1; o[k](1)(2);', 'o[k](1)(2)'], ['process.env[1];', 'computed on process.env'], ['const k = 1; process.stdout[k];', 'computed on process.stdout'],
+  ['const k = 1; process.versions[k];', 'computed on process.versions'],
+  // environment-derived and function-derived keys, parameters, closures, object storage
+  ['function key() { return process.env.K; } const o = {}; o[key()]();', 'function-returned key'], ['function f(o, k) { return o[k](); }', 'parameter used as computed method'],
+  ['const h = { p: process }; h.p;', 'process stored in an object'], ['const f = () => process; f();', 'closure returning process'], ['const a = [process];', 'process in array'],
+  ['const { env } = process;', 'destructuring process'], ['const p = process; p.env;', 'alias of process'], ['function f(x = process) { return x; }', 'process as default parameter'],
+  ['Reflect.get(process, process.env.K);', 'Reflect.get(process, env key)'], ['Object.getOwnPropertyDescriptor(process, process.env.K);', 'descriptor of process with env key'],
+  ['Reflect.apply(process.emitWarning, process, []);', 'Reflect.apply'], ['Object.getPrototypeOf(process);', 'prototype of process'], ['process.constructor;', 'process.constructor'],
+  ['process.__proto__;', 'process.__proto__'], ['new Proxy({}, {});', 'Proxy'],
+  ['const f = function () {}; f.constructor("return 1")();', 'function constructor'], ['process.binding("fs");', 'process.binding'], ['process.mainModule;', 'process.mainModule'],
+  ["const v = require('vm'); v.runInThisContext('1');", 'second vm require'], ['vm.createContext({});', 'vm.createContext'],
+];
+for (const [code, label] of R62) {
+  test(`6.2 rejects (tst-signer-core.cjs): ${label}`, () => policyRefuses('tst-signer-core.cjs', code));
+  test(`6.2 rejects (sdk-loader.cjs, where the five approved patterns live): ${label}`, () => policyRefuses('sdk-loader.cjs', code));
+}
+
+test('6.2 the exact review bypass is refused with the rules that catch it (self alias, property access to process, computed call)', () => {
+  const e = (() => { try { analyzeSource('tst-signer-core.cjs', "'use strict';\nconst k = process.env.TOBIN_METHOD;\nconst m = self.process[k]('vm');\nconst r = process.env.TOBIN_RUN;\nm[r]('1 + 1');\n", CLOSURE.slice()); } catch (x) { return x.message; } })();
+  assert.match(e, /global alias "self"/); assert.match(e, /sensitive name "process" reached as a property/); assert.match(e, /call of a computed member/);
+});
+
+test('6.2 positive: the one approved self assignment (G1) still passes exactly once and nowhere else', () => {
+  const sdk = fs.readFileSync(path.join(SIGNER, 'sdk-loader.cjs'), 'utf8');
+  const r = analyzeSource('sdk-loader.cjs', sdk, CLOSURE.slice()); assert.equal(r.roots.filter((x) => x.pattern === 'G1').length, 2);
+  assert.throws(() => analyzeSource('refusal.cjs', "'use strict';\nglobalThis.self = globalThis;\n", CLOSURE.slice()), FAIL);
+});
+
+test('6.2 positive: harmless computed reads with number or identifier keys still pass; the word self in a comment is not code', () => {
+  const ok = "'use strict';\n// self is only mentioned in this comment\nconst a = [1, 2]; const i = 0; const x = a[i] + a[0];\nconst call = a.map((v) => v + 1);\n";
+  assert.doesNotThrow(() => analyzeSource('refusal.cjs', ok, CLOSURE.slice()));
+});
+
+test('6.2 positive: every one of the eight real runtime files passes the strengthened policy unchanged', () => {
+  for (const f of CLOSURE) assert.doesNotThrow(() => analyzeSource(f, fs.readFileSync(path.join(SIGNER, f), 'utf8'), CLOSURE.slice()), f);
+  assert.equal(build({ signerDir: SIGNER, sdkPackage: SDK }).hash, '9b594c5407b7934274f9c41a47f2dfc13a781f4f7b0cc0962a8ab57a52bacbb7');
+});
+
+test('6.2 a template continuation after a computed access is not mistaken for a tagged template', () => {
+  assert.doesNotThrow(() => analyzeSource('refusal.cjs', "'use strict';\nconst o = [1]; const k = 0;\nconst s = `a ${o[k]} b ${o[k]}`;\n", CLOSURE.slice()));
+});
+
+
+test('6.2 DOCUMENTED RESIDUAL (accepted on purpose, not a claim of safety): a computed read on an ordinary parameter is not refused lexically', () => {
+  assert.doesNotThrow(() => analyzeSource('refusal.cjs', "'use strict';\nfunction f(p, k) { return p[k]; }\nf(process.stdout, process.env.K);\n", CLOSURE.slice()));
+});
+
+test('6.2 a second require of vm bound to another name is refused (found by the first 6.2 mutation run)', () => {
+  policyRefuses('sdk-loader.cjs', "const v2 = require('vm');", /require\('vm'\) outside the approved pattern V1/);
+  policyRefuses('sdk-loader.cjs', "const v3 = require('vm'); v3.runInNewContext('1');", /require\('vm'\) outside/);
+});

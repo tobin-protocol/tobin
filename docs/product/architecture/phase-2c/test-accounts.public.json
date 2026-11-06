@@ -1,0 +1,37 @@
+{
+  "note": "Public addresses of disposable Stellar Testnet accounts generated for Phase 2C wallet validation on 2026-11-03. Public data only. Secret keys are not in this repository. Testnet only; activated and funded by Friendbot on 2026-11-03 (see friendbot-execution-report.md).",
+  "network": "testnet",
+  "networkPassphrase": "Test SDF Network ; September 2015",
+  "accounts": [
+    {
+      "label": "Account A",
+      "role": "Session creator",
+      "address": "GDRHND3Y4FO6TM6ZT2TU27QO2TRNKOIXXWYBC75NW73DCYSTNSMYT5CR",
+      "activated": true
+    },
+    {
+      "label": "Account B",
+      "role": "Session joiner",
+      "address": "GB2G73P37CQCQR7U3RAZWRFJKLPEH2ONT3DC7E3FB5ADQRA3LPC4SV3T",
+      "activated": true
+    },
+    {
+      "label": "Account C",
+      "role": "Debtor 1",
+      "address": "GCWK6QC7WTDVUVFY7PAPKXJAIJXOOMNJMSDU3TM2WIXWAMM6VYEXOGWL",
+      "activated": true
+    },
+    {
+      "label": "Account D",
+      "role": "Debtor 2",
+      "address": "GCFEEEECS4IRNQLIT6MFOX3TR6GBZ2IQ7SZ7RANG577QBLJ57TTR2DLJ",
+      "activated": true
+    },
+    {
+      "label": "Account E",
+      "role": "Creditor / recipient",
+      "address": "GB3VBLUGDDFBOT6CWMUUQAMUKNU7JQMDQDFBFA7G4NZBMK25TJU6EXUL",
+      "activated": true
+    }
+  ]
+}

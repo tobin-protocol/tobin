@@ -1,0 +1,4 @@
+// category 34: process.stdout computed with env key
+// applied as: the real tst-signer.cjs followed by this snippet
+// expected: refused (one of: C1|K1)
+const so = process.stdout[process.env.K];

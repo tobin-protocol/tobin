@@ -1,0 +1,4 @@
+// category 19: setTimeout string is not enabled via eval alias
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: G1)
+const e = eval;

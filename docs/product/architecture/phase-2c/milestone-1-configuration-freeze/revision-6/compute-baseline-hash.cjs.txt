@@ -1,0 +1,232 @@
+'use strict';
+// HASH-ONLY tool. Computes (and optionally verifies) the canonical baseline hash of the Tobin TST signer. It reads files and prints
+// hashes. It cannot sign, decrypt, load a key, contact a network, or run the signer; it has no dependency except Node built-ins.
+// REVISION 6 (candidate): pinned.cjs is now hashed; the closure check enforces a strict code-loading policy (section LOADING POLICY).
+//
+// Usage:
+//   node compute-baseline-hash.cjs --signer-dir <dir> [--config <deployment-config.json>] [--sdk-package <dir>] [--manifest-out <file>] [--verify <64 hex>]
+//
+// CANONICAL PROCEDURE (version 1, unchanged except that pinned.cjs is now an input; see the Revision 6 review)
+//  1. Inputs, exactly these, no others:
+//       file:<name>      each file of the runtime closure of the CLI entry point, read from the signer directory (list below)
+//       config:deployment-config.json   the deployment configuration (admin F, salt, predicted contract ID); "ABSENT" when not given
+//       external:@stellar/stellar-sdk@17.4.0/package.json and /dist/stellar-sdk.js   the pinned SDK files the loader checks at run time
+//  2. Each input is read as raw bytes and hashed with SHA-256 (hex, lowercase). No newline conversion is ever applied. A file under
+//     file: or config: is REFUSED if it contains a CR byte (0x0D), starts with a UTF-8 BOM, or is not valid UTF-8, so the hash cannot
+//     depend on the checkout's line-ending settings. The external files are hashed exactly as stored.
+//  3. The manifest is UTF-8 text with LF line endings: the header line "TOBIN-TST-SIGNER-BASELINE v1", then one line per input,
+//     "<sha256>  <label>" (two spaces), sorted by label in ordinal (byte) order, and a final LF. An absent configuration is the line
+//     "ABSENT  config:deployment-config.json".
+//  4. The baseline hash is the SHA-256 of the manifest bytes. With the configuration absent it is the CODE BASELINE (B0); with the
+//     configuration present it is the FULL PIN (P).
+//  Hashed because loaded: every file the entry point loads, INCLUDING pinned.cjs. pinned.cjs holds the hash of the reviewed
+//  deployment-config.json, never the baseline hash, so there is no circularity; the EXPECTED baseline hash is supplied from outside
+//  (--verify) and is stored in none of the hashed files.
+//  Excluded on purpose (not loaded by the CLI): make-deployment-config.cjs (its OUTPUT is covered by the config hash), all tests,
+//  mutation tools, evidence scripts, patch scripts, the state file, logs, the DPAPI file and every environment-specific value
+//  (LOCALAPPDATA, PATH, clock). They are listed by name in the build result (`notHashed`), never silently ignored.
+//
+// LOADING POLICY (conservative, fail closed; NOT a complete JavaScript static analysis)
+//  A small lexer (strings, templates, comments, regex literals, brackets) turns each closure file into tokens. A file that cannot be
+//  lexed cleanly (unterminated string/comment/template/regex, unbalanced brackets, non-ASCII or control characters or a backslash
+//  outside a literal) is REFUSED. Over the tokens the policy requires:
+//   - every `require` is exactly  require( 'string literal' ), not a member, not aliased, not called with an expression;
+//   - a relative target is exactly './<name>' (no '..', no sub-directory) and must belong to the approved closure; a non-relative
+//     target must be one of a short list of Node built-ins that the importing file is approved for;
+//   - no import (static or dynamic), eval, Function, createRequire, Module internals, WebAssembly, Worker, global, Reflect,
+//     Proxy, `.constructor` member access, or `process` members outside an approved list;
+//   - filesystem read / code-execution APIs (readFileSync, vm.runInThisContext, execFileSync, ...) only in the files and at most the
+//     number of times that were reviewed (APPROVED_USES); an unlisted one, or one more than reviewed, is refused;
+//   - a computed member whose key starts with a string literal followed by `+` or a template, and any string literal that equals a
+//     name from the forbidden list, are refused.
+//  LIMITS: this does not prove the absence of every dynamic-loading gadget. Obfuscated computed-property tricks, loading through an
+//  approved API with a hostile argument, behaviour of the SDK bundle (hash-pinned instead), and anything a human reviewer must read
+//  remain outside it. It narrows what a reviewed change can introduce unnoticed; it is not a sandbox.
+const fs = require('fs'); const path = require('path'); const crypto = require('crypto');
+
+const ENTRY = 'tst-signer.cjs';
+const CLOSURE = ['authorization.cjs', 'dpapi-key.cjs', 'pinned.cjs', 'refusal.cjs', 'sdk-loader.cjs', 'state-store.cjs', 'tst-signer-core.cjs', 'tst-signer.cjs'];
+const HEADER = 'TOBIN-TST-SIGNER-BASELINE v1';
+const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
+const arg = (n) => { const i = process.argv.indexOf(n); return i >= 0 ? process.argv[i + 1] : undefined; };
+const has = (n) => process.argv.includes(n);
+
+// ---- loading policy tables (reviewed constants; changing one is a change to the baseline tool itself) ----
+const BUILTIN_USERS = { // built-in module -> files approved to require it
+  fs: ['sdk-loader.cjs', 'state-store.cjs', 'tst-signer.cjs'], path: ['sdk-loader.cjs', 'state-store.cjs', 'tst-signer.cjs'],
+  crypto: ['sdk-loader.cjs', 'state-store.cjs', 'tst-signer-core.cjs'], vm: ['sdk-loader.cjs'],
+  child_process: ['dpapi-key.cjs', 'state-store.cjs'], readline: ['tst-signer.cjs'],
+};
+const FORBIDDEN_IDS = new Set(['eval', 'Function', 'import', 'export', 'createRequire', 'Module', 'mainModule', 'binding', 'dlopen', '_load', '_resolveFilename',
+  '_compile', 'WebAssembly', 'Worker', 'importScripts', 'global', 'Reflect', 'Proxy', 'SharedArrayBuffer']);
+const WATCHED_IDS = new Set(['readFile', 'readFileSync', 'createReadStream', 'readSync', 'openSync', 'open', 'opendir', 'opendirSync', 'readdir', 'readdirSync', 'promises',
+  'runInThisContext', 'runInNewContext', 'runInContext', 'compileFunction', 'Script', 'vm', 'exec', 'execSync', 'execFile', 'execFileSync', 'spawn', 'spawnSync', 'fork',
+  'load', 'compile', 'register', 'children', 'cache', 'globalThis']);
+// reviewed maximum occurrences of each watched identifier per file (anything not listed is 0). Filled from the reviewed Revision 5 sources.
+const APPROVED_USES = {
+  'sdk-loader.cjs': { readFileSync: 2, runInThisContext: 1, vm: 2, globalThis: 4 },
+  'state-store.cjs': { readFileSync: 2, execFileSync: 4, exec: 9, load: 3, openSync: 1 },
+  'dpapi-key.cjs': { execFileSync: 3 },
+  'tst-signer.cjs': { readFileSync: 1 },
+};
+const PROCESS_MEMBERS = new Set(['env', 'argv', 'exit', 'exitCode', 'stdin', 'stdout', 'stderr', 'platform', 'cwd', 'hrtime', 'on', 'once', 'emitWarning', 'nextTick', 'version', 'versions', 'pid']);
+const KEYWORDS_BEFORE_REGEX = new Set(['return', 'typeof', 'case', 'do', 'else', 'in', 'of', 'instanceof', 'new', 'delete', 'void', 'throw', 'yield', 'await']);
+
+function lex(file, src) {
+  const toks = []; let i = 0; const n = src.length; const stack = [];
+  const fail = (m) => { throw new Error(`${file}: loading policy: ${m} (offset ${i})`); };
+  const isIdStart = (c) => /[A-Za-z_$]/.test(c); const isIdPart = (c) => /[A-Za-z0-9_$]/.test(c);
+  const prevSig = () => toks[toks.length - 1];
+  const scanTemplate = () => { // positioned just after a ` or a closing } of a substitution
+    for (;;) {
+      if (i >= n) fail('unterminated template literal');
+      const c = src[i];
+      if (c === '\\') { i += 2; continue; }
+      if (c === '`') { i++; toks.push({ t: 'tpl' }); return; }
+      if (c === '$' && src[i + 1] === '{') { i += 2; stack.push('tpl'); toks.push({ t: 'tpl' }); return; }
+      i++;
+    }
+  };
+  if (src.startsWith('#!')) { while (i < n && src[i] !== '\n') i++; }
+  while (i < n) {
+    const c = src[i]; const code = src.charCodeAt(i);
+    if (c === ' ' || c === '\t' || c === '\n') { i++; continue; }
+    if (code < 0x20 || code > 0x7e) fail('control or non-ASCII character outside a literal or comment');
+    if (c === '/' && src[i + 1] === '/') { while (i < n && src[i] !== '\n') i++; continue; }
+    if (c === '/' && src[i + 1] === '*') { const e = src.indexOf('*/', i + 2); if (e < 0) fail('unterminated block comment'); i = e + 2; continue; }
+    if (c === '\'' || c === '"') {
+      let j = i + 1; let v = '';
+      for (;;) {
+        if (j >= n || src[j] === '\n') fail('unterminated string literal');
+        if (src[j] === '\\') { v += src[j] + src[j + 1]; j += 2; continue; }
+        if (src[j] === c) break; v += src[j]; j++;
+      }
+      i = j + 1; toks.push({ t: 'str', v }); continue;
+    }
+    if (c === '`') { i++; scanTemplate(); continue; }
+    if (isIdStart(c)) { let j = i + 1; while (j < n && isIdPart(src[j])) j++; toks.push({ t: 'id', v: src.slice(i, j) }); i = j; continue; }
+    if (/[0-9]/.test(c)) { let j = i + 1; while (j < n && /[0-9A-Za-z_.]/.test(src[j])) j++; toks.push({ t: 'num', v: src.slice(i, j) }); i = j; continue; }
+    if (c === '/') {
+      const p = prevSig();
+      const regexOk = !p || (p.t === 'punct' && p.v !== ')' && p.v !== ']') || (p.t === 'id' && KEYWORDS_BEFORE_REGEX.has(p.v));
+      if (regexOk) {
+        let j = i + 1; let cls = false;
+        for (;;) {
+          if (j >= n || src[j] === '\n') fail('unterminated regular expression literal');
+          if (src[j] === '\\') { j += 2; continue; }
+          if (src[j] === '[') cls = true; else if (src[j] === ']') cls = false; else if (src[j] === '/' && !cls) break;
+          j++;
+        }
+        j++; while (j < n && isIdPart(src[j])) j++;
+        i = j; toks.push({ t: 're' }); continue;
+      }
+    }
+    if (c === '\\') fail('backslash outside a literal');
+    if ('([{'.includes(c)) stack.push(c);
+    else if (')]}'.includes(c)) {
+      const top = stack.pop();
+      if (c === '}' && top === 'tpl') { i++; scanTemplate(); continue; }
+      if (!top || '([{'.indexOf(top) !== ')]}'.indexOf(c)) fail('unbalanced brackets');
+    }
+    toks.push({ t: 'punct', v: c }); i++;
+  }
+  if (stack.length) fail('unbalanced brackets at end of file');
+  return toks;
+}
+
+/** Applies the loading policy to one file. Returns { relative, builtin, uses } or throws an Error listing every violation. */
+function analyzeSource(file, src, approvedClosure) {
+  const toks = lex(file, src); const bad = []; const relative = new Set(); const builtin = new Set(); const uses = {};
+  const v = (k) => toks[k] && toks[k].t === 'id' ? toks[k].v : undefined;
+  for (let k = 0; k < toks.length; k++) {
+    const t = toks[k]; const prev = toks[k - 1]; const next = toks[k + 1];
+    if (t.t === 'str' && FORBIDDEN_IDS.has(t.v)) bad.push(`string literal "${t.v}" equals a forbidden loading name`);
+    if (t.t === 'str' && t.v === 'constructor') bad.push('string literal "constructor"');
+    if (t.t === 'punct' && t.v === '[' && next && next.t === 'str' && toks[k + 2] && ((toks[k + 2].t === 'punct' && toks[k + 2].v === '+') || toks[k + 2].t === 'tpl')) bad.push('computed member key built from a string expression');
+    if (t.t !== 'id') continue;
+    const name = t.v; const isMember = prev && prev.t === 'punct' && prev.v === '.';
+    if (name === 'require' && !isMember) {
+      const ok = next && next.v === '(' && toks[k + 2] && toks[k + 2].t === 'str' && toks[k + 3] && toks[k + 3].v === ')' && !(prev && prev.t === 'id' && prev.v === 'new');
+      if (!ok) { bad.push('require is not exactly require(\'<string literal>\')'); continue; }
+      const target = toks[k + 2].v;
+      if (target.startsWith('.')) {
+        if (!/^\.\/[A-Za-z0-9_-]+(\.[a-z]+)?$/.test(target)) bad.push(`relative require target "${target}" is not of the form ./<name>`);
+        else if (!approvedClosure.includes(target.slice(2))) bad.push(`require of "${target}" which is not in the approved closure`);
+        else relative.add(target.slice(2));
+      } else if (!Object.prototype.hasOwnProperty.call(BUILTIN_USERS, target)) bad.push(`require of "${target}" which is not an approved built-in`);
+      else if (!BUILTIN_USERS[target].includes(file)) bad.push(`${file} is not approved to require built-in "${target}"`);
+      else builtin.add(target);
+      continue;
+    }
+    if (name === 'require') { bad.push('member named require'); continue; }
+    if (FORBIDDEN_IDS.has(name)) { bad.push(`forbidden identifier "${name}"`); continue; }
+    if (name === 'constructor' && (isMember || !(next && next.v === '('))) { bad.push('constructor accessed as a member'); continue; }
+    if (name === 'process' && !isMember) {
+      const m = next && next.v === '.' ? v(k + 2) : undefined;
+      if (!m || !PROCESS_MEMBERS.has(m)) bad.push(`process member "${m}" is not approved`);
+    }
+    if (name === 'module' && !isMember) {
+      const ok = (next && next.v === '.' && v(k + 2) === 'exports') || (prev && prev.v === '===' ) || (prev && prev.v === '=' && toks[k - 2] && toks[k - 2].v === '=');
+      if (!ok) bad.push('module used other than as module.exports or require.main === module');
+    }
+    if (WATCHED_IDS.has(name)) uses[name] = (uses[name] || 0) + 1;
+  }
+  const allowed = APPROVED_USES[file] || {};
+  for (const [name, count] of Object.entries(uses)) if (count > (allowed[name] || 0)) bad.push(`"${name}" occurs ${count} time(s); ${allowed[name] || 0} approved in ${file}`);
+  if (bad.length) throw new Error(`${file}: loading policy violation(s): ${[...new Set(bad)].join('; ')}`);
+  return { relative: [...relative].sort(), builtin: [...builtin].sort(), uses };
+}
+
+function readCanonicalText(file) {
+  const b = fs.readFileSync(file);
+  if (b.includes(0x0d)) throw new Error(`${file}: contains a CR byte; the baseline requires LF line endings`);
+  if (b.length >= 3 && b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf) throw new Error(`${file}: starts with a UTF-8 BOM`);
+  try { new TextDecoder('utf-8', { fatal: true }).decode(b); } catch { throw new Error(`${file}: is not valid UTF-8`); }
+  return b;
+}
+
+/** Walks the real static require graph from the entry point under the loading policy and compares it with the approved list. */
+function discoverClosure(dir, approved = CLOSURE) {
+  const seen = new Map(); const stack = [ENTRY];
+  while (stack.length) {
+    const f = stack.pop(); if (seen.has(f)) continue;
+    if (!approved.includes(f)) throw new Error(`runtime closure differs from the approved list: ${f} is required but not approved`);
+    let b; try { b = readCanonicalText(path.join(dir, f)); } catch (e) { if (e.code === 'ENOENT') throw new Error(`declared dependency ${f} is missing from ${dir}`); throw e; }
+    const r = analyzeSource(f, b.toString('utf8'), approved); seen.set(f, r);
+    for (const d of r.relative) stack.push(d);
+  }
+  const found = [...seen.keys()].sort(); const expected = [...approved].sort();
+  if (JSON.stringify(found) !== JSON.stringify(expected)) throw new Error(`runtime closure differs from the approved list.\n  found:    ${found.join(', ')}\n  approved: ${expected.join(', ')}`);
+  return { files: found, analysis: Object.fromEntries(found.map((f) => [f, seen.get(f)])) };
+}
+
+function build({ signerDir, configFile, sdkPackage }) {
+  const graph = discoverClosure(signerDir);
+  const lines = [];
+  for (const f of CLOSURE) lines.push([`file:${f}`, sha(readCanonicalText(path.join(signerDir, f)))]);
+  lines.push(['config:deployment-config.json', configFile ? sha(readCanonicalText(configFile)) : 'ABSENT']);
+  const pk = path.resolve(sdkPackage);
+  lines.push(['external:@stellar/stellar-sdk@17.4.0/package.json', sha(fs.readFileSync(path.join(pk, 'package.json')))]);
+  lines.push(['external:@stellar/stellar-sdk@17.4.0/dist/stellar-sdk.js', sha(fs.readFileSync(path.join(pk, 'dist', 'stellar-sdk.js')))]);
+  lines.sort((a, b) => Buffer.compare(Buffer.from(a[0]), Buffer.from(b[0])));
+  const manifest = [HEADER, ...lines.map(([l, h]) => `${h}  ${l}`)].join('\n') + '\n';
+  const notHashed = fs.readdirSync(signerDir, { withFileTypes: true }).filter((e) => e.isFile() && !CLOSURE.includes(e.name)).map((e) => e.name).sort();
+  return { manifest, hash: sha(Buffer.from(manifest, 'utf8')), variant: configFile ? 'FULL PIN (P)' : 'CODE BASELINE (B0)', lines, runtimeLoaded: graph.files, hashed: [...CLOSURE].sort(), notHashed, analysis: graph.analysis };
+}
+
+if (require.main === module) {
+  try {
+    const signerDir = arg('--signer-dir'); if (!signerDir) throw new Error('--signer-dir is required');
+    const r = build({ signerDir, configFile: arg('--config'), sdkPackage: arg('--sdk-package') || path.join(signerDir, '..', 'pk', 'x-stellar-stellar-sdk-17.4.0', 'package') });
+    if (arg('--manifest-out')) fs.writeFileSync(arg('--manifest-out'), r.manifest, { flag: 'wx' });
+    const want = arg('--verify');
+    console.log(r.manifest.trimEnd()); console.log(`\nvariant: ${r.variant}\nbaseline sha256: ${r.hash}`);
+    // the presence of the flag, not of a value, switches verification on: a missing value must never skip the check
+    if (has('--verify')) {
+      if (!/^[0-9a-f]{64}$/.test(want)) { console.log('VERIFY: REFUSED (the expected value is not 64 lowercase hex characters)'); process.exit(3); }
+      const ok = crypto.timingSafeEqual(Buffer.from(want), Buffer.from(r.hash));
+      console.log(ok ? 'VERIFY: MATCH' : 'VERIFY: MISMATCH'); process.exit(ok ? 0 : 1);
+    }
+  } catch (e) { console.error('REFUSED:', e.message); process.exit(2); }
+}
+module.exports = { build, CLOSURE, ENTRY, HEADER, discoverClosure, readCanonicalText, analyzeSource, lex, APPROVED_USES };

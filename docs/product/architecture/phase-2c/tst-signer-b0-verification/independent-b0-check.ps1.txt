@@ -1,0 +1,87 @@
+# Independent reconstruction of the two historical B0 definitions, written from the documented specification only.
+# Written for Phase 2C by a SECOND implementation (PowerShell / .NET) that shares no code with the Node scripts. It is STILL the same author's
+# work, so its result is labelled SELF-VERIFIED, not independently verified by a separate reviewer.
+#
+# Specification used (Milestone 1 configuration review + compute-baseline-hash tool header, canonical procedure version 1):
+#   header line      : TOBIN-TST-SIGNER-BASELINE v1
+#   one line per input: "<sha256 lowercase hex><two spaces><label>"   lines sorted by LABEL in ordinal (code unit) order
+#   labels           : file:<name> for each runtime file ; config:deployment-config.json (sha256 of the file, or the word ABSENT) ;
+#                      external:@stellar/stellar-sdk@17.4.0/dist/stellar-sdk.js ; external:@stellar/stellar-sdk@17.4.0/package.json
+#   line ends        : LF only, a final LF after the last line, UTF-8 without BOM
+#   text inputs      : a runtime file or the config must contain no CR byte, no UTF-8 BOM, and be valid UTF-8 (otherwise refuse)
+#   SDK inputs       : hashed as raw bytes
+#   baseline hash    : SHA-256 of the manifest bytes
+#   Candidate  definition: the 8 runtime files INCLUDING pinned.cjs   (expected 9b594c54...)
+#   Historical definition: the 7 runtime files EXCLUDING pinned.cjs   (expected ccea8b5b...)
+param(
+  [Parameter(Mandatory=$true)][string]$SignerDir,
+  [Parameter(Mandatory=$true)][string]$SdkDir,
+  [string]$EvidenceDir = ''
+)
+$ErrorActionPreference = 'Stop'
+$candidateFiles  = 'authorization.cjs','dpapi-key.cjs','pinned.cjs','refusal.cjs','sdk-loader.cjs','state-store.cjs','tst-signer-core.cjs','tst-signer.cjs'
+$historicalFiles = $candidateFiles | Where-Object { $_ -ne 'pinned.cjs' }
+$expectCandidate  = '9b594c5407b7934274f9c41a47f2dfc13a781f4f7b0cc0962a8ab57a52bacbb7'
+$expectHistorical = 'ccea8b5b94bf3358f295ec8dd85435f34505714ef927764e5f58c557c567aa92'
+
+function Hex([byte[]]$b) { $h = [Security.Cryptography.SHA256]::Create().ComputeHash($b); -join ($h | ForEach-Object { $_.ToString('x2') }) }
+function TextBytes([string]$p) {
+  [byte[]]$b = [IO.File]::ReadAllBytes($p)
+  if ($b -contains 13) { throw "REFUSED: CR byte in $p" }
+  if ($b.Length -ge 3 -and $b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF) { throw "REFUSED: BOM in $p" }
+  try { [void](New-Object Text.UTF8Encoding($false, $true)).GetString($b) } catch { throw "REFUSED: invalid UTF-8 in $p" }
+  return ,$b
+}
+function Build([string[]]$files) {
+  $e = New-Object 'System.Collections.Generic.Dictionary[string,string]'
+  foreach ($f in $files) { $e["file:$f"] = Hex (TextBytes (Join-Path $SignerDir $f)) }
+  $cfg = Join-Path $SignerDir 'deployment-config.json'
+  if (Test-Path -LiteralPath $cfg) { $e['config:deployment-config.json'] = Hex (TextBytes $cfg) } else { $e['config:deployment-config.json'] = 'ABSENT' }
+  $e['external:@stellar/stellar-sdk@17.4.0/package.json']      = Hex ([IO.File]::ReadAllBytes((Join-Path $SdkDir 'package.json')))
+  $e['external:@stellar/stellar-sdk@17.4.0/dist/stellar-sdk.js'] = Hex ([IO.File]::ReadAllBytes((Join-Path (Join-Path $SdkDir 'dist') 'stellar-sdk.js')))
+  $labels = [string[]]$e.Keys; [Array]::Sort($labels, [StringComparer]::Ordinal)
+  $sb = New-Object Text.StringBuilder; [void]$sb.Append("TOBIN-TST-SIGNER-BASELINE v1`n")
+  foreach ($l in $labels) { [void]$sb.Append($e[$l] + '  ' + $l + "`n") }
+  $bytes = (New-Object Text.UTF8Encoding($false)).GetBytes($sb.ToString())
+  [pscustomobject]@{ Bytes = $bytes; Hash = (Hex $bytes); Text = $sb.ToString() }
+}
+function Show($title, $m, $expect, $evidenceFile) {
+  Write-Output "=== $title"
+  Write-Output $m.Text.TrimEnd("`n")
+  Write-Output "manifest bytes: $($m.Bytes.Length); LF only: $(-not ($m.Bytes -contains 13)); ends with LF: $($m.Bytes[-1] -eq 10); starts with BOM: $($m.Bytes[0] -eq 0xEF)"
+  Write-Output "computed hash : $($m.Hash)"
+  Write-Output "expected hash : $expect"
+  Write-Output ("RESULT        : " + $(if ($m.Hash -eq $expect) { 'MATCH' } else { 'MISMATCH' }))
+  if ($evidenceFile -and (Test-Path -LiteralPath $evidenceFile)) {
+    [byte[]]$ev = [IO.File]::ReadAllBytes($evidenceFile)
+    $same = ($ev.Length -eq $m.Bytes.Length) -and (-not (Compare-Object $ev $m.Bytes -SyncWindow 0))
+    Write-Output "preserved evidence file: $(Split-Path $evidenceFile -Leaf)  byte-identical to the reconstruction: $same"
+  }
+}
+# 1. runtime closure completeness: parse require('./x') myself, starting from tst-signer.cjs
+$seen = New-Object 'System.Collections.Generic.HashSet[string]'; $queue = New-Object 'System.Collections.Generic.Queue[string]'; $queue.Enqueue('tst-signer.cjs')
+$builtins = New-Object 'System.Collections.Generic.HashSet[string]'
+while ($queue.Count -gt 0) {
+  $f = $queue.Dequeue(); if (-not $seen.Add($f)) { continue }
+  $src = [IO.File]::ReadAllText((Join-Path $SignerDir $f))
+  foreach ($m in [regex]::Matches($src, "require\(\s*'([^']+)'\s*\)")) { $t = $m.Groups[1].Value; if ($t.StartsWith('./')) { $queue.Enqueue($t.Substring(2)) } else { [void]$builtins.Add($t) } }
+  if ([regex]::IsMatch($src, "require\(\s*[^'\s]")) { Write-Output "WARNING: non-literal require in $f" }
+}
+$closure = [string[]]$seen; [Array]::Sort($closure, [StringComparer]::Ordinal)
+Write-Output "=== runtime closure found by an independent require() walk from tst-signer.cjs"
+Write-Output ($closure -join ', ')
+Write-Output ("closure equals the 8 candidate files: " + (-not (Compare-Object $closure ([string[]]($candidateFiles | Sort-Object { $_ } )))))
+Write-Output ("pinned.cjs is in the closure: " + $seen.Contains('pinned.cjs') + "  (required by tst-signer.cjs)")
+Write-Output ("built-in modules used: " + (([string[]]$builtins | Sort-Object) -join ', '))
+Write-Output ("deployment-config.json present: " + (Test-Path -LiteralPath (Join-Path $SignerDir 'deployment-config.json')))
+Write-Output ''
+$evC = $null; $evH = $null
+if ($EvidenceDir) { $evC = Join-Path $EvidenceDir 'revision-6\baseline-manifest-B0-revision-6.txt'; $evH = Join-Path $EvidenceDir 'baseline-manifest-B0.txt' }
+$c = Build $candidateFiles;  Show 'CANDIDATE definition (pinned.cjs INCLUDED)' $c $expectCandidate $evC
+Write-Output ''
+$h = Build $historicalFiles; Show 'HISTORICAL Milestone 1 definition (pinned.cjs EXCLUDED)' $h $expectHistorical $evH
+Write-Output ''
+$d = Compare-Object ($c.Text -split "`n") ($h.Text -split "`n")
+Write-Output "lines that differ between the two definitions:"; $d | ForEach-Object { Write-Output ("  " + $_.SideIndicator + " " + $_.InputObject) }
+if ($c.Hash -ne $expectCandidate -or $h.Hash -ne $expectHistorical) { Write-Output 'OVERALL: MISMATCH'; exit 1 }
+Write-Output 'OVERALL: both definitions reproduced (SELF-VERIFIED: same author, not an independent reviewer)'

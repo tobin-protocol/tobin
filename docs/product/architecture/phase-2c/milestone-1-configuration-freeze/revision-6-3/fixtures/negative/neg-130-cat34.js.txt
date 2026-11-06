@@ -1,0 +1,4 @@
+// category 34: process.env computed
+// applied as: the real tst-signer.cjs followed by this snippet
+// expected: refused (one of: K1|E1|C1)
+process.env[process.argv[2]];

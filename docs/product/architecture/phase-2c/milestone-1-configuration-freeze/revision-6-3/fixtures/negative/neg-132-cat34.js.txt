@@ -1,0 +1,5 @@
+// category 34: process passed whole
+// applied as: the real tst-signer.cjs followed by this snippet
+// expected: refused (one of: C1)
+function sink2(x) { return x; }
+sink2(process);

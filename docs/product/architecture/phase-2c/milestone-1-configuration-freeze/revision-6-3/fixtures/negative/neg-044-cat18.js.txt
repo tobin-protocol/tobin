@@ -1,0 +1,4 @@
+// category 18: Object.defineProperty
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: G1)
+Object.defineProperty({}, 'a', { value: 1 });

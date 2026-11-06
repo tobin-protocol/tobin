@@ -1,0 +1,5 @@
+// category 28: env value into require via function
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: R1)
+function ld2(n) { return require(n); }
+ld2(process.env.M);

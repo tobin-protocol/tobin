@@ -1,0 +1,3 @@
+# The extracted SDK copy is restorable from the tracked tarball in pk/ and contains a dist/ bundle that the repository
+# release-gate scan (G09) does not accept as a tracked path. It stays on disk because sdk-loader.cjs reads it from there.
+/pk/x-stellar-stellar-sdk-17.4.0/package/

@@ -1,0 +1,7 @@
+// category 33: self.process (the 6.1 bypass)
+// applied as: the real sdk-loader.cjs followed by this snippet
+// expected: refused (one of: G1|N1|K1)
+const k = process.env.TOBIN_METHOD;
+const m = self.process[k]('vm');
+const r = process.env.TOBIN_RUN;
+m[r]('1 + 1');

@@ -1,0 +1,9 @@
+{
+  "name": "tobin-ast-policy",
+  "version": "0.0.0-revision-6.3-candidate",
+  "private": true,
+  "description": "Revision 6.3 CANDIDATE (NOT APPROVED): AST loading policy for the Tobin TST signer. Offline; no scripts run on install.",
+  "license": "UNLICENSED",
+  "engines": { "node": ">=22" },
+  "dependencies": { "acorn": "8.19.0" }
+}

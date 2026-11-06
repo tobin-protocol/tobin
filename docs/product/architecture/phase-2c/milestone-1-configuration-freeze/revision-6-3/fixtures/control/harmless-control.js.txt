@@ -1,0 +1,7 @@
+// applied as: the real state-store.cjs followed by this snippet; expected: ACCEPTED
+const harmlessAdd = (a, b) => a + b;
+const bounded = {};
+for (const k of Object.keys(bounded)) { void bounded[k]; }
+for (let i = 0; i < 3; i++) { void [1, 2, 3][i]; }
+// eval self process require globalThis are only words in a comment
+const note = `x ${harmlessAdd(1, 2)} y`;

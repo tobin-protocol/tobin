@@ -1,0 +1,135 @@
+file	appended-to	category	name	expected-rules
+neg-001-cat1.js.txt	state-store.cjs	1	direct computed method extraction	C1|K1
+neg-002-cat1.js.txt	state-store.cjs	1	direct computed read of a module member	K1|C1
+neg-003-cat1.js.txt	state-store.cjs	1	computed call of a module member	K1
+neg-004-cat2.js.txt	state-store.cjs	2	second whole-module import of child_process	R1|D1
+neg-005-cat2.js.txt	state-store.cjs	2	aliased fs import	R1|D1
+neg-006-cat3.js.txt	state-store.cjs	3	destructured exec member	R1|D1
+neg-007-cat3.js.txt	dpapi-key.cjs	3	destructured spawn	R1|D1
+neg-008-cat3.js.txt	state-store.cjs	3	destructured with rename	R1|D1
+neg-009-cat4.js.txt	state-store.cjs	4	method extraction then indirect call	C1|C2
+neg-010-cat4.js.txt	state-store.cjs	4	extract module member then call	C1
+neg-011-cat5.js.txt	state-store.cjs	5	env-derived method name	K1
+neg-012-cat5.js.txt	state-store.cjs	5	env-derived module member through process	K1|C1
+neg-013-cat6.js.txt	state-store.cjs	6	env-derived property name on an object	K1
+neg-014-cat6.js.txt	state-store.cjs	6	env-derived property name via variable	K1
+neg-015-cat6.js.txt	state-store.cjs	6	env-derived computed object key	K1
+neg-016-cat7.js.txt	state-store.cjs	7	object storage then invocation	C1
+neg-017-cat7.js.txt	state-store.cjs	7	object shorthand storage	C1
+neg-018-cat8.js.txt	state-store.cjs	8	array storage then invocation	C1|K1
+neg-019-cat8.js.txt	state-store.cjs	8	array storage of a module	C1
+neg-020-cat9.js.txt	state-store.cjs	9	function return value	C1
+neg-021-cat9.js.txt	state-store.cjs	9	arrow returning capability	C1
+neg-022-cat10.js.txt	state-store.cjs	10	closure capture calling exec	X1
+neg-023-cat10.js.txt	state-store.cjs	10	closure capture of a module	C1
+neg-024-cat11.js.txt	state-store.cjs	11	parameter passing to an untyped parameter	C1
+neg-025-cat11.js.txt	state-store.cjs	11	module passed to an unrelated function	C1
+neg-026-cat12.js.txt	state-store.cjs	12	default parameter calling an unapproved target	X1
+neg-027-cat12.js.txt	state-store.cjs	12	default parameter returning the capability	C1
+neg-028-cat13.js.txt	state-store.cjs	13	reassignment into a variable	C1
+neg-029-cat13.js.txt	state-store.cjs	13	reassigning a capability binding	C2
+neg-030-cat13.js.txt	state-store.cjs	13	reassigning a capability parameter	C2
+neg-031-cat14.js.txt	state-store.cjs	14	conditional expression	C1
+neg-032-cat14.js.txt	state-store.cjs	14	conditional selects module	C1
+neg-033-cat15.js.txt	state-store.cjs	15	sequence expression	A1
+neg-034-cat16.js.txt	state-store.cjs	16	optional chaining on a module	A1
+neg-035-cat16.js.txt	state-store.cjs	16	optional call	A1
+neg-036-cat17.js.txt	state-store.cjs	17	Reflect.apply	G1
+neg-037-cat17.js.txt	state-store.cjs	17	Reflect.get with env key	G1
+neg-038-cat17.js.txt	state-store.cjs	17	Reflect.construct	G1
+neg-039-cat17.js.txt	state-store.cjs	17	Proxy	G1
+neg-040-cat17.js.txt	state-store.cjs	17	Function.prototype.apply-style call	C1|N1
+neg-041-cat17.js.txt	state-store.cjs	17	bind	C1|N1
+neg-042-cat18.js.txt	state-store.cjs	18	Object.getPrototypeOf	G1
+neg-043-cat18.js.txt	state-store.cjs	18	Object.setPrototypeOf	G1
+neg-044-cat18.js.txt	state-store.cjs	18	Object.defineProperty	G1
+neg-045-cat18.js.txt	state-store.cjs	18	Object.getOwnPropertyDescriptor	G1
+neg-046-cat18.js.txt	state-store.cjs	18	Object.create	G1
+neg-047-cat18.js.txt	state-store.cjs	18	.constructor	N1
+neg-048-cat18.js.txt	state-store.cjs	18	__proto__ member	N1
+neg-049-cat18.js.txt	state-store.cjs	18	__proto__ object key	N1
+neg-050-cat18.js.txt	state-store.cjs	18	.prototype	N1|G1
+neg-051-cat18.js.txt	state-store.cjs	18	getter indirection	N1
+neg-052-cat18.js.txt	state-store.cjs	18	setter indirection	N1
+neg-053-cat19.js.txt	state-store.cjs	19	eval	G1
+neg-054-cat19.js.txt	state-store.cjs	19	new Function	G1
+neg-055-cat19.js.txt	state-store.cjs	19	Function call	G1
+neg-056-cat19.js.txt	state-store.cjs	19	constructor of a function	N1
+neg-057-cat19.js.txt	state-store.cjs	19	constructor of an async arrow	N1
+neg-058-cat19.js.txt	state-store.cjs	19	string constructor key (concatenated)	K1
+neg-059-cat19.js.txt	state-store.cjs	19	setTimeout string is not enabled via eval alias	G1
+neg-060-cat20.js.txt	state-store.cjs	20	computed module loader on process	C1|N1
+neg-061-cat20.js.txt	state-store.cjs	20	computed module loader on module	M1
+neg-062-cat20.js.txt	state-store.cjs	20	computed loader on globalThis	T1
+neg-063-cat20.js.txt	state-store.cjs	20	process.binding	C1
+neg-064-cat20.js.txt	state-store.cjs	20	process.mainModule.require	C1
+neg-065-cat21.js.txt	state-store.cjs	21	dynamic import literal	A1
+neg-066-cat21.js.txt	state-store.cjs	21	dynamic import computed	A1
+neg-067-cat22.js.txt	state-store.cjs	22	aliased require	R1
+neg-068-cat22.js.txt	state-store.cjs	22	require passed as argument	R1
+neg-069-cat22.js.txt	state-store.cjs	22	require with variable specifier	R1
+neg-070-cat22.js.txt	state-store.cjs	22	require with template specifier	R1
+neg-071-cat22.js.txt	state-store.cjs	22	require inside a function	R1
+neg-072-cat22.js.txt	state-store.cjs	22	require with two arguments	R1
+neg-073-cat22.js.txt	state-store.cjs	22	unapproved built-in	R1
+neg-074-cat22.js.txt	state-store.cjs	22	unapproved relative module	R1
+neg-075-cat23.js.txt	state-store.cjs	23	module.require	M1
+neg-076-cat23.js.txt	state-store.cjs	23	module.constructor._load	M1|N1
+neg-077-cat24.js.txt	state-store.cjs	24	createRequire from module	R1
+neg-078-cat24.js.txt	state-store.cjs	24	createRequire identifier	G1
+neg-079-cat25.js.txt	state-store.cjs	25	nested callback calling exec	X1
+neg-080-cat25.js.txt	state-store.cjs	25	callback receiving a capability	C1
+neg-081-cat26.js.txt	state-store.cjs	26	unresolved free identifier call	G1
+neg-082-cat26.js.txt	state-store.cjs	26	unresolved free identifier member	G1
+neg-083-cat26.js.txt	state-store.cjs	26	unresolved identifier as argument	G1
+neg-084-cat27.js.txt	state-store.cjs	27	shadowing process	S1
+neg-085-cat27.js.txt	state-store.cjs	27	shadowing require	S1
+neg-086-cat27.js.txt	state-store.cjs	27	shadowing Object	S1
+neg-087-cat27.js.txt	state-store.cjs	27	shadowing module	S1
+neg-088-cat27.js.txt	state-store.cjs	27	shadowing globalThis	S1
+neg-089-cat28.js.txt	state-store.cjs	28	env value through two functions into a computed key	K1
+neg-090-cat28.js.txt	state-store.cjs	28	env value into require via function	R1
+neg-091-cat28.js.txt	state-store.cjs	28	env value into exec target	X1
+neg-092-cat29.js.txt	state-store.cjs	29	member extraction through an intermediate object	C1
+neg-093-cat29.js.txt	state-store.cjs	29	intermediate object with exec	C1
+neg-094-cat30.js.txt	state-store.cjs	30	extraction through multiple parameter aliases	X1
+neg-095-cat30.js.txt	state-store.cjs	30	chain of declarator aliases	C1|C2
+neg-096-cat31.js.txt	state-store.cjs	31	exec call with a different target	X1
+neg-097-cat31.js.txt	state-store.cjs	31	exec call with a computed array spread	X1|C1
+neg-098-cat31.js.txt	dpapi-key.cjs	31	exec call with new in unapproved function	X1
+neg-099-cat32.js.txt	state-store.cjs	32	non-ASCII identifier	N2
+neg-100-cat32.js.txt	state-store.cjs	32	unterminated string	P0
+neg-101-cat32.js.txt	state-store.cjs	32	unbalanced brackets	P0
+neg-102-cat32.js.txt	state-store.cjs	32	while statement	A1
+neg-103-cat32.js.txt	state-store.cjs	32	labeled statement	A1
+neg-104-cat32.js.txt	state-store.cjs	32	class with a method	A1
+neg-105-cat32.js.txt	state-store.cjs	32	class not extending Error	A1
+neg-106-cat32.js.txt	state-store.cjs	32	generator	A1
+neg-107-cat32.js.txt	state-store.cjs	32	this	A1
+neg-108-cat32.js.txt	state-store.cjs	32	tagged template	A1
+neg-109-cat32.js.txt	state-store.cjs	32	with statement	P0
+neg-110-cat32.js.txt	state-store.cjs	32	import statement	P0
+neg-111-cat32.js.txt	state-store.cjs	32	top-level await	P0|A1
+neg-112-cat32.js.txt	state-store.cjs	32	dangerous name as string	N1
+neg-113-cat32.js.txt	state-store.cjs	32	dangerous name in template	N1
+neg-114-cat33.js.txt	sdk-loader.cjs	33	second vm require	R1|D1
+neg-115-cat33.js.txt	sdk-loader.cjs	33	second runInThisContext	T1|N1
+neg-116-cat33.js.txt	sdk-loader.cjs	33	vm.runInNewContext	T1|N1
+neg-117-cat33.js.txt	sdk-loader.cjs	33	vm alias	T1|C1
+neg-118-cat33.js.txt	sdk-loader.cjs	33	vm.createContext	T1|N1
+neg-119-cat33.js.txt	sdk-loader.cjs	33	second globalThis.self assignment	T1
+neg-120-cat33.js.txt	sdk-loader.cjs	33	self.process (the 6.1 bypass)	G1|N1|K1
+neg-121-cat33.js.txt	sdk-loader.cjs	33	self alias	G1
+neg-122-cat33.js.txt	sdk-loader.cjs	33	window / frames	G1
+neg-123-cat33.js.txt	sdk-loader.cjs	33	globalThis outside pattern	T1
+neg-124-cat33.js.txt	sdk-loader.cjs	33	globalThis.process	T1|N1
+neg-125-cat33.js.txt	sdk-loader.cjs	33	global	G1
+neg-126-cat33.js.txt	tst-signer.cjs	33	sdk object computed call	K1
+neg-127-cat34.js.txt	tst-signer.cjs	34	process.env passed to a function	E1
+neg-128-cat34.js.txt	tst-signer.cjs	34	process.env aliased	E1
+neg-129-cat34.js.txt	tst-signer.cjs	34	process.env keys	E1
+neg-130-cat34.js.txt	tst-signer.cjs	34	process.env computed	K1|E1|C1
+neg-131-cat34.js.txt	tst-signer.cjs	34	process.stdout computed with env key	C1|K1
+neg-132-cat34.js.txt	tst-signer.cjs	34	process passed whole	C1
+neg-133-cat34.js.txt	tst-signer.cjs	34	process destructured	C1
+neg-134-cat34.js.txt	tst-signer.cjs	34	process returned	C1

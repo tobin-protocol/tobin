@@ -1,0 +1,65 @@
+'use strict';
+// Mutation check of the Phase 2C integrity gate. Each patch weakens ONE protection in a private temporary copy of the signer folder; the gate test suite
+// (test/baseline.test.cjs) must then FAIL. A patch that no test notices is reported as a survivor. The real files are never modified.
+// Usage (copy to gate-mutation-check.cjs): node gate-mutation-check.cjs <path to scripts/tst-signer>
+// Uses only the temporary directory; no key, no network; the signer is not run (the launcher tests run a canary application).
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { spawnSync } = require('child_process');
+
+const SRC = path.resolve(process.argv[2] || '.');
+const read = (rel) => fs.readFileSync(path.join(SRC, 'signer', rel), 'utf8');
+const PATCHES = [
+  ['M01 the hash comparison always succeeds', 'baseline.cjs', "if (!hashesEqual(got.hash, want)) refuse(", "if (false) refuse("],
+  ['M02 the approved hash is compared with itself', 'baseline.cjs', "const got = computeManifest({ signerDir, sdkDir });\n  if (!hashesEqual(got.hash, want))", "const got = computeManifest({ signerDir, sdkDir }); got.hash = want;\n  if (!hashesEqual(got.hash, want))"],
+  ['M03 the approved-hash format is not validated', 'baseline.cjs', "if (typeof value !== 'string' || !/^[0-9a-f]{64}$/.test(value)) refuse(", "if (false) refuse("],
+  ['M04 upper-case hashes are accepted', 'baseline.cjs', "!/^[0-9a-f]{64}$/.test(value)", "!/^[0-9a-fA-F]{64}$/.test(value)"],
+  ['M05 unexpected directory entries are tolerated', 'baseline.cjs', "if (!allowed.has(n)) refuse(", "if (false) refuse("],
+  ['M06 baseline.cjs is dropped from the closure', 'baseline.cjs', "'authorization.cjs', 'baseline.cjs', 'dpapi-key.cjs'", "'authorization.cjs', 'dpapi-key.cjs'"],
+  ['M07 pinned.cjs is dropped from the closure', 'baseline.cjs', "'dpapi-key.cjs', 'pinned.cjs', 'refusal.cjs'", "'dpapi-key.cjs', 'refusal.cjs'"],
+  ['M08 tst-signer-main.cjs is dropped from the closure', 'baseline.cjs', "'tst-signer-core.cjs', 'tst-signer-main.cjs', 'tst-signer.cjs'", "'tst-signer-core.cjs', 'tst-signer.cjs'"],
+  ['M09 CR bytes are accepted', 'baseline.cjs', "if (b.includes(13)) refuse(", "if (false) refuse("],
+  ['M10 a byte order mark is accepted', 'baseline.cjs', "if (b.length >= 3 && b[0] === 0xef", "if (false && b[0] === 0xef"],
+  ['M11 invalid UTF-8 is accepted', 'baseline.cjs', "try { new TextDecoder('utf-8', { fatal: true }).decode(b); } catch { refuse(", "try { new TextDecoder('utf-8', { fatal: false }).decode(b); } catch { refuse("],
+  ['M12 links and junctions are accepted', 'baseline.cjs', "if (st.isSymbolicLink()) refuse(", "if (false) refuse("],
+  ['M13 the SDK identity is not checked', 'baseline.cjs', "if (!meta || meta.name !== SDK.name || meta.version !== SDK.version) refuse(", "if (false) refuse("],
+  ['M14 the deployment configuration is never hashed', 'baseline.cjs', "if (names.includes(CONFIG_NAME)) {", "if (false) {"],
+  ['M15 the SDK bundle is hashed as empty', 'baseline.cjs', "entries.set(`external:${SDK.name}@${SDK.version}/dist/stellar-sdk.js`, sha256(bundle));", "entries.set(`external:${SDK.name}@${SDK.version}/dist/stellar-sdk.js`, sha256(Buffer.alloc(0)));"],
+  ['M16 the code-injection tripwire is disabled', 'baseline.cjs', "for (const a of execArgv) if (bad.test(a)) refuse(", "for (const a of execArgv) if (false) refuse("],
+  ['M17 NODE_OPTIONS is not checked', 'baseline.cjs', "if (typeof opts === 'string' && /(^|\\s)", "if (false && /(^|\\s)"],
+  ['M18 a missing runtime file is not reported by name', 'baseline.cjs', "for (const f of CLOSURE) if (!names.includes(f)) refuse(", "for (const f of CLOSURE) if (false) refuse("],
+  ['M19 realpath containment is not checked (DOCUMENTED EQUIVALENT: for a regular, non-linked file directly inside a directory that was itself resolved, its real path can only be that directory, so this check cannot differ from the link checks; defence in depth)', 'baseline.cjs', "if (norm(parent) !== norm(realDir)) refuse(", "if (false) refuse(", 'equivalent'],
+  ['M20 launcher: a mismatch exits 0', 'tst-signer.cjs', "process.exit(e.code === 'BAD_INPUT' ? 2 : 4);", "process.exit(e.code === 'BAD_INPUT' ? 2 : 0);"],
+  ['M21 launcher: unpinned preview runs the application', 'tst-signer.cjs', "(p.cmd === 'preview' && p.approved === undefined)", "false"],
+  ['M22 launcher: init without an approved hash proceeds', 'tst-signer.cjs', "if (p.approved === undefined) { err('this command requires", "if (false) { err('this command requires"],
+  ['M23 launcher: the application is loaded before the gate', 'tst-signer.cjs', "const baseline = require('./baseline.cjs');", "const baseline = require('./baseline.cjs'); require('./tst-signer-main.cjs');"],
+  ['M24 launcher: the environment tripwire is skipped', 'tst-signer.cjs', "    baseline.checkProcessEnvironment();", "    // skipped"],
+  ['M25 launcher: a malformed hash exits 4 instead of 2', 'tst-signer.cjs', "e.code === 'BAD_INPUT' ? 2 : 4", "4"],
+  ['M26 launcher: the approved hash is also read from the environment', 'tst-signer.cjs', "let approved; let rest = argv;", "let approved = process.env.TOBIN_APPROVED_BASELINE; let rest = argv;"],
+  ['M27 launcher: usage errors exit 0', 'tst-signer.cjs', "if (!p) { err(USAGE); process.exit(2); }", "if (!p) { err(USAGE); process.exit(0); }"],
+  ['M28 application: run() does not require the gate proof', 'tst-signer-main.cjs', "if (!baseline.isVerified(proof)) throw", "if (false) throw"],
+  ['M29 gate: every object counts as a proof', 'baseline.cjs', "function isVerified(proof) { return typeof proof === 'object' && proof !== null && VERIFIED.has(proof); }", "function isVerified(proof) { return true; }"],
+  ['M30 launcher: the proof is not passed to the application', 'tst-signer.cjs', "run(p.args, verified);", "run(p.args);"],
+  ['M31 gate: the proof object is not frozen', 'baseline.cjs', "const proof = Object.freeze({ ...got });", "const proof = { ...got };"],
+];
+
+let survivors = 0; let equivalent = 0; const rows = [];
+for (const [name, file, from] of PATCHES) {
+  const text = read(file);
+  if (!text.includes(from)) { console.error('PATCH ANCHOR MISSING:', name); process.exit(2); }
+}
+for (const [name, file, from, to, kind] of PATCHES) {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'tst-gm-'));
+  fs.cpSync(path.join(SRC, 'signer'), path.join(d, 'signer'), { recursive: true });
+  fs.mkdirSync(path.join(d, 'pk', 'x-stellar-stellar-sdk-17.4.0'), { recursive: true });
+  fs.cpSync(path.join(SRC, 'pk', 'x-stellar-stellar-sdk-17.4.0'), path.join(d, 'pk', 'x-stellar-stellar-sdk-17.4.0'), { recursive: true });
+  fs.writeFileSync(path.join(d, 'signer', file), read(file).replace(from, () => to));
+  const r = spawnSync(process.execPath, ['--test', path.join(d, 'signer', 'test', 'baseline.test.cjs')], { encoding: 'utf8', cwd: d, timeout: 300000 });
+  const failed = /ℹ fail (\d+)/.exec(r.stdout || ''); const nf = failed ? Number(failed[1]) : -1;
+  const killed = nf !== 0; if (!killed && kind === 'equivalent') equivalent++; else if (!killed) survivors++;
+  rows.push(`${killed ? 'KILLED  ' : kind === 'equivalent' ? 'EQUIVALENT' : 'SURVIVED'} ${name}  <- ${nf < 0 ? 'suite crashed' : nf + ' failing test(s)'}`);
+  fs.rmSync(d, { recursive: true, force: true });
+}
+console.log(rows.join('\n')); console.log(`gate mutants: ${PATCHES.length}; killed: ${PATCHES.length - survivors - equivalent}; documented equivalent (undetectable by any test): ${equivalent}; survived: ${survivors}`);
+process.exit(survivors ? 1 : 0);

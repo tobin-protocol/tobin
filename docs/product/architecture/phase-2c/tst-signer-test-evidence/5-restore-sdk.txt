@@ -1,0 +1,21 @@
+✔ restore: the tracked tarball, its inventory and the script are all a fresh clone needs; the extracted package is absent (33.1422ms)
+✔ restore: a fresh clone is restored offline; the three files equal the recorded hashes; the version is exactly 17.4.0; a second run is a no-op (1085.8076ms)
+✔ restore: the restored files equal the originals in the repository, the loader constants, and the inventory (482.7964ms)
+✔ restore: the restored SDK works with the gate (a tree built from the signer files and the restored package has a computable baseline) (534.1842ms)
+✔ restore: it needs no network: only fs, path, zlib and crypto are imported, and a dead proxy changes nothing (0.8102ms)
+✔ restore: a tampered tarball (one byte), a truncated tarball, a missing tarball and an empty tarball are refused before any extraction (454.996ms)
+✔ restore: an inventory that is missing or altered is refused (927.8868ms)
+✔ restore: existing files that differ are never overwritten; a partial restore completes only the missing files (2072.3263ms)
+✔ restore: a junction in the target path is refused (442.0567ms)
+✔ restore: usage errors exit 2 (195.0063ms)
+✔ tar parser: accepts a well-formed archive of regular files (1.257ms)
+✔ tar parser: refuses every malformed or unsafe archive (3.4211ms)
+✔ tar parser: the real tarball parses to exactly the expected number of entries, all regular files under package/ (200.4412ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 6577.6925

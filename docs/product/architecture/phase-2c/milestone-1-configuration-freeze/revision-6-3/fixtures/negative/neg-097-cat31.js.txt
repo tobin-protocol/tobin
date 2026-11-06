@@ -1,0 +1,4 @@
+// category 31: exec call with a computed array spread
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: X1|C1)
+function e3() { return execFileSync('powershell.exe', [...process.argv]); }

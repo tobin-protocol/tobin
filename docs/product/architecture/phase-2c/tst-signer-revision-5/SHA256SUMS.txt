@@ -1,0 +1,29 @@
+# SHA-256 of the revision-5 signer package. Each .txt copy has the hash of the original file named here; REVISION-5-REVIEW.md is stored as is.
+# Computed 2026-11-04. Verify with Get-FileHash -Algorithm SHA256 <file> (for a .txt copy, compare with the line for the name without the .txt suffix).
+# This list is only independent once a copy of it is kept outside the directory that holds the package.
+562039b8d581894e4c9a5c79262a182bf7a603b85ce9031f39d3401607b46f3e  refusal.cjs
+ae3088b47d683f98b0c987afc086989aaf46c1e837d5c183272064e39bdef1b9  authorization.cjs
+207fc6b722bcad99189c030583bc0aa1b24ece7e5927c6eed084bcefaeafffc3  tst-signer-core.cjs
+5f55891425daf0f0f3480b461a9d2152affafbf1cb27e4c0d0837b86f3e93b6a  tst-signer.cjs
+7acf06713e5ec9478515180333ba132060d3bb68d75b0c8002923e0c41b589de  dpapi-key.cjs
+7bc1fedc451da5ea4e839ce7a25e048696548aad7fb794cfef1c0a14671817a9  sdk-loader.cjs
+ae59de944e9b3c624d9f33c1c07c78f6eb0bb8c77ef81fdd781513115b5b393e  state-store.cjs
+312ed3f24c83ed1f8e5e7ebc8f3501389374f3b18528698d638830cef8dff361  pinned.cjs
+9564f2ee917c4588287d9ecb7d9405214a2efcd071defd8977b96aa1c206cadf  make-deployment-config.cjs
+baacd639d98baaa952e5028a75ed6e5c76977fbeb72b67930191f0875cc333b6  mutate.cjs
+181538c6b67d225ecbc9bdcd937c9421c31fe75189b4b351f0d3bc66ca797fd8  dryrun-live.cjs
+1a1c8d07dc13722c4f82cf399aeb1858c75c177867474a936384540352f58374  evidence.cjs
+2c0ef0990027e4636c19734d1e292a9a1ec48748cd6ad4e9ebf44dca9070057e  windows-validation.cjs
+7471333c0c3c098972c24ae540751a8bc1a931e0a9d31cab6a4b6db559d09415  acl-experiment.cjs
+2547881099a17e240ca7043e8c8ff594f93447afbbc85d5d466e7a152eebb95f  auth-evidence.cjs
+4aac55978b4f274723f7bdee8641a465f055340acdbde511fdb7db13d602cc63  auth-probe.cjs
+e79bf70bc23dddcd069f962da55b4901f8355bc83ba1d9b58d34e08463bef5f1  test/helpers.cjs
+833632668b7f4492b33278e70db7d7616eb95c3e39f9ec7799a092410b34d0de  test/tst-signer.test.cjs
+9727fba86619353bd6780f460206af388784fe7a643f5d2842195ea6deb3e819  test/hardening.test.cjs
+b631fd55ce5c916ca8b583ea2b1e8628bc776a0057f6c4aa93e3210285a3bb04  test/submission.test.cjs
+4ab3d9d2b5cdaf89f30411a34309e7666ec144ddffe0ef5fbb5e05a28e342f52  test/expiry.test.cjs
+451f4f74c3734d960b3684d1ac6af364bb9d1bead5e2d039f4092658cd9b0495  test/windows.test.cjs
+7dff25e3f920a1dd97bfa735f7359efad8a4c49f812e6d563f2d2dfebf17d0c8  test/authorization.test.cjs
+9ff82b689b60eb84e4363d4f8caaba80b6dafe2518966b1a76ea178961227fe4  test/dpapi-cleanup.test.cjs
+81a7d50315f2507525d67f9a76fd64b8c208cf77b813788b623ee1cac2649fbb  test/fixtures/real-auth-entries.json
+58fb8f386c475b10e0c72f8ae253193b77079ff4e5638dee8c3b5ef7d5d01de9  REVISION-5-REVIEW.md

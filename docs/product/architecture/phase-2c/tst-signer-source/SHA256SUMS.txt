@@ -1,0 +1,23 @@
+# SHA-256 of the signer files (working copies in the scratchpad == the .txt copies in this directory)
+# Computed 2026-11-04 after revision 4 (final review and Windows validation). Each .txt copy was verified to hash identically to its working file.
+# One-off edit scripts (patch-*.cjs), sample generators and logs are not part of the signer and are not listed.
+# Verify in PowerShell: Get-FileHash -Algorithm SHA256 <file> and compare with the line below.
+# This list is only independent once a copy lives somewhere the signer's directory cannot reach (see the security review).
+f95fba2cdc89de20eda559385472ac71665faf994b61b89117bbd6e5e0cd0b45  tst-signer-core.cjs
+5f55891425daf0f0f3480b461a9d2152affafbf1cb27e4c0d0837b86f3e93b6a  tst-signer.cjs
+9c41ae2d7f002490cb757a93f471ff99b1359913469aa214e694589a513db63b  dpapi-key.cjs
+7bc1fedc451da5ea4e839ce7a25e048696548aad7fb794cfef1c0a14671817a9  sdk-loader.cjs
+ae59de944e9b3c624d9f33c1c07c78f6eb0bb8c77ef81fdd781513115b5b393e  state-store.cjs
+312ed3f24c83ed1f8e5e7ebc8f3501389374f3b18528698d638830cef8dff361  pinned.cjs
+9564f2ee917c4588287d9ecb7d9405214a2efcd071defd8977b96aa1c206cadf  make-deployment-config.cjs
+f421939c95fd951b0af69b1d5fce1d7882998bf73868168fd75707df0122706a  mutate.cjs
+181538c6b67d225ecbc9bdcd937c9421c31fe75189b4b351f0d3bc66ca797fd8  dryrun-live.cjs
+1a1c8d07dc13722c4f82cf399aeb1858c75c177867474a936384540352f58374  evidence.cjs
+48cf1522b8de332e310e6b1b05c7b1aa8dbe56d7ceccfba2d67735a6a440912d  windows-validation.cjs
+7471333c0c3c098972c24ae540751a8bc1a931e0a9d31cab6a4b6db559d09415  acl-experiment.cjs
+9491da4aaaab87c9456a7ce152415edf448fdd6234d53875ee731854ecf76c40  test/helpers.cjs
+833632668b7f4492b33278e70db7d7616eb95c3e39f9ec7799a092410b34d0de  test/tst-signer.test.cjs
+9727fba86619353bd6780f460206af388784fe7a643f5d2842195ea6deb3e819  test/hardening.test.cjs
+b631fd55ce5c916ca8b583ea2b1e8628bc776a0057f6c4aa93e3210285a3bb04  test/submission.test.cjs
+4ab3d9d2b5cdaf89f30411a34309e7666ec144ddffe0ef5fbb5e05a28e342f52  test/expiry.test.cjs
+22fffe8bb36df77080b4464a17903ac228a0ca022b2f7884d6cea0a59ad8d682  test/windows.test.cjs

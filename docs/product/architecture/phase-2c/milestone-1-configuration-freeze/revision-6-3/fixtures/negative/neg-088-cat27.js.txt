@@ -1,0 +1,4 @@
+// category 27: shadowing globalThis
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: S1)
+function f8(globalThis) { return globalThis; }

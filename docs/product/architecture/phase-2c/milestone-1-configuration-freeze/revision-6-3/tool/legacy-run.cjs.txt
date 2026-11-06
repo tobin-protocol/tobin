@@ -1,0 +1,11 @@
+const fs=require('fs'),{analyze}=require('./ast-policy.cjs'),{load}=require('./legacy-fixtures.cjs');
+const T=load('legacy-62-tests.txt');
+console.log('REJECT',T.REJECT.length,'BYPASS',T.BYPASS.length,'R62',T.R62.length);
+let accepted=0,total=0;
+for(const [name,tab] of Object.entries(T)) for(const f of ['tst-signer-core.cjs','sdk-loader.cjs']){
+  const base=fs.readFileSync(require('path').join(process.argv[2]||'in',f),'utf8');
+  for(const row of tab){ const code=row[0]; total++;
+    const r=analyze(base+'\n'+code+'\n',f);
+    if(r.ok){accepted++; console.log('ACCEPTED',name,f,JSON.stringify(code).slice(0,110),'-',row[1]);}
+  }}
+console.log({total,accepted});

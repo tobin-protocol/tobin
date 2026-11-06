@@ -1,0 +1,46 @@
+✔ tool: exact match prints VERIFY: MATCH and exits 0; the hash equals the independent oracle (217.002ms)
+✔ tool: the real signer directory verifies against the oracle hash (80.9751ms)
+✔ tool: a wrong expected hash is a MISMATCH (exit 1) and never prints MATCH (110.0848ms)
+✔ tool: invalid expected hashes are REFUSED (exit 2), never accepted (582.4107ms)
+✔ tool: a modified runtime file is a MISMATCH: authorization.cjs (126.774ms)
+✔ tool: a missing runtime file is REFUSED: authorization.cjs (102.0698ms)
+✔ tool: a modified runtime file is a MISMATCH: baseline.cjs (126.8492ms)
+✔ tool: a missing runtime file is REFUSED: baseline.cjs (139.3559ms)
+✔ tool: a modified runtime file is a MISMATCH: dpapi-key.cjs (138.1401ms)
+✔ tool: a missing runtime file is REFUSED: dpapi-key.cjs (100.1314ms)
+✔ tool: a modified runtime file is a MISMATCH: pinned.cjs (124.4355ms)
+✔ tool: a missing runtime file is REFUSED: pinned.cjs (110.0859ms)
+✔ tool: a modified runtime file is a MISMATCH: refusal.cjs (125.1746ms)
+✔ tool: a missing runtime file is REFUSED: refusal.cjs (101.3765ms)
+✔ tool: a modified runtime file is a MISMATCH: sdk-loader.cjs (122.8797ms)
+✔ tool: a missing runtime file is REFUSED: sdk-loader.cjs (102.1849ms)
+✔ tool: a modified runtime file is a MISMATCH: state-store.cjs (124.8723ms)
+✔ tool: a missing runtime file is REFUSED: state-store.cjs (101.9602ms)
+✔ tool: a modified runtime file is a MISMATCH: tst-signer-core.cjs (122.3022ms)
+✔ tool: a missing runtime file is REFUSED: tst-signer-core.cjs (120.568ms)
+✔ tool: a modified runtime file is a MISMATCH: tst-signer-main.cjs (133.8061ms)
+✔ tool: a missing runtime file is REFUSED: tst-signer-main.cjs (103.5636ms)
+✔ tool: a modified runtime file is a MISMATCH: tst-signer.cjs (121.1069ms)
+✔ tool: a missing runtime file is REFUSED: tst-signer.cjs (98.6553ms)
+✔ tool: the launcher and the gate (the bootstrap) are covered: modifying either is detected from outside, which the in-signer gate cannot do for itself (245.3858ms)
+✔ tool: SDK modification, wrong SDK identity, missing SDK are all refused or mismatched (561.4169ms)
+✔ tool: --sdk-dir selects the SDK that is hashed (155.1886ms)
+✔ tool: CR, BOM and invalid UTF-8 are refused in runtime files and in the configuration (515.8225ms)
+✔ tool: the deployment configuration is included when present (and the baseline then differs from the ABSENT baseline) (223.5775ms)
+✔ tool: unexpected entries are refused (including an expected-hash file placed inside the signer directory, which is never read) (529.5072ms)
+✔ tool: the expected hash comes only from --expected: it is mandatory and is not looked up anywhere else (155.2409ms)
+✔ tool: a runtime dependency cannot be omitted: relative requires outside the closure, non-literal requires, unapproved built-ins, dynamic import and eval are refused (590.7585ms)
+✔ tool: junctions are refused where they can be created (174.9657ms)
+✔ tool: --manifest accepts the exact manifest and rejects malformed or different manifests (957.412ms)
+✔ tool: usage errors exit 3 (missing, unknown or repeated arguments) (430.7314ms)
+✔ tool: an unreadable or missing signer directory is refused; a file is not a directory (131.6659ms)
+✔ tool: it is independent code: it imports nothing from the signer and only Node built-ins (1.479ms)
+✔ tool and in-signer gate agree on the same trees (two implementations, same author: a consistency check, not independent verification) (289.1655ms)
+ℹ tests 38
+ℹ suites 0
+ℹ pass 38
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 8596.7929

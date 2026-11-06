@@ -1,0 +1,5 @@
+// category 19: string constructor key (concatenated)
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: K1)
+const k = 'constr' + 'uctor';
+const c = ({})[k];

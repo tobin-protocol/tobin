@@ -1,0 +1,213 @@
+'use strict';
+// Self-tests of the hash-only baseline tool (Revision 6), on temporary copies of the signer files. No key, no network, no signing.
+// The PowerShell parity tests start powershell.exe locally to run reproduce-in-powershell.ps1 (offline, reads files only).
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('fs'); const os = require('os'); const path = require('path');
+const { spawnSync } = require('child_process');
+const { build, CLOSURE, analyzeSource, discoverClosure } = require('./compute-baseline-hash.cjs');
+
+const SIGNER = path.resolve(process.env.TOBIN_SIGNER_DIR || path.join(__dirname, '..', 'tst-signer'));
+const SDK = path.resolve(process.env.TOBIN_SDK_PACKAGE || path.join(__dirname, '..', 'pk', 'x-stellar-stellar-sdk-17.4.0', 'package'));
+const TOOL = path.join(__dirname, 'compute-baseline-hash.cjs');
+const PS1 = path.join(__dirname, 'reproduce-in-powershell.ps1');
+const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tst-baseline-')); test.after(() => fs.rmSync(root, { recursive: true, force: true }));
+let n = 0;
+const copy = () => { const d = path.join(root, 'c' + n++); fs.mkdirSync(d); for (const f of CLOSURE) fs.copyFileSync(path.join(SIGNER, f), path.join(d, f)); return d; };
+const run = (args) => spawnSync(process.execPath, [TOOL, ...args], { encoding: 'utf8' });
+const ps = (args) => spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-File', PS1, ...args], { encoding: 'utf8' });
+const base = build({ signerDir: SIGNER, sdkPackage: SDK }).hash;
+const edit = (dir, file, fn) => fs.writeFileSync(path.join(dir, file), fn(fs.readFileSync(path.join(dir, file), 'utf8')));
+const refused = (dir, re) => assert.throws(() => build({ signerDir: dir, sdkPackage: SDK }), re);
+
+test('the hash is deterministic and equals the hash of a copy of the same bytes', () => {
+  assert.equal(build({ signerDir: SIGNER, sdkPackage: SDK }).hash, base);
+  assert.equal(build({ signerDir: copy(), sdkPackage: SDK }).hash, base);
+});
+
+test('changing a single byte of any hashed file changes the hash', () => {
+  for (const f of CLOSURE) { const d = copy(); fs.appendFileSync(path.join(d, f), ' '); assert.notEqual(build({ signerDir: d, sdkPackage: SDK }).hash, base, f); }
+});
+
+// ---- Correction A: pinned.cjs is hashed ----
+test('pinned.cjs is part of the loaded set, of the hashed set and of the manifest', () => {
+  const r = build({ signerDir: SIGNER, sdkPackage: SDK });
+  assert.ok(r.runtimeLoaded.includes('pinned.cjs') && r.hashed.includes('pinned.cjs') && CLOSURE.includes('pinned.cjs'));
+  assert.deepEqual(r.runtimeLoaded, r.hashed);
+  assert.match(r.manifest, /^[0-9a-f]{64}  file:pinned\.cjs$/m);
+  assert.ok(!r.notHashed.includes('pinned.cjs'));
+});
+
+test('pinned.cjs: unchanged bytes give a deterministic hash; a one-byte change, a missing file and a malformed file are all refused or change B0', () => {
+  const d = copy(); assert.equal(build({ signerDir: d, sdkPackage: SDK }).hash, base);
+  fs.appendFileSync(path.join(d, 'pinned.cjs'), ' '); assert.notEqual(build({ signerDir: d, sdkPackage: SDK }).hash, base);
+  const d2 = copy(); edit(d2, 'pinned.cjs', (s) => s.replace('PINNED_CONFIG_SHA256: null', 'PINNED_CONFIG_SHA256: "' + 'ab'.repeat(32) + '"'));
+  const changed = build({ signerDir: d2, sdkPackage: SDK }).hash; assert.notEqual(changed, base);
+  const miss = copy(); fs.unlinkSync(path.join(miss, 'pinned.cjs')); refused(miss, /declared dependency pinned\.cjs is missing/);
+  const crlf = copy(); edit(crlf, 'pinned.cjs', (s) => s.replace(/\n/g, '\r\n')); refused(crlf, /CR byte/);
+  const bom = copy(); fs.writeFileSync(path.join(bom, 'pinned.cjs'), Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), fs.readFileSync(path.join(bom, 'pinned.cjs'))])); refused(bom, /BOM/);
+  const bad = copy(); fs.appendFileSync(path.join(bad, 'pinned.cjs'), Buffer.from([0xff, 0xfe, 0x41])); refused(bad, /not valid UTF-8/);
+});
+
+test('the expected hash is never stored in the hashed files: pinned.cjs holds only the config pin and the tool contains no 64-hex expected value', () => {
+  assert.match(fs.readFileSync(path.join(SIGNER, 'pinned.cjs'), 'utf8'), /PINNED_CONFIG_SHA256: (null|"[0-9a-f]{64}")/);
+  assert.ok(!/[0-9a-f]{64}/.test(fs.readFileSync(TOOL, 'utf8')), 'no hash literal in the tool');
+  for (const f of CLOSURE) assert.ok(!fs.readFileSync(path.join(SIGNER, f), 'utf8').includes(base), `${f} must not embed the baseline hash`);
+});
+
+test('CR bytes, a BOM and invalid UTF-8 are refused (so the hash cannot depend on line-ending settings)', () => {
+  const crlf = copy(); edit(crlf, 'refusal.cjs', (s) => s.replace(/\n/g, '\r\n')); refused(crlf, /CR byte/);
+  const bom = copy(); fs.writeFileSync(path.join(bom, 'refusal.cjs'), Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), fs.readFileSync(path.join(bom, 'refusal.cjs'))])); refused(bom, /BOM/);
+  const bad = copy(); fs.appendFileSync(path.join(bad, 'refusal.cjs'), Buffer.from([0xff, 0xfe, 0x41])); refused(bad, /not valid UTF-8/);
+});
+
+// ---- Correction B: loading policy ----
+test('all currently approved static dependencies pass the loading policy, with the expected graph', () => {
+  const g = discoverClosure(SIGNER);
+  assert.deepEqual(g.files, [...CLOSURE].sort());
+  assert.deepEqual(g.analysis['tst-signer.cjs'].relative, ['dpapi-key.cjs', 'pinned.cjs', 'sdk-loader.cjs', 'state-store.cjs', 'tst-signer-core.cjs']);
+  assert.deepEqual(g.analysis['tst-signer-core.cjs'].relative, ['authorization.cjs', 'refusal.cjs']);
+  assert.deepEqual(g.analysis['pinned.cjs'].relative, []);
+});
+
+const inject = (code) => { const d = copy(); fs.appendFileSync(path.join(d, 'tst-signer-core.cjs'), '\n' + code + '\n'); return d; };
+const REJECT = [
+  ['require(moduleName)', 'const moduleName = "x"; require(moduleName);', /require is not exactly/],
+  ["require('./' + moduleName)", "const m = 'a'; require('./' + m);", /require is not exactly/],
+  ['require(`./${m}`)', 'const m = "a"; require(`./${m}`);', /require is not exactly/],
+  ['aliased require', 'const r = require; r("./pinned.cjs");', /require is not exactly/],
+  ['require.resolve / member require', 'module.require("./x.cjs");', /member named require|module used/],
+  ['import(moduleName)', 'const m = "x"; import(m);', /forbidden identifier "import"/],
+  ["import('./' + moduleName)", "const m = 'a'; import('./' + m);", /forbidden identifier "import"/],
+  ["import('./literal.mjs')", "import('./literal.mjs');", /forbidden identifier "import"/],
+  ['eval', 'eval("1");', /forbidden identifier "eval"/],
+  ['new Function', 'new Function("return 1")();', /forbidden identifier "Function"/],
+  ['globalThis.eval-style access', 'global.process;', /forbidden identifier "global"/],
+  ['.constructor gadget', '(() => {}).constructor("return 1")();', /constructor accessed as a member/],
+  ['string-built dangerous key', "this['ev' + 'al'];", /computed member key built from a string expression/],
+  ['dangerous name as string', "const k = 'eval';", /string literal "eval"/],
+  ['filesystem read of an unlisted source file (extra readFileSync)', "const t = require('fs').readFileSync('./other.cjs', 'utf8');", /not approved to require built-in "fs"|"readFileSync" occurs/],
+  ['vm outside the loader', "require('vm').runInThisContext('1');", /not approved to require built-in "vm"/],
+  ['unapproved built-in', "require('http');", /not an approved built-in/],
+  ['node_modules package', "require('left-pad');", /not an approved built-in/],
+  ['literal relative dependency outside the closure', "require('./extra.cjs');", /not in the approved closure/],
+  ['parent-directory require', "require('../evil.cjs');", /not of the form/],
+  ['sub-directory require', "require('./sub/evil.cjs');", /not of the form/],
+  ['process member outside the list', 'process.binding("fs");', /forbidden identifier "binding"|process member/],
+  ['unlexable source (unterminated string)', 'const s = "abc', /unterminated string literal/],
+  ['unlexable source (unbalanced brackets)', 'function f( {', /unbalanced brackets/],
+  ['non-ASCII identifier / homoglyph', 'const еval = 1;', /non-ASCII/],
+  ['unicode-escaped identifier', 'const x = \\u0065val;', /backslash outside a literal/],
+];
+for (const [name, code, re] of REJECT) test(`loading policy rejects: ${name}`, () => refused(inject(code), re));
+
+test('loading policy: a filesystem read in a file where none is approved is rejected, and one extra read in an approved file is rejected', () => {
+  const a = copy(); fs.appendFileSync(path.join(a, 'refusal.cjs'), "\nrequire('fs').readFileSync('./authorization.cjs');\n"); refused(a, /not approved to require built-in "fs"/);
+  const b = copy(); fs.appendFileSync(path.join(b, 'tst-signer.cjs'), "\nfs.readFileSync(path.join(__dirname, 'x.cjs'), 'utf8');\n"); refused(b, /"readFileSync" occurs 2 time\(s\); 1 approved/);
+});
+
+test('loading policy: a new relative dependency is rejected while it is also absent from the approved list, and a missing declared dependency is rejected', () => {
+  const extra = copy(); fs.writeFileSync(path.join(extra, 'extra.cjs'), '// new\n'); fs.appendFileSync(path.join(extra, 'tst-signer.cjs'), "\nrequire('./extra.cjs');\n");
+  refused(extra, /not in the approved closure/);
+  const missing = copy(); fs.unlinkSync(path.join(missing, 'state-store.cjs')); refused(missing, /declared dependency state-store\.cjs is missing/);
+  const unused = copy(); edit(unused, 'tst-signer.cjs', (s) => s.replace(/^const \{ createStore \} = require\('\.\/state-store\.cjs'\);$/m, ''));
+  refused(unused, /runtime closure differs|unbalanced|not in/);
+});
+
+test('loading policy: comments and string text that merely mention forbidden words do not trigger it, but real code does', () => {
+  assert.doesNotThrow(() => analyzeSource('refusal.cjs', "// eval import( require(x) new Function\n/* eval( */ const s = 'import eval Function'; const t = `a ${1} b`;\n", CLOSURE.slice()));
+  assert.throws(() => analyzeSource('refusal.cjs', 'const t = `${eval("1")}`;', CLOSURE.slice()), /forbidden identifier "eval"/);
+  assert.doesNotThrow(() => analyzeSource('refusal.cjs', 'const r = /a[/]b\\//g; const q = 4 / 2 / 1; module.exports = { r, q };', CLOSURE.slice()));
+});
+
+test('loading policy output is deterministic (same sources, same analysis, any run)', () => {
+  assert.deepEqual(JSON.stringify(discoverClosure(SIGNER)), JSON.stringify(discoverClosure(copy())));
+});
+
+test('a new module in the runtime closure, or a missing one, is refused until the approved list is changed', () => {
+  const extra = copy(); fs.writeFileSync(path.join(extra, 'extra.cjs'), '// new\n'); fs.appendFileSync(path.join(extra, 'tst-signer.cjs'), "\nrequire('./extra.cjs');\n");
+  refused(extra, /approved closure|runtime closure differs/);
+  const missing = copy(); fs.unlinkSync(path.join(missing, 'state-store.cjs')); refused(missing, /missing/);
+});
+
+test('files outside the closure are listed as not hashed and never change the hash', () => {
+  const d = copy(); fs.writeFileSync(path.join(d, 'make-deployment-config.cjs'), '// not loaded\n'); fs.writeFileSync(path.join(d, 'notes.txt'), 'x\n');
+  const r = build({ signerDir: d, sdkPackage: SDK }); assert.equal(r.hash, base); assert.deepEqual(r.notHashed, ['make-deployment-config.cjs', 'notes.txt']);
+});
+
+test('the deployment configuration is part of the full pin: absent and present produce different hashes, and any change to the config changes the hash', () => {
+  const cfg = path.join(root, 'deployment-config.json'); fs.writeFileSync(cfg, '{"example":"throwaway fixture, not a real deployment identity"}\n');
+  const p1 = build({ signerDir: SIGNER, configFile: cfg, sdkPackage: SDK }); assert.notEqual(p1.hash, base); assert.equal(p1.variant, 'FULL PIN (P)');
+  fs.appendFileSync(cfg, ' '); assert.notEqual(build({ signerDir: SIGNER, configFile: cfg, sdkPackage: SDK }).hash, p1.hash);
+  fs.writeFileSync(cfg, '{"a":1}\r\n'); assert.throws(() => build({ signerDir: SIGNER, configFile: cfg, sdkPackage: SDK }), /CR byte/);
+  assert.throws(() => build({ signerDir: SIGNER, configFile: path.join(root, 'nonexistent.json'), sdkPackage: SDK }));
+});
+
+test('the SDK identity is part of the hash: a changed bundle changes it', () => {
+  const pk = path.join(root, 'sdk'); fs.mkdirSync(path.join(pk, 'dist'), { recursive: true });
+  fs.copyFileSync(path.join(SDK, 'package.json'), path.join(pk, 'package.json')); fs.copyFileSync(path.join(SDK, 'dist', 'stellar-sdk.js'), path.join(pk, 'dist', 'stellar-sdk.js'));
+  assert.equal(build({ signerDir: SIGNER, sdkPackage: pk }).hash, base);
+  fs.appendFileSync(path.join(pk, 'dist', 'stellar-sdk.js'), ' '); assert.notEqual(build({ signerDir: SIGNER, sdkPackage: pk }).hash, base);
+});
+
+test('--verify fails closed: a mismatch exits 1, a malformed expected value exits 3, a missing directory exits 2, only the exact hash exits 0', () => {
+  const sa = ['--signer-dir', SIGNER, '--sdk-package', SDK];
+  const ok = run([...sa, '--verify', base]); assert.equal(ok.status, 0); assert.match(ok.stdout, /VERIFY: MATCH/);
+  const flip = base.slice(0, -1) + (base.endsWith('0') ? '1' : '0'); const bad = run([...sa, '--verify', flip]); assert.equal(bad.status, 1); assert.match(bad.stdout, /VERIFY: MISMATCH/);
+  for (const v of ['', 'abc', base.toUpperCase(), base + '0', ' ' + base, 'g'.repeat(64)]) { const r = run([...sa, '--verify', v]); assert.equal(r.status, 3, JSON.stringify(v)); assert.match(r.stdout, /REFUSED/); }
+  assert.equal(run([]).status, 2); assert.equal(run(['--signer-dir', path.join(root, 'nope')]).status, 2);
+  assert.notEqual(run([...sa, '--verify']).status, 0);
+});
+
+test('the tool has no capability beyond reading and hashing files', () => {
+  const { lex } = require('./compute-baseline-hash.cjs'); const src = fs.readFileSync(TOOL, 'utf8');
+  const toks = lex('tool', src); const ids = new Set(toks.filter((t, k) => t.t === 'id' && !(toks[k + 1] && toks[k + 1].v === ':')).map((t) => t.v)); // object keys of the policy tables are data, not calls
+  for (const bad of ['eval', 'Function', 'fetch', 'spawn', 'spawnSync', 'exec', 'execSync', 'execFile', 'execFileSync', 'fork', 'XMLHttpRequest', 'WebSocket', 'import', 'createRequire']) assert.ok(!ids.has(bad), 'no process, network or dynamic-code API: ' + bad);
+  const reqs = []; toks.forEach((t, k) => { if (t.t === 'id' && t.v === 'require' && toks[k + 2] && toks[k + 2].t === 'str') reqs.push(toks[k + 2].v); });
+  assert.deepEqual(reqs.sort(), ['crypto', 'fs', 'path']);
+});
+
+// ---- Correction C: PowerShell parity ----
+const psArgs = (d, extra = []) => ['-SignerDir', d, '-SdkPackage', SDK, ...extra];
+const nodeArgs = (d, extra = []) => ['--signer-dir', d, '--sdk-package', SDK, ...extra];
+const hashOf = (out) => /(?:baseline sha256:) ([0-9a-f]{64})/.exec(out)[1];
+
+test('PowerShell parity: identical manifest bytes and hash, config absent and present', () => {
+  const mn = path.join(root, 'm-node.txt'), mp = path.join(root, 'm-ps.txt');
+  const a = run(nodeArgs(SIGNER, ['--manifest-out', mn])); const b = ps(psArgs(SIGNER, ['-ManifestOut', mp]));
+  assert.equal(a.status, 0); assert.equal(b.status, 0, b.stderr);
+  assert.ok(fs.readFileSync(mn).equals(fs.readFileSync(mp)), 'manifest bytes equal'); assert.equal(hashOf(a.stdout), hashOf(b.stdout)); assert.equal(hashOf(a.stdout), base);
+  const cfg = path.join(root, 'parity-config.json'); fs.writeFileSync(cfg, '{"fixture":"not a real identity"}\n');
+  const mn2 = path.join(root, 'm2-node.txt'), mp2 = path.join(root, 'm2-ps.txt');
+  const a2 = run(nodeArgs(SIGNER, ['--config', cfg, '--manifest-out', mn2])); const b2 = ps(psArgs(SIGNER, ['-Config', cfg, '-ManifestOut', mp2]));
+  assert.equal(a2.status, 0); assert.equal(b2.status, 0, b2.stderr);
+  assert.ok(fs.readFileSync(mn2).equals(fs.readFileSync(mp2))); assert.notEqual(hashOf(a2.stdout), base);
+  assert.match(fs.readFileSync(mn, 'utf8'), /^ABSENT  config:deployment-config\.json$/m); assert.match(fs.readFileSync(mp, 'utf8'), /^ABSENT  config:deployment-config\.json$/m);
+});
+
+test('PowerShell parity: both reject CR, BOM and invalid UTF-8 in a closure file (including pinned.cjs) and in the configuration', () => {
+  const cases = [['CR', (b) => Buffer.from(b.toString('utf8').replace(/\n/g, '\r\n')), /CR byte/], ['BOM', (b) => Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), b]), /BOM/], ['UTF-8', (b) => Buffer.concat([b, Buffer.from([0xff, 0xfe, 0x41])]), /not valid UTF-8/]];
+  for (const file of ['pinned.cjs', 'refusal.cjs']) for (const [name, fn, re] of cases) {
+    const d = copy(); fs.writeFileSync(path.join(d, file), fn(fs.readFileSync(path.join(d, file))));
+    const a = run(nodeArgs(d)); const b = ps(psArgs(d));
+    assert.equal(a.status, 2, `node ${name} ${file}`); assert.match(a.stderr, re); assert.equal(b.status, 2, `ps ${name} ${file}: ${b.stdout}`); assert.match(b.stderr, /CR byte|BOM|not valid UTF-8/);
+  }
+  for (const [name, fn] of cases) {
+    const cfg = path.join(root, `bad-${name}.json`); fs.writeFileSync(cfg, fn(Buffer.from('{"a":1}\n')));
+    assert.equal(run(nodeArgs(SIGNER, ['--config', cfg])).status, 2, `node config ${name}`); assert.equal(ps(psArgs(SIGNER, ['-Config', cfg])).status, 2, `ps config ${name}`);
+  }
+});
+
+test('PowerShell parity: changing pinned.cjs changes the hash in both; a missing pinned.cjs fails in both; -Verify behaves like --verify', () => {
+  const d = copy(); edit(d, 'pinned.cjs', (s) => s.replace('PINNED_CONFIG_SHA256: null', 'PINNED_CONFIG_SHA256: "' + 'cd'.repeat(32) + '"'));
+  const a = run(nodeArgs(d)); const b = ps(psArgs(d)); assert.equal(a.status, 0); assert.equal(b.status, 0, b.stderr);
+  assert.equal(hashOf(a.stdout), hashOf(b.stdout)); assert.notEqual(hashOf(a.stdout), base);
+  const m = copy(); fs.unlinkSync(path.join(m, 'pinned.cjs')); assert.equal(run(nodeArgs(m)).status, 2); assert.equal(ps(psArgs(m)).status, 2);
+  assert.equal(ps(psArgs(SIGNER, ['-Verify', base])).status, 0); assert.equal(ps(psArgs(SIGNER, ['-Verify', base.slice(0, -1) + (base.endsWith('0') ? '1' : '0')])).status, 1);
+  for (const v of ['abc', base.toUpperCase(), '']) assert.equal(ps(psArgs(SIGNER, ['-Verify', v])).status, 3, JSON.stringify(v));
+});
+
+test('PowerShell script states its limits and does not claim closure or policy checking', () => {
+  const src = fs.readFileSync(PS1, 'utf8');
+  assert.match(src, /NON-AUTHORITATIVE/); assert.match(src, /does NOT discover the require graph and does NOT apply the loading policy/);
+});

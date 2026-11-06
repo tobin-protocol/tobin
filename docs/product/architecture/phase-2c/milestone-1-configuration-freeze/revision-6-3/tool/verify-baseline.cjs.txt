@@ -1,0 +1,79 @@
+'use strict';
+// Revision 6.3 CANDIDATE (NOT APPROVED). HASH-ONLY gate: it reads files, runs the AST policy, and prints hashes.
+// It cannot sign, decrypt, load a key, contact a network or run the signer. Dependencies: Node built-ins and the pinned acorn parser.
+//
+//   node verify-baseline.cjs --signer-dir <dir> --sdk-package <dir> [--config <deployment-config.json>] [--manifest-out <file>] [--verify <64 hex>]
+//
+// 1. The AST policy (ast-policy.cjs) is the ONLY policy gate. Every one of the eight runtime files must pass it. The Revision 6.2 lexer is not used.
+// 2. The require graph of the eight files must be closed: every relative require names one of the eight, and all eight are reachable from tst-signer.cjs.
+// 3. Canonical baseline procedure version 1 (UNCHANGED from Revision 6): inputs are the eight files, the deployment configuration (or ABSENT) and the two
+//    pinned SDK files; text inputs must have no CR byte, no UTF-8 BOM and be valid UTF-8; manifest header "TOBIN-TST-SIGNER-BASELINE v1", then one line
+//    "<sha256>  <label>" per input in ordinal order of the label, LF line ends, final LF. The baseline hash is the SHA-256 of the manifest bytes.
+// Exit codes: 0 ok / MATCH, 1 MISMATCH, 2 refused (policy, closure or input validation), 3 malformed arguments.
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+const { analyze } = require('./ast-policy.cjs');
+
+const FILES = ['authorization.cjs', 'dpapi-key.cjs', 'pinned.cjs', 'refusal.cjs', 'sdk-loader.cjs', 'state-store.cjs', 'tst-signer-core.cjs', 'tst-signer.cjs'];
+const ENTRY = 'tst-signer.cjs';
+const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
+class Refused extends Error {}
+
+function textBytes(file) {
+  const b = fs.readFileSync(file);
+  if (b.includes(13)) throw new Refused(`${file} contains a CR byte`);
+  if (b.length >= 3 && b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf) throw new Refused(`${file} starts with a UTF-8 BOM`);
+  try { new TextDecoder('utf-8', { fatal: true }).decode(b); } catch { throw new Refused(`${file} is not valid UTF-8`); }
+  return b;
+}
+
+function build({ signerDir, sdkPackage, config }) {
+  const bytes = {};
+  for (const f of FILES) {
+    const p = path.join(signerDir, f);
+    if (!fs.existsSync(p)) throw new Refused(`missing runtime file ${f}`);
+    bytes[f] = textBytes(p);
+  }
+  const graph = {};
+  const failures = [];
+  for (const f of FILES) {
+    const r = analyze(bytes[f].toString('utf8'), f);
+    graph[f] = r.inventory.requires.filter((x) => x.form === 'local').map((x) => x.spec.replace(/^\.\//, ''));
+    if (!r.ok) for (const v of r.violations) failures.push(`${f}:${v.line} [${v.rule}] ${v.msg}`);
+  }
+  if (failures.length) throw new Refused(`AST policy refused ${failures.length} item(s):\n  ` + failures.slice(0, 20).join('\n  '));
+  for (const [f, deps] of Object.entries(graph)) for (const d of deps) if (!FILES.includes(d)) throw new Refused(`${f} requires ${d}, which is not in the approved closure`);
+  const seen = new Set([ENTRY]);
+  for (const stack = [ENTRY]; stack.length;) for (const d of graph[stack.pop()]) if (!seen.has(d)) { seen.add(d); stack.push(d); }
+  const unreachable = FILES.filter((f) => !seen.has(f));
+  if (unreachable.length) throw new Refused(`files not reachable from ${ENTRY}: ${unreachable.join(', ')}`);
+
+  const entries = new Map();
+  for (const f of FILES) entries.set(`file:${f}`, sha(bytes[f]));
+  entries.set('config:deployment-config.json', config ? sha(textBytes(config)) : 'ABSENT');
+  entries.set('external:@stellar/stellar-sdk@17.4.0/package.json', sha(fs.readFileSync(path.join(sdkPackage, 'package.json'))));
+  entries.set('external:@stellar/stellar-sdk@17.4.0/dist/stellar-sdk.js', sha(fs.readFileSync(path.join(sdkPackage, 'dist', 'stellar-sdk.js'))));
+  const labels = [...entries.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));   // ordinal (code unit) order
+  const manifest = 'TOBIN-TST-SIGNER-BASELINE v1\n' + labels.map((l) => `${entries.get(l)}  ${l}\n`).join('');
+  return { manifest, hash: sha(Buffer.from(manifest, 'utf8')), graph };
+}
+
+function main(argv) {
+  const a = { 'signer-dir': null, 'sdk-package': null, config: null, 'manifest-out': null, verify: null };
+  for (let i = 0; i < argv.length; i += 2) { const k = argv[i].replace(/^--/, ''); if (!(k in a) || argv[i + 1] === undefined) { console.error('usage: see header'); return 3; } a[k] = argv[i + 1]; }
+  if (!a['signer-dir'] || !a['sdk-package']) { console.error('--signer-dir and --sdk-package are required'); return 3; }
+  if (a.verify !== null && !/^[0-9a-f]{64}$/.test(a.verify)) { console.error('--verify must be 64 lowercase hex characters'); return 3; }
+  let r;
+  try { r = build({ signerDir: a['signer-dir'], sdkPackage: a['sdk-package'], config: a.config }); }
+  catch (e) { if (e instanceof Refused) { console.error('REFUSED: ' + e.message); return 2; } throw e; }
+  if (a['manifest-out']) fs.writeFileSync(a['manifest-out'], r.manifest);
+  console.log('variant: CODE BASELINE (B0), REVISION 6.3 CANDIDATE - NOT APPROVED');
+  console.log('policy: AST policy passed for all eight files; closure graph is closed and complete');
+  console.log(r.manifest.trimEnd());
+  console.log('\nbaseline sha256: ' + r.hash);
+  if (a.verify !== null) { const ok = a.verify === r.hash; console.log(ok ? 'VERIFY: MATCH' : 'VERIFY: MISMATCH (expected ' + a.verify + ')'); return ok ? 0 : 1; }
+  return 0;
+}
+if (require.main === module) process.exitCode = main(process.argv.slice(2));
+module.exports = { build, FILES, Refused };

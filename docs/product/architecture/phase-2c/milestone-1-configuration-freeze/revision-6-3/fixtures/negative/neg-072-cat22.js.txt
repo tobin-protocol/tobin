@@ -1,0 +1,4 @@
+// category 22: require with two arguments
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: R1)
+const m7 = require('fs', 1);

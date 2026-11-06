@@ -1,0 +1,14 @@
+review example 1 (loads an unlisted module)
+  return globalThis['require']('./unapproved-module');
+  Revision 6  : ACCEPTED
+  Revision 6.1: REFUSED (loading policy violation(s): "globalThis" used outside an approved exact pattern (line 27); computed member ac)
+review example 2 (gets fs without require)
+  return globalThis['process']['getBuiltinModule']('fs');
+  Revision 6  : ACCEPTED
+  Revision 6.1: REFUSED (loading policy violation(s): "globalThis" used outside an approved exact pattern (line 27); computed member ac)
+review example 3 (runs code)
+  return globalThis['process']['getBuiltinModule']('vm')['runInThisContext']('1');
+  Revision 6  : ACCEPTED
+  Revision 6.1: REFUSED (loading policy violation(s): "globalThis" used outside an approved exact pattern (line 27); computed member ac)
+
+examples: 3; accepted by Revision 6 and refused by Revision 6.1 as required: 3

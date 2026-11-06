@@ -1,0 +1,6 @@
+// category 6: env-derived property name via variable
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: K1)
+const key = process.env.K;
+const obj = { a: 1 };
+const v = obj[key];

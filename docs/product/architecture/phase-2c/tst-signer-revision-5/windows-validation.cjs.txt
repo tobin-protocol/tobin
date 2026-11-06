@@ -1,0 +1,42 @@
+'use strict';
+// Prints the observations of the Windows validation (disposable temp data only). The only network access is a READ-ONLY lookup
+// made by the CLI's `execute mint-C` refusal path (network passphrase and "does a contract exist at the predicted ID").
+const fs = require('fs'); const os = require('os'); const path = require('path'); const crypto = require('crypto');
+const { execFileSync, spawnSync } = require('child_process');
+const { loadSdk } = require('./sdk-loader.cjs'); const S = loadSdk();
+const { createStore, restrictOwnerOnly, verifyOwnerOnly, inspectAcl, StateError } = require('./state-store.cjs');
+const { makeDeploymentConfigText } = require('./make-deployment-config.cjs');
+const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tst-wv-'));
+const line = (...a) => console.log(...a);
+
+// 1. ACL before and after on a disposable file
+const f = path.join(root, 'probe.json'); fs.writeFileSync(f, '{"dummy":true}');
+const b = inspectAcl(f);
+line('ACL before: protected=%s, rules=%d, principals other than me=%d', b.protected, b.rules.length, b.rules.filter((r) => r.sid !== b.me).length);
+restrictOwnerOnly(f); const a = inspectAcl(f);
+line('ACL after : protected=%s, rules=%d, owner_is_me=%s, only_rule=%s/%s/inherited:%s', a.protected, a.rules.length, a.owner === a.me, a.rules[0].sid === a.me ? 'ME' : 'OTHER', a.rules[0].rights, a.rules[0].inherited);
+
+// 2. read-only target
+const d = path.join(root, 'ro'); fs.mkdirSync(d); const file = path.join(d, 'state.json');
+const cfgLike = (() => { const c = require('./tst-signer-core.cjs').makeConfig(S, { adminAddress: S.Keypair.random().publicKey(), saltHex: crypto.randomBytes(32).toString('hex'), configSha256: 'ab'.repeat(32), pinned: true }); return c; })();
+const store = createStore(file); store.init(cfgLike); const before = fs.readFileSync(file, 'utf8');
+execFileSync('attrib', ['+R', file]);
+let outcome; try { store.markPending(cfgLike, 'deploy', { txHash: 'a'.repeat(64), maxTime: 1, now: 1 }); outcome = 'replaced (rename over a read-only file succeeded)'; } catch (e) { outcome = `refused: ${e.message.slice(0, 90)}`; }
+execFileSync('attrib', ['-R', file]);
+line('read-only target:', outcome, '| previous state intact or fully replaced:', fs.readFileSync(file, 'utf8') === before ? 'intact' : 'replaced completely', '| temporary files left:', fs.readdirSync(d).filter((n) => n.endsWith('.tmp')).length);
+
+// 3. CLI: execute mint-C against a token that does not exist (temporary copy, temporary LOCALAPPDATA, fake pinned config)
+const sig = __dirname; const cliDir = fs.mkdtempSync(path.join(path.dirname(sig), 'tst-cli-wv-'));
+for (const m of ['tst-signer.cjs', 'tst-signer-core.cjs', 'refusal.cjs', 'authorization.cjs', 'state-store.cjs', 'dpapi-key.cjs', 'sdk-loader.cjs', 'make-deployment-config.cjs']) fs.copyFileSync(path.join(sig, m), path.join(cliDir, m));
+const text = makeDeploymentConfigText(S, S.Keypair.random().publicKey());
+fs.writeFileSync(path.join(cliDir, 'deployment-config.json'), text);
+fs.writeFileSync(path.join(cliDir, 'pinned.cjs'), `module.exports = { PINNED_CONFIG_SHA256: ${JSON.stringify(crypto.createHash('sha256').update(Buffer.from(text, 'utf8')).digest('hex'))} };\n`);
+const app = path.join(root, 'app'); fs.mkdirSync(path.join(app, 'TobinTestKeys'), { recursive: true });
+const run = (args) => spawnSync(process.execPath, [path.join(cliDir, 'tst-signer.cjs'), ...args], { encoding: 'utf8', cwd: cliDir, env: { ...process.env, LOCALAPPDATA: app }, timeout: 90000 });
+let r = run(['init']); line('CLI init: exit %d', r.status);
+const stateFile = path.join(app, 'TobinTestKeys', 'settlement-token-state.json'); const s0 = fs.readFileSync(stateFile, 'utf8');
+r = run(['execute', 'mint-C']);
+line('CLI execute mint-C (token does not exist): exit %d | stderr: %s', r.status, r.stderr.trim().slice(0, 140));
+line('   key file present: %s | state unchanged: %s | any PENDING record: %s | stdout empty: %s', fs.existsSync(path.join(app, 'TobinTestKeys', 'settlement-token-admin.dpapi')), fs.readFileSync(stateFile, 'utf8') === s0, JSON.parse(fs.readFileSync(stateFile, 'utf8')).operations.length > 0, r.stdout.trim() === '');
+fs.rmSync(cliDir, { recursive: true, force: true }); fs.rmSync(root, { recursive: true, force: true });
+line('temporary directories removed');

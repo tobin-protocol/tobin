@@ -1,0 +1,9 @@
+'use strict';
+const fs=require('fs'),path=require('path'),{analyze}=require('./ast-policy.cjs');
+const dir=process.argv[2]; let bad=0,n=0;
+for(const f of fs.readdirSync(dir).filter(x=>x.endsWith('.cjs')).sort()){
+  const r=analyze(fs.readFileSync(path.join(dir,f),'utf8'),f); n++;
+  console.log((r.ok?'PASS ':'FAIL ')+f+(r.ok?'':'  ('+r.violations.length+')'));
+  if(!r.ok){bad++; for(const v of r.violations.slice(0,40)) console.log('   ',v.rule,'L'+v.line,v.msg);}
+}
+console.log(`files: ${n}, pass: ${n-bad}, fail: ${bad}`); process.exit(bad?1:0);

@@ -1,0 +1,4 @@
+// category 19: constructor of an async arrow
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: N1)
+const AF = (async () => {}).constructor;

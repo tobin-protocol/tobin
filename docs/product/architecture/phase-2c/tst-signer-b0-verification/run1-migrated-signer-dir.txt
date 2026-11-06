@@ -1,0 +1,49 @@
+﻿##### RUN 1: migrated signer directory (pristine, before Part 5/6 changes)
+=== runtime closure found by an independent require() walk from tst-signer.cjs
+authorization.cjs, dpapi-key.cjs, pinned.cjs, refusal.cjs, sdk-loader.cjs, state-store.cjs, tst-signer-core.cjs, tst-signer.cjs
+closure equals the 8 candidate files: True
+pinned.cjs is in the closure: True  (required by tst-signer.cjs)
+built-in modules used: child_process, crypto, fs, path, readline, vm
+deployment-config.json present: False
+
+=== CANDIDATE definition (pinned.cjs INCLUDED)
+TOBIN-TST-SIGNER-BASELINE v1
+ABSENT  config:deployment-config.json
+de18071d1f64bf6aa1806a4eb250b3be7c1811a8e8ecdfc3c103013cf1d9b92f  external:@stellar/stellar-sdk@17.4.0/dist/stellar-sdk.js
+ee981053db93fce5c81310620d8198a493aa134ecd35d3e64540296687d72a62  external:@stellar/stellar-sdk@17.4.0/package.json
+ae3088b47d683f98b0c987afc086989aaf46c1e837d5c183272064e39bdef1b9  file:authorization.cjs
+7acf06713e5ec9478515180333ba132060d3bb68d75b0c8002923e0c41b589de  file:dpapi-key.cjs
+312ed3f24c83ed1f8e5e7ebc8f3501389374f3b18528698d638830cef8dff361  file:pinned.cjs
+562039b8d581894e4c9a5c79262a182bf7a603b85ce9031f39d3401607b46f3e  file:refusal.cjs
+7bc1fedc451da5ea4e839ce7a25e048696548aad7fb794cfef1c0a14671817a9  file:sdk-loader.cjs
+ae59de944e9b3c624d9f33c1c07c78f6eb0bb8c77ef81fdd781513115b5b393e  file:state-store.cjs
+207fc6b722bcad99189c030583bc0aa1b24ece7e5927c6eed084bcefaeafffc3  file:tst-signer-core.cjs
+5f55891425daf0f0f3480b461a9d2152affafbf1cb27e4c0d0837b86f3e93b6a  file:tst-signer.cjs
+manifest bytes: 995; LF only: True; ends with LF: True; starts with BOM: False
+computed hash : 9b594c5407b7934274f9c41a47f2dfc13a781f4f7b0cc0962a8ab57a52bacbb7
+expected hash : 9b594c5407b7934274f9c41a47f2dfc13a781f4f7b0cc0962a8ab57a52bacbb7
+RESULT        : MATCH
+preserved evidence file: baseline-manifest-B0-revision-6.txt  byte-identical to the reconstruction: True
+
+=== HISTORICAL Milestone 1 definition (pinned.cjs EXCLUDED)
+TOBIN-TST-SIGNER-BASELINE v1
+ABSENT  config:deployment-config.json
+de18071d1f64bf6aa1806a4eb250b3be7c1811a8e8ecdfc3c103013cf1d9b92f  external:@stellar/stellar-sdk@17.4.0/dist/stellar-sdk.js
+ee981053db93fce5c81310620d8198a493aa134ecd35d3e64540296687d72a62  external:@stellar/stellar-sdk@17.4.0/package.json
+ae3088b47d683f98b0c987afc086989aaf46c1e837d5c183272064e39bdef1b9  file:authorization.cjs
+7acf06713e5ec9478515180333ba132060d3bb68d75b0c8002923e0c41b589de  file:dpapi-key.cjs
+562039b8d581894e4c9a5c79262a182bf7a603b85ce9031f39d3401607b46f3e  file:refusal.cjs
+7bc1fedc451da5ea4e839ce7a25e048696548aad7fb794cfef1c0a14671817a9  file:sdk-loader.cjs
+ae59de944e9b3c624d9f33c1c07c78f6eb0bb8c77ef81fdd781513115b5b393e  file:state-store.cjs
+207fc6b722bcad99189c030583bc0aa1b24ece7e5927c6eed084bcefaeafffc3  file:tst-signer-core.cjs
+5f55891425daf0f0f3480b461a9d2152affafbf1cb27e4c0d0837b86f3e93b6a  file:tst-signer.cjs
+manifest bytes: 913; LF only: True; ends with LF: True; starts with BOM: False
+computed hash : ccea8b5b94bf3358f295ec8dd85435f34505714ef927764e5f58c557c567aa92
+expected hash : ccea8b5b94bf3358f295ec8dd85435f34505714ef927764e5f58c557c567aa92
+RESULT        : MATCH
+preserved evidence file: baseline-manifest-B0.txt  byte-identical to the reconstruction: True
+
+lines that differ between the two definitions:
+  <= 312ed3f24c83ed1f8e5e7ebc8f3501389374f3b18528698d638830cef8dff361  file:pinned.cjs
+OVERALL: both definitions reproduced (SELF-VERIFIED: same author, not an independent reviewer)
+exit code: 0

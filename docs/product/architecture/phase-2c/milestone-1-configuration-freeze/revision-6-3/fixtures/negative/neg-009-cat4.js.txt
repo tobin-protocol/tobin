@@ -1,0 +1,5 @@
+// category 4: method extraction then indirect call
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: C1|C2)
+const f = execFileSync;
+f('powershell.exe', ['-x']);

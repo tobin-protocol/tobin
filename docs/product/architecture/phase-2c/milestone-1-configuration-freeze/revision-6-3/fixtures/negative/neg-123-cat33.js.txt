@@ -1,0 +1,4 @@
+// category 33: globalThis outside pattern
+// applied as: the real sdk-loader.cjs followed by this snippet
+// expected: refused (one of: T1)
+const gt = globalThis;

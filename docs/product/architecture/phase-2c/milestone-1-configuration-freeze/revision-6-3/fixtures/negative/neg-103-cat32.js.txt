@@ -1,0 +1,4 @@
+// category 32: labeled statement
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: A1)
+lbl: for (;;) { break lbl; }

@@ -1,0 +1,4 @@
+// category 28: env value into exec target
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: X1)
+function e1() { return execFileSync(process.env.PROG, []); }

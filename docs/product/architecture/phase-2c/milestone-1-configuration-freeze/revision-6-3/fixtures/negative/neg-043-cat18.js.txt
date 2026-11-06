@@ -1,0 +1,4 @@
+// category 18: Object.setPrototypeOf
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: G1)
+Object.setPrototypeOf({}, null);

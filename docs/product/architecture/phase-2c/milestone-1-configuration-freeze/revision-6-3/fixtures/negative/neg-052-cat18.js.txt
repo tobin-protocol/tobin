@@ -1,0 +1,4 @@
+// category 18: setter indirection
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: N1)
+const os = { set a(v) {} };

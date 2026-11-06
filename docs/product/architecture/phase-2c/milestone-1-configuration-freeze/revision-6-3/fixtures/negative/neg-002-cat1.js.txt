@@ -1,0 +1,4 @@
+// category 1: direct computed read of a module member
+// applied as: the real state-store.cjs followed by this snippet
+// expected: refused (one of: K1|C1)
+const m3 = nodeFs['readFileSync'];
