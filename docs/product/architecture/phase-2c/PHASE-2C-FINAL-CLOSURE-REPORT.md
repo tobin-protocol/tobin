@@ -104,8 +104,18 @@ Contract check (`tst-signer-web-console-integration-contract.md`, read against t
 
 ## I. GitHub release status
 
-Filled in at the end of this pass; see the final entries below.
+Verified on commit `d5c2d708a9d8fa7be9ed41ea5ae96d7e811048ff` (the third commit added after `ed1dde3`; `817c316` and `ce2a57f` precede it). Later commits to this branch that touch only this report re-run the same checks.
 
-* PR: #11, open, not draft, base `main`, auto-merge disabled, not merged.
-* Latest commit and check results: recorded in the PR description and in the final report of the pass.
-* Ready for human merge approval: the engineering content is; the owner decisions in blocker 4 and the review scope (about 60 000 added lines) should be settled first.
+| Check (GitHub Actions) | Run | Result |
+|---|---|---|
+| Rust, TypeScript and documentation checks (includes the link check, release-scan rule tests, `check-gates` and the clean-tree check) | https://github.com/tobin-protocol/tobin/actions/runs/42176800964 | PASS |
+| Signer portable suites and baseline verifiers (Linux) | https://github.com/tobin-protocol/tobin/actions/runs/42176800866 | PASS: 21 + 122 + 57 + 13 + 38 tests as reported by the job; SDK verify OK; B1 `VERIFY: MATCH` from both the Node and the shell verifier |
+| Signer Windows suites (isolated temp and profile) | same run | PASS: DPAPI cleanup and Windows validation |
+| Vercel | deployment completed | PASS |
+| Vercel Preview Comments | – | PASS |
+
+Local checks on a clean export of the same tree: link check 0 broken of 141; `scan.test` 8/8; release scan 0 findings over 709 files; `check-gates` exit 0.
+
+* PR #11: open, not draft, base `main` (unchanged at `5fa621e`), mergeable, auto-merge disabled, **not merged**.
+* **Ready for human merge approval: yes for the engineering content**, subject to the owner's decision on blocker 4 (public-path exposure; merging puts the history on `main`) and acceptance that the PR is large (about 60 000 added lines, mostly preserved evidence).
+* Merging does not authorise execution.
