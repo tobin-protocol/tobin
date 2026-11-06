@@ -1,6 +1,6 @@
 # MVP-1 architecture, revised (Phase 2C)
 
-Written 2026-11-03. Supersedes the diagrams of [../phase-2b/mvp-1-architecture.md](../phase-2b/mvp-1-architecture.md) where they differ (the Phase 2B file is kept). Mermaid diagrams were **structurally checked by reading only; they were not rendered** (no renderer is available in this environment). Status: Proposed unless stated.
+Written 2026-11-03. Supersedes the diagrams of `docs/product/architecture/phase-2b/mvp-1-architecture.md` where they differ (the Phase 2B file is kept; that earlier-phase document is intentionally not part of the pull request that introduced this file, so it is cited as text, not as a link). Mermaid diagrams were **structurally checked by reading only; they were not rendered** (no renderer is available in this environment). Status: Proposed unless stated.
 
 ## Changes from Phase 2B
 

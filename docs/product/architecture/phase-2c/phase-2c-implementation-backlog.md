@@ -1,6 +1,6 @@
 # Phase 2C implementation backlog
 
-Written 2026-11-03. Planning only. Complexity S, M, L. Builds on [../phase-2b/phase-2b-implementation-plan.md](../phase-2b/phase-2b-implementation-plan.md); this file adds the findings of Phase 2C and does not rewrite it.
+Written 2026-11-03. Planning only. Complexity S, M, L. Builds on `docs/product/architecture/phase-2b/phase-2b-implementation-plan.md` (an earlier-phase document intentionally not part of the pull request that introduced this file, so cited as text, not as a link); this file adds the findings of Phase 2C and does not rewrite it.
 
 ## Gate tickets (must come first)
 

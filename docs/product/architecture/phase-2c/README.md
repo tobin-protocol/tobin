@@ -65,3 +65,9 @@ Written 2026-11-03. Scope: the Phase 2C brief authorized real-wallet Testnet tes
 - [tst-signer-sample-preview.md](tst-signer-sample-preview.md)
 - [tst-signer-source/](tst-signer-source/): read-only copies of the source and tests (.txt)
 - [tst-signer-hardening-change-report.md](tst-signer-hardening-change-report.md): hardening revision 2 (pinned identity, exact footprints, time bounds, atomic state, resource ceilings)
+
+## Pull request records (added 2026-11-06)
+
+- [B0-B1-PROJECT-OWNER-APPROVAL.md](B0-B1-PROJECT-OWNER-APPROVAL.md): project-owner approval of the B0 and B1 baselines (does not authorize execution).
+- [PR-11-SCOPE-REVIEW.md](PR-11-SCOPE-REVIEW.md): scope and public-path review of the pull request.
+- [WITHHELD-FROM-INITIAL-PULL-REQUEST.md](WITHHELD-FROM-INITIAL-PULL-REQUEST.md): twelve evidence files kept in archives, with their reconciliation.
