@@ -1,0 +1,89 @@
+# W0/W1 Web Console checks that need a browser: the real-browser W0 journey against the production build, MOCK ADAPTER ONLY.
+# No signer, key, DPAPI blob, state, network, RPC or secret is involved. The journey starts the console on 127.0.0.1 (mock scenario "ok", development
+# identity explicitly enabled) and a headless Chrome with a throw-away profile. A passing run is test evidence for the non-executing console; it is NOT an
+# authorization to integrate or run the real signer. See docs/product/architecture/w0/W0-ARCHITECTURE.md.
+name: w0-console
+
+on:
+  pull_request:
+    paths:
+      - "apps/web-console/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/w0-console.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: w0-console-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "24.14.0"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  browser:
+    name: W0 browser journey (mock adapter)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install TypeScript dependencies (lockfile, no install scripts)
+        run: npm ci --ignore-scripts
+
+      - name: Console production build
+        run: npm run build:console
+
+      - name: Locate the preinstalled Google Chrome
+        run: |
+          chrome="$(command -v google-chrome || true)"
+          if [ -z "$chrome" ]; then
+            echo "::error::google-chrome was not found on this runner image"
+            exit 1
+          fi
+          "$chrome" --version
+          echo "TOBIN_BROWSER=$chrome" >> "$GITHUB_ENV"
+
+      - name: W0 browser journey at 1200 px
+        working-directory: apps/web-console
+        env:
+          TOBIN_WIDTH: "1200"
+        run: node test/browser/w0-journey.mjs "$RUNNER_TEMP/w0-journey-1200" 2>&1 | tee "$RUNNER_TEMP/w0-journey-1200.log"
+
+      - name: Journey summary
+        if: always()
+        run: |
+          {
+            echo "### W0 browser journey (mock adapter)"
+            echo "- 1200 px: $(tail -n 1 "$RUNNER_TEMP/w0-journey-1200.log" 2>/dev/null || echo 'did not run')"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Stop any leftover browser process
+        if: always()
+        run: pkill -f -- "--user-data-dir=$RUNNER_TEMP/w0-journey" || true
+
+      - name: Upload journey logs and screenshots on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: w0-journey-failure
+          path: |
+            ${{ runner.temp }}/w0-journey-*.log
+            ${{ runner.temp }}/w0-journey-*/*.png
+          retention-days: 7
+          if-no-files-found: warn
