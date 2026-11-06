@@ -80,3 +80,4 @@ Written 2026-11-03. Scope: the Phase 2C brief authorized real-wallet Testnet tes
 - [PUBLIC-PATH-EXPOSURE-REVIEW.md](PUBLIC-PATH-EXPOSURE-REVIEW.md): path and secret scan including archive contents.
 - [FINAL-EVIDENCE-RECONCILIATION.md](FINAL-EVIDENCE-RECONCILIATION.md): all hash inventories reconciled against the tree and archives.
 - [../w0/W0-ENTRY-READINESS.md](../w0/W0-ENTRY-READINESS.md): W0 hand-off.
+- [B0 completion report](B0-COMPLETION-REPORT.md): B0 finalization (Node verifier profiles, JSON output, fresh-clone and fault-injection tests), self-verified.

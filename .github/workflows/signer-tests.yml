@@ -24,6 +24,7 @@ concurrency:
 env:
   NODE_VERSION: "24.14.0"
   APPROVED_B1: "83f11a7f5ca4dce244dde39f69b19442711902137b8cba8ba3beb7f446c8733e"
+  APPROVED_B0: "9b594c5407b7934274f9c41a47f2dfc13a781f4f7b0cc0962a8ab57a52bacbb7"
 
 defaults:
   run:
@@ -66,6 +67,13 @@ jobs:
       - name: External baseline verifier suite
         working-directory: scripts/tst-signer-verify
         run: node --test verify-signer-baseline.test.cjs
+
+      - name: B0 acceptance suite (profiles, fresh clone from tracked files, unreadable-file injection, JSON output)
+        working-directory: scripts/tst-signer-verify
+        run: node --test b0-acceptance.test.cjs
+
+      - name: Approved B0 definition is reproduced (Node external verifier, preserved B0 sources)
+        run: node scripts/tst-signer-verify/verify-signer-baseline.cjs --profile b0 --signer-dir docs/product/architecture/phase-2c/milestone-1-configuration-freeze/revision-6-3/runtime-sources --sdk-dir scripts/tst-signer/pk/x-stellar-stellar-sdk-17.4.0/package --expected "$APPROVED_B0"
 
       - name: Approved B1 matches the signer directory (Node external verifier)
         run: node scripts/tst-signer-verify/verify-signer-baseline.cjs --signer-dir scripts/tst-signer/signer --expected "$APPROVED_B1"
