@@ -1,0 +1,99 @@
+# TST signer test suites and baseline verification. Offline, deterministic, no secrets, no deployment, no publishing.
+# This workflow NEVER runs the signer's init, preview-against-a-configuration or execute. It runs only the repository's own unit tests
+# (in-memory fakes, throwaway keys generated at run time, dummy DPAPI input) and the read-only baseline verifiers.
+# A passing run is test evidence. It is NOT an authorization to execute the signer and NOT an independent review of the baselines.
+# Same-author tests; see docs/product/architecture/phase-2c/PHASE-2C-FINAL-CLOSURE-REPORT.md.
+name: signer-tests
+
+on:
+  pull_request:
+    paths:
+      - "scripts/tst-signer/**"
+      - "scripts/tst-signer-verify/**"
+      - "docs/product/architecture/phase-2c/independent-verification/**"
+      - ".github/workflows/signer-tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: signer-tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "24.14.0"
+  APPROVED_B1: "83f11a7f5ca4dce244dde39f69b19442711902137b8cba8ba3beb7f446c8733e"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  portable:
+    name: Signer portable suites and baseline verifiers
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Restore the pinned SDK offline from the tracked tarball
+        run: node scripts/tst-signer/restore-sdk.cjs
+
+      - name: SDK restoration verifies against its inventory
+        run: node scripts/tst-signer/restore-sdk.cjs --verify-only
+
+      - name: Pure signer suites (in-memory fakes)
+        working-directory: scripts/tst-signer/signer
+        run: node --test test/tst-signer.test.cjs test/hardening.test.cjs test/submission.test.cjs test/expiry.test.cjs test/authorization.test.cjs
+
+      - name: Integrity gate and launcher suite
+        working-directory: scripts/tst-signer/signer
+        run: node --test test/baseline.test.cjs
+
+      - name: SDK restoration suite
+        working-directory: scripts/tst-signer
+        run: node --test restore-sdk.test.cjs
+
+      - name: External baseline verifier suite
+        working-directory: scripts/tst-signer-verify
+        run: node --test verify-signer-baseline.test.cjs
+
+      - name: Approved B1 matches the signer directory (Node external verifier)
+        run: node scripts/tst-signer-verify/verify-signer-baseline.cjs --signer-dir scripts/tst-signer/signer --expected "$APPROVED_B1"
+
+      - name: Approved B1 matches the signer directory (coreutils reconstruction)
+        run: bash docs/product/architecture/phase-2c/independent-verification/verify-b1-coreutils.sh scripts/tst-signer/signer scripts/tst-signer/pk/x-stellar-stellar-sdk-17.4.0/package "$APPROVED_B1"
+
+  windows:
+    name: Signer Windows suites (isolated temp and profile)
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Restore the pinned SDK offline from the tracked tarball
+        run: node scripts/tst-signer/restore-sdk.cjs
+
+      - name: DPAPI cleanup and Windows validation suites (dummy data, throwaway sandbox)
+        working-directory: scripts/tst-signer/signer
+        run: |
+          SB="$RUNNER_TEMP/signer-sandbox"; mkdir -p "$SB"
+          export TEMP="$SB" TMP="$SB" LOCALAPPDATA="$SB"
+          node --test test/dpapi-cleanup.test.cjs test/windows.test.cjs
