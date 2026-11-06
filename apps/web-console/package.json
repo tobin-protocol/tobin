@@ -15,7 +15,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "node --test test/*.test.ts",
     "test:unit": "node --test test/guards.test.ts test/api.test.ts test/console-view.test.ts test/console-input.test.ts",
-    "test:browser": "node test/browser/journey.mjs"
+    "test:browser": "node test/browser/journey.mjs",
+    "test:w0-browser": "node test/browser/w0-journey.mjs"
   },
   "dependencies": {
     "next": "16.4.3",

@@ -32,3 +32,6 @@ npm test                                        # all workspaces; bridge tests a
 cd apps/web-console && TOBIN_WIDTH=420 node test/browser/journey.mjs <screenshot dir>   # real-browser journey (needs Chrome or Edge, a build, the bridge)
 ```
 This repository's Next.js version differs from common knowledge; read `node_modules/next/dist/docs/` before changing framework code.
+
+## W0: non-executing Web Console foundation (`/w0`)
+Under `lib/w0/`, `app/w0/`, `app/api/w0/` and `components/w0/`. It uses a **mock signer adapter** and does not invoke the real signer, hold keys, sign, submit, contact RPC or deploy. Development identity only. See [docs/product/architecture/w0/W0-ARCHITECTURE.md](../../docs/product/architecture/w0/W0-ARCHITECTURE.md). Open `http://127.0.0.1:8787/w0` under `npm run dev`; in a production build set `W0_ALLOW_DEV_IDP=1` to enable the development identity provider. The MVP-1 sandbox page at `/` is unchanged.
