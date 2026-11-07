@@ -10,7 +10,7 @@
 
 <br>
 
-**Institutional clearing and settlement on Stellar: record obligations, net them deterministically, approve the result under separation of duties, and settle only the net positions.**
+**Institutional clearing and settlement preparation on Stellar: record obligations, net them deterministically, approve the exact result under separation of duties, and prepare net settlement instructions. Testnet execution is performed by separate, owner-run tools.**
 
 <br>
 
@@ -25,7 +25,7 @@
 
 > [!IMPORTANT]
 > **Experimental software on Stellar Testnet. Not production-ready. Not approved for Mainnet or real value.**
-> Milestones MVP-1.2 to MVP-1.5 and wallet-first authentication are implemented and have been exercised on Stellar **Testnet** with test assets. That is evidence about the mechanics, **not** evidence of production readiness: the evidence is from the implementing author only, nothing has been independently audited, and the release gates for a versioned or production release are still blocked. See [Project status](#project-status-and-roadmap) and [Known limitations](#known-limitations).
+> Milestones MVP-1.2 to MVP-1.5 and wallet-first authentication are implemented and have been exercised on Stellar **Testnet** with test assets. That is evidence about the mechanics, **not** evidence of production readiness: the evidence is from the implementing author only, nothing has been independently audited, and the release gates for a versioned or production release are still blocked. The institutional application persists clearing and settlement **preparation** records; actual Testnet execution is performed by **separate owner-run tools**, and confirmed outcomes are **not** written back into the application's records. See [Project status](#project-status-and-roadmap) and [Known limitations](#known-limitations).
 
 ## Table of contents
 
@@ -46,13 +46,13 @@
 
 ## What is Tobin?
 
-Tobin is an open-source clearing and settlement system for financial institutions that already move money on [Stellar](https://stellar.org). Institutions record the payment obligations they owe each other. Tobin computes each participant's **net position** deterministically, requires a reviewer to approve the exact result, and prepares settlement instructions for only the net amounts, which are then settled through a Soroban smart contract.
+Tobin is an open-source clearing and settlement system for financial institutions that already move money on [Stellar](https://stellar.org). Institutions record the payment obligations they owe each other. Tobin computes each participant's **net position** deterministically, requires a reviewer to approve the exact result, and prepares settlement instructions for only the net amounts. The application persists these clearing and settlement **preparation** records. Executing them on Stellar is a separate step: owner-run Testnet tools collect real signatures and submit the transactions to a Soroban smart contract one step at a time, each after the owner's typed confirmation. Nothing is submitted automatically, the application does not reconcile on-chain results automatically, and confirmed outcomes are not written back into its records. The contract applies its own validation to whatever plan it is given (see [Netting engine and contract validation](#netting-engine-and-contract-validation)).
 
 The repository holds three connected things:
 
 1. **An institutional application** (`apps/web-console`): organizations and memberships, clearing sessions, obligations, calculations, reviewer approval, settlement preparation and wallet-first sign-in. State is persisted in SQLite.
 2. **Soroban contracts and a TypeScript SDK** (`contracts/`, `packages/mvp1-sdk`): a clearing contract that settles a session atomically in a Soroban token contract, a capped-supply test token, and the netting engine and digest code that both the application and the tests use.
-3. **Stellar Testnet tooling** (inside `apps/web-console`): owner-run tools that verify wallet control, check multisig signer sets, collect real Freighter signatures, submit the settlement transactions step by step, and read the result back from the network.
+3. **Stellar Testnet tooling** (inside `apps/web-console`): owner-run tools that verify wallet control, check multisig signer sets, collect real Freighter signatures, submit the settlement transactions one step at a time after the owner's typed confirmation, and read the results back from the network. They keep their own run log and do not update the application's records.
 
 **Intended users** are institutions with recurring payment obligations to several counterparties on Stellar: anchors, payment institutions, cross-border payment providers and institutional Stellar applications. Multilateral clearing only helps where several institutions owe each other. Whether real Stellar payment flows are interconnected enough to benefit has **not** been measured yet.
 
@@ -71,7 +71,7 @@ When institutions have recurring obligations to several counterparties, the obli
 - **Operational and authorization risk.** A stale approval, a changed amount or a wrong signer can lead to settling something nobody approved.
 - **Settlement and reconciliation uncertainty.** A submitted transaction is not a confirmed one, and a confirmed one still has to be matched against what was approved.
 
-A worked example (arithmetic only, not data): A owes B 100, B owes C 80, C owes A 70. Settled one by one that moves 250. Cleared first, A pays 30, B receives 20 and C receives 10, so only 30 is settled. Net positions always sum to zero.
+A worked example (arithmetic only, not data): A owes B 100, B owes C 80, C owes A 70. Settled one by one that moves 250. Cleared first, A pays 30, B receives 20 and C receives 10, so only 30 is settled. Net positions always sum to zero. (That is one valid way to settle those net positions; other plans can satisfy the same positions, and the contract accepts any plan that meets its own rules, described below.)
 
 ## What Tobin provides
 
@@ -82,13 +82,13 @@ Status labels: **Implemented** means the code and tests exist in this repository
 | Institutional workspaces: organizations, memberships (admin or member, active or suspended), invitations bound to an email, a wallet, or open | Yes | n/a | Application-level only; never a Stellar authority |
 | Wallet-first sign-in and onboarding: server-issued single-use challenges, verified wallets, sessions, create-or-join flow | Yes | No | The Freighter flow is tested with a protocol-compatible stand-in; a real-Freighter run in Edge is outstanding |
 | Clearing sessions with participants and obligations (integer base units, canonical asset identity) | Yes | n/a | Sessions carry a provenance label (see [Architecture](#architecture)) |
-| Clearing calculations (deterministic netting) with immutable snapshots | Yes | n/a | The engine is a calculator, not an authority; many valid plans can exist |
+| Clearing calculations (deterministic netting) with immutable snapshots | Yes | n/a | The engine generates a default plan. It is a calculator, not an authority: many valid plans can exist, and the contract neither requires a proposal to equal the engine's plan nor enforces a minimal or unique one |
 | Institutional reviewer authorization, separation of duties, immutable decisions, automatic invalidation of stale approvals | Yes | n/a | An approval is a database record, not a signature |
 | Settlement preparation: deterministic instructions, immutable batches, batch review, operational closure | Yes | n/a | Preparation moves no funds |
 | Soroban contracts: clearing contract and a capped test token | Yes | Yes | Deployed on Testnet; see `contracts/deployments/testnet.json` |
 | Wallet ownership verification and signer-set-aware co-signing (multisig) | Yes | Yes | Real Freighter and a real multisig account were used in the owner-run validation |
 | Stellar Testnet settlement execution: eight transactions from session creation to `settle` | Yes (owner-run tool) | Yes | One run: a one-base-unit settlement of a governed test token |
-| Independent chain read and reconciliation against the approved plan | Foundations | Yes (one run) | Reads RPC and Horizon and compares with the plan; see the note below |
+| Independent chain read and reconciliation against the approved plan | Foundations | Yes (one run) | An owner-run tool reads RPC and Horizon on request and compares the result with the approved plan; there is no automatic application-level reconciliation (see the note below) |
 
 > [!NOTE]
 > **What is and is not connected.** The persisted application records stop at "execution preconditions": the Settlement tab itself says *Stellar execution (preconditions only)*, and the settlement and execution records never read from or submit to the network (the one registry route that touches the chain is the read-only recording of a signer set). Real on-chain execution is performed by separate, owner-run tools (`/wallet-check`, `/cosign-check`, `/settle-run`) that keep their own run log. Writing confirmed on-chain outcomes back into the persisted application records is **not implemented**.
@@ -117,7 +117,7 @@ flowchart TB
     direction TB
     S1["9. Authorization: the account holders and, for the multisig account, the required signers sign"]
     S2["10. Execution: create session, join, submit obligation, finalize, propose, approve, settle, one transaction at a time"]
-    S3["11. Confirmation and reconciliation: read the chain independently and compare with the approved plan"]
+    S3["11. Confirmation and reconciliation: the owner-run tool reads the chain and compares with the approved plan; not automatic, not written back"]
     S1 --> S2 --> S3
   end
   A8 -. "the approved plan is the input; outcomes are not written back" .-> S1
@@ -129,11 +129,20 @@ flowchart TB
 | 4-5 | Participants and obligations are recorded. An obligation is a debtor, a creditor and an integer amount in one asset | Application |
 | 6 | The netting engine produces net positions (`outgoing - incoming`; positive means the participant pays). Any change to participants or obligations makes the earlier result stale | Application |
 | 7 | A reviewer approves or rejects **that exact calculation**. Nobody can decide on a result they recorded, changed or calculated | Application |
-| 8 | An approved calculation becomes an immutable batch of instructions; a second review approves the batch; every participant needs a verified Stellar account on the right network before execution is allowed | Application |
-| 9-10 | Each required account authorizes its own step; the clearing contract moves its own session through Open, Committed, Approved and Settled, and `settle` transfers the net amounts atomically | Stellar |
-| 11 | A transaction is only trusted after it is read back from the network by hash and matched against the approved plan | Stellar and application |
+| 8 | An approved calculation becomes an immutable batch of generated settlement instructions; a second review approves the batch; every participant needs a verified Stellar account on the right network before execution is allowed | Application |
+| 9-10 | Each required account authorizes its own step; the clearing contract moves its own session through Open, Committed, Approved and Settled, and `settle` executes the contract's approved plan atomically (the plan must satisfy the contract's own validation rules) | Stellar |
+| 11 | A transaction is only trusted after it is read back from the network by hash and matched against the approved plan. The owner-run tool does this on request; it is not automatic and the result is not written back into the application's records | Owner-run tool |
 
 A prepared batch is not a submitted transaction, a signed transaction is not a submitted one, a submitted one is not a confirmed one, and a confirmed one is not settled until it is reconciled.
+
+### Netting engine and contract validation
+
+These are two different things and are kept separate:
+
+- **The netting engine** (`packages/mvp1-sdk/src/engine`) computes each participant's net position and generates a *default* set of settlement instructions. The application stores that result in an immutable batch for review. It is a calculator and an advisory check, never an authority.
+- **The Soroban contract** enforces its own rules on whatever plan it is proposed, using the net positions it derives from the obligations recorded in the session: every party is an admitted participant; every amount is positive; for each participant the amount paid equals the net debit and the amount received equals the net credit, so no value is omitted, duplicated or introduced; instructions are in strictly ascending (payer, payee) order; and arithmetic is checked. The empty plan is valid only when every net is zero.
+
+The contract does **not** compare a proposal with the engine's output and does **not** require the plan to be minimal or unique: it accepts any plan that meets those rules. Tobin's owner-run execution tool proposes the approved batch's instructions, re-ordered only into the contract's required order, and refuses locally if the mapped plan differs from the approved batch. That is an application-side check; the contract's own validation is the authority.
 
 ## Architecture
 
@@ -206,7 +215,7 @@ The detailed reviews are in the [documentation map](#documentation-map). They ar
 4. Account recovery is deferred: a user must keep access to at least one verified wallet. There is no administrator or support override.
 5. Confirmed on-chain outcomes are not written back to the persisted application records.
 6. The settlement on Testnet was a single run of a one-base-unit settlement; maximum-size sessions, fee breakdown and measured resources have not been validated.
-7. `main` is not protected by GitHub branch protection today; the pull-request workflow in [CONTRIBUTING.md](CONTRIBUTING.md) is project policy.
+7. A repository ruleset on `main` requires a pull request with one approving review and blocks force pushes and deletion, but it requires **no specific CI check** and repository and organization admins can bypass it. That CI check must pass is project policy in [CONTRIBUTING.md](CONTRIBUTING.md), not something GitHub enforces.
 
 ## Project status and roadmap
 

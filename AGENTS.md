@@ -206,7 +206,7 @@ Journeys: `journey` (needs the bridge), `w0-journey`, `sessions-journey`, `settl
 
 - Never push to `main`. Never merge a pull request without explicit authorization. Never force-push a shared branch without explicit authorization.
 - Never rewrite, amend or reset accepted historical commits.
-- Work on a dedicated branch named `<type>/<short-description>` with the types `feat`, `fix`, `docs`, `refactor`, `test`, `security`, `chore`. Start from the latest `main`.
+- Work on a dedicated branch named `<type>/<short-description>` with the types `feat`, `fix`, `docs`, `refactor`, `test`, `security`, `ci` (CI-only changes), `chore`. Start from the latest `main`.
 - Use Conventional Commits (`type(scope): imperative summary`), the same as `CONTRIBUTING.md`.
 - **Do not add AI attribution or co-author trailers** (no `Co-authored-by: Claude` or similar, no "generated with" lines) to commits or pull requests. Disclose significant AI assistance in the pull request description instead, where the template asks.
 - Commit, push or open a pull request only when the user asked you to.

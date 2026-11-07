@@ -83,7 +83,7 @@ Versions come from the repository's pins and CI configuration (`.github/workflow
 git clone https://github.com/tobin-protocol/tobin.git && cd tobin
 npm ci                                       # CI uses: npm ci --ignore-scripts
 npm run typecheck
-npm test                                     # bridge-backed tests are skipped, visibly, without TOBIN_BRIDGE_EXE
+npm test                                     # runs the web-console and SDK suites (the landing app has no tests); bridge-backed tests are skipped, visibly, without TOBIN_BRIDGE_EXE
 npm run dev --workspace tobin-web-console    # http://127.0.0.1:8787
 cd contracts && cargo test --locked --workspace
 ```
@@ -105,11 +105,12 @@ The landing page (`apps/landing`) uses a Next.js version that differs from commo
 | `refactor/` | behaviour-preserving restructuring |
 | `test/` | tests only |
 | `security/` | security hardening |
+| `ci/` | CI-only changes (workflows and CI scripts) |
 | `chore/` | tooling, dependencies, housekeeping |
 
 - Keep a branch narrowly scoped. Do not bundle unrelated changes; split them into separate pull requests.
 - Existing accepted commits are history. Do not rewrite, amend, reset or force-push them, and do not force-push a shared branch without the maintainer's explicit approval.
-- All changes, including documentation and evidence updates, go through a pull request. A departure from this process is recorded in [`release/PROCESS-DEVIATIONS.md`](release/PROCESS-DEVIATIONS.md). Note that GitHub does not currently protect `main`, so these rules are the project's policy, not an automatic block; follow them anyway.
+- All changes, including documentation and evidence updates, go through a pull request. A departure from this process is recorded in [`release/PROCESS-DEVIATIONS.md`](release/PROCESS-DEVIATIONS.md). GitHub enforces only part of this: an active repository ruleset on `main` requires a pull request with one approving review and blocks force pushes and branch deletion, but repository and organization admins can bypass it. The rest of these rules, and not bypassing the ruleset for routine changes, are project policy; follow them anyway.
 
 ## Commit conventions
 
@@ -260,10 +261,10 @@ Open a pull request against `main` from your branch. The [pull request template]
 ## Review and merging
 
 - Every change is reviewed before merging. Respond to review comments, push fixes as new commits, and resolve conversations; do not resolve a comment you have not addressed.
-- The required check is **Rust, TypeScript and documentation checks** (`ci.yml`). Do not merge while it fails. Resolve merge conflicts without discarding another contributor's work.
+- **Project policy requires** the **Rust, TypeScript and documentation checks** (`ci.yml`) to pass before a pull request is merged. **GitHub does not enforce this:** the `main` ruleset's required-status-checks rule currently lists no checks, so a merge is not technically blocked when that check fails. Do not merge while it fails. Resolve merge conflicts without discarding another contributor's work.
 - The repository permits merge, squash and rebase merges. The maintainer chooses at merge time; accepted milestone history has been preserved as individual commits with merge commits. Do not rewrite history on a branch that is under review without saying so.
 - Do not approve or merge your own change where GitHub does not allow it, and do not use bypass permissions for routine changes.
-- No fixed number of reviewers is configured in the repository settings, so none is promised here. Security-sensitive changes should have a reviewer who is not the author.
+- The `main` ruleset requires one approving review on a pull request (it does not require code-owner review or that review threads are resolved). Beyond that, security-sensitive changes should have a reviewer who is not the author.
 
 ## AI-assisted contributions
 
