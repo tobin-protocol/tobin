@@ -1,0 +1,19 @@
+{
+  "source": "owner-run, pasted by the owner from /wallet-check; real Microsoft Edge with the installed Freighter extension on Stellar Testnet",
+  "recordedBy": "pasted evidence block, copied unchanged",
+  "note": "Nothing was submitted by this procedure. No secret was shared. The account is the administrative multisig account (its own master key is in this Freighter profile).",
+  "evidence": {
+    "at": "2026-11-07T10:33:26.700Z",
+    "browser": "Edge",
+    "account": "GCZD5U7G…HMU5MJ",
+    "results": [
+      { "id": "detect", "status": "PASS" },
+      { "id": "connect", "status": "PASS" },
+      { "id": "network", "status": "PASS" },
+      { "id": "account", "status": "PASS" },
+      { "id": "sign-tx", "status": "PASS" },
+      { "id": "sign-entry", "status": "PASS" }
+    ]
+  },
+  "notNotedByTheOwner": ["Edge version", "Freighter version", "the exact prompt texts", "the reject-once, wrong-network, locked and disconnect variants"]
+}

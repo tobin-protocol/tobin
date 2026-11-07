@@ -6,7 +6,7 @@ import type { FormEvent } from 'react';
 import { api } from '../api-client.ts';
 
 export interface Participant { userId: string; name: string; organization: string; status: 'active' | 'removed'; addedAt: string; walletClaim?: string }
-export interface ObligationView { id: string; debtor: string; debtorName: string; creditor: string; creditorName: string; amount: string; asset: string; reference: string; status: 'active' | 'voided'; revision: number; createdAt: string; createdBy: string; updatedAt: string; updatedBy: string }
+export interface ObligationView { assetRef?: string | null; assetIdentity?: 'canonical' | 'legacy-unresolved'; id: string; debtor: string; debtorName: string; creditor: string; creditorName: string; amount: string; asset: string; reference: string; status: 'active' | 'voided'; revision: number; createdAt: string; createdBy: string; updatedAt: string; updatedBy: string }
 interface Position { userId: string; name: string; organization: string; net: string; role: 'debtor' | 'creditor' | 'flat' }
 interface CalcView { currency: 'current' | 'stale' | 'none'; asset: string | null; calculation: null | { id: string; asset: string; createdAt: string; createdBy: string; gross: string; obligationCount: number; positions: Position[] }; note: string }
 interface Check { key: string; label: string; ok: boolean; fix: string }
@@ -100,7 +100,8 @@ export function ObligationsPanel({ orgId, sessionId, canEdit, workflow, onChange
   const [items, setItems] = useState<ObligationView[] | null>(null);
   const [parts, setParts] = useState<Participant[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [form, setForm] = useState({ debtor: '', creditor: '', amount: '', asset: '', reference: '' });
+  const [form, setForm] = useState({ debtor: '', creditor: '', amount: '', asset: '', assetRef: '', reference: '' });
+  const [assets, setAssets] = useState<{ id: string; code: string; status: string }[]>([]);
   const [editing, setEditing] = useState<ObligationView | null>(null);
   const [detail, setDetail] = useState<string | null>(null);
   const [fieldError, setFieldError] = useState<string | null>(null);
@@ -111,30 +112,34 @@ export function ObligationsPanel({ orgId, sessionId, canEdit, workflow, onChange
     try {
       const [o, q] = await Promise.all([api<{ obligations: ObligationView[] }>('GET', `${base}/obligations`), api<{ participants: Participant[] }>('GET', `${base}/participants`)]);
       setItems(o.obligations); setParts(q.participants.filter((x) => x.status === 'active')); setLoadError(null);
+      try { setAssets((await api<{ assets: { id: string; code: string; status: string }[] }>('GET', '/api/registry/assets')).assets.filter((a) => a.status === 'supported')); } catch { setAssets([]); }
     } catch (e) { setLoadError((e as Error).message); }
   }, [base]);
   useEffect(() => { void load(); }, [load]);
 
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const sessionAsset = items?.find((o) => o.status === 'active')?.asset;
-  const reset = () => { setEditing(null); setForm({ debtor: '', creditor: '', amount: '', asset: '', reference: '' }); setFieldError(null); };
+  const reset = () => { setEditing(null); setForm({ debtor: '', creditor: '', amount: '', asset: '', assetRef: '', reference: '' }); setFieldError(null); };
+  const identityMode = assets.length > 0; // a registry is configured: an asset must be chosen by its full identity
   // Client checks only give fast feedback; the server re-validates everything.
   const quick = (f: typeof form) => {
     if (!editing && (!f.debtor || !f.creditor)) return 'Choose a debtor and a creditor.';
     if (f.debtor && f.debtor === f.creditor) return 'The debtor and the creditor must be different participants.';
     if (!/^[1-9][0-9]*$/.test(f.amount)) return 'Enter the amount as a whole number of base units, digits only (no decimals, signs or spaces).';
-    if (!/^[A-Z0-9]{1,12}$/.test(f.asset)) return 'The asset is 1 to 12 upper-case letters or digits, for example USD.';
+    if (identityMode) { if (!f.assetRef) return 'Choose the asset identity: a code alone does not identify an asset.'; }
+    else if (!/^[A-Z0-9]{1,12}$/.test(f.asset)) return 'The asset is 1 to 12 upper-case letters or digits, for example USD.';
     return null;
   };
   const submit = (ev: FormEvent) => {
     ev.preventDefault(); const bad = quick(form); setFieldError(bad); if (bad) return;
     void p.run(async () => {
-      if (editing) await api('POST', `${base}/obligations/${editing.id}/update`, { debtor: form.debtor, creditor: form.creditor, amount: form.amount, asset: form.asset, reference: form.reference });
-      else await api('POST', `${base}/obligations`, { ...form });
+      const ident = identityMode ? { assetRef: form.assetRef } : { asset: form.asset };
+      if (editing) await api('POST', `${base}/obligations/${editing.id}/update`, { debtor: form.debtor, creditor: form.creditor, amount: form.amount, ...ident, reference: form.reference });
+      else await api('POST', `${base}/obligations`, { debtor: form.debtor, creditor: form.creditor, amount: form.amount, ...ident, reference: form.reference });
       const was = editing; reset(); await load(); await onChanged(); void was;
     }, editing ? 'Obligation updated. Any earlier calculation is now stale.' : 'Obligation recorded. Any earlier calculation is now stale.');
   };
-  const edit = (o: ObligationView) => { setEditing(o); setForm({ debtor: o.debtor, creditor: o.creditor, amount: o.amount, asset: o.asset, reference: o.reference }); setFieldError(null); p.setError(null); };
+  const edit = (o: ObligationView) => { setEditing(o); setForm({ debtor: o.debtor, creditor: o.creditor, amount: o.amount, asset: o.asset, assetRef: o.assetRef ?? '', reference: o.reference }); setFieldError(null); p.setError(null); };
   const voidIt = (o: ObligationView) => void p.run(async () => { await api('POST', `${base}/obligations/${o.id}/void`, {}); if (editing?.id === o.id) reset(); await load(); await onChanged(); }, 'Obligation voided. It stays in the history; any earlier calculation is now stale.');
 
   return (
@@ -150,7 +155,7 @@ export function ObligationsPanel({ orgId, sessionId, canEdit, workflow, onChange
           <tbody>{items.map((o) => (
             <tr key={o.id} className={o.status === 'voided' ? 'ss-voided' : undefined}>
               <td data-label="Ref"><code title={o.id}>{o.id.slice(0, 8)}</code></td><td data-label="Debtor">{o.debtorName}</td><td data-label="Creditor">{o.creditorName}</td>
-              <td data-label="Amount">{o.amount}</td><td data-label="Asset">{o.asset}</td><td data-label="Reference">{o.reference || '—'}</td>
+              <td data-label="Amount">{o.amount}</td><td data-label="Asset">{o.asset}{o.assetIdentity === 'canonical' ? <span className="ss-ref" title="canonical asset identity">{o.assetRef}</span> : identityMode ? <span className="ss-ref">legacy: code only, not settlement-eligible until you edit it and choose the asset identity</span> : null}</td><td data-label="Reference">{o.reference || '—'}</td>
               <td data-label="Status"><Badge tone={o.status === 'active' ? 'ok' : 'neutral'}>{o.status === 'active' ? `Active (rev ${o.revision})` : 'Voided'}</Badge></td>
               <td data-label="Actions"><span className="ss-actions">
                 <button type="button" onClick={() => setDetail(detail === o.id ? null : o.id)} aria-expanded={detail === o.id}>Details</button>
@@ -173,7 +178,9 @@ export function ObligationsPanel({ orgId, sessionId, canEdit, workflow, onChange
           <label>Debtor (owes) <select value={form.debtor} onChange={set('debtor')} aria-label="Debtor"><option value="">Choose…</option>{parts.map((x) => <option key={x.userId} value={x.userId}>{x.name}</option>)}</select></label>
           <label>Creditor (is owed) <select value={form.creditor} onChange={set('creditor')} aria-label="Creditor"><option value="">Choose…</option>{parts.map((x) => <option key={x.userId} value={x.userId}>{x.name}</option>)}</select></label>
           <label>Amount (base units) <input value={form.amount} onChange={set('amount')} inputMode="numeric" autoComplete="off" aria-label="Amount in base units" /></label>
-          <label>Asset <input value={form.asset} onChange={set('asset')} maxLength={12} placeholder={sessionAsset ?? 'USD'} autoComplete="off" aria-label="Asset" /></label>
+          {identityMode
+            ? <label>Asset identity <select value={form.assetRef} onChange={set('assetRef')} aria-label="Asset identity"><option value="">Choose…</option>{assets.map((a) => <option key={a.id} value={a.id}>{a.code} — {a.id.length > 44 ? a.id.slice(0, 30) + '…' + a.id.slice(-8) : a.id}</option>)}</select></label>
+            : <label>Asset <input value={form.asset} onChange={set('asset')} maxLength={12} placeholder={sessionAsset ?? 'USD'} autoComplete="off" aria-label="Asset" /></label>}
           <label>Reference (optional) <input value={form.reference} onChange={set('reference')} maxLength={200} aria-label="Reference" /></label>
           <button type="submit">{editing ? 'Save changes' : 'Record obligation'}</button>
           {editing && <button type="button" onClick={reset}>Cancel</button>}

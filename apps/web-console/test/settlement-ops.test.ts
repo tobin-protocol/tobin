@@ -4,17 +4,18 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createBackend } from '../lib/server/backend.ts';
 import { SqliteRegistryStore } from '../lib/registry/sqlite-store.ts';
+import { encodeAddress } from 'tobin-mvp1-sdk/strkey';
 import { client, makeBackend, signedIn, tempDir } from './backend-helpers.ts';
 import type { Backend } from '../lib/server/backend.ts';
 
 type C = Awaited<ReturnType<typeof signedIn>>;
 type N = 'ann' | 'bob' | 'cat' | 'dan' | 'rae' | 'eve';
 const me = async (c: C) => (await c.call('GET', '/api/auth/me')).body['user'].id as string;
-const ISS1 = 'G' + 'A'.repeat(55), ISS2 = 'G' + 'B'.repeat(55); // fixtures only, not real issuers
+const ISS1 = encodeAddress('account', new Uint8Array(32).fill(1)), ISS2 = encodeAddress('account', new Uint8Array(32).fill(2)); // valid strkeys, test fixtures only, not real issuers
 const USD1 = `testnet:USD:${ISS1}`;
 
 interface W { b: Backend; c: Record<N, C>; id: Record<N, string>; org: string; sid: string; base: string; ob: string[]; asset: string }
-interface Opts { path?: string; approve?: boolean; assets?: 'one' | 'none' | 'disabled' | 'ambiguous'; amounts?: [string, string, string]; calculate?: boolean }
+interface Opts { path?: string; approve?: boolean; assets?: 'one' | 'none' | 'disabled' | 'two'; amounts?: [string, string, string]; calculate?: boolean }
 /**
  * ann: administrator who records and calculates. dan: second administrator. bob and rae: reviewers. cat: plain member. eve: outsider.
  * Ring ann->bob, bob->cat, cat->ann (100/80/70 by default: nets ann +30, bob -20, cat -10). By default bob approves the calculation.
@@ -24,7 +25,7 @@ async function world(o: Opts = {}): Promise<W> {
   const store = new SqliteRegistryStore(b.db);
   const kind = o.assets ?? 'one';
   if (kind !== 'none') store.putAsset({ id: USD1, network: 'testnet', kind: 'issued', code: 'USD', issuer: ISS1, status: kind === 'disabled' ? 'disabled' : 'supported', source: 'operator-configured', addedAt: 't' });
-  if (kind === 'ambiguous') store.putAsset({ id: `testnet:USD:${ISS2}`, network: 'testnet', kind: 'issued', code: 'USD', issuer: ISS2, status: 'supported', source: 'operator-configured', addedAt: 't' });
+  if (kind === 'two') store.putAsset({ id: `testnet:USD:${ISS2}`, network: 'testnet', kind: 'issued', code: 'USD', issuer: ISS2, status: 'supported', source: 'operator-configured', addedAt: 't' });
   const c = {} as Record<N, C>; const id = {} as Record<N, string>;
   for (const n of ['ann', 'bob', 'cat', 'dan', 'rae', 'eve'] as N[]) { c[n] = await signedIn(b, n); id[n] = await me(c[n]); }
   const org = (await c.ann.call('POST', '/api/registry/orgs', { name: 'Alpha Bank' })).body['organization'].id as string;
@@ -37,7 +38,9 @@ async function world(o: Opts = {}): Promise<W> {
   const base = `/api/registry/orgs/${org}/sessions/${sid}`;
   for (const n of ['ann', 'bob', 'cat'] as N[]) await c.ann.call('POST', `${base}/participants`, { userId: id[n] });
   const amts = o.amounts ?? ['100', '80', '70']; const ob: string[] = [];
-  for (const [i, [d, cr]] of ([['ann', 'bob'], ['bob', 'cat'], ['cat', 'ann']] as const).entries()) ob.push((await c.ann.call('POST', `${base}/obligations`, { debtor: id[d], creditor: id[cr], amount: amts[i], asset: 'USD' })).body['obligationId']);
+  const canonical = kind === 'one' || kind === 'two'; // with no supported asset configured only the legacy code path exists
+  const assetFields = canonical ? { assetRef: USD1 } : { asset: 'USD' };
+  for (const [i, [d, cr]] of ([['ann', 'bob'], ['bob', 'cat'], ['cat', 'ann']] as const).entries()) { const rr = await c.ann.call('POST', `${base}/obligations`, { debtor: id[d], creditor: id[cr], amount: amts[i], ...assetFields }); assert.equal(rr.status, 201, JSON.stringify(rr.body)); ob.push(rr.body['obligationId']); }
   if (o.calculate !== false) {
     await c.ann.call('POST', `${base}/calculate`, {});
     if (o.approve !== false) await c.bob.call('POST', `${base}/authorization/approve`, { calculationId: (await c.bob.call('GET', `${base}/authorization`)).body['calculationId'] });
@@ -46,6 +49,7 @@ async function world(o: Opts = {}): Promise<W> {
 }
 const calcId = async (w: W) => (await w.c.bob.call('GET', `${w.base}/authorization`)).body['calculationId'] as string;
 const prepare = async (w: W, who: N = 'ann', calculationId?: string, extra: Record<string, unknown> = {}) => w.c[who].call('POST', `${w.base}/settlement/prepare`, { calculationId: calculationId ?? (await calcId(w)), ...extra });
+const forceClose = (w: W) => { w.b.db.raw.prepare("UPDATE sessions SET workflow_state = 'closed' WHERE session_id = ?").run(w.sid); };
 const list = async (w: W, who: N = 'ann') => (await w.c[who].call('GET', `${w.base}/settlement`)).body;
 const batchGet = async (w: W, bid: string, who: N = 'rae') => (await w.c[who].call('GET', `${w.base}/settlement/batches/${bid}`)).body;
 const decide = async (w: W, bid: string, kind: 'approve' | 'reject', who: N = 'rae', over: Record<string, unknown> = {}) => {
@@ -59,7 +63,7 @@ const prepared = async (w: W) => { const r = await prepare(w); assert.equal(r.st
 test('happy path: an approved calculation becomes a validated batch whose instructions reconcile to the net positions', async () => {
   const w = await world();
   const pre = await list(w);
-  assert.equal(pre['preview'].ready, true); assert.ok(pre['preview'].checks.every((c: { ok: boolean }) => c.ok), JSON.stringify(pre['preview'].checks));
+  assert.equal(pre['preview'].ready, true, JSON.stringify(pre['preview'].checks.filter((c: { ok: boolean }) => !c.ok))); assert.ok(pre['preview'].checks.every((c: { ok: boolean }) => c.ok), JSON.stringify(pre['preview'].checks));
   assert.match(pre['note'], /not signed, not submitted and not settled/);
   const bid = await prepared(w);
   const v = await batchGet(w, bid);
@@ -89,18 +93,23 @@ test('preconditions: every missing or invalid prerequisite refuses preparation a
   await stale.c.ann.call('POST', `${stale.base}/calculate`, {});
   r = await prepare(stale); assert.equal(r.status, 409, 'a fresh calculation is not approved yet'); assert.match(r.body['message'], /active institutional approval/);
   r = await prepare(stale, 'ann', oldId); assert.equal(r.status, 409); assert.equal(r.body['error'], 'STALE', 'a superseded calculation id');
-  const closed = await world(); await closed.c.ann.call('POST', `${closed.base}/ready`, {}); await closed.c.ann.call('POST', `${closed.base}/close`, {});
+  const closed = await world(); forceClose(closed);
   r = await prepare(closed); assert.equal(r.status, 409); assert.match(r.body['message'], /not closed/);
   for (const w of [none, noApproval, rejected, stale, closed]) assert.equal(count(w, 'settlement_batches') + count(w, 'settlement_instructions'), 0);
 });
 
 test('asset registry: an unregistered, disabled or ambiguous asset cannot be prepared; a code alone is never an identity', async () => {
-  for (const [kind, text] of [['none', /not in the supported asset list/], ['disabled', /disabled/], ['ambiguous', /cannot be identified/]] as const) {
+  for (const [kind, text] of [['none', /no canonical asset identity/], ['disabled', /no canonical asset identity/]] as const) {
     const w = await world({ assets: kind });
     const pv = await list(w); assert.equal(pv['preview'].ready, false);
     const r = await prepare(w); assert.equal(r.status, 409, kind); assert.match(r.body['message'], text, kind);
     assert.equal(count(w, 'settlement_batches'), 0);
   }
+  // two supported assets with the SAME code and different issuers are two different assets: each obligation names its own identity, so nothing is ambiguous, and they never mix
+  const two = await world({ assets: 'two' });
+  assert.equal((await prepare(two)).status, 201, 'a canonical identity resolves exactly even though the code is shared');
+  const mix = await two.c.ann.call('POST', `${two.base}/obligations`, { debtor: two.id.ann, creditor: two.id.bob, amount: '1', assetRef: `testnet:USD:${ISS2}` });
+  assert.equal(mix.status, 400); assert.match(mix.body['message'], /different asset identity|only|nets/);
   const w = await world();
   const a = await w.c.cat.call('GET', '/api/registry/assets'); assert.equal(a.status, 200); assert.equal(a.body['assets'][0].id, USD1); assert.match(a.body['note'], /not an on-chain query/);
   for (const m of ['POST', 'PUT']) assert.equal((await w.c.ann.call(m, '/api/registry/assets', { id: 'x', code: 'USD' })).status, 404, `the API cannot change the registry (${m})`);
@@ -185,7 +194,7 @@ test('source changes and recalculation make a batch ineligible; history is kept;
     assert.ok(v['invalidation'].cause, label); assert.equal(v['review'].decision, 'approved', `${label}: the historical decision stays readable`);
     assert.ok((await kinds(w)).includes('settlement.batch-invalidated'), label);
     assert.equal((await decide(w, bid, 'approve', 'bob')).status, 409, label);
-    assert.equal((await prepare(w)).status, 409, `${label}: no new batch until the new calculation is approved`);
+    assert.equal((await prepare(w, 'ann', undefined, { attempt: 2 })).status, 409, `${label}: no new batch until the new calculation is approved`);
     assert.equal(count(w, 'settlement_batches'), 1, `${label}: nothing was deleted or rewritten`);
   }
   // after recalculation and a fresh approval a NEW batch is prepared; the old one stays as history
@@ -201,13 +210,15 @@ test('source changes and recalculation make a batch ineligible; history is kept;
 test('duplicate requests produce one batch, deterministically', async () => {
   const w = await world();
   assert.equal((await prepare(w)).status, 201);
-  for (const who of ['ann', 'dan'] as N[]) { const r = await prepare(w, who); assert.equal(r.status, 409); assert.equal(r.body['error'], 'EXISTS'); }
+  const noAttempt = await prepare(w); assert.equal(noAttempt.status, 400); assert.match(noAttempt.body['message'], /name the attempt number/);
+  for (const who of ['ann', 'dan'] as N[]) { const r = await prepare(w, who, undefined, { attempt: 1 }); assert.equal(r.status, 409); assert.equal(r.body['error'], 'EXISTS', 'a repeat of attempt 1 is a duplicate'); }
+  const live = await prepare(w, 'ann', undefined, { attempt: 2 }); assert.equal(live.status, 409); assert.match(live.body['message'], /active batch/, 'while a batch is awaiting review, no second one is made');
   assert.equal(count(w, 'settlement_batches'), 1); assert.equal(count(w, 'settlement_instructions'), 2);
 });
 
 test('a decision on a closed session is refused', async () => {
   const w = await world(); const bid = await prepared(w);
-  assert.equal((await w.c.ann.call('POST', `${w.base}/ready`, {})).status, 200); assert.equal((await w.c.ann.call('POST', `${w.base}/close`, {})).status, 200);
+  forceClose(w);
   const r = await decide(w, bid, 'approve', 'rae'); assert.equal(r.status, 409); assert.match(r.body['message'], /closed/);
   assert.equal((await batchGet(w, bid))['eligibility'].canDecide, false);
 });
@@ -262,7 +273,7 @@ test('concurrency across two connections to one file: one preparation and one de
     const b2 = createBackend(t.path, { auth: { now: () => new Date('2026-11-08T10:00:00Z'), scryptCost: 10 }, secureCookies: true, clock: { now: () => new Date('2026-11-08T10:00:00Z') } });
     const cid = await calcId(w);
     const dan2 = client(b2); dan2.cookie = w.c.dan.cookie;
-    const [p1, p2] = [await w.c.ann.call('POST', `${w.base}/settlement/prepare`, { calculationId: cid }), await dan2.call('POST', `${w.base}/settlement/prepare`, { calculationId: cid })];
+    const [p1, p2] = [await w.c.ann.call('POST', `${w.base}/settlement/prepare`, { calculationId: cid, attempt: 1 }), await dan2.call('POST', `${w.base}/settlement/prepare`, { calculationId: cid, attempt: 1 })];
     assert.deepEqual([p1.status, p2.status], [201, 409]); assert.equal(count(w, 'settlement_batches'), 1);
     const bid = p1.body['batchId'] as string; const hash = (await batchGet(w, bid))['batch'].instructionsHash;
     const bob2 = client(b2); bob2.cookie = w.c.bob.cookie;
@@ -301,7 +312,7 @@ test('migration 4 upgrades a version-3 database in place and keeps its data', as
   db.raw.exec(`INSERT INTO users (id, email, display_name, password_hash, created_at) VALUES ('usr_1', 'a@x.test', 'A', 'h', 't');
     INSERT INTO organizations (id, name, visibility, created_at, created_by) VALUES ('org_1', 'Org', 'private', 't', 'usr_1');
     INSERT INTO memberships (org_id, user_id, role, since) VALUES ('org_1', 'usr_1', 'admin', 't');`);
-  assert.equal(migrate(db).current, 4);
+  assert.equal(migrate(db).current, 7);
   assert.equal((db.raw.prepare('SELECT count(*) AS n FROM memberships').get() as { n: number }).n, 1);
   for (const t of ['supported_assets', 'settlement_batches', 'settlement_instructions', 'settlement_batch_reviews', 'settlement_batch_invalidations']) assert.equal((db.raw.prepare(`SELECT count(*) AS n FROM ${t}`).get() as { n: number }).n, 0, t);
 });

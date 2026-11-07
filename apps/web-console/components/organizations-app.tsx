@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import Link from 'next/link';
+import { WalletVerification } from './wallet-verification.tsx';
 import { api, ApiError } from './api-client.ts';
 
 interface Org { id: string; name: string; description: string }
@@ -103,6 +104,7 @@ export function OrganizationsApp() {
               </tr>))}</tbody>
           </table>
 
+          <WalletVerification orgId={org} />
           {role === 'admin' && (
             <>
               <h3>Invitations</h3>

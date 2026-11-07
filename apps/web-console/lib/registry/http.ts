@@ -25,7 +25,7 @@ export interface RegistryDeps {
   newSessionId: () => string;
 }
 
-const STATUS: Record<string, number> = { NOT_FOUND: 404, INVALID: 400, FORBIDDEN: 403, EXISTS: 409, LAST_ADMIN: 409, INVALID_STATE: 409, NOT_VERIFIED: 409, FIXTURE: 409, INVALID_INVITATION: 400, RATE_LIMITED: 429, STALE: 409, SEPARATION_OF_DUTIES: 403 };
+const STATUS: Record<string, number> = { NOT_FOUND: 404, INVALID: 400, FORBIDDEN: 403, EXISTS: 409, LAST_ADMIN: 409, INVALID_STATE: 409, NOT_VERIFIED: 409, FIXTURE: 409, INVALID_INVITATION: 400, RATE_LIMITED: 429, STALE: 409, SEPARATION_OF_DUTIES: 403, INVALID_CHALLENGE: 400 };
 const ACCEPT_MAX_FAILURES = 10;
 const ACCEPT_WINDOW_MS = 15 * 60 * 1000;
 
@@ -91,6 +91,37 @@ export async function handleRegistry(request: Request, deps: RegistryDeps): Prom
         if (parts.length === 5 && parts[4] === 'role' && m === 'POST') { const b = await readBody(request); r.setRole(user, orgId, parts[3] as string, roleOf(b['role'])); return json(200, { ok: true }); }
         if (parts.length === 5 && parts[4] === 'remove' && m === 'POST') { r.removeMember(user, orgId, parts[3] as string); return json(200, { ok: true }); }
       }
+      if (sub === 'wallet-challenges') {
+        if (parts.length === 3 && m === 'POST') {
+          const b = await readBody(request);
+          const c = r.issueWalletChallenge(user, orgId, { network: b['network'], publicKey: b['publicKey'] });
+          return json(201, { challenge: { id: c.id, network: c.network, publicKey: c.publicKey, message: c.message, expiresAt: c.expiresAt }, note: 'Sign this exact message with the key (outside Tobin) and return the base64 signature. It signs no transaction and authorizes no payment. Verifying proves control of the key only: it grants no role or permission.' });
+        }
+        if (parts.length === 5 && parts[4] === 'verify' && m === 'POST') {
+          const b = await readBody(request);
+          const v = r.verifyWalletChallenge(user, orgId, { challengeId: parts[3], signature: b['signature'], scheme: b['scheme'] });
+          return json(201, { verification: { network: v.network, publicKey: v.publicKey, scheme: v.scheme, verifiedAt: v.verifiedAt }, note: 'Ownership of the key is proven. This grants no institutional role or permission.' });
+        }
+      }
+      if (sub === 'wallet-verifications' && parts.length === 3 && m === 'GET') {
+        const vs = r.walletVerifications(user, orgId); const d = names(vs.map((x) => x.userId));
+        return json(200, { verifications: vs.map((x) => ({ userId: x.userId, name: d.get(x.userId)?.displayName ?? 'a former user', network: x.network, publicKey: x.publicKey, verifiedAt: x.verifiedAt })), note: 'Proof of control of a key. It confers no role, no reviewer capability and no signing authority in Tobin.' });
+      }
+      if (sub === 'signer-sets') {
+        if (parts.length === 3 && m === 'POST') {
+          // reads the chain HERE (Horizon and the RPC must agree): a caller can never supply weights or thresholds
+          const b = await readBody(request);
+          if (b['network'] !== 'testnet') throw new RegistryError('INVALID', 'only testnet is enabled');
+          if (typeof b['account'] !== 'string') throw new RegistryError('INVALID', 'account is required');
+          r.requireSignerSetAdmin(user, orgId); // authorization BEFORE any network read: outsiders get the uniform 404, members 403
+          const { fetchLiveSignerSet } = await import('../stellar/live.ts');
+          const live = await fetchLiveSignerSet(b['account'], 'testnet');
+          if (!live.ok) return json(503, { error: 'CHAIN_UNAVAILABLE', message: live.reason });
+          const rec = r.recordSignerSet(user, orgId, { set: live.set, fingerprint: live.fingerprint });
+          return json(rec.changed ? 201 : 200, { fingerprint: rec.snapshot.fingerprint, changed: rec.changed, thresholds: rec.snapshot.thresholds, signers: rec.snapshot.signers, note: 'Read from the chain (Horizon and the RPC agreed). Information for verification only: it grants no role or permission, and it does not authorize any transaction.' });
+        }
+        if (parts.length === 4 && m === 'GET') { const h = r.signerSetHistory(user, orgId, 'testnet', parts[3] as string); return json(200, { current: h.current, history: h.history.map((x) => ({ fingerprint: x.fingerprint, recordedAt: x.recordedAt })) }); }
+      }
       if (sub === 'reviewers') {
         if (parts.length === 3 && m === 'GET') { const d = names(r.reviewers(user, orgId).map((g) => g.userId)); return json(200, { reviewers: r.reviewers(user, orgId).map((g) => ({ userId: g.userId, name: d.get(g.userId)?.displayName ?? 'a former user', grantedAt: g.grantedAt })) }); }
         if (parts.length === 5 && parts[4] === 'grant' && m === 'POST') { r.grantReviewer(user, orgId, parts[3] as string); return json(200, { ok: true }); }
@@ -138,7 +169,7 @@ export async function handleRegistry(request: Request, deps: RegistryDeps): Prom
             const d = who(ps.map((p) => p.userId));
             return ps.map((p) => ({ userId: p.userId, name: d.get(p.userId)?.displayName ?? 'a former user', organization: orgName, orgId: p.orgId, status: p.status ?? 'active', addedAt: p.addedAt, ...(p.removedAt ? { removedAt: p.removedAt } : {}), ...(p.walletAddress ? { walletClaim: p.walletAddress, walletProof: 'none' } : {}) }));
           };
-          const viewObligation = (o: ReturnType<Registry['obligation']>, d: Map<string, { displayName: string; email: string }>) => ({ id: o.id, debtor: o.debtor, debtorName: d.get(o.debtor)?.displayName ?? 'a former user', creditor: o.creditor, creditorName: d.get(o.creditor)?.displayName ?? 'a former user', amount: o.amount, asset: o.asset, reference: o.reference, status: o.status, revision: o.revision, createdAt: o.createdAt, createdBy: d.get(o.createdBy)?.displayName ?? 'a former user', updatedAt: o.updatedAt, updatedBy: d.get(o.updatedBy)?.displayName ?? 'a former user' });
+          const viewObligation = (o: ReturnType<Registry['obligation']>, d: Map<string, { displayName: string; email: string }>) => ({ id: o.id, debtor: o.debtor, debtorName: d.get(o.debtor)?.displayName ?? 'a former user', creditor: o.creditor, creditorName: d.get(o.creditor)?.displayName ?? 'a former user', amount: o.amount, asset: o.asset, assetRef: o.assetRef ?? null, assetIdentity: o.assetIdentity ?? 'legacy-unresolved', reference: o.reference, status: o.status, revision: o.revision, createdAt: o.createdAt, createdBy: d.get(o.createdBy)?.displayName ?? 'a former user', updatedAt: o.updatedAt, updatedBy: d.get(o.updatedBy)?.displayName ?? 'a former user' });
           const viewObligations = () => { const os = r.obligations(user, orgId, sessionId); const d = who(os.flatMap((o) => [o.debtor, o.creditor, o.createdBy, o.updatedBy])); return os.map((o) => viewObligation(o, d)); };
           const viewCalculation = () => {
             const v = r.calculationView(user, orgId, sessionId);
@@ -160,13 +191,13 @@ export async function handleRegistry(request: Request, deps: RegistryDeps): Prom
             if (parts.length === 5 && m === 'GET') return json(200, { obligations: viewObligations() });
             if (parts.length === 5 && m === 'POST') {
               const b = await readBody(request);
-              const o = r.createObligation(user, orgId, sessionId, { debtor: b['debtor'], creditor: b['creditor'], amount: b['amount'], asset: b['asset'], ...(b['reference'] !== undefined ? { reference: b['reference'] } : {}) });
+              const o = r.createObligation(user, orgId, sessionId, { debtor: b['debtor'], creditor: b['creditor'], amount: b['amount'], asset: b['asset'], ...(b['assetRef'] !== undefined ? { assetRef: b['assetRef'] } : {}), ...(b['reference'] !== undefined ? { reference: b['reference'] } : {}) });
               return json(201, { obligationId: o.id, obligations: viewObligations() });
             }
             if (parts.length === 6 && m === 'GET') { const o = r.obligation(user, orgId, sessionId, parts[5] as string); return json(200, { obligation: viewObligation(o, who([o.debtor, o.creditor, o.createdBy, o.updatedBy])) }); }
             if (parts.length === 7 && parts[6] === 'update' && m === 'POST') {
               const b = await readBody(request);
-              r.updateObligation(user, orgId, sessionId, parts[5] as string, { debtor: b['debtor'], creditor: b['creditor'], amount: b['amount'], asset: b['asset'], reference: b['reference'] });
+              r.updateObligation(user, orgId, sessionId, parts[5] as string, { debtor: b['debtor'], creditor: b['creditor'], amount: b['amount'], asset: b['asset'], ...(b['assetRef'] !== undefined ? { assetRef: b['assetRef'] } : {}), reference: b['reference'] });
               return json(200, { obligations: viewObligations() });
             }
             if (parts.length === 7 && parts[6] === 'void' && m === 'POST') { const b = await readBody(request); r.voidObligation(user, orgId, sessionId, parts[5] as string, b['reason']); return json(200, { obligations: viewObligations() }); }
@@ -178,9 +209,9 @@ export async function handleRegistry(request: Request, deps: RegistryDeps): Prom
               const d = who([v.batch.preparedBy, ...(v.review ? [v.review.decidedBy] : []), ...v.instructions.flatMap((i) => [i.payer, i.payee])]);
               const nm = (u: string) => d.get(u)?.displayName ?? 'a former user';
               return {
-                batch: { id: v.batch.id, calculationId: v.batch.calculationId, asset: v.batch.asset, instructionCount: v.batch.instructionCount, totalAmount: v.batch.totalAmount, instructionsHash: v.batch.instructionsHash, algorithm: v.batch.algorithm, preparedBy: nm(v.batch.preparedBy), preparedAt: v.batch.preparedAt },
+                batch: { id: v.batch.id, attempt: v.batch.attempt, calculationId: v.batch.calculationId, asset: v.batch.asset, instructionCount: v.batch.instructionCount, totalAmount: v.batch.totalAmount, instructionsHash: v.batch.instructionsHash, algorithm: v.batch.algorithm, preparedBy: nm(v.batch.preparedBy), preparedAt: v.batch.preparedAt },
                 status: v.status, validation: v.validation, eligibility: v.eligibility,
-                instructions: v.instructions.map((i) => ({ id: i.id, seq: i.seq, payer: i.payer, payerName: nm(i.payer), payee: i.payee, payeeName: nm(i.payee), assetId: i.assetId, amount: i.amount, sessionId: i.sessionId, calculationId: i.calculationId, batchId: i.batchId, validation: 'valid' })),
+                instructions: v.instructions.map((i) => ({ id: i.id, seq: i.seq, payer: i.payer, payerName: nm(i.payer), payee: i.payee, payeeName: nm(i.payee), assetId: i.assetId, amount: i.amount, sessionId: i.sessionId, calculationId: i.calculationId, batchId: i.batchId, orgId: i.orgId ?? null, approvalDecisionId: i.approvalDecisionId ?? null, network: i.network ?? null, fingerprint: i.fingerprint ?? null, sourceAccount: null, destinationAccount: null, validation: 'valid' })),
                 ...(v.review ? { review: { decision: v.review.decision, reason: v.review.reason, decidedBy: nm(v.review.decidedBy), decidedAt: v.review.decidedAt } } : {}),
                 ...(v.invalidation ? { invalidation: { cause: v.invalidation.cause, at: v.invalidation.at } } : {}),
                 note: NOTE,
@@ -192,17 +223,41 @@ export async function handleRegistry(request: Request, deps: RegistryDeps): Prom
               const pv = r.settlementPreview(user, orgId, sessionId);
               return {
                 preview: pv, note: NOTE, assets: r.supportedAssets().map((a) => ({ id: a.id, code: a.code, status: a.status })),
-                batches: list.map((x) => ({ id: x.batch.id, calculationId: x.batch.calculationId, status: x.status, asset: x.batch.asset, instructionCount: x.batch.instructionCount, totalAmount: x.batch.totalAmount, preparedBy: d.get(x.batch.preparedBy)?.displayName ?? 'a former user', preparedAt: x.batch.preparedAt, ...(x.review ? { decision: { decision: x.review.decision, reason: x.review.reason, decidedBy: d.get(x.review.decidedBy)?.displayName ?? 'a former user', decidedAt: x.review.decidedAt } } : {}), ...(x.invalidation ? { invalidation: { cause: x.invalidation.cause, at: x.invalidation.at } } : {}) })),
+                batches: list.map((x) => ({ id: x.batch.id, attempt: x.batch.attempt, calculationId: x.batch.calculationId, status: x.status, asset: x.batch.asset, instructionCount: x.batch.instructionCount, totalAmount: x.batch.totalAmount, preparedBy: d.get(x.batch.preparedBy)?.displayName ?? 'a former user', preparedAt: x.batch.preparedAt, ...(x.review ? { decision: { decision: x.review.decision, reason: x.review.reason, decidedBy: d.get(x.review.decidedBy)?.displayName ?? 'a former user', decidedAt: x.review.decidedAt } } : {}), ...(x.invalidation ? { invalidation: { cause: x.invalidation.cause, at: x.invalidation.at } } : {}) })),
               };
             };
             if (parts.length === 5 && m === 'GET') return json(200, listView());
             if (parts.length === 6 && parts[5] === 'prepare' && m === 'POST') {
               const b = await readBody(request);
-              const batch = r.prepareSettlementBatch(user, orgId, sessionId, { calculationId: b['calculationId'] });
+              const batch = r.prepareSettlementBatch(user, orgId, sessionId, { calculationId: b['calculationId'], ...(b['attempt'] !== undefined ? { attempt: b['attempt'] } : {}) });
               return json(201, { batchId: batch.id, ...listView() });
             }
             if (parts[5] === 'batches') {
               const bid = parts[6] as string;
+              if (parts.length === 8 && parts[7] === 'execution' && m === 'GET') {
+                const ex = r.settlementExecution(user, orgId, sessionId, bid);
+                const bv = r.settlementBatch(user, orgId, sessionId, bid);
+                const people = [...new Set(bv.instructions.flatMap((i) => [i.payer, i.payee]))];
+                const d = who([...people, ...(ex ? ex.events.map((e) => e.actor) : [])]);
+                const vs = r.walletVerifications(user, orgId).filter((x) => x.network === bv.batch.asset.network);
+                return json(200, {
+                  network: bv.batch.asset.network, batchStatus: bv.status,
+                  participants: people.map((p) => ({ userId: p, name: d.get(p)?.displayName ?? 'a former user', verifiedAccount: vs.filter((x) => x.userId === p).length === 1 ? (vs.find((x) => x.userId === p)?.publicKey ?? null) : null, verifiedCount: vs.filter((x) => x.userId === p).length })),
+                  execution: ex ? { id: ex.execution.id, state: ex.state, accounts: ex.execution.accounts, createdAt: ex.execution.createdAt, events: ex.events.map((e) => ({ from: e.from, to: e.to, at: e.at, actor: d.get(e.actor)?.displayName ?? 'a former user', detail: e.detail })) } : null,
+                  unavailable: ['Wallet connection', 'Transaction construction', 'Wallet signing', 'Transaction submission', 'Independent on-chain verification', 'Reconciliation against the chain'],
+                  note: 'This build records the Stellar-side preconditions only. Wallet signing, transaction construction, submission and on-chain verification are NOT implemented: nothing has been signed, submitted or settled.',
+                });
+              }
+              if (parts.length === 9 && parts[7] === 'execution' && parts[8] === 'attempts' && m === 'GET') {
+                const list = r.settlementAttempts(user, orgId, sessionId, bid); const d = who(list.flatMap((x) => x.events.map((e) => e.actor)));
+                return json(200, { attempts: list.map((x) => { const plan = x.attempt.plan as { steps: { index: number; fn: string; signers: string[]; note: string }[]; requiredSigners: string[]; sessionId: string; expectedDigest: string } | undefined; return { attemptNo: x.attempt.attemptNo, state: x.state, network: x.attempt.network, planFingerprint: x.attempt.planFingerprint, createdAt: x.attempt.createdAt, onChainSessionId: plan?.sessionId ?? null, expectedDigest: plan?.expectedDigest ?? null, requiredSigners: plan?.requiredSigners ?? [], steps: (plan?.steps ?? []).map((s) => ({ index: s.index, fn: s.fn, signers: s.signers, note: s.note })), transactions: x.transactions, events: x.events.map((e) => ({ kind: e.kind, from: e.from, to: e.to, at: e.at, actor: d.get(e.actor)?.displayName ?? 'a former user', detail: e.detail })) }; }), note: 'An attempt is a technical try to execute the approved batch. A plan is not a transaction: nothing has been constructed, signed or submitted by creating one.' });
+              }
+              if (parts.length === 10 && parts[7] === 'execution' && parts[8] === 'attempts' && parts[9] === 'begin' && m === 'POST') {
+                const b = await readBody(request);
+                const a = r.beginExecutionAttempt(user, orgId, sessionId, bid, { initiator: b['initiator'], reviewedFailure: b['reviewedFailure'] });
+                return json(201, { attemptNo: a.attemptNo, planFingerprint: a.planFingerprint, state: 'awaiting-signer', note: 'Plan prepared. No transaction has been constructed, signed or submitted.' });
+              }
+              if (parts.length === 9 && parts[7] === 'execution' && parts[8] === 'start' && m === 'POST') { const e = r.startSettlementExecution(user, orgId, sessionId, bid); return json(201, { executionId: e.id, state: 'awaiting-signer', note: 'Execution prepared and awaiting a signer. No signing, submission or confirmation exists in this build.' }); }
               if (parts.length === 7 && m === 'GET') return json(200, batchView(bid));
               if (parts.length === 8 && parts[7] === 'validation' && m === 'GET') return json(200, { validation: r.settlementBatchValidation(user, orgId, sessionId, bid), note: NOTE });
               if (parts.length === 8 && (parts[7] === 'approve' || parts[7] === 'reject') && m === 'POST') {

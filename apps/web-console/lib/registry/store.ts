@@ -1,6 +1,6 @@
 // Persistence interface for the registry. The database choice is an open owner decision; this in-memory implementation is NON-PRODUCTION (lost on
 // restart) and exists only for isolated unit tests. The production store is SqliteRegistryStore (sqlite-store.ts). Reads return copies.
-import type { BatchInvalidation, BatchReview, SettlementBatch, SettlementInstruction, SupportedAsset, ActivityRecord, AuthorizationDecision, AuthorizationInvalidation, ReviewerGrant, CalculationRecord, Invitation, ObligationRecord, Membership, Organization, OrgWallet, SessionParticipant, SessionRecord } from './types.ts';
+import type { SignerSetSnapshot, AttemptEvent, AttemptTransaction, SettlementAttempt, ExecutionEvent, SettlementExecution, WalletChallenge, WalletVerification, BatchInvalidation, BatchReview, SettlementBatch, SettlementInstruction, SupportedAsset, ActivityRecord, AuthorizationDecision, AuthorizationInvalidation, ReviewerGrant, CalculationRecord, Invitation, ObligationRecord, Membership, Organization, OrgWallet, SessionParticipant, SessionRecord } from './types.ts';
 
 const clone = <T>(x: T): T => structuredClone(x);
 
@@ -49,6 +49,28 @@ export interface RegistryStore {
   batchReviewsOfSession(sessionId: string): BatchReview[];
   putBatchInvalidation(i: BatchInvalidation): void;
   batchInvalidationsOfSession(sessionId: string): BatchInvalidation[];
+  putChallenge(c: WalletChallenge): void;
+  getChallenge(id: string): WalletChallenge | undefined;
+  markChallengeUsed(id: string, at: string): void;
+  /** throws if the key is already verified in the organization on that network */
+  putVerification(v: WalletVerification): void;
+  verificationsOfOrg(orgId: string): WalletVerification[];
+  putExecution(e: SettlementExecution, first: ExecutionEvent): void;
+  executionOfBatch(batchId: string): SettlementExecution | undefined;
+  putExecutionEvent(ev: ExecutionEvent): void;
+  eventsOfExecution(executionId: string): ExecutionEvent[];
+  /** throws if (execution, attemptNo) already exists */
+  putAttempt(a: SettlementAttempt, first: AttemptEvent): void;
+  attemptsOfExecution(executionId: string): SettlementAttempt[];
+  putAttemptEvent(ev: AttemptEvent): void;
+  eventsOfAttempt(attemptId: string): AttemptEvent[];
+  /** throws if the hash is already recorded, or the step already has a transaction for that attempt */
+  putAttemptTransaction(t: AttemptTransaction): void;
+  transactionsOfAttempt(attemptId: string): AttemptTransaction[];
+  attemptOfTransaction(txHash: string): AttemptTransaction | undefined;
+  /** throws if the same fingerprint is already recorded for the account */
+  putSignerSet(s: SignerSetSnapshot): void;
+  signerSetsOfAccount(orgId: string, network: string, account: string): SignerSetSnapshot[];
   appendActivity(a: ActivityRecord): void;
   activityOfOrg(orgId: string): ActivityRecord[];
 }
@@ -71,24 +93,50 @@ export class InMemoryRegistryStore implements RegistryStore {
   readonly #instructions: SettlementInstruction[] = [];
   readonly #reviews: BatchReview[] = [];
   readonly #batchInv = new Map<string, BatchInvalidation>();
+  readonly #challenges = new Map<string, WalletChallenge>();
+  readonly #verifs: WalletVerification[] = [];
+  readonly #execs = new Map<string, SettlementExecution>();
+  readonly #events: ExecutionEvent[] = [];
+  readonly #attempts: SettlementAttempt[] = [];
+  readonly #attEvents: AttemptEvent[] = [];
+  readonly #attTx: AttemptTransaction[] = [];
+  readonly #signerSets: SignerSetSnapshot[] = [];
   transaction<T>(fn: () => T): T {
-    const maps = [this.#orgs, this.#members, this.#wallets, this.#invites, this.#sessions, this.#participants, this.#obligations, this.#reviewers, this.#invalidations, this.#assets, this.#batchInv] as Map<string, unknown>[];
+    const maps = [this.#orgs, this.#members, this.#wallets, this.#invites, this.#sessions, this.#participants, this.#obligations, this.#reviewers, this.#invalidations, this.#assets, this.#batchInv, this.#challenges, this.#execs] as Map<string, unknown>[];
     const snap = maps.map((m) => new Map(m));
-    const act = this.#activity.length; const calcs = this.#calcs.length; const decs = this.#decisions.length; const bats = this.#batches.length; const ins = this.#instructions.length; const revs = this.#reviews.length;
+    const act = this.#activity.length; const calcs = this.#calcs.length; const decs = this.#decisions.length; const bats = this.#batches.length; const ins = this.#instructions.length; const revs = this.#reviews.length; const vers = this.#verifs.length; const evs = this.#events.length; const atts = this.#attempts.length; const aev = this.#attEvents.length; const atx = this.#attTx.length; const sss = this.#signerSets.length;
     try { return fn(); } catch (e) {
       for (const [i, m] of maps.entries()) { m.clear(); for (const [k, v] of snap[i] as Map<string, unknown>) m.set(k, v); }
-      this.#activity.length = act; this.#calcs.length = calcs; this.#decisions.length = decs; this.#batches.length = bats; this.#instructions.length = ins; this.#reviews.length = revs; throw e;
+      this.#activity.length = act; this.#calcs.length = calcs; this.#decisions.length = decs; this.#batches.length = bats; this.#instructions.length = ins; this.#reviews.length = revs; this.#verifs.length = vers; this.#events.length = evs; this.#attempts.length = atts; this.#attEvents.length = aev; this.#attTx.length = atx; this.#signerSets.length = sss; throw e;
     }
   }
   putAsset(a: SupportedAsset) { this.#assets.set(a.id, clone(a)); }
   assets() { return [...this.#assets.values()].map(clone); }
-  putBatch(b: SettlementBatch, instructions: SettlementInstruction[]) { if (this.#batches.some((x) => x.calculationId === b.calculationId)) throw new Error('UNIQUE constraint failed: settlement_batches.calculation_id'); this.#batches.push(clone(b)); for (const i of instructions) this.#instructions.push(clone(i)); }
+  putBatch(b: SettlementBatch, instructions: SettlementInstruction[]) { if (this.#batches.some((x) => x.calculationId === b.calculationId && x.attempt === b.attempt)) throw new Error('UNIQUE constraint failed: settlement_batches.calculation_id, attempt'); this.#batches.push(clone(b)); for (const i of instructions) this.#instructions.push(clone(i)); }
   batchesOfSession(sessionId: string) { return this.#batches.filter((b) => b.sessionId === sessionId).map(clone); }
   instructionsOfBatch(batchId: string) { return this.#instructions.filter((i) => i.batchId === batchId).sort((a, b) => a.seq - b.seq).map(clone); }
   putBatchReview(r: BatchReview) { if (this.#reviews.some((x) => x.batchId === r.batchId)) throw new Error('UNIQUE constraint failed: settlement_batch_reviews.batch_id'); this.#reviews.push(clone(r)); }
   batchReviewsOfSession(sessionId: string) { const ids = new Set(this.#batches.filter((b) => b.sessionId === sessionId).map((b) => b.id)); return this.#reviews.filter((r) => ids.has(r.batchId)).map(clone); }
   putBatchInvalidation(i: BatchInvalidation) { if (!this.#batchInv.has(i.batchId)) this.#batchInv.set(i.batchId, clone(i)); }
   batchInvalidationsOfSession(sessionId: string) { const ids = new Set(this.#batches.filter((b) => b.sessionId === sessionId).map((b) => b.id)); return [...this.#batchInv.values()].filter((i) => ids.has(i.batchId)).map(clone); }
+  putChallenge(c: WalletChallenge) { this.#challenges.set(c.id, clone(c)); }
+  getChallenge(id: string) { const c = this.#challenges.get(id); return c && clone(c); }
+  markChallengeUsed(id: string, at: string) { const c = this.#challenges.get(id); if (c) c.usedAt = at; }
+  putVerification(v: WalletVerification) { if (this.#verifs.some((x) => x.orgId === v.orgId && x.network === v.network && x.publicKey === v.publicKey)) throw new Error('UNIQUE constraint failed: wallet_verifications'); this.#verifs.push(clone(v)); }
+  verificationsOfOrg(orgId: string) { return this.#verifs.filter((v) => v.orgId === orgId && this.#members.has(`${v.orgId}|${v.userId}`)).map(clone); }
+  putExecution(e: SettlementExecution, first: ExecutionEvent) { if (this.#execs.has(e.batchId)) throw new Error('UNIQUE constraint failed: settlement_executions.batch_id'); this.#execs.set(e.batchId, clone(e)); this.#events.push(clone(first)); }
+  executionOfBatch(batchId: string) { const e = this.#execs.get(batchId); return e && clone(e); }
+  putExecutionEvent(ev: ExecutionEvent) { this.#events.push(clone(ev)); }
+  eventsOfExecution(executionId: string) { return this.#events.filter((x) => x.executionId === executionId).map(clone); }
+  putSignerSet(s: SignerSetSnapshot) { if (this.#signerSets.some((x) => x.orgId === s.orgId && x.network === s.network && x.account === s.account && x.fingerprint === s.fingerprint)) throw new Error('UNIQUE constraint failed: signer_set_snapshots'); this.#signerSets.push(clone(s)); }
+  signerSetsOfAccount(orgId: string, network: string, account: string) { return this.#signerSets.filter((x) => x.orgId === orgId && x.network === network && x.account === account).map(clone); }
+  putAttempt(a: SettlementAttempt, first: AttemptEvent) { if (this.#attempts.some((x) => x.executionId === a.executionId && x.attemptNo === a.attemptNo)) throw new Error('UNIQUE constraint failed: settlement_attempts'); this.#attempts.push(clone(a)); this.#attEvents.push(clone(first)); }
+  attemptsOfExecution(executionId: string) { return this.#attempts.filter((a) => a.executionId === executionId).sort((a, b) => a.attemptNo - b.attemptNo).map(clone); }
+  putAttemptEvent(ev: AttemptEvent) { this.#attEvents.push(clone(ev)); }
+  eventsOfAttempt(attemptId: string) { return this.#attEvents.filter((e) => e.attemptId === attemptId).map(clone); }
+  putAttemptTransaction(t: AttemptTransaction) { if (this.#attTx.some((x) => x.txHash === t.txHash || (x.attemptId === t.attemptId && x.stepIndex === t.stepIndex))) throw new Error('UNIQUE constraint failed: settlement_attempt_transactions'); this.#attTx.push(clone(t)); }
+  transactionsOfAttempt(attemptId: string) { return this.#attTx.filter((t) => t.attemptId === attemptId).map(clone); }
+  attemptOfTransaction(txHash: string) { const t = this.#attTx.find((x) => x.txHash === txHash); return t && clone(t); }
   putReviewer(r: ReviewerGrant) { this.#reviewers.set(`${r.orgId}|${r.userId}`, clone(r)); }
   removeReviewer(orgId: string, userId: string) { this.#reviewers.delete(`${orgId}|${userId}`); }
   reviewersOfOrg(orgId: string) { return [...this.#reviewers.values()].filter((r) => r.orgId === orgId && this.#members.has(`${r.orgId}|${r.userId}`)).map(clone); }

@@ -7,21 +7,21 @@ import { code, makeBackend, newUser, SID, tempDir } from './backend-helpers.ts';
 
 test('migrations: apply, are observable, and re-running changes nothing', () => {
   const db = openDatabase(':memory:');
-  assert.deepEqual(migrationStatus(db).pending, [1, 2, 3, 4]);
-  const s1 = migrate(db); assert.equal(s1.current, 4); assert.deepEqual(s1.pending, []);
+  assert.deepEqual(migrationStatus(db).pending, [1, 2, 3, 4, 5, 6, 7]);
+  const s1 = migrate(db); assert.equal(s1.current, 7); assert.deepEqual(s1.pending, []);
   const at = s1.applied[0]?.appliedAt;
-  const s2 = migrate(db); assert.equal(s2.current, 4); assert.equal(s2.applied.length, 4); assert.equal(s2.applied[0]?.appliedAt, at);
+  const s2 = migrate(db); assert.equal(s2.current, 7); assert.equal(s2.applied.length, 7); assert.equal(s2.applied[0]?.appliedAt, at);
   const tables = (db.raw.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[]).map((t) => t.name);
   for (const t of ['users', 'auth_sessions', 'organizations', 'memberships', 'org_wallets', 'invitations', 'sessions', 'session_participants', 'activity', 'schema_migrations', 'obligations', 'calculations', 'org_reviewers', 'authorization_decisions', 'authorization_invalidations', 'supported_assets', 'settlement_batches', 'settlement_instructions', 'settlement_batch_reviews', 'settlement_batch_invalidations']) assert.ok(tables.includes(t), t);
 });
 
 test('a failing migration rolls back completely and records nothing; the next run can still apply the good ones', () => {
   const db = openDatabase(':memory:');
-  const bad = [...MIGRATIONS, { version: 5, name: 'broken', sql: 'CREATE TABLE half_done (x INTEGER); INSERT INTO table_that_does_not_exist VALUES (1);' }];
+  const bad = [...MIGRATIONS, { version: 8, name: 'broken', sql: 'CREATE TABLE half_done (x INTEGER); INSERT INTO table_that_does_not_exist VALUES (1);' }];
   assert.throws(() => migrate(db, undefined, bad));
-  assert.equal(migrationStatus(db, bad).current, 4, 'v1 to v4 stayed applied');
+  assert.equal(migrationStatus(db, bad).current, 7, 'v1 to v7 stayed applied');
   assert.equal(db.raw.prepare("SELECT count(*) AS n FROM sqlite_master WHERE name = 'half_done'").get()?.['n'], 0, 'the partial table of the failed migration is gone');
-  assert.deepEqual(migrationStatus(db, bad).pending, [5]);
+  assert.deepEqual(migrationStatus(db, bad).pending, [8]);
 });
 
 test('a database newer than the application is refused', () => {

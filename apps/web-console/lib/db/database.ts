@@ -295,6 +295,253 @@ CREATE TRIGGER settlement_batch_invalidations_no_update BEFORE UPDATE ON settlem
 CREATE TRIGGER settlement_batch_invalidations_no_delete BEFORE DELETE ON settlement_batch_invalidations BEGIN SELECT RAISE(ABORT, 'settlement batch invalidations are immutable'); END;
 `,
   },
+  {
+    version: 5,
+    name: 'asset identity, re-preparation attempts, instruction contract, wallet ownership challenges, settlement execution events',
+    sql: `
+-- 1. Asset identity on obligations and calculation snapshots. Historical rows are NEVER guessed: they stay 'legacy-unresolved' (asset_ref NULL) and cannot enter
+--    settlement preparation until an administrator reconciles them (editing the obligation, which records a revision). Snapshots keep their original content.
+ALTER TABLE obligations ADD COLUMN asset_ref TEXT;
+ALTER TABLE obligations ADD COLUMN asset_identity TEXT NOT NULL DEFAULT 'legacy-unresolved' CHECK (asset_identity IN ('canonical', 'legacy-unresolved') AND (asset_identity = 'legacy-unresolved' OR asset_ref IS NOT NULL));
+ALTER TABLE calculations ADD COLUMN asset_ref TEXT;
+
+-- 2. The supported asset list gains the Soroban token kind (what the deployed clearing contract settles in). Rebuilt: no other table references it.
+CREATE TABLE supported_assets_v2 (
+  id TEXT PRIMARY KEY,
+  network TEXT NOT NULL CHECK (network IN ('testnet', 'public')),
+  kind TEXT NOT NULL CHECK (kind IN ('native', 'issued', 'contract')),
+  code TEXT NOT NULL CHECK (length(code) BETWEEN 1 AND 12 AND code NOT GLOB '*[^A-Z0-9]*'),
+  issuer TEXT,
+  contract_id TEXT,
+  status TEXT NOT NULL CHECK (status IN ('supported', 'disabled')),
+  source TEXT NOT NULL DEFAULT 'operator-configured' CHECK (source = 'operator-configured'),
+  added_at TEXT NOT NULL,
+  CHECK ((kind = 'issued') = (issuer IS NOT NULL)),
+  CHECK ((kind = 'contract') = (contract_id IS NOT NULL)),
+  CHECK (kind <> 'native' OR code = 'XLM'),
+  CHECK (issuer IS NULL OR (length(issuer) = 56 AND issuer GLOB 'G*' AND issuer NOT GLOB '*[^A-Z2-7]*')),
+  CHECK (contract_id IS NULL OR (length(contract_id) = 56 AND contract_id GLOB 'C*' AND contract_id NOT GLOB '*[^A-Z2-7]*')),
+  CHECK (id = CASE kind WHEN 'native' THEN network || ':native' WHEN 'issued' THEN network || ':' || code || ':' || issuer ELSE network || ':contract:' || contract_id END)
+);
+INSERT INTO supported_assets_v2 (id, network, kind, code, issuer, status, source, added_at) SELECT id, network, kind, code, issuer, status, source, added_at FROM supported_assets;
+DROP TABLE supported_assets;
+ALTER TABLE supported_assets_v2 RENAME TO supported_assets;
+
+-- 3. Settlement batches are rebuilt so a rejected batch can be prepared again: UNIQUE(calculation_id) becomes UNIQUE(calculation_id, attempt). Instructions gain the
+--    stabilized instruction contract. Existing rows are copied unchanged (attempt 1; new columns derived from the same row or left NULL for legacy rows).
+CREATE TABLE settlement_batches_v2 (
+  seq INTEGER PRIMARY KEY AUTOINCREMENT,
+  id TEXT NOT NULL UNIQUE,
+  session_id TEXT NOT NULL,
+  org_id TEXT NOT NULL,
+  calculation_id TEXT NOT NULL REFERENCES calculations(id),
+  attempt INTEGER NOT NULL DEFAULT 1 CHECK (attempt >= 1),
+  asset_id TEXT NOT NULL,
+  asset_network TEXT NOT NULL,
+  asset_kind TEXT NOT NULL,
+  asset_code TEXT NOT NULL,
+  asset_issuer TEXT,
+  instruction_count INTEGER NOT NULL CHECK (instruction_count >= 0),
+  total_amount TEXT NOT NULL CHECK (length(total_amount) BETWEEN 1 AND 39 AND total_amount NOT GLOB '*[^0-9]*'),
+  instructions_hash TEXT NOT NULL CHECK (length(instructions_hash) = 64),
+  algorithm TEXT NOT NULL,
+  validation_json TEXT NOT NULL,
+  prepared_by TEXT NOT NULL REFERENCES users(id),
+  prepared_at TEXT NOT NULL,
+  UNIQUE (id, session_id, calculation_id),
+  UNIQUE (calculation_id, attempt),
+  FOREIGN KEY (session_id, org_id) REFERENCES sessions(session_id, org_id)
+);
+INSERT INTO settlement_batches_v2 (seq, id, session_id, org_id, calculation_id, attempt, asset_id, asset_network, asset_kind, asset_code, asset_issuer, instruction_count, total_amount, instructions_hash, algorithm, validation_json, prepared_by, prepared_at)
+  SELECT seq, id, session_id, org_id, calculation_id, 1, asset_id, asset_network, asset_kind, asset_code, asset_issuer, instruction_count, total_amount, instructions_hash, algorithm, validation_json, prepared_by, prepared_at FROM settlement_batches;
+CREATE TABLE settlement_instructions_v2 (
+  id TEXT PRIMARY KEY,
+  batch_id TEXT NOT NULL,
+  session_id TEXT NOT NULL,
+  org_id TEXT,
+  calculation_id TEXT NOT NULL,
+  approval_decision_id TEXT,
+  network TEXT,
+  seq INTEGER NOT NULL CHECK (seq >= 1),
+  payer TEXT NOT NULL,
+  payee TEXT NOT NULL,
+  source_account TEXT,
+  destination_account TEXT,
+  asset_id TEXT NOT NULL,
+  amount TEXT NOT NULL CHECK (length(amount) BETWEEN 1 AND 39 AND amount NOT GLOB '*[^0-9]*' AND amount NOT GLOB '0*'),
+  fingerprint TEXT,
+  validation_status TEXT NOT NULL DEFAULT 'valid' CHECK (validation_status = 'valid'),
+  CHECK (payer <> payee),
+  CHECK (source_account IS NULL AND destination_account IS NULL),
+  UNIQUE (batch_id, seq),
+  UNIQUE (batch_id, payer, payee),
+  FOREIGN KEY (batch_id, session_id, calculation_id) REFERENCES settlement_batches_v2(id, session_id, calculation_id)
+);
+INSERT INTO settlement_instructions_v2 (id, batch_id, session_id, org_id, calculation_id, approval_decision_id, network, seq, payer, payee, asset_id, amount)
+  SELECT i.id, i.batch_id, i.session_id, b.org_id, i.calculation_id, (SELECT d.id FROM authorization_decisions d WHERE d.calculation_id = i.calculation_id AND d.decision = 'approved'), substr(i.asset_id, 1, instr(i.asset_id, ':') - 1), i.seq, i.payer, i.payee, i.asset_id, i.amount
+  FROM settlement_instructions i JOIN settlement_batches b ON b.id = i.batch_id;
+CREATE TABLE settlement_batch_reviews_v2 (
+  seq INTEGER PRIMARY KEY AUTOINCREMENT,
+  id TEXT NOT NULL UNIQUE,
+  batch_id TEXT NOT NULL UNIQUE REFERENCES settlement_batches_v2(id),
+  decision TEXT NOT NULL CHECK (decision IN ('approved', 'rejected')),
+  reason TEXT NOT NULL DEFAULT '' CHECK (length(reason) <= 500 AND ((decision = 'rejected') = (length(trim(reason)) > 0))),
+  decided_by TEXT NOT NULL REFERENCES users(id),
+  decided_at TEXT NOT NULL
+);
+INSERT INTO settlement_batch_reviews_v2 (seq, id, batch_id, decision, reason, decided_by, decided_at) SELECT seq, id, batch_id, decision, reason, decided_by, decided_at FROM settlement_batch_reviews;
+CREATE TABLE settlement_batch_invalidations_v2 (
+  batch_id TEXT PRIMARY KEY REFERENCES settlement_batches_v2(id),
+  cause TEXT NOT NULL CHECK (length(cause) BETWEEN 1 AND 300),
+  at TEXT NOT NULL,
+  by_actor TEXT NOT NULL
+);
+INSERT INTO settlement_batch_invalidations_v2 (batch_id, cause, at, by_actor) SELECT batch_id, cause, at, by_actor FROM settlement_batch_invalidations;
+DROP TABLE settlement_instructions;
+DROP TABLE settlement_batch_reviews;
+DROP TABLE settlement_batch_invalidations;
+DROP TABLE settlement_batches;
+ALTER TABLE settlement_batches_v2 RENAME TO settlement_batches;
+ALTER TABLE settlement_instructions_v2 RENAME TO settlement_instructions;
+ALTER TABLE settlement_batch_reviews_v2 RENAME TO settlement_batch_reviews;
+ALTER TABLE settlement_batch_invalidations_v2 RENAME TO settlement_batch_invalidations;
+CREATE INDEX settlement_batches_session ON settlement_batches(session_id, seq);
+CREATE TRIGGER settlement_batches_no_update BEFORE UPDATE ON settlement_batches BEGIN SELECT RAISE(ABORT, 'settlement batches are immutable'); END;
+CREATE TRIGGER settlement_batches_no_delete BEFORE DELETE ON settlement_batches BEGIN SELECT RAISE(ABORT, 'settlement batches are immutable'); END;
+CREATE TRIGGER settlement_instructions_no_update BEFORE UPDATE ON settlement_instructions BEGIN SELECT RAISE(ABORT, 'settlement instructions are immutable'); END;
+CREATE TRIGGER settlement_instructions_no_delete BEFORE DELETE ON settlement_instructions BEGIN SELECT RAISE(ABORT, 'settlement instructions are immutable'); END;
+CREATE TRIGGER settlement_batch_reviews_no_update BEFORE UPDATE ON settlement_batch_reviews BEGIN SELECT RAISE(ABORT, 'settlement batch reviews are immutable'); END;
+CREATE TRIGGER settlement_batch_reviews_no_delete BEFORE DELETE ON settlement_batch_reviews BEGIN SELECT RAISE(ABORT, 'settlement batch reviews are immutable'); END;
+CREATE TRIGGER settlement_batch_invalidations_no_update BEFORE UPDATE ON settlement_batch_invalidations BEGIN SELECT RAISE(ABORT, 'settlement batch invalidations are immutable'); END;
+CREATE TRIGGER settlement_batch_invalidations_no_delete BEFORE DELETE ON settlement_batch_invalidations BEGIN SELECT RAISE(ABORT, 'settlement batch invalidations are immutable'); END;
+
+-- 4. Wallet ownership challenges (a connected wallet proves nothing; a verified signature over a one-time challenge proves control of the key).
+CREATE TABLE wallet_challenges (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  network TEXT NOT NULL CHECK (network IN ('testnet', 'public')),
+  public_key TEXT NOT NULL CHECK (length(public_key) = 56 AND public_key GLOB 'G*'),
+  nonce TEXT NOT NULL CHECK (length(nonce) = 48),
+  message TEXT NOT NULL,
+  issued_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  used_at TEXT,
+  FOREIGN KEY (org_id, user_id) REFERENCES memberships(org_id, user_id) ON DELETE CASCADE
+);
+CREATE TABLE wallet_verifications (
+  org_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  network TEXT NOT NULL CHECK (network IN ('testnet', 'public')),
+  public_key TEXT NOT NULL,
+  scheme TEXT NOT NULL CHECK (scheme IN ('raw', 'sep-53')),
+  challenge_id TEXT NOT NULL UNIQUE REFERENCES wallet_challenges(id),
+  verified_at TEXT NOT NULL,
+  PRIMARY KEY (org_id, network, public_key),
+  FOREIGN KEY (org_id, user_id) REFERENCES memberships(org_id, user_id) ON DELETE CASCADE
+);
+
+-- 5. Settlement execution: one execution per approved batch; its state is the last event. Events are append-only.
+CREATE TABLE settlement_executions (
+  id TEXT PRIMARY KEY,
+  batch_id TEXT NOT NULL UNIQUE REFERENCES settlement_batches(id),
+  session_id TEXT NOT NULL,
+  org_id TEXT NOT NULL,
+  network TEXT NOT NULL CHECK (network IN ('testnet', 'public')),
+  accounts_json TEXT NOT NULL,
+  created_by TEXT NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL
+);
+CREATE TABLE settlement_execution_events (
+  seq INTEGER PRIMARY KEY AUTOINCREMENT,
+  execution_id TEXT NOT NULL REFERENCES settlement_executions(id),
+  from_state TEXT,
+  to_state TEXT NOT NULL,
+  actor TEXT NOT NULL,
+  at TEXT NOT NULL,
+  detail TEXT NOT NULL DEFAULT '',
+  evidence_json TEXT
+);
+CREATE INDEX settlement_execution_events_exec ON settlement_execution_events(execution_id, seq);
+CREATE TRIGGER settlement_executions_no_update BEFORE UPDATE ON settlement_executions BEGIN SELECT RAISE(ABORT, 'settlement executions are immutable'); END;
+CREATE TRIGGER settlement_executions_no_delete BEFORE DELETE ON settlement_executions BEGIN SELECT RAISE(ABORT, 'settlement executions are immutable'); END;
+CREATE TRIGGER settlement_execution_events_no_update BEFORE UPDATE ON settlement_execution_events BEGIN SELECT RAISE(ABORT, 'settlement execution events are immutable'); END;
+CREATE TRIGGER settlement_execution_events_no_delete BEFORE DELETE ON settlement_execution_events BEGIN SELECT RAISE(ABORT, 'settlement execution events are immutable'); END;
+`,
+  },
+  {
+    version: 6,
+    name: 'execution attempts: immutable attempts, append-only attempt events, one transaction hash per attempt step',
+    sql: `
+-- A settlement batch is the approved economics; an ATTEMPT is one technical try to execute it. Attempts are never overwritten.
+CREATE TABLE settlement_attempts (
+  id TEXT PRIMARY KEY,
+  execution_id TEXT NOT NULL REFERENCES settlement_executions(id),
+  attempt_no INTEGER NOT NULL CHECK (attempt_no >= 1),
+  network TEXT NOT NULL CHECK (network IN ('testnet', 'public')),
+  plan_fingerprint TEXT NOT NULL CHECK (length(plan_fingerprint) = 64),
+  plan_json TEXT NOT NULL,
+  initiator TEXT NOT NULL,
+  created_by TEXT NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL,
+  UNIQUE (execution_id, attempt_no)
+);
+CREATE TABLE settlement_attempt_events (
+  seq INTEGER PRIMARY KEY AUTOINCREMENT,
+  attempt_id TEXT NOT NULL REFERENCES settlement_attempts(id),
+  kind TEXT NOT NULL CHECK (kind IN ('transition', 'note')),
+  from_state TEXT,
+  to_state TEXT NOT NULL,
+  actor TEXT NOT NULL,
+  at TEXT NOT NULL,
+  detail TEXT NOT NULL DEFAULT '',
+  evidence_json TEXT,
+  CHECK (kind = 'transition' OR from_state = to_state)
+);
+CREATE INDEX settlement_attempt_events_attempt ON settlement_attempt_events(attempt_id, seq);
+-- A transaction hash belongs to exactly ONE step of exactly ONE attempt (UNIQUE hash), and a step is submitted at most once per attempt (UNIQUE attempt + step):
+-- a duplicate submission is refused by the schema, not only by the application.
+CREATE TABLE settlement_attempt_transactions (
+  tx_hash TEXT PRIMARY KEY CHECK (length(tx_hash) = 64 AND tx_hash NOT GLOB '*[^0-9a-f]*'),
+  attempt_id TEXT NOT NULL REFERENCES settlement_attempts(id),
+  step_index INTEGER NOT NULL CHECK (step_index >= 1),
+  network TEXT NOT NULL CHECK (network IN ('testnet', 'public')),
+  recorded_by TEXT NOT NULL,
+  recorded_at TEXT NOT NULL,
+  UNIQUE (attempt_id, step_index)
+);
+CREATE TRIGGER settlement_attempts_no_update BEFORE UPDATE ON settlement_attempts BEGIN SELECT RAISE(ABORT, 'settlement attempts are immutable'); END;
+CREATE TRIGGER settlement_attempts_no_delete BEFORE DELETE ON settlement_attempts BEGIN SELECT RAISE(ABORT, 'settlement attempts are immutable'); END;
+CREATE TRIGGER settlement_attempt_events_no_update BEFORE UPDATE ON settlement_attempt_events BEGIN SELECT RAISE(ABORT, 'settlement attempt events are immutable'); END;
+CREATE TRIGGER settlement_attempt_events_no_delete BEFORE DELETE ON settlement_attempt_events BEGIN SELECT RAISE(ABORT, 'settlement attempt events are immutable'); END;
+CREATE TRIGGER settlement_attempt_transactions_no_update BEFORE UPDATE ON settlement_attempt_transactions BEGIN SELECT RAISE(ABORT, 'settlement attempt transactions are immutable'); END;
+CREATE TRIGGER settlement_attempt_transactions_no_delete BEFORE DELETE ON settlement_attempt_transactions BEGIN SELECT RAISE(ABORT, 'settlement attempt transactions are immutable'); END;
+`,
+  },
+  {
+    version: 7,
+    name: 'signer-set snapshots: versioned, immutable records of an account signer set read from the chain',
+    sql: `
+-- A snapshot is what the CHAIN said (Horizon and the RPC agreed) at the time of recording; it is never entered by hand and never edited. A later snapshot with a
+-- different fingerprint supersedes it (derived: the latest per account is current). It is information for verification, not an authorization or a role.
+CREATE TABLE signer_set_snapshots (
+  seq INTEGER PRIMARY KEY AUTOINCREMENT,
+  id TEXT NOT NULL UNIQUE,
+  org_id TEXT NOT NULL REFERENCES organizations(id),
+  network TEXT NOT NULL CHECK (network IN ('testnet', 'public')),
+  account TEXT NOT NULL CHECK (length(account) = 56 AND account GLOB 'G*'),
+  fingerprint TEXT NOT NULL CHECK (length(fingerprint) = 64 AND fingerprint NOT GLOB '*[^0-9a-f]*'),
+  thresholds_json TEXT NOT NULL,
+  signers_json TEXT NOT NULL,
+  source TEXT NOT NULL CHECK (source = 'horizon+rpc-agreed'),
+  recorded_by TEXT NOT NULL REFERENCES users(id),
+  recorded_at TEXT NOT NULL,
+  UNIQUE (org_id, network, account, fingerprint)
+);
+CREATE TRIGGER signer_set_snapshots_no_update BEFORE UPDATE ON signer_set_snapshots BEGIN SELECT RAISE(ABORT, 'signer-set snapshots are immutable'); END;
+CREATE TRIGGER signer_set_snapshots_no_delete BEFORE DELETE ON signer_set_snapshots BEGIN SELECT RAISE(ABORT, 'signer-set snapshots are immutable'); END;
+`,
+  },
 ];
 
 export class Database {

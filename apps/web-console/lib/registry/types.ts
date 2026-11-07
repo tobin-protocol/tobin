@@ -110,6 +110,10 @@ export interface ObligationRecord {
   createdBy: string;
   updatedAt: string;
   updatedBy: string;
+  /** canonical asset identity (tobin-asset/v1); absent on legacy obligations */
+  assetRef?: string;
+  /** 'legacy-unresolved': recorded with a code only (never guessed); cannot enter settlement preparation until reconciled */
+  assetIdentity?: 'canonical' | 'legacy-unresolved';
 }
 
 export interface CalculationRecord {
@@ -125,6 +129,8 @@ export interface CalculationRecord {
   gross: string;
   createdAt: string;
   createdBy: string;
+  /** canonical asset identity when every active obligation carried the same one; absent for legacy snapshots */
+  assetRef?: string;
 }
 
 export interface ActivityRecord {
@@ -165,9 +171,11 @@ export interface SupportedAsset {
   /** canonical: network:native or network:CODE:ISSUER */
   id: string;
   network: 'testnet' | 'public';
-  kind: 'native' | 'issued';
+  kind: 'native' | 'issued' | 'contract';
+  /** for a contract token: an UNVERIFIED display label supplied by the operator */
   code: string;
   issuer?: string;
+  contractId?: string;
   status: 'supported' | 'disabled';
   source: 'operator-configured';
   addedAt: string;
@@ -176,6 +184,8 @@ export interface SupportedAsset {
 /** A prepared set of settlement instructions bound to ONE approved calculation snapshot. Immutable. Preparation only: nothing is signed, submitted or settled. */
 export interface SettlementBatch {
   id: string;
+  /** 1 for the first batch of a calculation; a rejected batch may be prepared again as attempt 2, 3, ... */
+  attempt: number;
   sessionId: string;
   orgId: string;
   calculationId: string;
@@ -188,6 +198,24 @@ export interface SettlementBatch {
   preparedBy: string;
   preparedAt: string;
 }
-export interface SettlementInstruction { id: string; batchId: string; sessionId: string; calculationId: string; seq: number; payer: string; payee: string; assetId: string; amount: string }
+/** Settlement instruction contract v1 (tobin-settlement-instruction/v1). Prepared instructions never carry Stellar accounts: accounts are recorded at the execution layer from VERIFIED wallets only. */
+export interface SettlementInstruction {
+  id: string; batchId: string; sessionId: string; calculationId: string; seq: number; payer: string; payee: string; assetId: string; amount: string;
+  orgId?: string; approvalDecisionId?: string; network?: string; fingerprint?: string;
+}
 export interface BatchReview { id: string; batchId: string; decision: 'approved' | 'rejected'; reason: string; decidedBy: string; decidedAt: string }
 export interface BatchInvalidation { batchId: string; cause: string; at: string; by: string }
+
+export interface WalletChallenge { id: string; orgId: string; userId: string; network: 'testnet' | 'public'; publicKey: string; nonce: string; message: string; issuedAt: string; expiresAt: string; usedAt?: string }
+/** The proof that a user controls a Stellar key (a signature over a one-time challenge). It confers NO institutional permission. */
+export interface WalletVerification { orgId: string; userId: string; network: 'testnet' | 'public'; publicKey: string; scheme: 'raw' | 'sep-53'; challengeId: string; verifiedAt: string }
+export interface SettlementExecution { id: string; batchId: string; sessionId: string; orgId: string; network: 'testnet' | 'public'; accounts: Record<string, string>; createdBy: string; createdAt: string }
+export interface ExecutionEvent { seq?: number; executionId: string; from: string | null; to: string; actor: string; at: string; detail: string; evidence?: unknown }
+
+/** One technical attempt to execute an approved batch on Stellar. Immutable; its state is the last event. */
+export interface SettlementAttempt { id: string; executionId: string; attemptNo: number; network: 'testnet' | 'public'; planFingerprint: string; plan: unknown; initiator: string; createdBy: string; createdAt: string }
+export interface AttemptEvent { seq?: number; attemptId: string; kind: 'transition' | 'note'; from: string | null; to: string; actor: string; at: string; detail: string; evidence?: unknown }
+export interface AttemptTransaction { txHash: string; attemptId: string; stepIndex: number; network: 'testnet' | 'public'; recordedBy: string; recordedAt: string }
+
+/** What the chain said about an account's signers, from two agreeing sources. Immutable. Not a role and not an authorization. */
+export interface SignerSetSnapshot { id: string; orgId: string; network: 'testnet' | 'public'; account: string; fingerprint: string; thresholds: { low: number; medium: number; high: number }; signers: { key: string; weight: number }[]; recordedBy: string; recordedAt: string }

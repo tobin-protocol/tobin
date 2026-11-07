@@ -27,6 +27,8 @@
     "db:seed-demo": "node scripts/db.ts seed-demo"
   },
   "dependencies": {
+    "@stellar/freighter-api": "6.0.1",
+    "@stellar/stellar-sdk": "17.4.0",
     "next": "16.4.3",
     "react": "19.3.0",
     "react-dom": "19.3.0"

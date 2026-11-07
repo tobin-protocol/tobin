@@ -45,3 +45,5 @@
 @media (max-width: 40rem) { .ss-actions { flex-direction: row; } .ss-actions button { flex: 0 1 auto; } }
 .ss-ladder { margin: .5rem 0 1rem; padding-left: 1.2rem; }
 .ss-ladder li { padding: .1rem 0; }
+.ss-pre { flex-basis: 100%; margin: 0; padding: .5rem .7rem; border: 1px solid var(--line); border-radius: 6px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .85rem; }
+.ss-ref { display: block; color: var(--muted); font-size: .8rem; overflow-wrap: anywhere; }

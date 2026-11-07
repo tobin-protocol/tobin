@@ -243,7 +243,7 @@ try {
 
   await step('10 health and page health', async () => {
     const h = await P.ev(`fetch('/api/health').then((r) => r.json())`);
-    check('health reports status, schema version and nothing else', h.status === 'ok' && h.schemaVersion === 4 && Object.keys(h).sort().join() === 'database,pendingMigrations,schemaVersion,status', JSON.stringify(h));
+    check('health reports status, schema version and nothing else', h.status === 'ok' && h.schemaVersion === 7 && Object.keys(h).sort().join() === 'database,pendingMigrations,schemaVersion,status', JSON.stringify(h));
     check('no JavaScript exception during the whole journey (expected 401 console messages excluded)', P.errors.filter((e) => !/401|Failed to load resource/.test(e)).length === 0, P.errors.join('\n'));
   });
 } finally {

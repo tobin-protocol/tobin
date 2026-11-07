@@ -1,0 +1,130 @@
+{
+  "at": "2026-11-07T08:52:27.106Z",
+  "rpc": "https://soroban-testnet.stellar.org",
+  "checks": [
+    {
+      "name": "rpc health",
+      "ok": true,
+      "detail": {
+        "status": "healthy",
+        "latestLedger": 5603586,
+        "latestLedgerCloseTime": "1794041571",
+        "oldestLedger": 5482627,
+        "oldestLedgerCloseTime": "1793436775",
+        "ledgerRetentionWindow": 120960
+      }
+    },
+    {
+      "name": "network passphrase is Testnet",
+      "ok": true,
+      "detail": {
+        "passphrase": "Test SDF Network ; September 2015",
+        "protocolVersion": 30
+      }
+    },
+    {
+      "name": "rpc version info",
+      "ok": true,
+      "detail": {
+        "version": "30.0.0-13e53516633c3ce1281c7edbacb607107d3a4e55",
+        "commitHash": "13e53516633c3ce1281c7edbacb607107d3a4e55",
+        "buildTimestamp": "2026-10-20T22:36:51",
+        "captiveCoreVersion": "stellar-core 30.0.0 (0e49751aa9ddf892302cca02cea7f3f5d97df9f1)",
+        "protocolVersion": 30
+      }
+    },
+    {
+      "name": "latest ledger",
+      "ok": true,
+      "detail": {
+        "sequence": 5603587,
+        "protocolVersion": 30
+      }
+    },
+    {
+      "name": "tobin_test_token: instance exists, Wasm hash matches the record",
+      "ok": true,
+      "detail": {
+        "contractId": "CD7HOX...UC4O",
+        "onChain": "ef483732039f0ca62665b92b816c3a12dcf094c707f77e1edc53e60ea083241f",
+        "recorded": "ef483732039f0ca62665b92b816c3a12dcf094c707f77e1edc53e60ea083241f",
+        "liveUntil": 6494352
+      }
+    },
+    {
+      "name": "tobin_clearing_v1: instance exists, Wasm hash matches the record",
+      "ok": true,
+      "detail": {
+        "contractId": "CCV3EF...Y4DT",
+        "onChain": "80bea96439b1f6647e08c604cdf29f580fe3f1a4171864b651b5832bb247e5e4",
+        "recorded": "80bea96439b1f6647e08c604cdf29f580fe3f1a4171864b651b5832bb247e5e4",
+        "liveUntil": 6494355
+      }
+    },
+    {
+      "name": "tobin_test_token_governed: instance exists, Wasm hash matches the record",
+      "ok": true,
+      "detail": {
+        "contractId": "CD5OK4...OKYO",
+        "onChain": "ef483732039f0ca62665b92b816c3a12dcf094c707f77e1edc53e60ea083241f",
+        "recorded": "ef483732039f0ca62665b92b816c3a12dcf094c707f77e1edc53e60ea083241f",
+        "liveUntil": 6570727
+      }
+    },
+    {
+      "name": "administrative account exists with the recorded thresholds and signers",
+      "ok": true,
+      "detail": {
+        "id": "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ",
+        "balanceStroops": "99999530204",
+        "thresholds": "01050607",
+        "signerWeights": [
+          2,
+          1,
+          5
+        ]
+      }
+    },
+    {
+      "name": "governed token symbol",
+      "ok": true,
+      "detail": "TTT"
+    },
+    {
+      "name": "governed token decimals",
+      "ok": true,
+      "detail": "7"
+    },
+    {
+      "name": "governed token cap",
+      "ok": true,
+      "detail": "10000000000000"
+    },
+    {
+      "name": "governed token total_supply",
+      "ok": true,
+      "detail": "1"
+    },
+    {
+      "name": "governed token minter",
+      "ok": true,
+      "detail": "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ"
+    },
+    {
+      "name": "governed token balance",
+      "ok": true,
+      "detail": "1"
+    },
+    {
+      "name": "clearing config()",
+      "ok": true,
+      "detail": "{\"instruction_ceiling\":16,\"obligation_ceiling\":16,\"participant_ceiling\":4,\"version\":1}"
+    },
+    {
+      "name": "recorded Testnet session readable on chain (get_session)",
+      "ok": true,
+      "detail": "{\"creator\":\"GB4WIKKCYDDQUKLTKBMMMCPLZJVXZWL36CJEGWXMKEYV7NNLS2MDE7G5\",\"max_obligations\":4,\"max_participants\":3,\"obligation_commitment\":null,\"participants\":[\"GB4WIKKCYDDQUKLTKBMMMCPLZJVXZWL36CJEGWXMKEYV7NNLS2MDE7G5\"],\"state\":1,\"token\":\"CD7HOX...UC4O\"}"
+    }
+  ],
+  "protocolVersion": 30
+}

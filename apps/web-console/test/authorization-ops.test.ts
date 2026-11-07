@@ -114,8 +114,7 @@ test('stale, superseded and unknown snapshots cannot be decided; the decision is
 
 test('closed session: no new decision', async () => {
   const w = await world();
-  assert.equal((await w.c.ann.call('POST', `${w.base}/ready`, {})).status, 200);
-  assert.equal((await w.c.ann.call('POST', `${w.base}/close`, {})).status, 200);
+  w.b.db.raw.prepare("UPDATE sessions SET workflow_state = 'closed' WHERE session_id = ?").run(w.sid); // closing needs an approved batch (MVP-1.5 policy); this test is about what a closed session refuses
   const r = await approve(w, 'bob'); assert.equal(r.status, 409); assert.match(r.body['message'], /closed/);
   assert.equal((await reject(w, 'bob')).status, 409);
   const a = await auth(w); assert.equal(a['eligibility'].canDecide, false); assert.match(a['eligibility'].reasons.join(' '), /closed/);
@@ -254,7 +253,7 @@ test('migration 3 upgrades a version-2 database and keeps its data', async () =>
   db.raw.exec(`INSERT INTO users (id, email, display_name, password_hash, created_at) VALUES ('usr_1', 'a@x.test', 'A', 'h', 't');
     INSERT INTO organizations (id, name, visibility, created_at, created_by) VALUES ('org_1', 'Org', 'private', 't', 'usr_1');
     INSERT INTO memberships (org_id, user_id, role, since) VALUES ('org_1', 'usr_1', 'admin', 't');`);
-  assert.equal(migrate(db).current, 4);
+  assert.equal(migrate(db).current, 7);
   assert.equal((db.raw.prepare('SELECT count(*) AS n FROM memberships').get() as { n: number }).n, 1);
   assert.equal((db.raw.prepare('SELECT count(*) AS n FROM authorization_decisions').get() as { n: number }).n, 0);
 });

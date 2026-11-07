@@ -20,8 +20,8 @@ export function tempDir(): { dir: string; path: string; cleanup: () => void } {
   return { dir, path: join(dir, 'test.sqlite'), cleanup: () => { try { rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); } catch { /* best effort */ } } };
 }
 
-export function makeBackend(path = ':memory:', clock: Clock = { t: Date.parse('2026-11-08T10:00:00Z') }): { b: Backend; clock: Clock } {
-  const b = createBackend(path, { auth: { now: () => new Date(clock.t), scryptCost: 10 }, secureCookies: true, clock: { now: () => new Date(clock.t) } });
+export function makeBackend(path = ':memory:', clock: Clock = { t: Date.parse('2026-11-08T10:00:00Z') }, clearingContract?: string): { b: Backend; clock: Clock } {
+  const b = createBackend(path, { ...(clearingContract ? { clearingContract } : {}), auth: { now: () => new Date(clock.t), scryptCost: 10 }, secureCookies: true, clock: { now: () => new Date(clock.t) } });
   return { b, clock };
 }
 

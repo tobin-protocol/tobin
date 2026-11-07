@@ -1,0 +1,204 @@
+{
+  "at": "2026-11-07T12:06:03.864Z",
+  "note": "read-only: simulations and reads only; nothing was signed or submitted",
+  "steps": [
+    {
+      "index": 1,
+      "fn": "create_session",
+      "source": "GAS7VMM764FIEP6Q5KDWXXC56QE7YGORME27MFKWPMP63QL3LX7QJL2M",
+      "simulationOk": true,
+      "error": null,
+      "minResourceFee": "444922",
+      "authCredentialTypes": [
+        "source_account"
+      ],
+      "authAddresses": [
+        null
+      ]
+    },
+    {
+      "index": 2,
+      "fn": "join_session",
+      "source": "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ",
+      "simulationOk": false,
+      "error": "HostError: Error(Contract, #1)\n\nEvent log (newest first):\n   0: [Diagnostic Event] contract:CCV3EFECV2T2UT5YW6GBPGKN6PAP75SUTQOL3QYXQW7QWMESD5PPY4DT, topics:[error, Error(Contract, #1)], data:\"escalating Ok(ScErrorType::Contract) frame-exit to Err\"\n   1: [Diagnostic Event] topics:[fn_call, CCV3EFECV2T2UT5YW6GBPGKN6PAP75SUTQOL3QYXQW7QWMESD5PPY4DT, join_session], data:[Bytes(a053fd423ffba849424bb6d9c593e98543fb176fae92bf0cd3d5d5c100f0bd8c), GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ]\n",
+      "minResourceFee": null,
+      "authCredentialTypes": [],
+      "authAddresses": []
+    },
+    {
+      "index": 3,
+      "fn": "submit_obligation",
+      "source": "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ",
+      "simulationOk": false,
+      "error": "HostError: Error(Contract, #1)\n\nEvent log (newest first):\n   0: [Diagnostic Event] contract:CCV3EFECV2T2UT5YW6GBPGKN6PAP75SUTQOL3QYXQW7QWMESD5PPY4DT, topics:[error, Error(Contract, #1)], data:\"escalating Ok(ScErrorType::Contract) frame-exit to Err\"\n   1: [Diagnostic Event] topics:[fn_call, CCV3EFECV2T2UT5YW6GBPGKN6PAP75SUTQOL3QYXQW7QWMESD5PPY4DT, submit_obligation], data:[Bytes(a053fd423ffba849424bb6d9c593e98543fb176fae92bf0cd3d5d5c100f0bd8c), {amount: 1, creditor: GAS7VMM764FIEP6Q5KDWXXC56QE7YGORME27MFKWPMP63QL3LX7QJL2M, debtor: GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ, id: Bytes(0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a)}]\n",
+      "minResourceFee": null,
+      "authCredentialTypes": [],
+      "authAddresses": []
+    },
+    {
+      "index": 4,
+      "fn": "finalize_obligations",
+      "source": "GAS7VMM764FIEP6Q5KDWXXC56QE7YGORME27MFKWPMP63QL3LX7QJL2M",
+      "simulationOk": false,
+      "error": "HostError: Error(Contract, #1)\n\nEvent log (newest first):\n   0: [Diagnostic Event] contract:CCV3EFECV2T2UT5YW6GBPGKN6PAP75SUTQOL3QYXQW7QWMESD5PPY4DT, topics:[error, Error(Contract, #1)], data:\"escalating Ok(ScErrorType::Contract) frame-exit to Err\"\n   1: [Diagnostic Event] topics:[fn_call, CCV3EFECV2T2UT5YW6GBPGKN6PAP75SUTQOL3QYXQW7QWMESD5PPY4DT, finalize_obligations], data:[Bytes(a053fd423ffba849424bb6d9c593e98543fb176fae92bf0cd3d5d5c100f0bd8c), GAS7VMM764FIEP6Q5KDWXXC56QE7YGORME27MFKWPMP63QL3LX7QJL2M]\n",
+      "minResourceFee": null,
+      "authCredentialTypes": [],
+      "authAddresses": []
+    },
+    {
+      "index": 5,
+      "fn": "propose_settlement",
+      "source": "GAS7VMM764FIEP6Q5KDWXXC56QE7YGORME27MFKWPMP63QL3LX7QJL2M",
+      "simulationOk": false,
+      "error": "HostError: Error(Contract, #1)\n\nEvent log (newest first):\n   0: [Diagnostic Event] contract:CCV3EFECV2T2UT5YW6GBPGKN6PAP75SUTQOL3QYXQW7QWMESD5PPY4DT, topics:[error, Error(Contract, #1)], data:\"escalating Ok(ScErrorType::Contract) frame-exit to Err\"\n   1: [Diagnostic Event] topics:[fn_call, CCV3EFECV2T2UT5YW6GBPGKN6PAP75SUTQOL3QYXQW7QWMESD5PPY4DT, propose_settlement], data:[Bytes(a053fd423ffba849424bb6d9c593e98543fb176fae92bf0cd3d5d5c100f0bd8c), GAS7VMM764FIEP6Q5KDWXXC56QE7YGORME27MFKWPMP63QL3LX7QJL2M, [{amount: 1, payee: GAS7VMM764FIEP6Q5KDWXXC56QE7YGORME27MFKWPMP63QL3LX7QJL2M, payer: GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ}]]\n",
+      "minResourceFee": null,
+      "authCredentialTypes": [],
+      "authAddresses": []
+    },
+    {
+      "index": 6,
+      "fn": "approve_settlement",
+      "source": "GAS7VMM764FIEP6Q5KDWXXC56QE7YGORME27MFKWPMP63QL3LX7QJL2M",
+      "simulationOk": false,
+      "error": "HostError: Error(Contract, #1)\n\nEvent log (newest first):\n   0: [Diagnostic Event] contract:CCV3EFECV2T2UT5YW6GBPGKN6PAP75SUTQOL3QYXQW7QWMESD5PPY4DT, topics:[error, Error(Contract, #1)], data:\"escalating Ok(ScErrorType::Contract) frame-exit to Err\"\n   1: [Diagnostic Event] topics:[fn_call, CCV3EFECV2T2UT5YW6GBPGKN6PAP75SUTQOL3QYXQW7QWMESD5PPY4DT, approve_settlement], data:[Bytes(a053fd423ffba849424bb6d9c593e98543fb176fae92bf0cd3d5d5c100f0bd8c), GAS7VMM764FIEP6Q5KDWXXC56QE7YGORME27MFKWPMP63QL3LX7QJL2M, Bytes(d5e052c5195d1d876159fb9a67dcbf8bc18a990c156a3bd49df69306cfeeb34e)]\n",
+      "minResourceFee": null,
+      "authCredentialTypes": [],
+      "authAddresses": []
+    },
+    {
+      "index": 7,
+      "fn": "approve_settlement",
+      "source": "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ",
+      "simulationOk": false,
+      "error": "HostError: Error(Contract, #1)\n\nEvent log (newest first):\n   0: [Diagnostic Event] contract:CCV3EFECV2T2UT5YW6GBPGKN6PAP75SUTQOL3QYXQW7QWMESD5PPY4DT, topics:[error, Error(Contract, #1)], data:\"escalating Ok(ScErrorType::Contract) frame-exit to Err\"\n   1: [Diagnostic Event] topics:[fn_call, CCV3EFECV2T2UT5YW6GBPGKN6PAP75SUTQOL3QYXQW7QWMESD5PPY4DT, approve_settlement], data:[Bytes(a053fd423ffba849424bb6d9c593e98543fb176fae92bf0cd3d5d5c100f0bd8c), GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ, Bytes(d5e052c5195d1d876159fb9a67dcbf8bc18a990c156a3bd49df69306cfeeb34e)]\n",
+      "minResourceFee": null,
+      "authCredentialTypes": [],
+      "authAddresses": []
+    },
+    {
+      "index": 8,
+      "fn": "settle",
+      "source": "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ",
+      "simulationOk": false,
+      "error": "HostError: Error(Contract, #1)\n\nEvent log (newest first):\n   0: [Diagnostic Event] contract:CCV3EFECV2T2UT5YW6GBPGKN6PAP75SUTQOL3QYXQW7QWMESD5PPY4DT, topics:[error, Error(Contract, #1)], data:\"escalating Ok(ScErrorType::Contract) frame-exit to Err\"\n   1: [Diagnostic Event] topics:[fn_call, CCV3EFECV2T2UT5YW6GBPGKN6PAP75SUTQOL3QYXQW7QWMESD5PPY4DT, settle], data:[Bytes(a053fd423ffba849424bb6d9c593e98543fb176fae92bf0cd3d5d5c100f0bd8c), Bytes(d5e052c5195d1d876159fb9a67dcbf8bc18a990c156a3bd49df69306cfeeb34e)]\n",
+      "minResourceFee": null,
+      "authCredentialTypes": [],
+      "authAddresses": []
+    }
+  ],
+  "reads": [
+    {
+      "what": "governed token balance of the administrative account (base units)",
+      "value": "1"
+    },
+    {
+      "what": "recorded create-session transaction",
+      "hash": "8926825a493fca2dcde36a1001727ddcfc3ba1e37849ead574a8d503f84b0e95",
+      "status": "NOT_FOUND"
+    },
+    {
+      "what": "recorded governed-token mint transaction (Founder + Security)",
+      "hash": "c54b4e1291540b61261af0f4dee518718a3d87e6b84f2c4cd72f7503e0621f28",
+      "status": "SUCCESS",
+      "ledger": 5533978,
+      "createdAt": 1793693530,
+      "applicationOrder": 5,
+      "returnValue": null
+    },
+    {
+      "what": "a hash that was never submitted (expected NOT_FOUND = unknown)",
+      "hash": "abababababababababababababababababababababababababababababababab",
+      "status": "NOT_FOUND"
+    }
+  ],
+  "secondAccountExists": true,
+  "plan": {
+    "sessionId": "a053fd423ffba849424bb6d9c593e98543fb176fae92bf0cd3d5d5c100f0bd8c",
+    "fingerprint": "7edcf9c8fed3894fc090273603e28de2e6ca7d1a8018e60405c475d6924e5de5",
+    "steps": [
+      {
+        "index": 1,
+        "fn": "create_session",
+        "signers": [
+          "GAS7VMM764FIEP6Q5KDWXXC56QE7YGORME27MFKWPMP63QL3LX7QJL2M"
+        ]
+      },
+      {
+        "index": 2,
+        "fn": "join_session",
+        "signers": [
+          "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ",
+          "GAS7VMM764FIEP6Q5KDWXXC56QE7YGORME27MFKWPMP63QL3LX7QJL2M"
+        ]
+      },
+      {
+        "index": 3,
+        "fn": "submit_obligation",
+        "signers": [
+          "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ"
+        ]
+      },
+      {
+        "index": 4,
+        "fn": "finalize_obligations",
+        "signers": [
+          "GAS7VMM764FIEP6Q5KDWXXC56QE7YGORME27MFKWPMP63QL3LX7QJL2M"
+        ]
+      },
+      {
+        "index": 5,
+        "fn": "propose_settlement",
+        "signers": [
+          "GAS7VMM764FIEP6Q5KDWXXC56QE7YGORME27MFKWPMP63QL3LX7QJL2M"
+        ]
+      },
+      {
+        "index": 6,
+        "fn": "approve_settlement",
+        "signers": [
+          "GAS7VMM764FIEP6Q5KDWXXC56QE7YGORME27MFKWPMP63QL3LX7QJL2M"
+        ]
+      },
+      {
+        "index": 7,
+        "fn": "approve_settlement",
+        "signers": [
+          "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ"
+        ]
+      },
+      {
+        "index": 8,
+        "fn": "settle",
+        "signers": [
+          "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ"
+        ]
+      }
+    ],
+    "requiredSigners": [
+      "GAS7VMM764FIEP6Q5KDWXXC56QE7YGORME27MFKWPMP63QL3LX7QJL2M",
+      "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ"
+    ],
+    "expectedDigest": "d5e052c5195d1d876159fb9a67dcbf8bc18a990c156a3bd49df69306cfeeb34e"
+  },
+  "credentialProbe": {
+    "what": "join_session into the recorded Open session, source = joiner",
+    "simulationOk": true,
+    "error": null,
+    "minResourceFee": "159061",
+    "authCredentialTypes": [
+      "source_account",
+      "address_v2"
+    ],
+    "authAddresses": [
+      null,
+      "GB4WIKKCYDDQUKLTKBMMMCPLZJVXZWL36CJEGWXMKEYV7NNLS2MDE7G5"
+    ],
+    "unsignedXdrLength": 1244
+  },
+  "compareNotStarted": {
+    "ok": true,
+    "progress": "not-started",
+    "mismatches": []
+  }
+}

@@ -16,7 +16,7 @@ const I128_MAX = (1n << 127n) - 1n;
 export interface PrepCheck { key: string; label: string; ok: boolean; detail: string }
 export interface PlannedInstruction { seq: number; payer: string; payee: string; amount: string }
 
-export const assetCanonicalId = (network: string, kind: 'native' | 'issued', code: string, issuer?: string): string => (kind === 'native' ? `${network}:native` : `${network}:${code}:${issuer ?? ''}`);
+export const assetCanonicalId = (network: string, kind: 'native' | 'issued' | 'contract', code: string, issuer?: string, contractId?: string): string => (kind === 'native' ? `${network}:native` : kind === 'contract' ? `${network}:contract:${contractId ?? ''}` : `${network}:${code}:${issuer ?? ''}`);
 
 export type AssetResolution =
   | { ok: true; asset: SupportedAsset }
@@ -50,12 +50,19 @@ export function buildInstructions(sessionId: string, calc: CalculationRecord): {
   return { instructions, engine };
 }
 
-export const instructionId = (calculationId: string, i: PlannedInstruction): string => `ins_${sha256(`${calculationId}|${i.seq}|${i.payer}|${i.payee}|${i.amount}`).slice(0, 24)}`;
-export const instructionsHash = (calculationId: string, assetId: string, list: readonly PlannedInstruction[]): string =>
-  sha256(JSON.stringify({ v: 1, calculationId, assetId, instructions: list.map((i) => [i.seq, i.payer, i.payee, i.amount]) }));
+export const instructionId = (calculationId: string, i: PlannedInstruction, attempt = 1): string => `ins_${sha256(`${calculationId}|${attempt}|${i.seq}|${i.payer}|${i.payee}|${i.amount}`).slice(0, 24)}`;
+/** Batch fingerprint. Attempt 1 keeps the MVP-1.4 formula exactly (so stored batches still verify); a later attempt is bound into the fingerprint, so a re-prepared batch has a new one. */
+export const instructionsHash = (calculationId: string, assetId: string, list: readonly PlannedInstruction[], attempt = 1): string =>
+  sha256(JSON.stringify(attempt === 1 ? { v: 1, calculationId, assetId, instructions: list.map((i) => [i.seq, i.payer, i.payee, i.amount]) } : { v: 2, attempt, calculationId, assetId, instructions: list.map((i) => [i.seq, i.payer, i.payee, i.amount]) }));
+
+export const INSTRUCTION_SCHEMA = 'tobin-settlement-instruction/v1';
+export interface InstructionFields { id: string; batchId: string; sessionId: string; orgId: string; calculationId: string; approvalDecisionId: string; network: string; seq: number; payer: string; payee: string; assetId: string; amount: string }
+/** Integrity reference of ONE instruction: SHA-256 over a fixed-order serialization of every field of the v1 contract. */
+export const instructionFingerprint = (i: InstructionFields): string =>
+  sha256(JSON.stringify([INSTRUCTION_SCHEMA, i.id, i.batchId, i.sessionId, i.orgId, i.calculationId, i.approvalDecisionId, i.network, i.seq, i.payer, i.payee, i.assetId, i.amount]));
 
 /** Independent verification of a set of instructions against a calculation's net positions. Does not use the engine. */
-export function integrityChecks(calc: CalculationRecord, assetId: string, list: readonly (PlannedInstruction & { assetId?: string })[], expectedHash?: string): PrepCheck[] {
+export function integrityChecks(calc: CalculationRecord, assetId: string, list: readonly (PlannedInstruction & { assetId?: string })[], expectedHash?: string, attempt = 1): PrepCheck[] {
   const net = new Map(calc.positions.map((p) => [p.userId, BigInt(p.net)]));
   const amountsOk = list.every((i) => /^[1-9][0-9]{0,38}$/.test(i.amount) && BigInt(i.amount) <= I128_MAX);
   const partiesOk = list.every((i) => net.has(i.payer) && net.has(i.payee) && i.payer !== i.payee);
@@ -80,7 +87,7 @@ export function integrityChecks(calc: CalculationRecord, assetId: string, list: 
     { key: 'reconciliation', label: 'Instructions reconcile exactly to the approved net positions', ok: reconciled && !offsetting, detail: reconciled && !offsetting ? 'each net debtor pays exactly its net debit; each net creditor receives exactly its net credit' : offsetting ? 'a participant would both pay and receive' : 'a participant would pay or receive more or less than its net position' },
     { key: 'conservation', label: 'Total paid equals total received equals total net debit', ok: reconciled && totalOut === totalIn && totalOut === totalDebit, detail: `paid ${totalOut}, received ${totalIn}, net debit ${totalDebit}` },
   ];
-  if (expectedHash !== undefined) { const h = instructionsHash(calc.id, assetId, list); checks.push({ key: 'hash', label: 'The stored instructions still match their recorded fingerprint', ok: h === expectedHash, detail: h === expectedHash ? expectedHash.slice(0, 16) : 'the instruction set differs from the recorded fingerprint' }); }
+  if (expectedHash !== undefined) { const h = instructionsHash(calc.id, assetId, list, attempt); checks.push({ key: 'hash', label: 'The stored instructions still match their recorded fingerprint', ok: h === expectedHash, detail: h === expectedHash ? expectedHash.slice(0, 16) : 'the instruction set differs from the recorded fingerprint' }); }
   return checks;
 }
 

@@ -71,7 +71,8 @@ test('end to end: participants, obligations, calculation, staleness, recalculati
   assert.equal((await w.ann.call('GET', `${w.base}/calculation`)).body['currency'], 'stale');
   await w.ann.call('POST', `${w.base}/calculate`, {});
   assert.equal((await w.ann.call('POST', `${w.base}/ready`, {})).status, 200);
-  assert.equal((await w.ann.call('POST', `${w.base}/close`, {})).status, 200);
+  const early = await w.ann.call('POST', `${w.base}/close`, {}); assert.equal(early.status, 409, 'closing now needs an approved, still-eligible settlement batch'); assert.match(early.body['message'], /approved, still-eligible settlement batch/);
+  w.b.db.raw.prepare("UPDATE sessions SET workflow_state = 'closed' WHERE session_id = ?").run(w.sid);
   assert.equal((await w.ann.call('POST', `${w.base}/reopen`, {})).status, 409, 'closed is final');
   assert.equal((await w.ann.call('POST', `${w.base}/obligations`, { debtor: w.ids.ann, creditor: w.ids.bob, amount: '1', asset: 'USD' })).status, 409);
 });
@@ -257,7 +258,7 @@ test('migration 2 upgrades a version-1 database in place and keeps its data', as
     INSERT INTO memberships (org_id, user_id, role, since) VALUES ('org_1', 'usr_1', 'admin', 't');
     INSERT INTO sessions (session_id, org_id, label, provenance, created_at) VALUES ('${'ab'.repeat(32)}', 'org_1', 'S', 'local-draft', 't');
     INSERT INTO session_participants (session_id, org_id, user_id, added_by, added_at) VALUES ('${'ab'.repeat(32)}', 'org_1', 'usr_1', 'usr_1', 't');`);
-  const st = migrate(db); assert.equal(st.current, 4);
+  const st = migrate(db); assert.equal(st.current, 7);
   const p = db.raw.prepare('SELECT status FROM session_participants').get() as { status: string }; assert.equal(p.status, 'active');
   const s = db.raw.prepare('SELECT workflow_state FROM sessions').get() as { workflow_state: string }; assert.equal(s.workflow_state, 'configuring');
   void PASSWORD;

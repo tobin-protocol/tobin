@@ -27,10 +27,10 @@ export function readBackendConfig(env: Record<string, string | undefined>): Back
 }
 
 /** Opens the database, applies pending migrations (each atomic) and wires the services. Throws if migration fails: the process then serves nothing. */
-export function createBackend(path: string, opts: { auth?: AuthOptions; secureCookies?: boolean; clock?: { now(): Date } } = {}): Backend {
+export function createBackend(path: string, opts: { auth?: AuthOptions; secureCookies?: boolean; clock?: { now(): Date }; clearingContract?: string } = {}): Backend {
   const db = openDatabase(path);
   try { migrate(db); } catch (e) { db.close(); throw e; }
-  return { db, registry: new Registry(new SqliteRegistryStore(db), opts.clock), auth: new AuthService(db, opts.auth), secureCookies: opts.secureCookies ?? true };
+  return { db, registry: new Registry(new SqliteRegistryStore(db), opts.clock, (() => { const c = (opts.clearingContract ?? process.env['TOBIN_STELLAR_CLEARING_CONTRACT'])?.trim(); return c && /^C[A-Z2-7]{55}$/.test(c) ? { clearingContract: c } : {}; })()), auth: new AuthService(db, opts.auth), secureCookies: opts.secureCookies ?? true };
 }
 
 const KEY = Symbol.for('tobin.backend');

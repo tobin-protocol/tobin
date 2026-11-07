@@ -9,6 +9,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Page, findBrowser, launchBrowser, sleep } from './cdp.mjs';
+import { generateKeyPairSync, sign as edSign } from 'node:crypto';
+import { encodeAddress } from 'tobin-mvp1-sdk/strkey';
 import { createBackend } from '../../lib/server/backend.ts';
 import { SqliteRegistryStore } from '../../lib/registry/sqlite-store.ts';
 
@@ -24,7 +26,14 @@ const BASE = `http://127.0.0.1:${PORT}`;
 const dbDir = mkdtempSync(join(tmpdir(), 'tobin-sjourney-'));
 const DB = join(dbDir, 'journey.sqlite');
 const PW = randomBytes(12).toString('base64url');
-const ISSUER = 'G' + 'A'.repeat(55); // test fixture, not a real issuer
+const ISSUER = encodeAddress('account', new Uint8Array(32).fill(1)); // a valid strkey made for this test, not a real issuer
+const USD = `testnet:USD:${ISSUER}`;
+/** a throwaway ed25519 key made here with node:crypto; no wallet and no Stellar network is involved */
+function newKey() {
+  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+  const raw = publicKey.export({ format: 'der', type: 'spki' }).subarray(-32);
+  return { address: encodeAddress('account', new Uint8Array(raw)), sign: (message) => edSign(null, Buffer.from(message, 'utf8'), privateKey).toString('base64') };
+}
 const results = [];
 let currentStep = '';
 const q = (s) => JSON.stringify(s);
@@ -53,7 +62,7 @@ let SESSION_ID = '', ORG_ID = '';
   SESSION_ID = randomBytes(32).toString('hex');
   s.registry.recordSession(alice, alpha.id, { sessionId: SESSION_ID, label: 'Q4 clearing run' });
   for (const u of [alice, bob, carol]) s.registry.addSessionParticipant(alice, alpha.id, SESSION_ID, { userId: u.userId });
-  for (const [d, c, a] of [[alice, bob, '100'], [bob, carol, '80'], [carol, alice, '70']]) s.registry.createObligation(alice, alpha.id, SESSION_ID, { debtor: d.userId, creditor: c.userId, amount: a, asset: 'USD' });
+  for (const [d, c, a] of [[alice, bob, '100'], [bob, carol, '80'], [carol, alice, '70']]) s.registry.createObligation(alice, alpha.id, SESSION_ID, { debtor: d.userId, creditor: c.userId, amount: a, assetRef: USD });
   s.registry.calculate(alice, alpha.id, SESSION_ID);
   s.db.close();
 }
@@ -71,7 +80,8 @@ async function startServer() {
 async function stopServer() { server.removeAllListeners('exit'); server.kill(); await sleep(1500); }
 
 const norm = (t) => t.replace(/\s+/g, ' ');
-const main = async (p) => norm(await p.ev(`document.querySelector('main').innerText`));
+// waits for the page to have rendered its main region (a read straight after a navigation or reload can otherwise hit a blank document); a page that stays blank still fails by timeout
+const main = async (p) => { await p.waitFor(`!!document.querySelector('main')`, { what: 'the main region is rendered' }); return norm(await p.ev(`document.querySelector('main').innerText`)); };
 const btn = (label) => `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === ${q(label)})`;
 const tab = (name) => `[...document.querySelectorAll('[role=tab]')].find((b) => b.textContent.trim() === ${q(name)})`;
 const hasBtn = (p, label) => p.ev(`!!${btn(label)}`);
@@ -106,7 +116,10 @@ async function openSession(P) {
   await P.waitFor(`document.querySelector('[role=tab]')`, { what: 'workspace tabs' }); await sleep(400);
 }
 async function goTab(P, name, waitText) { await P.click(tab(name)); await P.waitFor(`document.querySelector('main').innerText.replace(/\\s+/g, ' ').includes(${q(waitText)})`, { what: `${name} tab shows ${waitText}` }); await sleep(300); }
-const settleTab = (P) => goTab(P, 'Settlement preparation', 'Settlement preparation turns an approved calculation');
+const settleTab = async (P) => {
+  await goTab(P, 'Settlement preparation', 'Settlement preparation turns an approved calculation');
+  await P.waitFor(`!/Loading (settlement preparation|execution status)/.test(document.querySelector('main').innerText)`, { what: 'settlement data loaded' }); await sleep(250);
+};
 const rowsOf = (p, captionPart) => p.ev(`[...document.querySelectorAll('main table')].filter((t) => t.querySelector('caption')?.textContent.includes(${q(captionPart)})).flatMap((t) => [...t.querySelectorAll('tbody tr')].map((tr) => [...tr.children].map((td) => td.innerText.trim())))`);
 async function approveCalculation(P, by) {
   await signOut(P); await signInAs(P, by); await openSession(P); await goTab(P, 'Authorization', 'Institutional authorization');
@@ -129,7 +142,7 @@ try {
     await settleTab(P);
     const t = await main(P);
     check('the stage ladder lists calculation, approval, preparation, batch approval and the three not-available Stellar stages', /Clearing calculation: complete/.test(t) && /Institutional calculation approval: unavailable/.test(t) && /Settlement preparation: not prepared/.test(t) && /Batch institutional approval: not approved/.test(t) && /Wallet signing: not available in MVP-1.4/.test(t) && /Transaction submission: not available in MVP-1.4/.test(t) && /On-chain confirmation: not available in MVP-1.4/.test(t), t.slice(0, 500));
-    check('the checks show the missing approval with a reason, and the asset is recognised', /Failed:\s*The exact calculation has an active institutional approval/.test(t) && /no active approval: a reviewer must approve this exact calculation/.test(t) && /Passed:\s*The asset is in the supported asset list/.test(t) && /operator-configured; no on-chain check/.test(t), t.slice(0, 900));
+    check('the checks show the missing approval with a reason, and the asset is recognised', /Failed:\s*The exact calculation has an active institutional approval/.test(t) && /no active approval: a reviewer must approve this exact calculation/.test(t) && /Passed:\s*The asset identity is canonical and in the supported asset list/.test(t) && /operator-configured; no on-chain check/.test(t), t.slice(0, 900));
     check('"Prepare settlement batch" is disabled and the page says to fix the checks first', await P.ev(`${btn('Prepare settlement batch')}.disabled`) && /Fix the failed checks first/.test(t));
     check('the page states preparation is not signing, submission or settlement', /It prepares; it does not execute/.test(t) && /No funds have moved/.test(t));
     await structure(P, 'settlement (not ready)'); await layout(P, 'settlement (not ready)');
@@ -168,7 +181,7 @@ try {
     await P.waitFor(`document.querySelector('main').innerText.includes('Batch rejected. Your reason is recorded.')`); await sleep(500);
     t = await main(P); const h = await rowsOf(P, 'batch history');
     check('the status is Batch rejected and the decision shows who, when and why', /Status: Batch rejected/.test(t) && /Decision: Rejected by Dan/.test(t) && /re-confirmation with Beta Bank/.test(t));
-    check('the history lists the batch as rejected by Dan', h.length === 1 && /Batch rejected/.test(h[0][2]) && /Rejected by Dan/.test(h[0][6]), JSON.stringify(h));
+    check('the history lists the batch as rejected by Dan', h.length === 1 && /Batch rejected/.test(h[0][3]) && /Rejected by Dan/.test(h[0][7]), JSON.stringify(h));
     check('a decided batch offers no decision controls', !(await hasBtn(P, 'Approve this batch')) && /already been recorded for this batch/.test(t));
   });
 
@@ -178,7 +191,7 @@ try {
     await P.waitFor(`document.querySelector('main').innerText.includes('Net positions calculated')`); await sleep(400);
     await settleTab(P);
     let t = await main(P); const h = await rowsOf(P, 'batch history');
-    check('the old batch is marked No longer eligible, the rejection stays on record, and the cause is shown', h.length === 1 && /No longer eligible/.test(h[0][2]) && /Rejected by Dan/.test(h[0][6]) && /new calculation superseded/.test(h[0][6]), JSON.stringify(h));
+    check('the old batch is marked No longer eligible, the rejection stays on record, and the cause is shown', h.length === 1 && /No longer eligible/.test(h[0][3]) && /Rejected by Dan/.test(h[0][7]) && /new calculation superseded/.test(h[0][7]), JSON.stringify(h));
     check('preparation is blocked until the new calculation is approved', await P.ev(`${btn('Prepare settlement batch')}.disabled`) && /Failed:\s*The exact calculation has an active institutional approval/.test(t));
     await approveCalculation(P, 'Bob');
     await signOut(P); await signInAs(P, 'Alice'); await openSession(P); await settleTab(P);
@@ -187,7 +200,26 @@ try {
     t = await main(P);
     check('a new batch is Awaiting review and did not inherit the rejection', /Status: Awaiting review/.test(t) && !/Decision: Rejected/.test(t));
     const h2 = await rowsOf(P, 'batch history');
-    check('the history now lists two batches, the newest first', h2.length === 2 && /Awaiting review/.test(h2[0][2]) && /No longer eligible/.test(h2[1][2]), JSON.stringify(h2));
+    check('the history now lists two batches, the newest first', h2.length === 2 && /Awaiting review/.test(h2[0][3]) && /No longer eligible/.test(h2[1][3]), JSON.stringify(h2));
+  });
+
+  await step('4b a rejected batch can be prepared again from the same approved calculation', async () => {
+    await signOut(P); await signInAs(P, 'Dan'); await openSession(P); await settleTab(P);
+    await P.click(btn('Reject this batch')); await P.waitFor(`document.querySelector('form[aria-label="Reject batch"]')`);
+    await setValue(P, input('Reason'), 'Second review: the counterparty asks for a different split');
+    await P.click(btn('Confirm rejection'));
+    await P.waitFor(`document.querySelector('main').innerText.includes('Batch rejected. Your reason is recorded.')`); await sleep(500);
+    await signOut(P); await signInAs(P, 'Alice'); await openSession(P); await settleTab(P);
+    let t = await main(P);
+    check('the page explains that an earlier batch was rejected and a new attempt may be prepared', /an earlier batch was rejected/.test(t) && /1 earlier batch\(es\) were rejected: a new attempt may be prepared/.test(t), t.slice(0, 500));
+    check('the button says "Prepare again (attempt 2)" and is enabled, with every other check passing', !(await P.ev(`${btn('Prepare again (attempt 2)')}.disabled`)));
+    await P.click(btn('Prepare again (attempt 2)'));
+    await P.waitFor(`document.querySelector('main').innerText.includes('Settlement batch prepared')`); await sleep(500);
+    t = await main(P); const h = await rowsOf(P, 'batch history');
+    check('a new batch (attempt 2) is Awaiting review for the SAME calculation, and says the earlier one is kept', /Attempt 2 \(an earlier batch of this calculation was rejected; it is kept in the history\)/.test(t) && /Status: Awaiting review/.test(t));
+    check('the history has three rows: attempt 2 awaiting, attempt 1 rejected by Dan, and the old calculation\'s batch', h.length === 3 && h[0][1] === '2' && /Awaiting review/.test(h[0][3]) && h[1][1] === '1' && /Batch rejected/.test(h[1][3]) && /Rejected by Dan/.test(h[1][7]) && h[0][2] === h[1][2], JSON.stringify(h));
+    check('the two attempts have different batch ids', h[0][0] !== h[1][0], JSON.stringify(h));
+    await structure(P, 'settlement (re-prepared)'); await layout(P, 'settlement (re-prepared)');
   });
 
   await step('5 the batch is approved; approval is application-level and nothing is shown as settled', async () => {
@@ -204,6 +236,60 @@ try {
     await P.screenshot(join(out, `settlement-approved-${W}.png`));
   });
 
+  await step('5b a Stellar account is proven by signing a challenge; execution preconditions need every participant verified', async () => {
+    await signOut(P); await signInAs(P, 'Alice'); await openSession(P); await settleTab(P);
+    let t = await main(P);
+    check('the approved batch offers Stellar execution preconditions and says a connected wallet or typed key does not count', /Stellar execution \(preconditions only\)/.test(t) && /does not count/.test(t));
+    check('no participant has a verified account yet, and recording the preconditions is disabled', (t.match(/none verified/g) || []).length === 3 && await P.ev(`${btn('Record execution preconditions')}.disabled`));
+    check('the page lists what is not available in this build', /Not available in this build:/.test(t) && /Wallet signing/.test(t) && /Transaction submission/.test(t) && /Independent on-chain verification/.test(t));
+    const keys = {};
+    for (const name of ['Alice', 'Bob', 'Carol']) {
+      await signOut(P); await signInAs(P, name);
+      await P.navigate(`${BASE}/organizations`); await P.waitFor(`document.body.innerText.includes('Stellar account verification')`); await sleep(800);
+      const k = newKey(); keys[name] = k;
+      await setValue(P, input('Stellar public key'), k.address); await P.click(btn('Request challenge'));
+      await P.waitFor(`document.querySelector('pre[aria-label="Challenge message"]')`);
+      const message = await P.ev(`document.querySelector('pre[aria-label="Challenge message"]').textContent`);
+      if (name === 'Alice') {
+        check('the challenge names the organization, the user, the network and the key, and signs no payment', message.includes('network: testnet') && message.includes('public key: ' + k.address) && message.includes('organization: org_') && message.includes('user: usr_') && /authorizes no payment/.test(message), message);
+        await setValue(P, input('Signature'), newKey().sign(message)); await P.click(btn('Verify signature'));
+        await P.waitFor(`document.querySelector('main [role="alert"]')`);
+        check('a signature by a different key is refused with one uniform message', /invalid, expired or already used, or the signature does not verify/.test(await P.ev(`document.querySelector('main [role="alert"]').innerText`)));
+      }
+      await setValue(P, input('Signature'), k.sign(message)); await P.click(btn('Verify signature'));
+      await P.waitFor(`document.body.innerText.includes('Ownership of the key is proven')`); await sleep(500);
+      check(`${name}'s key is listed as verified`, (await main(P)).includes(k.address));
+    }
+    t = await main(P);
+    check('all three verified accounts are listed with their members, and the page says verification grants no role or permission', ['Alice', 'Bob', 'Carol'].every((n) => t.includes(keys[n].address)) && /grants no role, reviewer capability or signing authority/.test(t));
+    check('verification did not make anyone a reviewer: Carol still has no reviewer capability', !/Carol.*reviewer/.test(await P.ev(`[...document.querySelectorAll('main tbody tr')].map((r) => r.innerText).find((x) => x.includes('Carol')) ?? ''`)));
+    await structure(P, 'verification'); await layout(P, 'verification');
+    await P.screenshot(join(out, `settlement-verification-${W}.png`));
+    await signOut(P); await signInAs(P, 'Alice'); await openSession(P); await settleTab(P);
+    t = await main(P);
+    check('the participants now show their verified accounts and recording the preconditions is enabled', (t.match(/none verified/g) || []).length === 0 && Object.values(keys).every((k) => t.includes(k.address)) && !(await P.ev(`${btn('Record execution preconditions')}.disabled`)));
+    await P.click(btn('Record execution preconditions'));
+    await P.waitFor(`document.querySelector('main').innerText.includes('Execution prepared and awaiting a signer')`); await sleep(500);
+    t = await main(P);
+    check('the execution state is awaiting-signer and the notice says nothing was signed, submitted or settled', /Execution state: awaiting-signer/.test(t) && /Nothing has been signed, submitted or settled/.test(t));
+    check('the page still says wallet signing, submission and on-chain verification are not available', /Not available in this build:/.test(t) && /Wallet signing/.test(t));
+    check('the ladder still shows signing, submission and confirmation as not available', /Wallet signing: not available in MVP-1.4/.test(t) && /On-chain confirmation: not available in MVP-1.4/.test(t));
+    check('the wallet section says Microsoft Edge is the validated environment when another browser runs, and nothing is claimed connected yet', /Wallet \(Freighter\)/.test(t) && /Wallet not checked yet/.test(t) && /nothing is signed or sent/.test(t));
+    await P.click(btn('Check wallet'));
+    await P.waitFor(`document.querySelector('main').innerText.includes('Freighter is unavailable')`, { what: 'wallet state' }); await sleep(300);
+    check('in a browser without the Freighter extension the wallet is reported UNAVAILABLE (real browser, no prompt, nothing signed)', /Freighter is unavailable/.test(await main(P)) && !/Connected account/.test(await main(P)));
+    t = await main(P);
+    check('the attempts section starts empty and says a plan is not a transaction', /No attempt has been started/.test(t) && /Only one attempt may be live/.test(t) && /A confirmed settlement is never retried/.test(t));
+    check('the initiator list offers only participants with a verified account', await P.ev(`[...(${input('Settlement initiator')}).options].map((o) => o.textContent.trim()).filter((x) => x && x !== 'Choose…').sort().join() === 'Alice,Bob,Carol'`));
+    const initiatorValue = await P.ev(`(${input('Settlement initiator')}).options[1].value`);
+    await setValue(P, input('Settlement initiator'), initiatorValue);
+    await P.click(btn('Prepare execution plan (attempt 1)'));
+    await P.waitFor(`document.querySelector('main [role="alert"]')`, { what: 'plan refusal' });
+    check('preparing a plan is refused with a clear reason (no clearing contract configured on this server) and nothing is recorded', /no clearing contract is configured/.test(norm(await P.ev(`document.querySelector('main [role="alert"]').innerText`))) && /No attempt has been started/.test(await main(P)));
+    await structure(P, 'execution'); await layout(P, 'execution');
+    await P.screenshot(join(out, `settlement-execution-${W}.png`));
+  });
+
   await step('6 a data change makes the approved batch ineligible; history is kept', async () => {
     await signOut(P); await signInAs(P, 'Alice'); await openSession(P);
     await goTab(P, 'Obligations', 'Record an obligation');
@@ -213,9 +299,9 @@ try {
     await P.waitFor(`document.querySelector('main').innerText.includes('Obligation updated')`); await sleep(400);
     await settleTab(P);
     const t = await main(P); const h = await rowsOf(P, 'batch history');
-    check('the approved batch is No longer eligible, with the cause, and its approval is still on record', h.length === 2 && /No longer eligible/.test(h[0][2]) && /Approved by Dan/.test(h[0][6]) && /an obligation was changed/.test(h[0][6]), JSON.stringify(h));
+    check('the approved batch is No longer eligible, with the cause, and its approval is still on record', h.length === 3 && /No longer eligible/.test(h[0][3]) && /Approved by Dan/.test(h[0][7]) && /an obligation was changed/.test(h[0][7]), JSON.stringify(h));
     check('the ladder falls back: approval unavailable, not prepared, not approved', /Institutional calculation approval: unavailable/.test(t) && /Settlement preparation: not prepared/.test(t) && /Batch institutional approval: not approved/.test(t));
-    check('preparing is blocked and the stale calculation is named as the reason', await P.ev(`${btn('Prepare settlement batch')}.disabled`) && /participants or obligations changed after it/.test(t));
+    check('preparing is blocked (the button says Prepare again for attempt 3) and the stale calculation is named as the reason', await P.ev(`[...document.querySelectorAll('button')].find((b) => /^Prepare/.test(b.textContent.trim())).disabled`) && /Prepare again \(attempt 3\)/.test(t) && /participants or obligations changed after it/.test(t));
     check('the batch detail says to calculate, approve and prepare again', /Calculate again, obtain a fresh approval and prepare a new batch/.test(t));
   });
 
@@ -239,7 +325,57 @@ try {
     await structure(P, 'activity'); await layout(P, 'activity');
     await settleTab(P);
     const h = await rowsOf(P, 'batch history');
-    check('after the restart both batches and their decisions are intact', h.length === 2 && /Approved by Dan/.test(h[0][6]) && /Rejected by Dan/.test(h[1][6]), JSON.stringify(h));
+    check('after the restart all three batches and their decisions are intact', h.length === 3 && /Approved by Dan/.test(h[0][7]) && /Rejected by Dan/.test(h[1][7]), JSON.stringify(h));
+  });
+
+  await step('8b operational closure needs an approved, still-eligible batch', async () => {
+    await signOut(P); await signInAs(P, 'Alice'); await openSession(P);
+    await goTab(P, 'Net positions', 'Recalculate net positions'); await P.click(btn('Recalculate net positions'));
+    await P.waitFor(`document.querySelector('main').innerText.includes('Net positions calculated')`); await sleep(400);
+    await approveCalculation(P, 'Bob');
+    await signOut(P); await signInAs(P, 'Alice'); await openSession(P);
+    await goTab(P, 'Overview', 'The latest calculation is current'); await sleep(400);
+    await P.click(btn('Mark session ready'));
+    await P.waitFor(`document.querySelector('main').innerText.includes('Session marked ready')`); await sleep(500);
+    await P.click(btn('Close session'));
+    await P.waitFor(`document.querySelector('main [role="alert"]')`);
+    const msg = norm(await P.ev(`document.querySelector('main [role="alert"]').innerText`));
+    check('closing without an approved batch is refused, and the message separates closure from settlement', /approved, still-eligible settlement batch/.test(msg) && /does not mean settlement happened/.test(msg), msg);
+    await settleTab(P);
+    await P.click(btn('Prepare settlement batch'));
+    await P.waitFor(`document.querySelector('main').innerText.includes('Settlement batch prepared')`); await sleep(500);
+    await goTab(P, 'Overview', 'Reopen for changes'); await P.click(btn('Close session'));
+    await P.waitFor(`document.querySelector('main [role="alert"]')`);
+    check('a batch that is only awaiting review does not satisfy closure either', /approved, still-eligible settlement batch/.test(norm(await P.ev(`document.querySelector('main [role="alert"]').innerText`))));
+    await signOut(P); await signInAs(P, 'Dan'); await openSession(P); await settleTab(P);
+    await P.click(btn('Approve this batch'));
+    await P.waitFor(`document.querySelector('main').innerText.includes('Batch approved.')`); await sleep(500);
+    await signOut(P); await signInAs(P, 'Alice'); await openSession(P);
+    await goTab(P, 'Overview', 'Reopen for changes'); await P.click(btn('Close session'));
+    await P.waitFor(`document.querySelector('main').innerText.includes('Session closed.')`); await sleep(500);
+    const t = await main(P);
+    check('with an approved batch the session closes and the Overview shows Closed', /Closed/.test(t) && /Workflow\s*Closed/.test(await P.ev(`document.querySelector('main').innerText`)));
+    await settleTab(P);
+    check('closure does not claim settlement: the settlement tab still says signing, submission and confirmation are not available', /Wallet signing: not available in MVP-1.4/.test(await main(P)) && /Batch institutional approval: approved \(application-level\)/.test(await main(P)));
+    await structure(P, 'settlement (closed)'); await layout(P, 'settlement (closed)');
+  });
+
+  await step('8c the owner-run wallet validation page behaves honestly where Freighter is absent', async () => {
+    await signOut(P); await signInAs(P, 'Alice');
+    await P.navigate(`${BASE}/wallet-check`);
+    await P.waitFor(`document.body.innerText.includes('Freighter validation')`, { what: 'wallet-check page' }); await sleep(600);
+    let t = await main(P);
+    check('the page states it is Testnet-only, submits nothing and stores nothing', /Testnet only/.test(t) && /Nothing is submitted/.test(t) && /no key leaves Freighter/.test(t));
+    const table0 = await rowsOf(P, 'Wallet validation results');
+    check('before running, every check is NOT RUN and no wallet is claimed', table0.length === 6 && table0.every((r) => r[1] === 'NOT RUN'), JSON.stringify(table0));
+    await P.click(btn('Run validation'));
+    await P.waitFor(`document.querySelector('main table tbody tr')?.children[1]?.innerText.trim() === 'FAIL'`, { what: 'detection result' }); await sleep(500);
+    t = await main(P);
+    const table1 = await rowsOf(P, 'Wallet validation results');
+    check('without the Freighter extension (this real browser has none) detection FAILS as UNAVAILABLE and nothing else runs', table1.length === 6 && table1[0][1] === 'FAIL' && /UNAVAILABLE/.test(table1[0][2]) && table1.slice(1).every((r) => r[1] === 'NOT RUN'), JSON.stringify(table1));
+    check('the evidence block carries no secrets and lists the step statuses', /"results"/.test(t) && !/secret|seed|private key|signature":/i.test(await P.ev(`document.querySelector('pre[aria-label="Evidence"]').innerText`)));
+    await structure(P, 'wallet-check'); await layout(P, 'wallet-check');
+    await P.screenshot(join(out, `wallet-check-${W}.png`));
   });
 
   await step('9 page health', async () => {

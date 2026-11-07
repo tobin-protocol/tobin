@@ -10,7 +10,18 @@ import type { Currency, ReadinessCheck } from './clearing.ts';
 import { authState, conflictedActors, decisionStatus } from './authorization.ts';
 import type { AuthState, DecisionStatus } from './authorization.ts';
 import type { AuthorizationDecision, ReviewerGrant } from './types.ts';
-import { ALGORITHM, INSTRUCTION_CEILING, assetCanonicalId, batchStatus, buildInstructions, instructionId, instructionsHash, integrityChecks, resolveAsset } from './settlement.ts';
+import { ALGORITHM, INSTRUCTION_CEILING, batchStatus, buildInstructions, instructionFingerprint, instructionId, instructionsHash, integrityChecks } from './settlement.ts';
+import { AssetIdentityError, parseAsset as parseAssetRef } from './asset-identity.ts';
+import { CHALLENGE_TTL_MS, challengeMessage, isStellarAccount, verifyChallengeSignature } from './wallet-proof.ts';
+import type { Scheme } from './wallet-proof.ts';
+import { canTransition, isState } from './settlement-state.ts';
+import type { ExecState } from './settlement-state.ts';
+import type { ExecutionEvent, SettlementExecution, WalletChallenge, WalletVerification } from './types.ts';
+import type { AttemptEvent, SettlementAttempt, SignerSetSnapshot } from './types.ts';
+import { fingerprintOf } from '../stellar/signer-set.ts';
+import type { SignerSet } from '../stellar/signer-set.ts';
+import { PlanError, buildExecutionPlan } from '../stellar/execution-plan.ts';
+import { mayStartAttempt } from '../stellar/retry-policy.ts';
 import type { BatchStatus, PlannedInstruction, PrepCheck } from './settlement.ts';
 import type { BatchInvalidation, BatchReview, SettlementBatch, SettlementInstruction, SupportedAsset } from './types.ts';
 
@@ -32,7 +43,9 @@ function text(v: unknown, what: string, max: number, min = 1): string {
 export class Registry {
   readonly #s: RegistryStore;
   readonly #clock: Clock;
-  constructor(store: RegistryStore, clock: Clock = systemClock) { this.#s = store; this.#clock = clock; }
+  readonly #clearing: string | undefined;
+  /** `clearingContract` is the PUBLIC id of the deployed clearing contract the adapter targets (configuration, not a secret). Without it no execution plan can be made. */
+  constructor(store: RegistryStore, clock: Clock = systemClock, opts: { clearingContract?: string } = {}) { this.#s = store; this.#clock = clock; this.#clearing = opts.clearingContract; }
 
   #log(orgId: string, actor: ActingUser, kind: string, subject: string, detail: string) {
     const a: ActivityRecord = { id: id('act'), at: this.#clock.now().toISOString(), orgId, actor: actor.userId, kind, subject, detail };
@@ -282,25 +295,49 @@ export class Registry {
   #assetOfOthers(sessionId: string, exceptId?: string): string | undefined {
     return this.#s.obligationsOfSession(sessionId).find((o) => o.status === 'active' && o.id !== exceptId)?.asset;
   }
-  createObligation(u: ActingUser, orgId: string, sessionId: string, input: { debtor: unknown; creditor: unknown; amount: unknown; asset: unknown; reference?: unknown }): ObligationRecord {
+  /**
+   * Resolves the asset of a new or edited obligation. A canonical identity (assetRef, tobin-asset/v1) must name a SUPPORTED registry entry; its code comes from the
+   * registry. While no asset is supported at all (an unconfigured or development deployment) a bare code is still accepted, recorded as 'legacy-unresolved' and
+   * blocked from settlement preparation until an administrator reconciles it. Once any asset is supported, a bare code is refused.
+   */
+  #resolveObligationAsset(assetRef: unknown, assetCode: unknown): { asset: string; assetRef?: string; identity: 'canonical' | 'legacy-unresolved' } {
+    const list = this.#s.assets();
+    if (assetRef !== undefined) {
+      let ref: string;
+      try { ref = (() => { const p = parseAssetRef(assetRef); return typeof assetRef === 'string' ? assetRef : JSON.stringify(p); })(); } catch (e) { if (e instanceof AssetIdentityError) throw new RegistryError('INVALID', e.message); throw e; }
+      const entry = list.find((a) => a.id === ref);
+      if (!entry || entry.status !== 'supported') throw new RegistryError('INVALID', 'that asset identity is not in the supported asset list');
+      if (assetCode !== undefined && assetCode !== entry.code) throw new RegistryError('INVALID', 'the asset code does not match the asset identity');
+      return { asset: entry.code, assetRef: ref, identity: 'canonical' };
+    }
+    if (list.some((a) => a.status === 'supported')) throw new RegistryError('INVALID', 'choose a supported asset identity: an asset code alone does not identify an asset');
+    return { asset: parseAsset(assetCode), identity: 'legacy-unresolved' };
+  }
+  #assetRefOfOthers(sessionId: string, exceptId?: string): string | undefined {
+    return this.#s.obligationsOfSession(sessionId).find((o) => o.status === 'active' && o.id !== exceptId && o.assetRef)?.assetRef;
+  }
+  createObligation(u: ActingUser, orgId: string, sessionId: string, input: { debtor: unknown; creditor: unknown; amount: unknown; asset?: unknown; assetRef?: unknown; reference?: unknown }): ObligationRecord {
     return this.#s.transaction(() => {
       this.#editable(u, orgId, sessionId);
       const debtor = this.#activeParticipant(sessionId, input.debtor, 'the debtor').userId;
       const creditor = this.#activeParticipant(sessionId, input.creditor, 'the creditor').userId;
       if (debtor === creditor) throw new RegistryError('INVALID', 'debtor and creditor must be different participants');
       const amount = parseObligationAmount(input.amount);
-      const asset = parseAsset(input.asset);
+      const res = this.#resolveObligationAsset(input.assetRef, input.asset);
+      const asset = res.asset;
+      const otherRef = this.#assetRefOfOthers(sessionId);
+      if (res.assetRef && otherRef && otherRef !== res.assetRef) throw new RegistryError('INVALID', `this session nets ${otherRef}: a different asset identity (even with the same code) is never netted with it`);
       const other = this.#assetOfOthers(sessionId);
       if (other && other !== asset) throw new RegistryError('INVALID', `this session nets ${other}: obligations in different assets are never netted together`);
       const reference = input.reference === undefined ? '' : text(input.reference, 'reference', 200, 0);
       const now = this.#clock.now().toISOString();
-      const o: ObligationRecord = { id: randomBytes(32).toString('hex'), sessionId, orgId, debtor, creditor, amount, asset, reference, status: 'active', revision: 1, createdAt: now, createdBy: u.userId, updatedAt: now, updatedBy: u.userId };
+      const o: ObligationRecord = { id: randomBytes(32).toString('hex'), sessionId, orgId, debtor, creditor, amount, asset, reference, status: 'active', revision: 1, createdAt: now, createdBy: u.userId, updatedAt: now, updatedBy: u.userId, ...(res.assetRef ? { assetRef: res.assetRef } : {}), assetIdentity: res.identity };
       this.#s.putObligation(o);
       this.#invalidate(orgId, u, sessionId, 'an obligation was recorded'); this.#log(orgId, u, 'obligation.created', sessionId, `obligation ${this.#short(o.id)}: ${debtor} owes ${creditor} ${amount} ${asset}${reference ? ` (${reference})` : ''}`);
       return o;
     });
   }
-  updateObligation(u: ActingUser, orgId: string, sessionId: string, obligationId: string, patch: { debtor?: unknown; creditor?: unknown; amount?: unknown; asset?: unknown; reference?: unknown }): ObligationRecord {
+  updateObligation(u: ActingUser, orgId: string, sessionId: string, obligationId: string, patch: { debtor?: unknown; creditor?: unknown; amount?: unknown; asset?: unknown; assetRef?: unknown; reference?: unknown }): ObligationRecord {
     return this.#s.transaction(() => {
       this.#editable(u, orgId, sessionId);
       const o = this.#own(sessionId, obligationId);
@@ -310,13 +347,15 @@ export class Registry {
       if (patch.debtor !== undefined) next.debtor = this.#activeParticipant(sessionId, patch.debtor, 'the debtor').userId;
       if (patch.creditor !== undefined) next.creditor = this.#activeParticipant(sessionId, patch.creditor, 'the creditor').userId;
       if (patch.amount !== undefined) next.amount = parseObligationAmount(patch.amount);
-      if (patch.asset !== undefined) next.asset = parseAsset(patch.asset);
+      if (patch.assetRef !== undefined) { const res = this.#resolveObligationAsset(patch.assetRef, patch.asset); next.asset = res.asset; next.assetRef = res.assetRef as string; next.assetIdentity = 'canonical'; const otherRef = this.#assetRefOfOthers(sessionId, o.id); if (otherRef && otherRef !== next.assetRef) throw new RegistryError('INVALID', `this session nets ${otherRef}: a different asset identity (even with the same code) is never netted with it`); }
+      else if (patch.asset !== undefined && !(o.assetIdentity === 'canonical' && patch.asset === o.asset)) { if (o.assetIdentity === 'canonical') throw new RegistryError('INVALID', 'change the asset identity with assetRef: a code alone does not identify an asset'); next.asset = parseAsset(patch.asset); }
       if (patch.reference !== undefined) next.reference = text(patch.reference, 'reference', 200, 0);
       // a participant that was removed since cannot stay on an edited obligation unchanged-by-accident: re-validate both parties
       this.#activeParticipant(sessionId, next.debtor, 'the debtor'); this.#activeParticipant(sessionId, next.creditor, 'the creditor');
       if (next.debtor === next.creditor) throw new RegistryError('INVALID', 'debtor and creditor must be different participants');
       const other = this.#assetOfOthers(sessionId, o.id);
       if (other && other !== next.asset) throw new RegistryError('INVALID', `this session nets ${other}: obligations in different assets are never netted together`);
+      if (next.assetRef !== o.assetRef) changes.push(`assetRef ${o.assetRef ?? '(legacy)'} -> ${next.assetRef ?? '(legacy)'}`);
       for (const k of ['debtor', 'creditor', 'amount', 'asset', 'reference'] as const) if (next[k] !== o[k]) changes.push(`${k} ${o[k] || '(none)'} -> ${next[k] || '(none)'}`);
       if (changes.length === 0) throw new RegistryError('INVALID', 'nothing changed');
       next.revision = o.revision + 1; next.updatedAt = this.#clock.now().toISOString(); next.updatedBy = u.userId;
@@ -359,7 +398,9 @@ export class Registry {
         const asset = assets[0] as string;
         const input = canonicalInput(parts, obs);
         const { positions, gross } = runNetting(sessionId, input);
-        const c: CalculationRecord = { id: id('calc'), sessionId, orgId, asset, inputHash: inputHash(asset, input), input, positions, gross, createdAt: this.#clock.now().toISOString(), createdBy: u.userId };
+        const refs = new Set(active.map((o) => (o.assetIdentity === 'canonical' ? o.assetRef : undefined)));
+        const assetRef = refs.size === 1 ? [...refs][0] : undefined; // only when EVERY active obligation carries the same canonical identity
+        const c: CalculationRecord = { id: id('calc'), sessionId, orgId, asset, inputHash: inputHash(asset, input), input, positions, gross, createdAt: this.#clock.now().toISOString(), createdBy: u.userId, ...(assetRef ? { assetRef } : {}) };
         this.#s.putCalculation(c);
         this.#invalidate(orgId, u, sessionId, 'a new calculation superseded this one'); this.#log(orgId, u, 'netting.calculated', sessionId, `calculation ${this.#short(c.id)}: ${input.obligations.length} obligation(s), ${positions.length} participant(s), ${asset}, gross ${gross}`);
         return c;
@@ -413,7 +454,16 @@ export class Registry {
     }
   }
   reopenSession(u: ActingUser, orgId: string, sessionId: string): SessionRecord { return this.#s.transaction(() => { this.#need(orgId, u, true); return this.#move(u, orgId, sessionId, 'configuring'); }); }
-  closeSession(u: ActingUser, orgId: string, sessionId: string): SessionRecord { return this.#s.transaction(() => { this.#need(orgId, u, true); return this.#move(u, orgId, sessionId, 'closed'); }); }
+  /** Operational closure: clearing and settlement PREPARATION are complete. It is not settlement completion: nothing has moved on any network. */
+  closeSession(u: ActingUser, orgId: string, sessionId: string): SessionRecord {
+    return this.#s.transaction(() => {
+      this.#need(orgId, u, true);
+      const latest = this.#opSession(u, orgId, sessionId) && this.#s.latestCalculation(sessionId);
+      const ok = !!latest && this.settlementBatches(u, orgId, sessionId).some((x) => x.batch.calculationId === (latest as CalculationRecord).id && x.status === 'approved');
+      if (!ok) throw new RegistryError('INVALID_STATE', 'closing requires an approved, still-eligible settlement batch for the current calculation (operational closure; it does not mean settlement happened)');
+      return this.#move(u, orgId, sessionId, 'closed');
+    });
+  }
 
   // ---- institutional authorization (MVP-1.3): application-level decisions bound to one calculation snapshot; never a signature, never on-chain ----
   /** Records an invalidation (and an activity entry) for every decision of the session that has none yet. Runs inside the caller's transaction. */
@@ -541,9 +591,15 @@ export class Registry {
     let recalcOk = false; let recalcDetail = '';
     try { const again = runNetting(sessionId, latest.input); recalcOk = JSON.stringify(again.positions) === JSON.stringify(latest.positions) && again.gross === latest.gross && again.positions.reduce((t, p) => t + BigInt(p.net), 0n) === 0n; recalcDetail = recalcOk ? 'the stored positions recompute exactly and sum to zero' : 'the stored positions differ from a fresh calculation of the same input'; } catch (e) { recalcDetail = (e as Error).message; }
     add('recalculation', 'The net positions recompute exactly', recalcOk, recalcDetail);
-    const res = resolveAsset(latest.asset, this.#s.assets());
-    add('asset', 'The asset is in the supported asset list', res.ok, res.ok ? res.asset.id + ' (operator-configured; no on-chain check)' : res.detail);
-    if (!forBatch) { const have = this.#s.batchesOfSession(sessionId).find((b) => b.calculationId === latest.id); add('no-batch', 'No batch exists yet for this calculation', !have, have ? 'batch ' + this.#short(have.id.slice(4)) + ' already prepared from it' : 'none yet'); }
+    const legacy = latest.input.obligations.filter((o) => rows.get(o.id)?.assetIdentity !== 'canonical').length;
+    const entry = latest.assetRef ? this.#s.assets().find((a) => a.id === latest.assetRef) : undefined;
+    const res = entry && entry.status === 'supported' ? ({ ok: true as const, asset: entry }) : ({ ok: false as const, detail: latest.assetRef ? (entry ? latest.assetRef + ' is in the asset list but disabled' : latest.assetRef + ' is not in the supported asset list') : legacy > 0 ? legacy + ' obligation(s) have no canonical asset identity (legacy, code only): an administrator must reconcile them by editing each with a supported asset identity' : 'the calculation has no single canonical asset identity' });
+    add('asset', 'The asset identity is canonical and in the supported asset list', res.ok, res.ok ? res.asset.id + ' (operator-configured; no on-chain check)' : res.detail);
+    if (!forBatch) {
+      const mine = this.#s.batchesOfSession(sessionId).filter((b) => b.calculationId === latest.id);
+      const live = mine.find((b) => { const st = this.#batchStatusOf(u, orgId, sessionId, b).status; return st === 'awaiting-review' || st === 'approved'; });
+      add('no-batch', 'No active batch exists for this calculation', !live, live ? 'batch ' + this.#short(live.id.slice(4)) + ' is already ' + this.#batchStatusOf(u, orgId, sessionId, live).status : mine.length ? mine.length + ' earlier batch(es) were rejected: a new attempt may be prepared' : 'none yet');
+    }
     let plan: PlannedInstruction[] | undefined;
     if (recalcOk) {
       const built = buildInstructions(sessionId, latest);
@@ -561,7 +617,7 @@ export class Registry {
     return { checks: e.checks, ready: e.ok, calculationId: e.calc?.id ?? null };
   }
 
-  prepareSettlementBatch(u: ActingUser, orgId: string, sessionId: string, input: { calculationId: unknown }): SettlementBatch {
+  prepareSettlementBatch(u: ActingUser, orgId: string, sessionId: string, input: { calculationId: unknown; attempt?: unknown }): SettlementBatch {
     return this.#s.transaction(() => {
       this.#need(orgId, u, true);
       this.#opSession(u, orgId, sessionId);
@@ -570,17 +626,23 @@ export class Registry {
       const named = all.find((c) => c.id === input.calculationId);
       if (!named) throw new RegistryError('NOT_FOUND', 'calculation not found');
       if (named.id !== (all[all.length - 1] as CalculationRecord).id) throw new RegistryError('STALE', 'that calculation has been superseded by a newer one');
+      const earlier = this.#s.batchesOfSession(sessionId).filter((b) => b.calculationId === named.id);
+      const nextAttempt = earlier.length + 1;
+      if (input.attempt === undefined) { if (earlier.length > 0) throw new RegistryError('INVALID', 'name the attempt number (' + nextAttempt + ') to prepare again: earlier batches exist for this calculation'); }
+      else if (input.attempt !== nextAttempt) throw new RegistryError('EXISTS', 'attempt ' + String(input.attempt) + ' is not the next attempt (' + nextAttempt + '): the batches of this calculation changed; reload');
       const e = this.#evaluate(u, orgId, sessionId, false);
       const failed = e.checks.filter((c) => !c.ok);
-      if (failed.length > 0) throw new RegistryError(failed.length === 1 && failed[0]?.key === 'no-batch' ? 'EXISTS' : 'INVALID_STATE', failed.length === 1 && failed[0]?.key === 'no-batch' ? 'a batch has already been prepared from this calculation' : 'cannot prepare a batch: ' + failed.map((c) => c.label + ' (' + c.detail + ')').join('; '));
+      if (failed.length > 0) throw new RegistryError(failed.length === 1 && failed[0]?.key === 'no-batch' ? 'EXISTS' : 'INVALID_STATE', failed.length === 1 && failed[0]?.key === 'no-batch' ? 'an active batch already exists for this calculation' : 'cannot prepare a batch: ' + failed.map((c) => c.label + ' (' + c.detail + ')').join('; '));
       const calc = e.calc as CalculationRecord; const asset = e.asset as SupportedAsset; const plan = e.plan as PlannedInstruction[];
       const batchId = id('bat');
       const total = plan.reduce((t, p) => t + BigInt(p.amount), 0n).toString();
       const validation = [...e.checks, ...integrityChecks(calc, asset.id, plan)];
-      const batch: SettlementBatch = { id: batchId, sessionId, orgId, calculationId: calc.id, asset: { id: asset.id, network: asset.network, kind: asset.kind, code: asset.code, ...(asset.issuer ? { issuer: asset.issuer } : {}) }, instructionCount: plan.length, totalAmount: total, instructionsHash: instructionsHash(calc.id, asset.id, plan), algorithm: ALGORITHM, validation, preparedBy: u.userId, preparedAt: this.#clock.now().toISOString() };
-      const instructions: SettlementInstruction[] = plan.map((p) => ({ id: instructionId(calc.id, p), batchId, sessionId, calculationId: calc.id, seq: p.seq, payer: p.payer, payee: p.payee, assetId: asset.id, amount: p.amount }));
+      const a0 = this.authorization(u, orgId, sessionId);
+      const decisionId = a0.decisions.find((d) => d.calculationId === calc.id && d.decision === 'approved' && d.status === 'active')?.id as string;
+      const batch: SettlementBatch = { id: batchId, attempt: nextAttempt, sessionId, orgId, calculationId: calc.id, asset: { id: asset.id, network: asset.network, kind: asset.kind, code: asset.code, ...(asset.issuer ? { issuer: asset.issuer } : {}) }, instructionCount: plan.length, totalAmount: total, instructionsHash: instructionsHash(calc.id, asset.id, plan, nextAttempt), algorithm: ALGORITHM, validation, preparedBy: u.userId, preparedAt: this.#clock.now().toISOString() };
+      const instructions: SettlementInstruction[] = plan.map((p) => { const base = { id: instructionId(calc.id, p, nextAttempt), batchId, sessionId, orgId, calculationId: calc.id, approvalDecisionId: decisionId, network: asset.network, seq: p.seq, payer: p.payer, payee: p.payee, assetId: asset.id, amount: p.amount }; return { ...base, fingerprint: instructionFingerprint(base) }; });
       try { this.#s.putBatch(batch, instructions); } catch (err) { if (/UNIQUE/i.test((err as Error).message)) throw new RegistryError('EXISTS', 'a batch has already been prepared from this calculation'); throw err; }
-      this.#log(orgId, u, 'settlement.batch-prepared', sessionId, 'batch ' + this.#short(batchId.slice(4)) + ' from calculation ' + this.#short(calc.id) + ': ' + plan.length + ' instruction(s), ' + asset.code + ', total ' + total);
+      this.#log(orgId, u, 'settlement.batch-prepared', sessionId, 'batch ' + this.#short(batchId.slice(4)) + (nextAttempt > 1 ? ' (attempt ' + nextAttempt + ')' : '') + ' from calculation ' + this.#short(calc.id) + ': ' + plan.length + ' instruction(s), ' + asset.code + ', total ' + total);
       return batch;
     });
   }
@@ -598,7 +660,13 @@ export class Registry {
     const latest = this.#s.latestCalculation(sessionId);
     const source: PrepCheck[] = latest?.id === calc.id ? this.#evaluate(u, orgId, sessionId, true).checks : [{ key: 'current', label: 'The calculation is the latest and current', ok: false, detail: 'a newer calculation exists: this batch is superseded' }];
     const countOk = list.length === b.instructionCount && list.reduce((t, i) => t + BigInt(i.amount), 0n).toString() === b.totalAmount;
-    return [...source, { key: 'count', label: 'The stored count and total match the instructions', ok: countOk, detail: countOk ? b.instructionCount + ' instruction(s), total ' + b.totalAmount : 'the stored summary differs from the instructions' }, ...integrityChecks(calc, b.asset.id, planned, b.instructionsHash)];
+    return [...source, { key: 'count', label: 'The stored count and total match the instructions', ok: countOk, detail: countOk ? b.instructionCount + ' instruction(s), total ' + b.totalAmount : 'the stored summary differs from the instructions' }, ...integrityChecks(calc, b.asset.id, planned, b.instructionsHash, b.attempt), ...this.#fingerprintCheck(list)];
+  }
+  #fingerprintCheck(list: SettlementInstruction[]): PrepCheck[] {
+    const stamped = list.filter((i) => i.fingerprint !== undefined);
+    if (stamped.length === 0) return [];
+    const bad = stamped.filter((i) => instructionFingerprint({ id: i.id, batchId: i.batchId, sessionId: i.sessionId, orgId: i.orgId as string, calculationId: i.calculationId, approvalDecisionId: i.approvalDecisionId as string, network: i.network as string, seq: i.seq, payer: i.payer, payee: i.payee, assetId: i.assetId, amount: i.amount }) !== i.fingerprint);
+    return [{ key: 'instruction-fingerprints', label: 'Every instruction still matches its own fingerprint', ok: bad.length === 0, detail: bad.length === 0 ? stamped.length + ' instruction(s) verified' : bad.length + ' instruction(s) differ from their fingerprints' }];
   }
   #batchStatusOf(u: ActingUser, orgId: string, sessionId: string, b: SettlementBatch): { status: BatchStatus; review?: BatchReview; invalidation?: BatchInvalidation } {
     const view = this.calculationView(u, orgId, sessionId);
@@ -656,6 +724,223 @@ export class Registry {
       this.#log(orgId, u, kind === 'approved' ? 'settlement.batch-approved' : 'settlement.batch-rejected', sessionId, 'batch ' + this.#short(batch.id.slice(4)) + (reason ? ': ' + reason : ''));
       return r;
     });
+  }
+
+  // ---- wallet ownership verification (MVP-1.5): proves control of a Stellar key; confers NO institutional permission ----
+  issueWalletChallenge(u: ActingUser, orgId: string, input: { network: unknown; publicKey: unknown }): WalletChallenge {
+    return this.#s.transaction(() => {
+      this.#need(orgId, u);
+      if (input.network !== 'testnet' && input.network !== 'public') throw new RegistryError('INVALID', 'network must be testnet or public');
+      if (!isStellarAccount(input.publicKey)) throw new RegistryError('INVALID', 'not a valid Stellar account address');
+      const issued = this.#clock.now();
+      const nonce = randomBytes(24).toString('hex');
+      const base = { orgId, userId: u.userId, network: input.network as 'testnet' | 'public', publicKey: input.publicKey, nonce, issuedAt: issued.toISOString(), expiresAt: new Date(issued.getTime() + CHALLENGE_TTL_MS).toISOString() };
+      const c: WalletChallenge = { id: id('wch'), ...base, message: challengeMessage(base) };
+      this.#s.putChallenge(c);
+      return c;
+    });
+  }
+  /** One-time. Every failure (unknown, someone else's, expired, used, wrong signature, wrong scheme) returns the same error so nothing can be probed. */
+  verifyWalletChallenge(u: ActingUser, orgId: string, input: { challengeId: unknown; signature: unknown; scheme: unknown }): WalletVerification {
+    return this.#s.transaction(() => {
+      this.#need(orgId, u);
+      const bad = new RegistryError('INVALID_CHALLENGE', 'the challenge is invalid, expired or already used, or the signature does not verify');
+      const c = typeof input.challengeId === 'string' ? this.#s.getChallenge(input.challengeId) : undefined;
+      if (!c || c.orgId !== orgId || c.userId !== u.userId || c.usedAt || new Date(c.expiresAt).getTime() <= this.#clock.now().getTime()) throw bad;
+      if (input.scheme !== 'raw' && input.scheme !== 'sep-53') throw bad;
+      if (typeof input.signature !== 'string' || !verifyChallengeSignature(c.publicKey, c.message, input.signature, input.scheme as Scheme)) throw bad;
+      const have = this.#s.verificationsOfOrg(orgId).find((v) => v.network === c.network && v.publicKey === c.publicKey);
+      if (have && have.userId !== u.userId) throw new RegistryError('EXISTS', 'that key is already verified for another member of this organization');
+      const now = this.#clock.now().toISOString();
+      this.#s.markChallengeUsed(c.id, now);
+      if (have) return have;
+      const v: WalletVerification = { orgId, userId: u.userId, network: c.network, publicKey: c.publicKey, scheme: input.scheme as Scheme, challengeId: c.id, verifiedAt: now };
+      this.#s.putVerification(v);
+      this.#log(orgId, u, 'wallet.verified', c.publicKey, c.network + ', ' + input.scheme + ': proves control of the key only; it grants no role or permission');
+      return v;
+    });
+  }
+  walletVerifications(u: ActingUser, orgId: string): WalletVerification[] { this.#need(orgId, u); return this.#s.verificationsOfOrg(orgId); }
+
+  // ---- settlement execution (MVP-1.5): the Stellar-side precondition snapshot and the state log. Nothing is signed, submitted or confirmed by this build. ----
+  /** Accounts for the people in a batch: exactly one VERIFIED key per person on the batch network, or the person is reported missing. */
+  #accountsFor(orgId: string, network: string, userIds: string[]): { accounts: Record<string, string>; missing: string[]; ambiguous: string[] } {
+    const vs = this.#s.verificationsOfOrg(orgId).filter((v) => v.network === network);
+    const accounts: Record<string, string> = {}; const missing: string[] = []; const ambiguous: string[] = [];
+    for (const uid of userIds) { const mine = vs.filter((v) => v.userId === uid); if (mine.length === 1) accounts[uid] = (mine[0] as WalletVerification).publicKey; else if (mine.length === 0) missing.push(uid); else ambiguous.push(uid); }
+    return { accounts, missing, ambiguous };
+  }
+  startSettlementExecution(u: ActingUser, orgId: string, sessionId: string, batchId: string): SettlementExecution {
+    return this.#s.transaction(() => {
+      this.#need(orgId, u, true);
+      const v = this.settlementBatch(u, orgId, sessionId, batchId);
+      if (v.status !== 'approved') throw new RegistryError('INVALID_STATE', 'only an approved, still-eligible batch can start execution (this batch is ' + v.status + ')');
+      const failed = v.validation.filter((c) => !c.ok);
+      if (failed.length > 0) throw new RegistryError('INVALID_STATE', 'validation fails: ' + failed.map((c) => c.label).join('; '));
+      if (v.instructions.length === 0) throw new RegistryError('INVALID_STATE', 'this batch requires no transfers: there is nothing to execute');
+      if (this.#s.executionOfBatch(batchId)) throw new RegistryError('EXISTS', 'an execution already exists for this batch');
+      const network = v.batch.asset.network as 'testnet' | 'public';
+      const people = [...new Set(v.instructions.flatMap((i) => [i.payer, i.payee]))];
+      const a = this.#accountsFor(orgId, network, people);
+      if (a.missing.length > 0 || a.ambiguous.length > 0) throw new RegistryError('INVALID_STATE', 'every payer and payee needs exactly one VERIFIED Stellar account on ' + network + ': ' + a.missing.length + ' missing, ' + a.ambiguous.length + ' ambiguous (a connected wallet or a typed public key does not count)');
+      const now = this.#clock.now().toISOString();
+      const e: SettlementExecution = { id: id('exe'), batchId, sessionId, orgId, network, accounts: a.accounts, createdBy: u.userId, createdAt: now };
+      this.#s.putExecution(e, { executionId: e.id, from: null, to: 'awaiting-signer', actor: u.userId, at: now, detail: 'execution prepared from batch ' + this.#short(batchId.slice(4)) + ' with ' + people.length + ' verified account(s); no signing, submission or confirmation exists in this build' });
+      this.#log(orgId, u, 'settlement.execution-started', sessionId, 'execution for batch ' + this.#short(batchId.slice(4)) + ' is awaiting a signer');
+      return e;
+    });
+  }
+  settlementExecution(u: ActingUser, orgId: string, sessionId: string, batchId: string): { execution: SettlementExecution; state: ExecState; events: ExecutionEvent[] } | null {
+    this.#opSession(u, orgId, sessionId); this.#batchOf(sessionId, batchId);
+    const e = this.#s.executionOfBatch(batchId); if (!e) return null;
+    const events = this.#s.eventsOfExecution(e.id);
+    return { execution: e, state: (events[events.length - 1] as ExecutionEvent).to as ExecState, events };
+  }
+  /**
+   * The ONLY way an execution state changes. Server-side and not exposed over HTTP: the future signer and submitter services call it, a browser cannot. Illegal
+   * transitions are refused; asking for the state it is already in is idempotent (no new event). Evidence is stored as given and must contain no secrets.
+   */
+  advanceSettlementExecution(u: ActingUser, orgId: string, sessionId: string, batchId: string, to: unknown, input: { detail: string; evidence?: unknown }): { state: ExecState; changed: boolean } {
+    return this.#s.transaction(() => {
+      this.#need(orgId, u, true);
+      const cur = this.settlementExecution(u, orgId, sessionId, batchId);
+      if (!cur) throw new RegistryError('NOT_FOUND', 'execution not found');
+      if (!isState(to)) throw new RegistryError('INVALID', 'unknown execution state');
+      if (cur.state === to) return { state: cur.state, changed: false };
+      if (!canTransition(cur.state, to)) throw new RegistryError('INVALID_STATE', 'an execution cannot move from ' + cur.state + ' to ' + to);
+      this.#s.putExecutionEvent({ executionId: cur.execution.id, from: cur.state, to, actor: u.userId, at: this.#clock.now().toISOString(), detail: text(input.detail, 'detail', 300, 1), ...(input.evidence !== undefined ? { evidence: input.evidence } : {}) });
+      this.#log(orgId, u, 'settlement.execution-state', sessionId, 'execution ' + cur.state + ' -> ' + to);
+      return { state: to, changed: true };
+    });
+  }
+
+  // ---- execution ATTEMPTS (MVP-1.5): immutable technical tries to execute an approved batch on Stellar ----
+  #attemptState(attemptId: string): { state: ExecState; events: AttemptEvent[] } {
+    const events = this.#s.eventsOfAttempt(attemptId);
+    const t = events.filter((e) => e.kind === 'transition');
+    return { state: (t[t.length - 1] as AttemptEvent).to as ExecState, events };
+  }
+  /**
+   * Starts a NEW attempt for an approved batch whose execution preconditions exist. The plan is rebuilt from the approved calculation, the approved batch and the
+   * VERIFIED accounts in the execution snapshot (never from client input), so a changed economic instruction cannot slip in: the batch must still be approved and
+   * eligible. The retry policy decides whether a new attempt is allowed after the previous one. An unknown outcome blocks everything until the network is read.
+   */
+  beginExecutionAttempt(u: ActingUser, orgId: string, sessionId: string, batchId: string, input: { initiator: unknown; reviewedFailure?: unknown }): SettlementAttempt {
+    return this.#s.transaction(() => {
+      this.#need(orgId, u, true);
+      const ex = this.settlementExecution(u, orgId, sessionId, batchId);
+      if (!ex) throw new RegistryError('INVALID_STATE', 'record the execution preconditions (verified accounts) for this batch first');
+      const bv = this.settlementBatch(u, orgId, sessionId, batchId);
+      if (bv.status !== 'approved') throw new RegistryError('INVALID_STATE', 'only an approved, still-eligible batch can be executed (this batch is ' + bv.status + ')');
+      const failed = bv.validation.filter((c) => !c.ok);
+      if (failed.length > 0) throw new RegistryError('INVALID_STATE', 'validation fails: ' + failed.map((c) => c.label).join('; '));
+      if (typeof input.initiator !== 'string' || !(input.initiator in ex.execution.accounts)) throw new RegistryError('INVALID', 'the initiator must be a participant with a verified account');
+      if (!this.#clearing) throw new RegistryError('INVALID_STATE', 'no clearing contract is configured for this deployment (TOBIN_STELLAR_CLEARING_CONTRACT)');
+      const prior = this.#s.attemptsOfExecution(ex.execution.id);
+      const last = prior[prior.length - 1];
+      const dec = mayStartAttempt(last ? this.#attemptState(last.id).state : undefined, { reviewedFailure: input.reviewedFailure === true });
+      if (!dec.allowed) throw new RegistryError('INVALID_STATE', 'a new attempt is not allowed: ' + dec.reason);
+      const calc = this.#s.calculationsOfSession(sessionId).find((c) => c.id === bv.batch.calculationId) as CalculationRecord;
+      let plan;
+      try {
+        plan = buildExecutionPlan({ network: ex.execution.network as 'testnet', clearing: this.#clearing, assetId: bv.batch.asset.id, batchId, initiator: input.initiator, accounts: ex.execution.accounts, positions: calc.positions, obligations: calc.input.obligations.map((o) => ({ id: o.id, debtor: o.debtor, creditor: o.creditor, amount: o.amount })), instructions: bv.instructions.map((i) => ({ payer: i.payer, payee: i.payee, amount: i.amount })) });
+      } catch (e) { if (e instanceof PlanError) throw new RegistryError('INVALID_STATE', 'no execution plan can be made: ' + e.message); throw e; }
+      const now = this.#clock.now().toISOString();
+      const a: SettlementAttempt = { id: id('att'), executionId: ex.execution.id, attemptNo: prior.length + 1, network: ex.execution.network, planFingerprint: plan.fingerprint, plan, initiator: input.initiator, createdBy: u.userId, createdAt: now };
+      try { this.#s.putAttempt(a, { attemptId: a.id, kind: 'transition', from: null, to: 'awaiting-signer', actor: u.userId, at: now, detail: 'attempt ' + a.attemptNo + ' started: ' + dec.reason + '; plan ' + plan.fingerprint.slice(0, 12) + ', ' + plan.steps.length + ' step(s), ' + plan.requiredSigners.length + ' signer(s); nothing has been signed or submitted' }); }
+      catch (e) { if (/UNIQUE/i.test((e as Error).message)) throw new RegistryError('EXISTS', 'that attempt already exists'); throw e; }
+      this.#log(orgId, u, 'settlement.attempt-started', sessionId, 'attempt ' + a.attemptNo + ' for batch ' + this.#short(batchId.slice(4)) + ' (plan ' + plan.fingerprint.slice(0, 12) + ')');
+      return a;
+    });
+  }
+  settlementAttempts(u: ActingUser, orgId: string, sessionId: string, batchId: string): { attempt: SettlementAttempt; state: ExecState; events: AttemptEvent[]; transactions: { txHash: string; stepIndex: number }[] }[] {
+    this.#opSession(u, orgId, sessionId); this.#batchOf(sessionId, batchId);
+    const ex = this.#s.executionOfBatch(batchId); if (!ex) return [];
+    return this.#s.attemptsOfExecution(ex.id).map((attempt) => ({ attempt, ...this.#attemptState(attempt.id), transactions: this.#s.transactionsOfAttempt(attempt.id).map((t) => ({ txHash: t.txHash, stepIndex: t.stepIndex })) }));
+  }
+  /**
+   * The ONLY way an attempt changes state. Server-side, no HTTP route. Rules: illegal transitions are refused; the current state again is idempotent; entering
+   * submission-pending requires the transaction hash (recorded BEFORE sending, UNIQUE per attempt step and per hash: a duplicate submission cannot be recorded);
+   * confirmed, failed-after-submission, expired-after-unknown and the final states require EVIDENCE of an independent network read of a recorded hash; reconciled
+   * requires a comparison that matched. An API response, a signature or a local record never confirms anything.
+   */
+  advanceExecutionAttempt(u: ActingUser, orgId: string, sessionId: string, batchId: string, attemptNo: number, to: unknown, input: { detail: string; evidence?: unknown; tx?: { hash: string; step: number } }): { state: ExecState; changed: boolean } {
+    return this.#s.transaction(() => {
+      this.#need(orgId, u, true);
+      const ex = this.#s.executionOfBatch(batchId); this.#opSession(u, orgId, sessionId); this.#batchOf(sessionId, batchId);
+      const att = ex ? this.#s.attemptsOfExecution(ex.id).find((a) => a.attemptNo === attemptNo) : undefined;
+      if (!att) throw new RegistryError('NOT_FOUND', 'attempt not found');
+      if (!isState(to)) throw new RegistryError('INVALID', 'unknown execution state');
+      const cur = this.#attemptState(att.id).state;
+      if (cur === to) return { state: cur, changed: false };
+      if (!canTransition(cur, to)) throw new RegistryError('INVALID_STATE', 'an attempt cannot move from ' + cur + ' to ' + to);
+      const recorded = new Set(this.#s.transactionsOfAttempt(att.id).map((t) => t.txHash));
+      const ev = (input.evidence ?? {}) as { networkRead?: { hash?: string; status?: string }; comparison?: { ok?: boolean; mismatches?: unknown[] } };
+      const read = ev.networkRead;
+      const readOk = (status: string) => !!read && typeof read.hash === 'string' && (recorded.has(read.hash) || input.tx?.hash === read.hash) && read.status === status;
+      if (to === 'submission-pending') {
+        if (!input.tx || !/^[0-9a-f]{64}$/.test(input.tx.hash) || !Number.isInteger(input.tx.step) || input.tx.step < 1) throw new RegistryError('INVALID', 'submission needs the transaction hash and step, recorded before sending');
+        try { this.#s.putAttemptTransaction({ txHash: input.tx.hash, attemptId: att.id, stepIndex: input.tx.step, network: att.network, recordedBy: u.userId, recordedAt: this.#clock.now().toISOString() }); }
+        catch (e) { if (/UNIQUE|constraint/i.test((e as Error).message)) throw new RegistryError('EXISTS', 'that transaction, or a transaction for that step of this attempt, is already recorded: a duplicate submission is refused'); throw e; }
+      }
+      if (to === 'confirmed' && !readOk('SUCCESS')) throw new RegistryError('INVALID_STATE', 'confirmation requires an independent network read of a recorded transaction hash that reports SUCCESS (evidence.networkRead)');
+      if (to === 'failed' && cur !== 'signing' && !(readOk('FAILED') || input.evidence !== undefined && (ev as { rejectedBeforeInclusion?: boolean }).rejectedBeforeInclusion === true)) throw new RegistryError('INVALID_STATE', 'a failure after signing needs an independent network read reporting FAILED, or evidence that the network rejected the transaction before inclusion');
+      if (to === 'expired' && cur === 'unknown-outcome' && !(readOk('NOT_FOUND') && (ev as { validityPassed?: boolean }).validityPassed === true)) throw new RegistryError('INVALID_STATE', 'an unknown outcome expires only when a network read finds no transaction AND its validity window has passed');
+      if (to === 'reconciled' && !(cur === 'reconciliation-required' || cur === 'confirmed') ) throw new RegistryError('INVALID_STATE', 'only a confirmed or flagged attempt can be reconciled');
+      if (to === 'reconciled' && cur === 'confirmed' && ev.comparison?.ok !== true) throw new RegistryError('INVALID_STATE', 'reconciliation requires a comparison of the chain with the approved plan that matched (evidence.comparison.ok)');
+      if (to === 'reconciliation-required' && ev.comparison?.ok === true) throw new RegistryError('INVALID', 'a matching comparison does not require reconciliation');
+      this.#s.putAttemptEvent({ attemptId: att.id, kind: 'transition', from: cur, to, actor: u.userId, at: this.#clock.now().toISOString(), detail: text(input.detail, 'detail', 300, 1), ...(input.evidence !== undefined ? { evidence: input.evidence } : {}) });
+      this.#log(orgId, u, 'settlement.attempt-state', sessionId, 'attempt ' + attemptNo + ' ' + cur + ' -> ' + to);
+      return { state: to as ExecState, changed: true };
+    });
+  }
+  /** A note on an attempt (a failed simulation, a wallet that was unavailable, a user rejection): recorded, no state change. */
+  noteExecutionAttempt(u: ActingUser, orgId: string, sessionId: string, batchId: string, attemptNo: number, detail: string, evidence?: unknown): void {
+    this.#s.transaction(() => {
+      this.#need(orgId, u, true); this.#opSession(u, orgId, sessionId); this.#batchOf(sessionId, batchId);
+      const ex = this.#s.executionOfBatch(batchId); const att = ex ? this.#s.attemptsOfExecution(ex.id).find((a) => a.attemptNo === attemptNo) : undefined;
+      if (!att) throw new RegistryError('NOT_FOUND', 'attempt not found');
+      const cur = this.#attemptState(att.id).state;
+      this.#s.putAttemptEvent({ attemptId: att.id, kind: 'note', from: cur, to: cur, actor: u.userId, at: this.#clock.now().toISOString(), detail: text(detail, 'detail', 300, 1), ...(evidence !== undefined ? { evidence } : {}) });
+    });
+  }
+
+  // ---- signer-set snapshots (MVP-1.5): what the chain says about an account's signers. Information for verification; NOT a role, NOT an authorization ----
+  /**
+   * Records a snapshot of an account's signer set. The caller supplies a set that was read from the chain (Horizon and the RPC agreeing: see readLiveSignerSet); the
+   * fingerprint is recomputed here, so a set cannot be recorded under a fingerprint it does not have. Recording changes no role, no reviewer capability and no
+   * permission of any signer. The same fingerprint is idempotent; a different one supersedes the earlier snapshot (which stays on record).
+   */
+  recordSignerSet(u: ActingUser, orgId: string, input: { set: SignerSet; fingerprint: string }): { snapshot: SignerSetSnapshot; changed: boolean; supersedes?: string } {
+    return this.#s.transaction(() => {
+      this.#need(orgId, u, true);
+      let fp: string; try { fp = fingerprintOf(input.set); } catch (e) { throw new RegistryError('INVALID', 'the signer set is not usable: ' + (e as Error).message); }
+      if (fp !== input.fingerprint) throw new RegistryError('INVALID', 'the fingerprint does not match the signer set');
+      const prior = this.#s.signerSetsOfAccount(orgId, input.set.network, input.set.account);
+      const same = prior.find((p) => p.fingerprint === fp);
+      if (same) return { snapshot: same, changed: false };
+      const snap: SignerSetSnapshot = { id: id('sgs'), orgId, network: input.set.network, account: input.set.account, fingerprint: fp, thresholds: { ...input.set.thresholds }, signers: input.set.signers.filter((x) => x.weight > 0).map((x) => ({ key: x.key, weight: x.weight })).sort((a, b) => (a.key < b.key ? -1 : 1)), recordedBy: u.userId, recordedAt: this.#clock.now().toISOString() };
+      this.#s.putSignerSet(snap);
+      const last = prior[prior.length - 1];
+      this.#log(orgId, u, 'signer-set.recorded', snap.account, (last ? 'the signer set CHANGED (superseding ' + last.fingerprint.slice(0, 12) + ')' : 'first snapshot') + '; fingerprint ' + fp.slice(0, 12) + ', ' + snap.signers.length + ' signer(s); information only: no role or permission was granted');
+      return { snapshot: snap, changed: true, ...(last ? { supersedes: last.id } : {}) };
+    });
+  }
+  /** Authorization check ONLY (no write): callers must pass it BEFORE any network read is made on a user's behalf. */
+  requireSignerSetAdmin(u: ActingUser, orgId: string): void { this.#need(orgId, u, true); }
+  /** The current (latest) snapshot, and the earlier ones, for an account. */
+  signerSetHistory(u: ActingUser, orgId: string, network: 'testnet' | 'public', account: string): { current: SignerSetSnapshot | null; history: SignerSetSnapshot[] } {
+    this.#need(orgId, u);
+    const all = this.#s.signerSetsOfAccount(orgId, network, account);
+    return { current: all[all.length - 1] ?? null, history: all };
+  }
+  /** Is an authorization that was based on `basedOn` still based on the CURRENT chain? Compares with the live fingerprint the caller just read; fails closed without one. */
+  signerSetFresh(u: ActingUser, orgId: string, network: 'testnet' | 'public', account: string, basedOn: string, liveFingerprint: string | undefined): { fresh: boolean; reason: string } {
+    const h = this.signerSetHistory(u, orgId, network, account);
+    if (!liveFingerprint) return { fresh: false, reason: 'the live signer set could not be read: authorization is not possible' };
+    if (basedOn !== liveFingerprint) return { fresh: false, reason: 'the signer set on chain changed since this authorization was based on it' };
+    if (!h.current || h.current.fingerprint !== liveFingerprint) return { fresh: false, reason: 'the live signer set has not been recorded: record a snapshot first' };
+    return { fresh: true, reason: 'the authorization matches the current signer set' };
   }
 
   activity(u: ActingUser, orgId: string): ActivityRecord[] { this.#need(orgId, u); return this.#s.activityOfOrg(orgId); }
