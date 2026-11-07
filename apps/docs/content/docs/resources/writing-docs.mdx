@@ -76,6 +76,71 @@ Curly braces and a bare `<` start JSX. Put them in code spans, or escape them.
   conformance.
 - Do not invent partners, customers, statistics, benchmarks, slogans, social links or contact addresses.
 
+## Where a new page belongs
+
+| Content | Section (folder) |
+|---|---|
+| What Tobin is, status | `introduction` |
+| Setup, first run, onboarding | `getting-started` |
+| How components fit, trust boundaries | `architecture` |
+| Terms, lifecycle, invariants | `concepts` |
+| Contributor and developer procedures, testing, CI | `development` |
+| Interfaces that exist in code (engine, SDK, contracts, errors, routes, commands) | `reference` |
+| FAQ, glossary, policies, roadmap, authoring rules | `resources` |
+
+A decision, acceptance record, audit, evidence file or security review is **not** a page here. It belongs in the root
+`docs/` directory as a canonical record, and pages link to it. See
+[Documentation governance](/docs/resources/documentation-governance).
+
+## Hand-written and generated reference
+
+Write by hand: architecture, tutorials, concepts, security principles, operational procedures, design decisions,
+troubleshooting and contribution instructions.
+
+Consider generating, only from an authoritative source, and only when the generator is worth maintaining: the public
+TypeScript API, SDK exports and types, error-code tables, command lists, contract interfaces and ABI, and API schemas
+(none exists for the institutional API today). Do not generate from incomplete or misleading metadata, and do not add a
+generator dependency without a clear maintenance benefit. Generated pages must say what they were generated from, and a
+check must fail when the source and the page drift apart.
+
+## Quality standards
+
+- Technically accurate. Check each statement against the code, tests or a canonical record.
+- Consistent terminology, taken from the glossary and domain model.
+- No invented API endpoints, environment variables, flags, error codes or configuration.
+- No unsupported product claims and no fabricated benchmark numbers. Say when something was not measured.
+- Mark Testnet-only capabilities as Testnet-only.
+- Keep application state and on-chain state separate; do not call a prepared or submitted batch "settled".
+- Link to the authoritative architecture record instead of restating it.
+- Examples must work against the actual codebase. Run them.
+- Write for two readers: an experienced engineer who wants precision and someone joining the project who needs the
+  terms defined on first use.
+
+## Preview and validate
+
+From the repository root:
+
+```bash
+npm ci                                           # first time; CI uses npm ci --ignore-scripts
+npm run dev       --workspace tobin-docs         # preview at http://localhost:3000
+npm run typecheck --workspace tobin-docs
+npm run validate  --workspace tobin-docs         # frontmatter, navigation, links, images, forbidden strings
+npm run build     --workspace tobin-docs         # compiles every page; catches malformed MDX
+node scripts/ci/check-links.mjs                  # only if you edited a tracked .md file
+```
+
+## Submitting a documentation pull request
+
+1. Start from the latest `main`: `git switch main`, `git pull`, then `git switch -c docs/<short-description>`.
+2. Edit only the pages in your assigned scope. Do not edit accepted records under the root `docs/` directory, contracts,
+   deployment manifests or evidence.
+3. Preview, validate and build as above.
+4. Commit with a Conventional Commit message such as `docs(reference): document the SDK client`. Do not add AI
+   attribution or co-author trailers.
+5. Open a pull request against `main` using the template, say which commands you ran, and disclose anything you did not
+   verify.
+6. Obtain review and merge only after approval. Reviewers check technical accuracy first.
+
 ## Review checklist
 
 - [ ] Facts checked against the code, tests or a canonical record.

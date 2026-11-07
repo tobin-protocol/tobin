@@ -13,7 +13,9 @@ Report suspected vulnerabilities **privately** through GitHub private vulnerabil
 1. Open the repository's **Security** tab.
 2. Choose **Report a vulnerability** and describe the issue.
 
-GitHub private vulnerability reporting is **enabled** on this repository (checked 2026-11-07). If the **Report a vulnerability** option is missing, it has been switched off: the repository owner has to re-enable it (Settings, Code security). In that case do not publish the details anywhere; open a public issue that says only "I need a private channel for a security report" and contains no technical detail, and wait for the maintainers to respond. No security email address is published, and none is invented here.
+GitHub private vulnerability reporting is **enabled** on this repository (checked 2026-11-07 through the GitHub API). If the **Report a vulnerability** option is ever missing, it has been switched off; use the email address below instead.
+
+**By email:** you can also report privately to the project maintainer at [ebubechiihediwa@gmail.com](mailto:ebubechiihediwa@gmail.com). Reports go to one person, the repository owner, not to a security team or an incident-response organization. Whichever channel you use, do not put exploit details, keys or other secrets in a public issue, pull request or discussion.
 
 ## What to include
 
@@ -35,7 +37,7 @@ Please give the maintainers a reasonable opportunity to understand and fix the i
 
 ## Who receives reports
 
-The repository owner, Ebubechi Ihediwa, monitors vulnerability reports submitted through GitHub for this repository.
+The repository owner, Ebubechi Ihediwa, receives vulnerability reports sent through GitHub private vulnerability reporting or to the email address above. There is no separate security team.
 
 ## What is not promised
 

@@ -48,11 +48,35 @@ The tokens come from `apps/landing/src/app/globals.css`: the greyscale `ink`, `g
 
 ## Configuration
 
-| Variable | Purpose |
-|---|---|
-| `NEXT_PUBLIC_LANDING_URL` | Optional. Overrides the main-website link. Defaults to the website named in the root README. |
+The app needs no environment variables and no secrets. The documentation URL (`https://docs.tobinprotocol.xyz`), the website URL (`https://tobinprotocol.xyz`) and the repository URL are constants in `lib/site.ts`; change them there only. Nothing in this app deploys itself.
 
-No secrets are needed to build or run the site. Nothing in this app deploys itself.
+## Hosting on Vercel
+
+The site is hosted as its own Vercel project, separate from the landing page (`tobin-landing`) and the web console. `vercel.json` in this directory records the framework and build command. The rest is project settings made in the Vercel dashboard by the repository owner:
+
+| Setting | Value |
+|---|---|
+| Repository | `tobin-protocol/tobin` |
+| Root Directory | `apps/docs` |
+| Framework Preset | Next.js |
+| Build Command | `npm run build` (from `vercel.json`; `next build`) |
+| Install Command | the default. Vercel detects the npm workspace from the lockfile at the repository root. There is no lockfile in `apps/docs`, and none must be added. If the dashboard shows an override, use `npm ci --ignore-scripts` as in CI. |
+| Output Directory | the Next.js default |
+| Node.js Version | 24.x (the repository requires Node 24 or later) |
+| Environment variables | none |
+| Production domain | `docs.tobinprotocol.xyz` |
+
+Set **Settings, Build and Deployment, Root Directory, Skip deployment** so that commits that do not touch this app or the lockfile do not rebuild it. Keep the setting that makes files outside the Root Directory available to the build: the app installs from the root lockfile.
+
+**Connect the domain** (owner actions; nothing here has been done):
+
+1. In the docs project, open **Settings, Domains, Add Domain** and enter `docs.tobinprotocol.xyz`. Check the project selector first: the domain must not be attached to the landing page project.
+2. Vercel shows the DNS record to create. For a subdomain, Vercel's documentation says it is a **CNAME**, and that each project has its own unique CNAME value (for example `d1d4fc829fe7bc7c.vercel-dns-017.com`, an illustration from Vercel's docs, **not** the value for this project). Copy the exact value from the dashboard; do not guess it.
+3. At the DNS provider for `tobinprotocol.xyz`, add a `CNAME` with name `docs` pointing to that value. Remove any conflicting `A`, `AAAA` or `CNAME` record for `docs`. Do not change the apex records that serve the landing page.
+4. If Vercel reports that the domain is in use by another Vercel account, it asks for a `TXT` record at `_vercel` on the apex; add the value it shows.
+5. Wait for the dashboard to show the domain as valid, then confirm that HTTPS works and that `https://docs.tobinprotocol.xyz/sitemap.xml` and `/robots.txt` load.
+
+Source: Vercel documentation, "Adding & Configuring a Custom Domain" and "Using Monorepos" (read 2026-11-07). A production deployment from this repository has not been made, and the Vercel configuration has not been exercised by a real Vercel build; the first deployment may need a setting adjusted.
 
 ## Licence
 

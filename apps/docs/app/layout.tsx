@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Instrument_Sans, Outfit, Space_Grotesk, Urbanist } from "next/font/google";
 import { RootProvider } from "fumadocs-ui/provider/next";
 import type { ReactNode } from "react";
+import { DOCS_URL } from "@/lib/site";
 import "./global.css";
 
 // The same four faces as the landing page, each with one job: Urbanist headings, Outfit display,
@@ -12,6 +13,7 @@ const instrumentSans = Instrument_Sans({ subsets: ["latin"], variable: "--font-i
 const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-space-grotesk", display: "swap" });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(DOCS_URL),
   title: { default: "Tobin Developer Documentation", template: "%s · Tobin Docs" },
   description:
     "Developer documentation for the Tobin Clearing Protocol: an experimental, Stellar Testnet-targeted clearing and settlement-preparation system. Not production-ready.",

@@ -1,10 +1,12 @@
-// External links used by the header, footer and homepage. Only URLs that exist and are public are
-// listed. The website URL is the one named in the repository README; deployments may override it with
-// NEXT_PUBLIC_LANDING_URL.
+// The single place for external URLs used by this app. Owner decisions (2026-11): the canonical website is
+// https://tobinprotocol.xyz and the documentation site is https://docs.tobinprotocol.xyz. They are
+// constants, not environment variables, so a preview build cannot silently point production links elsewhere.
+// Only public, real URLs belong here: no invented social or contact links.
+export const DOCS_URL = "https://docs.tobinprotocol.xyz";
+export const LANDING_URL = "https://tobinprotocol.xyz";
 export const REPO = "https://github.com/tobin-protocol/tobin";
 export const REPO_BLOB = `${REPO}/blob/main`;
 export const REPO_TREE = `${REPO}/tree/main`;
-export const LANDING_URL = process.env.NEXT_PUBLIC_LANDING_URL?.trim() || "https://tobinprotocol.xyz";
 
 export const links = {
   contributing: `${REPO_BLOB}/CONTRIBUTING.md`,
