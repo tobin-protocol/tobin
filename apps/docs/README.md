@@ -56,27 +56,28 @@ The site is hosted as its own Vercel project, separate from the landing page (`t
 
 | Setting | Value |
 |---|---|
-| Repository | `tobin-protocol/tobin` |
-| Root Directory | `apps/docs` |
+| Project | `tobin-docs` (team `ebubechi123s-projects`), created 2026-11-08 |
+| Repository | `tobin-protocol/tobin`, production branch `main` |
+| Root Directory | `apps/docs`, with source files outside the Root Directory enabled |
 | Framework Preset | Next.js |
-| Build Command | `npm run build` (from `vercel.json`; `next build`) |
-| Install Command | the default. Vercel detects the npm workspace from the lockfile at the repository root. There is no lockfile in `apps/docs`, and none must be added. If the dashboard shows an override, use `npm ci --ignore-scripts` as in CI. |
+| Install Command | `cd ../.. && npm ci --ignore-scripts` (installs from the root lockfile, as CI does; the same command the `tobin-landing` project uses) |
+| Build Command | `npm run build` (`next build`) |
 | Output Directory | the Next.js default |
-| Node.js Version | 24.x (the repository requires Node 24 or later) |
+| Node.js Version | 24.x |
 | Environment variables | none |
-| Production domain | `docs.tobinprotocol.xyz` |
+| Production domain | `docs.tobinprotocol.xyz`, attached to the project |
 
-Set **Settings, Build and Deployment, Root Directory, Skip deployment** so that commits that do not touch this app or the lockfile do not rebuild it. Keep the setting that makes files outside the Root Directory available to the build: the app installs from the root lockfile.
+Consider enabling **Settings, Build and Deployment, Root Directory, Skip deployment** so that commits that do not touch this app or the lockfile do not rebuild it.
 
-**Connect the domain** (owner actions; nothing here has been done):
+**DNS.** The domain is attached to the project and verified. DNS for `tobinprotocol.xyz` is **not** hosted by Vercel (the nameservers are the registrar's), so the record must be created at the DNS provider. Vercel's recommended record for this project, read from its API on 2026-11-08:
 
-1. In the docs project, open **Settings, Domains, Add Domain** and enter `docs.tobinprotocol.xyz`. Check the project selector first: the domain must not be attached to the landing page project.
-2. Vercel shows the DNS record to create. For a subdomain, Vercel's documentation says it is a **CNAME**, and that each project has its own unique CNAME value (for example `d1d4fc829fe7bc7c.vercel-dns-017.com`, an illustration from Vercel's docs, **not** the value for this project). Copy the exact value from the dashboard; do not guess it.
-3. At the DNS provider for `tobinprotocol.xyz`, add a `CNAME` with name `docs` pointing to that value. Remove any conflicting `A`, `AAAA` or `CNAME` record for `docs`. Do not change the apex records that serve the landing page.
-4. If Vercel reports that the domain is in use by another Vercel account, it asks for a `TXT` record at `_vercel` on the apex; add the value it shows.
-5. Wait for the dashboard to show the domain as valid, then confirm that HTTPS works and that `https://docs.tobinprotocol.xyz/sitemap.xml` and `/robots.txt` load.
+| Type | Name | Value |
+|---|---|---|
+| `CNAME` | `docs` | `e205f3a33f4210f8.vercel-dns-017.com.` |
 
-Source: Vercel documentation, "Adding & Configuring a Custom Domain" and "Using Monorepos" (read 2026-11-07). A production deployment from this repository has not been made, and the Vercel configuration has not been exercised by a real Vercel build; the first deployment may need a setting adjusted.
+Vercel also lists the generic `cname.vercel-dns.com.` and an `A` record (`76.76.21.21`) as alternatives; the project-specific CNAME is the primary recommendation. Remove any conflicting `A`, `AAAA` or `CNAME` record for `docs`, and do not change the apex records that serve the landing page. When the dashboard shows the domain as valid, check HTTPS and `https://docs.tobinprotocol.xyz/sitemap.xml`.
+
+Source: Vercel documentation, "Adding & Configuring a Custom Domain" and "Using Monorepos" (read 2026-11-07). The project exists and is linked to the repository; the DNS record above is the remaining step before the domain resolves.
 
 ## Licence
 
