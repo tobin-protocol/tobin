@@ -25,7 +25,7 @@ export interface RegistryDeps {
   newSessionId: () => string;
 }
 
-const STATUS: Record<string, number> = { NOT_FOUND: 404, INVALID: 400, FORBIDDEN: 403, EXISTS: 409, LAST_ADMIN: 409, INVALID_STATE: 409, NOT_VERIFIED: 409, FIXTURE: 409, INVALID_INVITATION: 400, RATE_LIMITED: 429 };
+const STATUS: Record<string, number> = { NOT_FOUND: 404, INVALID: 400, FORBIDDEN: 403, EXISTS: 409, LAST_ADMIN: 409, INVALID_STATE: 409, NOT_VERIFIED: 409, FIXTURE: 409, INVALID_INVITATION: 400, RATE_LIMITED: 429, STALE: 409, SEPARATION_OF_DUTIES: 403 };
 const ACCEPT_MAX_FAILURES = 10;
 const ACCEPT_WINDOW_MS = 15 * 60 * 1000;
 
@@ -81,10 +81,16 @@ export async function handleRegistry(request: Request, deps: RegistryDeps): Prom
           const ms = r.members(user, orgId);
           const isAdmin = ms.some((x) => x.userId === user.userId && x.role === 'admin');
           const d = names(ms.map((x) => x.userId));
-          return json(200, { members: ms.map((x) => ({ userId: x.userId, role: x.role, since: x.since, name: d.get(x.userId)?.displayName ?? x.userId, ...(isAdmin && d.get(x.userId) ? { email: d.get(x.userId)?.email } : {}), you: x.userId === user.userId })) });
+          const rv = new Set(r.reviewers(user, orgId).map((g) => g.userId));
+          return json(200, { members: ms.map((x) => ({ userId: x.userId, role: x.role, reviewer: rv.has(x.userId), since: x.since, name: d.get(x.userId)?.displayName ?? x.userId, ...(isAdmin && d.get(x.userId) ? { email: d.get(x.userId)?.email } : {}), you: x.userId === user.userId })) });
         }
         if (parts.length === 5 && parts[4] === 'role' && m === 'POST') { const b = await readBody(request); r.setRole(user, orgId, parts[3] as string, roleOf(b['role'])); return json(200, { ok: true }); }
         if (parts.length === 5 && parts[4] === 'remove' && m === 'POST') { r.removeMember(user, orgId, parts[3] as string); return json(200, { ok: true }); }
+      }
+      if (sub === 'reviewers') {
+        if (parts.length === 3 && m === 'GET') { const d = names(r.reviewers(user, orgId).map((g) => g.userId)); return json(200, { reviewers: r.reviewers(user, orgId).map((g) => ({ userId: g.userId, name: d.get(g.userId)?.displayName ?? 'a former user', grantedAt: g.grantedAt })) }); }
+        if (parts.length === 5 && parts[4] === 'grant' && m === 'POST') { r.grantReviewer(user, orgId, parts[3] as string); return json(200, { ok: true }); }
+        if (parts.length === 5 && parts[4] === 'revoke' && m === 'POST') { r.revokeReviewer(user, orgId, parts[3] as string); return json(200, { ok: true }); }
       }
       if (sub === 'invitations') {
         if (parts.length === 3 && m === 'GET') return json(200, { invitations: r.invitations(user, orgId) });
@@ -160,6 +166,23 @@ export async function handleRegistry(request: Request, deps: RegistryDeps): Prom
               return json(200, { obligations: viewObligations() });
             }
             if (parts.length === 7 && parts[6] === 'void' && m === 'POST') { const b = await readBody(request); r.voidObligation(user, orgId, sessionId, parts[5] as string, b['reason']); return json(200, { obligations: viewObligations() }); }
+          }
+          if (leaf === 'authorization') {
+            const view = () => {
+              const a = r.authorization(user, orgId, sessionId);
+              const d = who(a.decisions.map((x) => x.decidedBy));
+              return {
+                state: a.state, sessionState: a.sessionState, currency: a.currency, calculationId: a.calculationId, eligibility: a.eligibility,
+                decisions: a.decisions.map((x) => ({ id: x.id, calculationId: x.calculationId, decision: x.decision, reason: x.reason, decidedBy: d.get(x.decidedBy)?.displayName ?? 'a former user', decidedAt: x.decidedAt, status: x.status, ...(x.invalidatedAt ? { invalidatedAt: x.invalidatedAt, invalidationCause: x.invalidationCause } : {}) })),
+                note: 'An institutional authorization is an application-level decision on one exact calculation. It is not a Stellar signature, not a transaction, not a settlement and not an on-chain confirmation. None of those exist in this application yet.',
+              };
+            };
+            if (parts.length === 5 && m === 'GET') return json(200, view());
+            if (parts.length === 6 && (parts[5] === 'approve' || parts[5] === 'reject') && m === 'POST') {
+              const b = await readBody(request);
+              r.decide(user, orgId, sessionId, parts[5] === 'approve' ? 'approved' : 'rejected', { calculationId: b['calculationId'], reason: b['reason'] });
+              return json(201, view());
+            }
           }
           if (parts.length === 5 && leaf === 'calculate' && m === 'POST') { r.calculate(user, orgId, sessionId); return json(201, viewCalculation()); }
           if (parts.length === 5 && leaf === 'calculation' && m === 'GET') return json(200, viewCalculation());

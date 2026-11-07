@@ -141,3 +141,21 @@ export class RegistryError extends Error {
   readonly code: string;
   constructor(code: string, message: string) { super(message); this.name = 'RegistryError'; this.code = code; }
 }
+
+/** An administrator-granted capability to decide on calculation results. Separate from the admin role: administrators do not decide by default. */
+export interface ReviewerGrant { orgId: string; userId: string; grantedBy: string; grantedAt: string }
+
+/** An application-level institutional decision on ONE calculation snapshot. Not a signature and not an on-chain fact. Immutable. */
+export interface AuthorizationDecision {
+  id: string;
+  sessionId: string;
+  orgId: string;
+  calculationId: string;
+  decision: 'approved' | 'rejected';
+  /** required (non-empty) for a rejection, empty for an approval */
+  reason: string;
+  decidedBy: string;
+  decidedAt: string;
+}
+/** Recorded once when a decision stops being current; the decision row itself is never changed. */
+export interface AuthorizationInvalidation { decisionId: string; cause: string; at: string; by: string }

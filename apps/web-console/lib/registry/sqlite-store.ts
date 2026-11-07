@@ -2,7 +2,7 @@
 // the append-only activity triggers live in the schema (lib/db/database.ts); this file only maps rows to records.
 import type { Database } from '../db/database.ts';
 import type { RegistryStore } from './store.ts';
-import type { ActivityRecord, CalculationRecord, ChainObservation, ObligationRecord, Invitation, Membership, Organization, OrgWallet, SessionParticipant, SessionRecord } from './types.ts';
+import type { ActivityRecord, AuthorizationDecision, AuthorizationInvalidation, ReviewerGrant, CalculationRecord, ChainObservation, ObligationRecord, Invitation, Membership, Organization, OrgWallet, SessionParticipant, SessionRecord } from './types.ts';
 
 type Row = Record<string, unknown>;
 const rows = (x: unknown) => x as Row[];
@@ -89,6 +89,24 @@ export class SqliteRegistryStore implements RegistryStore {
   }
   latestCalculation(sessionId: string) { const r = this.#q('SELECT * FROM calculations WHERE session_id = ? ORDER BY seq DESC LIMIT 1').get(sessionId) as Row | undefined; return r && calculationOf(r); }
   calculationsOfSession(sessionId: string) { return rows(this.#q('SELECT * FROM calculations WHERE session_id = ? ORDER BY seq').all(sessionId)).map(calculationOf); }
+
+  putReviewer(r: ReviewerGrant) {
+    this.#q('INSERT INTO org_reviewers (org_id, user_id, granted_by, granted_at) VALUES (?, ?, ?, ?) ON CONFLICT(org_id, user_id) DO NOTHING').run(r.orgId, r.userId, r.grantedBy, r.grantedAt);
+  }
+  removeReviewer(orgId: string, userId: string) { this.#q('DELETE FROM org_reviewers WHERE org_id = ? AND user_id = ?').run(orgId, userId); }
+  reviewersOfOrg(orgId: string) { return rows(this.#q('SELECT * FROM org_reviewers WHERE org_id = ? ORDER BY granted_at, user_id').all(orgId)).map((r): ReviewerGrant => ({ orgId: r['org_id'] as string, userId: r['user_id'] as string, grantedBy: r['granted_by'] as string, grantedAt: r['granted_at'] as string })); }
+  putDecision(d: AuthorizationDecision) {
+    this.#q('INSERT INTO authorization_decisions (id, session_id, org_id, calculation_id, decision, reason, decided_by, decided_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(d.id, d.sessionId, d.orgId, d.calculationId, d.decision, d.reason, d.decidedBy, d.decidedAt);
+  }
+  decisionsOfSession(sessionId: string) {
+    return rows(this.#q('SELECT * FROM authorization_decisions WHERE session_id = ? ORDER BY seq').all(sessionId)).map((r): AuthorizationDecision => ({ id: r['id'] as string, sessionId: r['session_id'] as string, orgId: r['org_id'] as string, calculationId: r['calculation_id'] as string, decision: r['decision'] as AuthorizationDecision['decision'], reason: r['reason'] as string, decidedBy: r['decided_by'] as string, decidedAt: r['decided_at'] as string }));
+  }
+  putInvalidation(i: AuthorizationInvalidation) {
+    this.#q('INSERT INTO authorization_invalidations (decision_id, cause, at, by_actor) VALUES (?, ?, ?, ?) ON CONFLICT(decision_id) DO NOTHING').run(i.decisionId, i.cause, i.at, i.by);
+  }
+  invalidationsOfSession(sessionId: string) {
+    return rows(this.#q('SELECT i.* FROM authorization_invalidations i JOIN authorization_decisions d ON d.id = i.decision_id WHERE d.session_id = ?').all(sessionId)).map((r): AuthorizationInvalidation => ({ decisionId: r['decision_id'] as string, cause: r['cause'] as string, at: r['at'] as string, by: r['by_actor'] as string }));
+  }
 
   appendActivity(a: ActivityRecord) { this.#q('INSERT INTO activity (id, at, org_id, actor, kind, subject, detail) VALUES (?, ?, ?, ?, ?, ?, ?)').run(a.id, a.at, a.orgId, a.actor, a.kind, a.subject, a.detail); }
   activityOfOrg(orgId: string) { return rows(this.#q('SELECT * FROM activity WHERE org_id = ? ORDER BY seq').all(orgId)).map((r): ActivityRecord => ({ id: r['id'] as string, at: r['at'] as string, orgId: r['org_id'] as string, actor: r['actor'] as string, kind: r['kind'] as string, subject: r['subject'] as string, detail: r['detail'] as string })); }

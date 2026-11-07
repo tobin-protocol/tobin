@@ -43,3 +43,5 @@
 .ss-formtitle { flex-basis: 100%; margin: 0; }
 .ss-obligation-form label, .ss-obligation-form .ss-error { flex: 1 1 12rem; }
 @media (max-width: 40rem) { .ss-actions { flex-direction: row; } .ss-actions button { flex: 0 1 auto; } }
+.ss-ladder { margin: .5rem 0 1rem; padding-left: 1.2rem; }
+.ss-ladder li { padding: .1rem 0; }

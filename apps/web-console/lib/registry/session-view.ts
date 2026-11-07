@@ -144,5 +144,7 @@ const ACTIVITY_LABEL: Record<string, string> = {
   'session.state-changed': 'Session state changed', 'session.readiness-evaluated': 'Readiness evaluated', 'session.chain-read': 'Chain read recorded', 'session.confirmed': 'Chain confirmation recorded',
   'obligation.created': 'Obligation created', 'obligation.updated': 'Obligation updated', 'obligation.voided': 'Obligation voided',
   'netting.calculated': 'Net positions calculated', 'netting.failed': 'Calculation refused',
+  'authorization.approved': 'Calculation approved', 'authorization.rejected': 'Calculation rejected', 'authorization.invalidated': 'Decision no longer applies',
+  'reviewer.granted': 'Reviewer capability granted', 'reviewer.revoked': 'Reviewer capability revoked',
 };
 export const activityLabel = (kind: string): string => ACTIVITY_LABEL[kind] ?? kind;

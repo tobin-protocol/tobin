@@ -173,6 +173,45 @@ CREATE TRIGGER calculations_no_update BEFORE UPDATE ON calculations BEGIN SELECT
 CREATE TRIGGER calculations_no_delete BEFORE DELETE ON calculations BEGIN SELECT RAISE(ABORT, 'calculation snapshots are immutable'); END;
 `,
   },
+  {
+    version: 3,
+    name: 'institutional authorization: reviewers, snapshot-bound decisions, invalidations',
+    sql: `
+CREATE TABLE org_reviewers (
+  org_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  granted_by TEXT NOT NULL REFERENCES users(id),
+  granted_at TEXT NOT NULL,
+  PRIMARY KEY (org_id, user_id),
+  FOREIGN KEY (org_id, user_id) REFERENCES memberships(org_id, user_id) ON DELETE CASCADE
+);
+-- One decision per calculation snapshot (UNIQUE): a second or conflicting decision on the same snapshot cannot exist. Rows are immutable.
+CREATE TABLE authorization_decisions (
+  seq INTEGER PRIMARY KEY AUTOINCREMENT,
+  id TEXT NOT NULL UNIQUE,
+  session_id TEXT NOT NULL,
+  org_id TEXT NOT NULL,
+  calculation_id TEXT NOT NULL UNIQUE REFERENCES calculations(id),
+  decision TEXT NOT NULL CHECK (decision IN ('approved', 'rejected')),
+  reason TEXT NOT NULL DEFAULT '' CHECK (length(reason) <= 500 AND ((decision = 'rejected') = (length(trim(reason)) > 0))),
+  decided_by TEXT NOT NULL REFERENCES users(id),
+  decided_at TEXT NOT NULL,
+  FOREIGN KEY (session_id, org_id) REFERENCES sessions(session_id, org_id)
+);
+CREATE INDEX authorization_decisions_session ON authorization_decisions(session_id, seq);
+CREATE TRIGGER authorization_decisions_no_update BEFORE UPDATE ON authorization_decisions BEGIN SELECT RAISE(ABORT, 'authorization decisions are immutable'); END;
+CREATE TRIGGER authorization_decisions_no_delete BEFORE DELETE ON authorization_decisions BEGIN SELECT RAISE(ABORT, 'authorization decisions are immutable'); END;
+-- A decision stops authorizing when an invalidation row exists. Recorded once, never edited: the decision itself stays as history.
+CREATE TABLE authorization_invalidations (
+  decision_id TEXT PRIMARY KEY REFERENCES authorization_decisions(id),
+  cause TEXT NOT NULL CHECK (length(cause) BETWEEN 1 AND 300),
+  at TEXT NOT NULL,
+  by_actor TEXT NOT NULL
+);
+CREATE TRIGGER authorization_invalidations_no_update BEFORE UPDATE ON authorization_invalidations BEGIN SELECT RAISE(ABORT, 'authorization invalidations are immutable'); END;
+CREATE TRIGGER authorization_invalidations_no_delete BEFORE DELETE ON authorization_invalidations BEGIN SELECT RAISE(ABORT, 'authorization invalidations are immutable'); END;
+`,
+  },
 ];
 
 export class Database {

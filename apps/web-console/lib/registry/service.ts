@@ -7,6 +7,9 @@ import { RegistryError } from './types.ts';
 import type { ActivityRecord, CalculationRecord, ChainObservation, Invitation, Membership, ObligationRecord, Organization, OrgWallet, Role, SessionParticipant, SessionRecord, WorkflowState } from './types.ts';
 import { canonicalInput, currencyOf, inputHash, parseAsset, parseObligationAmount, readinessChecks, runNetting, TRANSITIONS } from './clearing.ts';
 import type { Currency, ReadinessCheck } from './clearing.ts';
+import { authState, conflictedActors, decisionStatus } from './authorization.ts';
+import type { AuthState, DecisionStatus } from './authorization.ts';
+import type { AuthorizationDecision, ReviewerGrant } from './types.ts';
 
 export interface Clock { now(): Date }
 const systemClock: Clock = { now: () => new Date() };
@@ -101,7 +104,7 @@ export class Registry {
       if (this.#s.obligationsOfSession(sess.sessionId).some((o) => o.status === 'active' && (o.debtor === userId || o.creditor === userId))) throw new RegistryError('INVALID_STATE', `this member is a participant with active obligations in session "${sess.label}": void those obligations first`);
       if ((sess.workflow ?? 'configuring') !== 'configuring') throw new RegistryError('INVALID_STATE', `this member is a participant in session "${sess.label}", which is no longer being configured`);
       this.#s.putParticipant({ ...part, status: 'removed', removedAt: this.#clock.now().toISOString() });
-      this.#log(orgId, u, 'session.participant-removed', sess.sessionId, `${userId} (membership ended)`);
+      this.#invalidate(orgId, u, sess.sessionId, 'a participant left with their membership'); this.#log(orgId, u, 'session.participant-removed', sess.sessionId, `${userId} (membership ended)`);
     }
     this.#s.removeMembership(orgId, userId);
     this.#log(orgId, u, 'member.removed', userId, m.role);
@@ -250,7 +253,7 @@ export class Registry {
       }
       const p: SessionParticipant = { sessionId, orgId, userId: input.userId, addedBy: u.userId, addedAt: this.#clock.now().toISOString(), status: 'active', ...(walletAddress ? { walletAddress } : {}) };
       this.#s.putParticipant(p);
-      this.#log(orgId, u, 'session.participant-added', sessionId, existing ? `${input.userId} (re-added)` : input.userId);
+      this.#invalidate(orgId, u, sessionId, 'a participant was added'); this.#log(orgId, u, 'session.participant-added', sessionId, existing ? `${input.userId} (re-added)` : input.userId);
       return p;
     });
   }
@@ -264,7 +267,7 @@ export class Registry {
       if (n > 0) throw new RegistryError('INVALID_STATE', `${n} active obligation(s) name this participant: void or correct them before removing the participant`);
       const next: SessionParticipant = { ...p, status: 'removed', removedAt: this.#clock.now().toISOString() };
       this.#s.putParticipant(next);
-      this.#log(orgId, u, 'session.participant-removed', sessionId, userId);
+      this.#invalidate(orgId, u, sessionId, 'a participant was removed'); this.#log(orgId, u, 'session.participant-removed', sessionId, userId);
       return next;
     });
   }
@@ -290,7 +293,7 @@ export class Registry {
       const now = this.#clock.now().toISOString();
       const o: ObligationRecord = { id: randomBytes(32).toString('hex'), sessionId, orgId, debtor, creditor, amount, asset, reference, status: 'active', revision: 1, createdAt: now, createdBy: u.userId, updatedAt: now, updatedBy: u.userId };
       this.#s.putObligation(o);
-      this.#log(orgId, u, 'obligation.created', sessionId, `obligation ${this.#short(o.id)}: ${debtor} owes ${creditor} ${amount} ${asset}${reference ? ` (${reference})` : ''}`);
+      this.#invalidate(orgId, u, sessionId, 'an obligation was recorded'); this.#log(orgId, u, 'obligation.created', sessionId, `obligation ${this.#short(o.id)}: ${debtor} owes ${creditor} ${amount} ${asset}${reference ? ` (${reference})` : ''}`);
       return o;
     });
   }
@@ -315,7 +318,7 @@ export class Registry {
       if (changes.length === 0) throw new RegistryError('INVALID', 'nothing changed');
       next.revision = o.revision + 1; next.updatedAt = this.#clock.now().toISOString(); next.updatedBy = u.userId;
       this.#s.putObligation(next);
-      this.#log(orgId, u, 'obligation.updated', sessionId, `obligation ${this.#short(o.id)} revision ${next.revision}: ${changes.join('; ')}`);
+      this.#invalidate(orgId, u, sessionId, 'an obligation was changed'); this.#log(orgId, u, 'obligation.updated', sessionId, `obligation ${this.#short(o.id)} revision ${next.revision}: ${changes.join('; ')}`);
       return next;
     });
   }
@@ -327,7 +330,7 @@ export class Registry {
       const why = reason === undefined || reason === '' ? '' : text(reason, 'reason', 200, 0);
       const next: ObligationRecord = { ...o, status: 'voided', revision: o.revision + 1, updatedAt: this.#clock.now().toISOString(), updatedBy: u.userId };
       this.#s.putObligation(next);
-      this.#log(orgId, u, 'obligation.voided', sessionId, `obligation ${this.#short(o.id)} voided (was ${o.debtor} owes ${o.creditor} ${o.amount} ${o.asset})${why ? `: ${why}` : ''}`);
+      this.#invalidate(orgId, u, sessionId, 'an obligation was voided'); this.#log(orgId, u, 'obligation.voided', sessionId, `obligation ${this.#short(o.id)} voided (was ${o.debtor} owes ${o.creditor} ${o.amount} ${o.asset})${why ? `: ${why}` : ''}`);
       return next;
     });
   }
@@ -355,7 +358,7 @@ export class Registry {
         const { positions, gross } = runNetting(sessionId, input);
         const c: CalculationRecord = { id: id('calc'), sessionId, orgId, asset, inputHash: inputHash(asset, input), input, positions, gross, createdAt: this.#clock.now().toISOString(), createdBy: u.userId };
         this.#s.putCalculation(c);
-        this.#log(orgId, u, 'netting.calculated', sessionId, `calculation ${this.#short(c.id)}: ${input.obligations.length} obligation(s), ${positions.length} participant(s), ${asset}, gross ${gross}`);
+        this.#invalidate(orgId, u, sessionId, 'a new calculation superseded this one'); this.#log(orgId, u, 'netting.calculated', sessionId, `calculation ${this.#short(c.id)}: ${input.obligations.length} obligation(s), ${positions.length} participant(s), ${asset}, gross ${gross}`);
         return c;
       });
     } catch (e) {
@@ -408,6 +411,96 @@ export class Registry {
   }
   reopenSession(u: ActingUser, orgId: string, sessionId: string): SessionRecord { return this.#s.transaction(() => { this.#need(orgId, u, true); return this.#move(u, orgId, sessionId, 'configuring'); }); }
   closeSession(u: ActingUser, orgId: string, sessionId: string): SessionRecord { return this.#s.transaction(() => { this.#need(orgId, u, true); return this.#move(u, orgId, sessionId, 'closed'); }); }
+
+  // ---- institutional authorization (MVP-1.3): application-level decisions bound to one calculation snapshot; never a signature, never on-chain ----
+  /** Records an invalidation (and an activity entry) for every decision of the session that has none yet. Runs inside the caller's transaction. */
+  #invalidate(orgId: string, u: ActingUser, sessionId: string, cause: string): void {
+    const done = new Set(this.#s.invalidationsOfSession(sessionId).map((i) => i.decisionId));
+    for (const d of this.#s.decisionsOfSession(sessionId)) {
+      if (done.has(d.id)) continue;
+      this.#s.putInvalidation({ decisionId: d.id, cause, at: this.#clock.now().toISOString(), by: u.userId });
+      this.#log(orgId, u, 'authorization.invalidated', sessionId, `${d.decision} decision on calculation ${this.#short(d.calculationId)} no longer applies: ${cause}`);
+    }
+  }
+  #isReviewer(orgId: string, userId: string): boolean { return this.#s.reviewersOfOrg(orgId).some((r) => r.userId === userId); }
+
+  grantReviewer(u: ActingUser, orgId: string, userId: string): ReviewerGrant {
+    return this.#s.transaction(() => {
+      this.#need(orgId, u, true);
+      if (!this.#role(orgId, { userId, kind: u.kind })) throw new RegistryError('NOT_FOUND', 'member not found');
+      const have = this.#s.reviewersOfOrg(orgId).find((r) => r.userId === userId);
+      if (have) return have;
+      const g: ReviewerGrant = { orgId, userId, grantedBy: u.userId, grantedAt: this.#clock.now().toISOString() };
+      this.#s.putReviewer(g);
+      this.#log(orgId, u, 'reviewer.granted', userId, 'may decide on calculation results');
+      return g;
+    });
+  }
+  revokeReviewer(u: ActingUser, orgId: string, userId: string): void {
+    this.#s.transaction(() => {
+      this.#need(orgId, u, true);
+      if (!this.#isReviewer(orgId, userId)) throw new RegistryError('NOT_FOUND', 'reviewer not found');
+      this.#s.removeReviewer(orgId, userId);
+      this.#log(orgId, u, 'reviewer.revoked', userId, 'earlier decisions stay on record');
+    });
+  }
+  reviewers(u: ActingUser, orgId: string): ReviewerGrant[] { this.#need(orgId, u); return this.#s.reviewersOfOrg(orgId); }
+
+  /** Everything needed to review and decide, computed server-side. */
+  authorization(u: ActingUser, orgId: string, sessionId: string): {
+    state: AuthState; sessionState: WorkflowState; currency: Currency; calculationId: string | null;
+    eligibility: { canDecide: boolean; isReviewer: boolean; reasons: string[] };
+    decisions: (AuthorizationDecision & { status: DecisionStatus; invalidatedAt?: string; invalidationCause?: string })[];
+  } {
+    const s = this.#opSession(u, orgId, sessionId);
+    const view = this.calculationView(u, orgId, sessionId);
+    const latest = view.calculation ?? undefined;
+    const invs = new Map(this.#s.invalidationsOfSession(sessionId).map((i) => [i.decisionId, i]));
+    const decisions = this.#s.decisionsOfSession(sessionId).map((d) => {
+      const inv = invs.get(d.id);
+      return { ...d, status: decisionStatus(d, inv, latest, view.currency), ...(inv ? { invalidatedAt: inv.at, invalidationCause: inv.cause } : {}) };
+    });
+    const active = decisions.find((d) => d.status === 'active');
+    const state = authState(latest, view.currency, active);
+    const reasons: string[] = [];
+    const isReviewer = this.#isReviewer(orgId, u.userId);
+    const wf = s.workflow ?? 'configuring';
+    if (wf === 'closed') reasons.push('The session is closed.');
+    if (!latest) reasons.push('There is no calculation to review. An administrator must calculate net positions first.');
+    else if (view.currency !== 'current') reasons.push('The latest calculation is stale: participants or obligations changed after it. Calculate again to review the new result.');
+    else if (decisions.some((d) => d.calculationId === latest.id)) reasons.push('A decision has already been recorded for this calculation. To review again, calculate again to create a new calculation.');
+    if (!isReviewer) reasons.push('You have not been granted the reviewer capability. An organization administrator can grant it.');
+    if (latest && isReviewer) {
+      const why = conflictedActors(latest, this.#s.obligationsOfSession(sessionId), this.#s.activityOfOrg(orgId)).get(u.userId);
+      if (why) reasons.push(`Separation of duties: ${why}. A different reviewer must decide.`);
+    }
+    return { state, sessionState: wf, currency: view.currency, calculationId: latest?.id ?? null, eligibility: { canDecide: reasons.length === 0, isReviewer, reasons }, decisions };
+  }
+
+  /** Approve or reject the named snapshot. Every check, and the write, happen in one transaction. */
+  decide(u: ActingUser, orgId: string, sessionId: string, kind: 'approved' | 'rejected', input: { calculationId: unknown; reason?: unknown }): AuthorizationDecision {
+    return this.#s.transaction(() => {
+      this.#need(orgId, u);
+      const s = this.#opSession(u, orgId, sessionId);
+      if (!this.#isReviewer(orgId, u.userId)) throw new RegistryError('FORBIDDEN', 'the reviewer capability is required to decide on a calculation');
+      if ((s.workflow ?? 'configuring') === 'closed') throw new RegistryError('INVALID_STATE', 'the session is closed and cannot receive a decision');
+      if (typeof input.calculationId !== 'string') throw new RegistryError('INVALID', 'name the calculation the decision is about');
+      const all = this.#s.calculationsOfSession(sessionId);
+      const named = all.find((c) => c.id === input.calculationId);
+      if (!named) throw new RegistryError('NOT_FOUND', 'calculation not found');
+      const latest = all[all.length - 1] as CalculationRecord;
+      if (named.id !== latest.id) throw new RegistryError('STALE', 'that calculation has been superseded by a newer one; review the latest calculation');
+      if (this.calculationView(u, orgId, sessionId).currency !== 'current') throw new RegistryError('STALE', 'the calculation is stale: participants or obligations changed after it; calculate again');
+      if (this.#s.decisionsOfSession(sessionId).some((d) => d.calculationId === named.id)) throw new RegistryError('EXISTS', 'a decision has already been recorded for this calculation');
+      const why = conflictedActors(named, this.#s.obligationsOfSession(sessionId), this.#s.activityOfOrg(orgId)).get(u.userId);
+      if (why) throw new RegistryError('SEPARATION_OF_DUTIES', `separation of duties: ${why}; a different reviewer must decide`);
+      const reason = kind === 'rejected' ? text(input.reason, 'a rejection reason', 500, 1) : '';
+      const d: AuthorizationDecision = { id: id('dec'), sessionId, orgId, calculationId: named.id, decision: kind, reason, decidedBy: u.userId, decidedAt: this.#clock.now().toISOString() };
+      try { this.#s.putDecision(d); } catch (e) { if (/UNIQUE/i.test((e as Error).message)) throw new RegistryError('EXISTS', 'a decision has already been recorded for this calculation'); throw e; }
+      this.#log(orgId, u, kind === 'approved' ? 'authorization.approved' : 'authorization.rejected', sessionId, `calculation ${this.#short(named.id)}${reason ? `: ${reason}` : ''}`);
+      return d;
+    });
+  }
 
   activity(u: ActingUser, orgId: string): ActivityRecord[] { this.#need(orgId, u); return this.#s.activityOfOrg(orgId); }
 }

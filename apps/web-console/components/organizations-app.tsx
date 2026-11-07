@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { api, ApiError } from './api-client.ts';
 
 interface Org { id: string; name: string; description: string }
-interface Member { userId: string; role: 'admin' | 'member'; name: string; email?: string; since: string; you: boolean }
+interface Member { userId: string; role: 'admin' | 'member'; reviewer?: boolean; name: string; email?: string; since: string; you: boolean }
 interface Invitation { id: string; invitee: string; role: string; status: string; expiresAt: string }
 
 export function OrganizationsApp() {
@@ -59,6 +59,7 @@ export function OrganizationsApp() {
   const invite = (ev: FormEvent) => { ev.preventDefault(); void run(async () => { const r = await api<{ token: string; delivery: { note: string } }>('POST', `/api/registry/orgs/${org}/invitations`, { invitee: inviteEmail, role: inviteRole }); setIssued({ token: r.token, note: r.delivery.note }); setInviteEmail(''); await loadOrg(org); }); };
   const accept = (ev: FormEvent) => { ev.preventDefault(); void run(async () => { await api('POST', '/api/registry/invitations/accept', { token: acceptToken.trim() }); setAcceptToken(''); await loadOrgs(); await loadOrg(org); setNotice('Invitation accepted. You are now a member.'); }); };
   const setMemberRole = (id: string, r: 'admin' | 'member') => void run(async () => { await api('POST', `/api/registry/orgs/${org}/members/${id}/role`, { role: r }); await loadOrg(org); });
+  const setReviewer = (id: string, grant: boolean) => void run(async () => { await api('POST', `/api/registry/orgs/${org}/reviewers/${id}/${grant ? 'grant' : 'revoke'}`, {}); await loadOrg(org); });
   const remove = (id: string) => void run(async () => { await api('POST', `/api/registry/orgs/${org}/members/${id}/remove`, {}); await loadOrg(org); });
   const revoke = (id: string) => void run(async () => { await api('POST', `/api/registry/orgs/${org}/invitations/${id}/revoke`, {}); await loadOrg(org); });
 
@@ -84,17 +85,19 @@ export function OrganizationsApp() {
           <h3>{current.name}</h3>
           <p className="ss-note">{current.description || 'No description.'} Your role: <strong>{role ?? '…'}</strong>.</p>
           <h3>Members</h3>
+          <p className="ss-note">A reviewer can approve or reject a calculation result. Being an administrator does not make someone a reviewer, and nobody can decide on a result they recorded, changed or calculated. A reviewer decision is an application record, not a Stellar signature.</p>
           <table className="ss-list">
             <caption className="ss-sr">Members of {current.name}</caption>
             <thead><tr>{['Name', 'Role', 'Since', 'Actions'].map((c) => <th key={c} scope="col">{c}</th>)}</tr></thead>
             <tbody>{members.map((m) => (
               <tr key={m.userId}>
                 <td data-label="Name">{m.name}{m.you ? ' (you)' : ''}{m.email ? <><br /><small>{m.email}</small></> : null}</td>
-                <td data-label="Role">{m.role}</td>
+                <td data-label="Role">{m.role}{m.reviewer ? ', reviewer' : ''}</td>
                 <td data-label="Since">{m.since.slice(0, 10)}</td>
                 <td data-label="Actions">{role === 'admin' ? (
                   <>
                     <button type="button" onClick={() => setMemberRole(m.userId, m.role === 'admin' ? 'member' : 'admin')}>{m.role === 'admin' ? `Make ${m.name} a member` : `Make ${m.name} an admin`}</button>{' '}
+                    <button type="button" onClick={() => setReviewer(m.userId, !m.reviewer)}>{m.reviewer ? `Revoke reviewer from ${m.name}` : `Grant reviewer to ${m.name}`}</button>{' '}
                     <button type="button" onClick={() => remove(m.userId)}>{`Remove ${m.name}`}</button>
                   </>) : '—'}</td>
               </tr>))}</tbody>

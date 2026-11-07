@@ -1,6 +1,6 @@
 // Persistence interface for the registry. The database choice is an open owner decision; this in-memory implementation is NON-PRODUCTION (lost on
 // restart) and exists only for isolated unit tests. The production store is SqliteRegistryStore (sqlite-store.ts). Reads return copies.
-import type { ActivityRecord, CalculationRecord, Invitation, ObligationRecord, Membership, Organization, OrgWallet, SessionParticipant, SessionRecord } from './types.ts';
+import type { ActivityRecord, AuthorizationDecision, AuthorizationInvalidation, ReviewerGrant, CalculationRecord, Invitation, ObligationRecord, Membership, Organization, OrgWallet, SessionParticipant, SessionRecord } from './types.ts';
 
 const clone = <T>(x: T): T => structuredClone(x);
 
@@ -30,6 +30,14 @@ export interface RegistryStore {
   putCalculation(c: CalculationRecord): void;
   latestCalculation(sessionId: string): CalculationRecord | undefined;
   calculationsOfSession(sessionId: string): CalculationRecord[];
+  putReviewer(r: ReviewerGrant): void;
+  removeReviewer(orgId: string, userId: string): void;
+  reviewersOfOrg(orgId: string): ReviewerGrant[];
+  /** throws if a decision for the same calculation already exists */
+  putDecision(d: AuthorizationDecision): void;
+  decisionsOfSession(sessionId: string): AuthorizationDecision[];
+  putInvalidation(i: AuthorizationInvalidation): void;
+  invalidationsOfSession(sessionId: string): AuthorizationInvalidation[];
   appendActivity(a: ActivityRecord): void;
   activityOfOrg(orgId: string): ActivityRecord[];
 }
@@ -44,15 +52,25 @@ export class InMemoryRegistryStore implements RegistryStore {
   readonly #participants = new Map<string, SessionParticipant>();
   readonly #obligations = new Map<string, ObligationRecord>();
   readonly #calcs: CalculationRecord[] = [];
+  readonly #reviewers = new Map<string, ReviewerGrant>();
+  readonly #decisions: AuthorizationDecision[] = [];
+  readonly #invalidations = new Map<string, AuthorizationInvalidation>();
   transaction<T>(fn: () => T): T {
-    const maps = [this.#orgs, this.#members, this.#wallets, this.#invites, this.#sessions, this.#participants, this.#obligations] as Map<string, unknown>[];
+    const maps = [this.#orgs, this.#members, this.#wallets, this.#invites, this.#sessions, this.#participants, this.#obligations, this.#reviewers, this.#invalidations] as Map<string, unknown>[];
     const snap = maps.map((m) => new Map(m));
-    const act = this.#activity.length; const calcs = this.#calcs.length;
+    const act = this.#activity.length; const calcs = this.#calcs.length; const decs = this.#decisions.length;
     try { return fn(); } catch (e) {
       for (const [i, m] of maps.entries()) { m.clear(); for (const [k, v] of snap[i] as Map<string, unknown>) m.set(k, v); }
-      this.#activity.length = act; this.#calcs.length = calcs; throw e;
+      this.#activity.length = act; this.#calcs.length = calcs; this.#decisions.length = decs; throw e;
     }
   }
+  putReviewer(r: ReviewerGrant) { this.#reviewers.set(`${r.orgId}|${r.userId}`, clone(r)); }
+  removeReviewer(orgId: string, userId: string) { this.#reviewers.delete(`${orgId}|${userId}`); }
+  reviewersOfOrg(orgId: string) { return [...this.#reviewers.values()].filter((r) => r.orgId === orgId && this.#members.has(`${r.orgId}|${r.userId}`)).map(clone); }
+  putDecision(d: AuthorizationDecision) { if (this.#decisions.some((x) => x.calculationId === d.calculationId)) throw new Error('UNIQUE constraint failed: authorization_decisions.calculation_id'); this.#decisions.push(clone(d)); }
+  decisionsOfSession(sessionId: string) { return this.#decisions.filter((d) => d.sessionId === sessionId).map(clone); }
+  putInvalidation(i: AuthorizationInvalidation) { if (!this.#invalidations.has(i.decisionId)) this.#invalidations.set(i.decisionId, clone(i)); }
+  invalidationsOfSession(sessionId: string) { const ids = new Set(this.#decisions.filter((d) => d.sessionId === sessionId).map((d) => d.id)); return [...this.#invalidations.values()].filter((i) => ids.has(i.decisionId)).map(clone); }
   putObligation(o: ObligationRecord) { this.#obligations.set(o.id, clone(o)); }
   getObligation(id: string) { const o = this.#obligations.get(id); return o && clone(o); }
   obligationsOfSession(sessionId: string) { return [...this.#obligations.values()].filter((o) => o.sessionId === sessionId).map(clone); }
