@@ -1,14 +1,13 @@
 /**
  * External destinations.
  *
- * `github` is the public protocol repository. `docs` is intentionally `null`: no
- * hosted documentation site exists yet, and none is invented. Set it here and every
- * place that renders a link (navigation, hero, final call to action, footer) picks it
- * up. Until then, the docs link is omitted or shown as a clearly marked placeholder.
+ * `github` is the public protocol repository. `docs` is the documentation site (apps/docs,
+ * its own Vercel project). Every place that renders a link (navigation, final call to action,
+ * footer) reads it from here, so changing it here changes them all.
  */
 export const links: { github: string | null; docs: string | null } = {
   github: "https://github.com/tobin-protocol/tobin",
-  docs: null, // TODO: Tobin documentation site URL (none exists yet)
+  docs: "https://docs.tobinprotocol.xyz",
 };
 
 /** Files in the protocol repository. Every path here exists on main. */
