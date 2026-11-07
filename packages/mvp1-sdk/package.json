@@ -10,6 +10,7 @@
   "exports": {
     "./amount": "./src/amount.ts",
     "./sha256": "./src/sha256.ts",
+    "./strkey": "./src/strkey.ts",
     "./engine": "./src/engine/index.ts",
     "./sdk": "./src/sdk/index.ts",
     "./local/bridge": "./src/local/bridge.ts"

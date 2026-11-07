@@ -16,7 +16,13 @@
     "test": "node --test test/*.test.ts",
     "test:unit": "node --test test/guards.test.ts test/api.test.ts test/console-view.test.ts test/console-input.test.ts",
     "test:browser": "node test/browser/journey.mjs",
-    "test:w0-browser": "node test/browser/w0-journey.mjs"
+    "test:w0-browser": "node test/browser/w0-journey.mjs",
+    "test:sessions-browser": "node test/browser/sessions-journey.mjs",
+    "test:clearing-browser": "node test/browser/clearing-journey.mjs",
+    "test:backend-browser": "node test/browser/backend-journey.mjs",
+    "db:migrate": "node scripts/db.ts migrate",
+    "db:status": "node scripts/db.ts status",
+    "db:seed-demo": "node scripts/db.ts seed-demo"
   },
   "dependencies": {
     "next": "16.4.3",

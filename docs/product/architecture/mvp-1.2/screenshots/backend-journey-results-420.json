@@ -1,0 +1,260 @@
+{
+  "browser": "Chrome/156.0.8078.81",
+  "width": 420,
+  "total": 42,
+  "failed": 0,
+  "results": [
+    {
+      "step": "1 sign-in page and registration",
+      "name": "the sign-in page states that no wallet or Stellar network is used",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "1 sign-in page and registration",
+      "name": "email and password fields are labelled and the password field is masked",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "1 sign-in page and registration",
+      "name": "accessibility structure (sign-in)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "1 sign-in page and registration",
+      "name": "no horizontal overflow (sign-in)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "1 sign-in page and registration",
+      "name": "empty submission is blocked by the browser (still on the sign-in page)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "1 sign-in page and registration",
+      "name": "a wrong sign-in shows one generic message (no hint whether the account exists)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "1 sign-in page and registration",
+      "name": "registration signs the user in and lands on /sessions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "1 sign-in page and registration",
+      "name": "the session cookie is HttpOnly, SameSite=Strict, Secure and invisible to scripts",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "1 sign-in page and registration",
+      "name": "with no organization yet, /sessions explains where to create one",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "2 organization creation, details and last-administrator protection",
+      "name": "the page states roles are application roles with no Stellar authority",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "2 organization creation, details and last-administrator protection",
+      "name": "the new organization is selected and shows Alice as administrator",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "2 organization creation, details and last-administrator protection",
+      "name": "demoting the last administrator is refused with a clear message",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "2 organization creation, details and last-administrator protection",
+      "name": "removing the last administrator is refused too",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "2 organization creation, details and last-administrator protection",
+      "name": "accessibility structure (organizations)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "2 organization creation, details and last-administrator protection",
+      "name": "no horizontal overflow (organizations)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "3 invitation: one-time code, honest delivery note",
+      "name": "the UI says no email was sent and the code is shown once",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "3 invitation: one-time code, honest delivery note",
+      "name": "a long random code is shown",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "3 invitation: one-time code, honest delivery note",
+      "name": "the invitation is listed as pending",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "3 invitation: one-time code, honest delivery note",
+      "name": "no horizontal overflow (invitation issued)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "3 invitation: one-time code, honest delivery note",
+      "name": "after a reload the code is not shown again and the token is not on the page",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "4 sign out; the invitee registers and accepts",
+      "name": "signed out: the nav offers Sign in and the old session is dead",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "4 sign out; the invitee registers and accepts",
+      "name": "/sessions after sign-out shows no organization data",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "4 sign out; the invitee registers and accepts",
+      "name": "a wrong code is refused with a uniform message",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "4 sign out; the invitee registers and accepts",
+      "name": "Bob is now a member of Alpha Bank with the member role and no admin controls",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "4 sign out; the invitee registers and accepts",
+      "name": "Bob sees the member list by name but not email addresses",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "4 sign out; the invitee registers and accepts",
+      "name": "no horizontal overflow (member view)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "5 replay and role limits for a member",
+      "name": "the same code cannot be used again",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "5 replay and role limits for a member",
+      "name": "a member cannot create a draft: the server refuses with a clear message",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "6 administrator creates a draft; the workspace and provenance",
+      "name": "the draft is listed as a local draft, not on-chain",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "6 administrator creates a draft; the workspace and provenance",
+      "name": "the workspace banner says Local draft",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "6 administrator creates a draft; the workspace and provenance",
+      "name": "activity names the actor by display name",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "7 persistence across a server restart",
+      "name": "the browser session survived the restart (still signed in as Alice)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "7 persistence across a server restart",
+      "name": "the draft survived the restart and is still a local draft",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "7 persistence across a server restart",
+      "name": "the organization and both members survived the restart",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "8 organization isolation between real accounts",
+      "name": "Eve gets 404 NOT_FOUND for Alpha Bank, identical to a nonexistent organization",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "8 organization isolation between real accounts",
+      "name": "Eve only sees her own organization",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "8 organization isolation between real accounts",
+      "name": "forged identity headers change nothing (still Eve)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "9 expired or removed session",
+      "name": "with no valid session the page offers sign-in and shows no data",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "9 expired or removed session",
+      "name": "the same holds for /sessions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "9 expired or removed session",
+      "name": "/w0 stays separate: no institutional nav, no link to /sessions or /organizations",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "10 health and page health",
+      "name": "health reports status, schema version and nothing else",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "10 health and page health",
+      "name": "no JavaScript exception during the whole journey (expected 401 console messages excluded)",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}
