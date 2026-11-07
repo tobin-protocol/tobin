@@ -131,7 +131,9 @@ node scripts/ci/check-links.mjs                  # only if you edited a tracked 
 
 ## Submitting a documentation pull request
 
-1. Start from the latest `main`: `git switch main`, `git pull`, then `git switch -c docs/<short-description>`.
+1. Work in your own fork (see [Contribution workflow](/docs/development/workflow)). Update your fork's `main` from
+   `upstream` (`git fetch upstream`, `git merge --ff-only upstream/main`), then
+   `git switch -c docs/<short-description>`.
 2. Edit only the pages in your assigned scope. Do not edit accepted records under the root `docs/` directory, contracts,
    deployment manifests or evidence.
 3. Preview, validate and build as above.
