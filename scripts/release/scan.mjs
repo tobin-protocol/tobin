@@ -6,7 +6,9 @@ import { readFileSync } from 'node:fs';
 export const TESTNET_MANIFEST_PATH = 'contracts/deployments/testnet.json';
 const SCHEMA = JSON.parse(readFileSync(new URL('../../contracts/deployments/testnet.schema.json', import.meta.url), 'utf8'));
 
-const BAD_PATH = /(^|\/)(auth-vectors|authvectors|auth-intent)|(^|\/)CLAUDE\.md$|phase-e|PHASE-E|phase-b|PHASE-B|(^|\/)m0-review(\/|$)|(^|\/)(node_modules|dist|target)\/|\.badge-profile|(^|\/)\.env|\.pem$|\.key$|^archive\//;
+// A CLAUDE.md in a SUBDIRECTORY is still excluded (a private working manual). The repository-root CLAUDE.md is the published, public entry point for Claude Code (a short pointer to AGENTS.md) and is
+// allowed; its content is still scanned by every rule below.
+const BAD_PATH = /(^|\/)(auth-vectors|authvectors|auth-intent)|\/CLAUDE\.md$|phase-e|PHASE-E|phase-b|PHASE-B|(^|\/)m0-review(\/|$)|(^|\/)(node_modules|dist|target)\/|\.badge-profile|(^|\/)\.env|\.pem$|\.key$|^archive\//;
 // Synthetic test data only: fixture directories and the strkey codec test (all-zero / 0x..01 addresses, not deployed contracts).
 const FIXTURE_DIRS = /^(contracts\/clearing\/tests\/fixtures\/|packages\/mvp1-sdk\/test\/fixtures\/|packages\/mvp1-sdk\/test\/primitives\.test\.ts$)/;
 const RULES = [

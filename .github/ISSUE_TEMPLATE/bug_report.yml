@@ -1,0 +1,93 @@
+name: Bug report
+description: Report something that does not work as documented or expected.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. **Do not use this form for security vulnerabilities.** Report those privately as described in [SECURITY.md](https://github.com/tobin-protocol/tobin/blob/main/SECURITY.md).
+
+        **Never paste secrets** (private keys, seed phrases, tokens, passwords, session cookies) or real personal data. Remove them from logs and screenshots first.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One or two sentences describing the bug.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      description: What should have happened, and where is that documented or implied?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: What happened instead? Include exact error messages.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps, starting from a clean state if possible. Say whether it needs a wallet, Stellar Testnet or the Rust bridge.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Commit or branch, operating system, Node.js version, browser and version, Freighter version (if relevant), Rust and Stellar CLI versions (if relevant), and whether you ran the production build or the dev server.
+      placeholder: |
+        Commit:
+        OS:
+        Node.js:
+        Browser:
+        Other:
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Paste only what is relevant. **Remove secrets and personal data first.**
+      render: text
+    validations:
+      required: false
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: Drag images here. Remove secrets and personal data first.
+    validations:
+      required: false
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity or impact
+      description: Your assessment; maintainers may change it.
+      options:
+        - Cosmetic or documentation
+        - Minor (workaround exists)
+        - Major (feature unusable)
+        - Affects correctness of clearing or settlement data
+        - Affects authentication or authorization (do not post exploit details here)
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and pull requests.
+          required: true
+        - label: This is not a security vulnerability, and I removed all secrets and personal data.
+          required: true
