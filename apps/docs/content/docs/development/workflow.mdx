@@ -1,0 +1,56 @@
+---
+title: Contribution workflow
+description: Branches, commits, pull requests and review, as practised in this repository.
+---
+
+The full rules are in [`CONTRIBUTING.md`](https://github.com/tobin-protocol/tobin/blob/main/CONTRIBUTING.md). This page
+is the short version.
+
+## Branches
+
+Start from the latest `main` and work on a dedicated branch named `<type>/<short-description>`. **Never push directly
+to `main`.**
+
+| Type | Use for |
+|---|---|
+| `feat/` | new capability |
+| `fix/` | bug fixes |
+| `docs/` | documentation only |
+| `refactor/` | behaviour-preserving restructuring |
+| `test/` | tests only |
+| `security/` | security hardening |
+| `ci/` | CI-only changes |
+| `chore/` | tooling, dependencies, housekeeping |
+
+Keep a branch narrowly scoped. Do not rewrite, amend, reset or force-push accepted commits.
+
+## Commits
+
+Use [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): imperative summary`.
+
+```text
+feat(clearing): add obligation validation
+fix(auth): prevent wallet challenge replay
+docs(architecture): clarify settlement lifecycle
+```
+
+A message must describe what the commit really does. Do not add AI attribution or co-author trailers.
+
+## Pull requests
+
+Open a pull request against `main`. The template asks for the problem, the implementation, the affected components,
+linked issues, the exact validation results (counts of passed, failed and **skipped**), screenshots at 1200 px and
+420 px for meaningful UI changes, migration notes, security implications, and the documentation updates required.
+
+**Disclose every skipped test, check or validation you did not run, and why.**
+
+## Review
+
+- One approving review is required by the repository ruleset.
+- Project policy requires the CI checks to pass before merging. GitHub does not enforce it (the ruleset lists no
+  required status check), so reviewers must check.
+- Security-sensitive changes should have a reviewer who is not the author.
+
+## Reporting vulnerabilities
+
+Never open a public issue for a vulnerability. See the [security policy](/docs/resources/security).

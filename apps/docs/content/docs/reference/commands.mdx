@@ -1,0 +1,60 @@
+---
+title: Commands
+description: Verified npm scripts for each workspace, plus the Cargo commands.
+---
+
+Run workspace scripts from the repository root with `npm run <script> --workspace <name>`.
+
+## Root
+
+| Script | What it does |
+|---|---|
+| `npm run typecheck` | Runs `typecheck` in every workspace that defines it. |
+| `npm test` | Runs `test` in every workspace that defines it. |
+| `npm run build:console` | Production build of the web console. |
+| `npm run validate:signers` | Runs `scripts/multisig/validate-signers.mjs`. |
+| `npm run multisig:inspect`, `multisig:prepare`, `multisig:verify` | Owner-run multisig tooling. Testnet only; needs the owner's authorisation. |
+
+## tobin-web-console
+
+| Script | What it does |
+|---|---|
+| `dev` | `next dev` on `127.0.0.1:8787`. |
+| `build`, `build:console` | `next build`. |
+| `start` | `next start` on `127.0.0.1:8787`. |
+| `typecheck` | `tsc --noEmit`. |
+| `test`, `test:unit` | `node --test` suites. |
+| `test:browser`, `test:w0-browser`, `test:sessions-browser`, `test:settlement-browser`, `test:authorization-browser`, `test:clearing-browser`, `test:backend-browser` | Real-browser journeys (need a production build). |
+| `db:migrate`, `db:status`, `db:seed-demo` | Database operator commands. |
+
+## tobin-mvp1-sdk
+
+| Script | What it does |
+|---|---|
+| `typecheck` | `tsc --noEmit`. |
+| `test`, `test:unit` | `node --test` suites; the bridge-backed tests are skipped without `TOBIN_BRIDGE_EXE`. |
+
+## tobin-landing
+
+`dev`, `build`, `start`, `lint`.
+
+## tobin-docs
+
+| Script | What it does |
+|---|---|
+| `dev` | `next dev`. |
+| `build` | `next build`. |
+| `start` | `next start`. |
+| `typecheck` | `next typegen && tsc --noEmit`. |
+| `validate` | Checks links, images, navigation and frontmatter in `content/docs`. |
+
+## Cargo (in `contracts/`)
+
+```bash
+cargo test --locked --workspace
+cargo build --locked -p tobin-clearing-v1 --example bridge
+stellar contract build
+```
+
+Repository-level checks: `node scripts/ci/check-links.mjs`, `node scripts/ci/update-npm-baseline.mjs --check`,
+`node --test scripts/release/scan.test.mjs`.

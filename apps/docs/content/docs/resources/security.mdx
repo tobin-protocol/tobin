@@ -1,0 +1,48 @@
+---
+title: Security policy
+description: How to report a vulnerability and what the policy does and does not promise.
+---
+
+The authoritative text is [`SECURITY.md`](https://github.com/tobin-protocol/tobin/blob/main/SECURITY.md). This is a
+summary.
+
+<Callout type="error" title="Report privately">
+  Never open a public issue or pull request describing a suspected vulnerability. Use GitHub private vulnerability
+  reporting (the repository's **Security** tab, then **Report a vulnerability**) or email the project maintainer at
+  [ebubechiihediwa@gmail.com](mailto:ebubechiihediwa@gmail.com).
+</Callout>
+
+Reports go to one person, the repository owner. There is no security team, moderation team or formal
+incident-response organization. GitHub private vulnerability reporting was verified as enabled on 2026-11-07; if the
+option is ever missing, use the email address.
+
+## Stage
+
+Tobin is experimental, Testnet-only software. There are no tagged releases and no production deployment. Only the
+current `main` branch is maintained, for the experimental scope.
+
+## What to include
+
+- the affected commit or file and the component;
+- reproduction steps with a proof of concept that uses **throwaway Testnet accounts only**;
+- the impact you expect and what an attacker would need first;
+- a severity assessment and a suggested fix, if you have one.
+
+## Keys and credentials
+
+Never include a real private key, seed phrase, token, password or session cookie in a report. If you find a real
+credential in the repository, history, an issue or a log, report it privately; it must be rotated, not just removed.
+
+## What is not promised
+
+No response-time target, fix timeline, disclosure schedule, bug bounty or legal safe harbour is offered. Reports are
+handled on a best-effort basis by the repository owner.
+
+## Scope
+
+In scope: the contracts, the TypeScript engine, SDK, web console and its Stellar tooling, scripts, workflows and
+documentation in this repository. Out of scope: findings that depend on deployments the project did not make, on
+real-value use, or on someone else's compromised machine or keys; and vulnerabilities in third-party software, which
+should go to their maintainers.
+
+Existing security reviews in the repository are the implementing author's own and are not independent audits.

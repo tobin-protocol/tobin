@@ -1,0 +1,35 @@
+---
+title: Working on the contracts
+description: Building and testing the Soroban contracts, and the rules that apply when changing them.
+---
+
+The contracts live in `contracts/`: `clearing/` (`TobinClearingV1`) and `token/` (`TobinTestToken`, a capped-supply test
+token). They are experimental validation code, not production code, and not the broader protocol's v0.2.
+
+## Build and test
+
+```bash
+cd contracts
+cargo test --locked --workspace                                  # native contract tests
+cargo build --locked -p tobin-clearing-v1 --example bridge       # the development bridge
+stellar contract build                                           # Wasm (needs the Stellar CLI)
+```
+
+Rust is pinned at 1.96.0 with the `wasm32v1-none` target; Soroban SDK is 29.0.0.
+
+## Rules
+
+- **Do not change the contracts, the deployment manifest or accepted evidence** as part of unrelated work.
+- Use checked arithmetic. Never floating point.
+- Preserve the validation rules in [Netting and contract validation](/docs/architecture/netting-and-validation).
+- Ceilings (4 participants, 16 obligations, 16 instructions) are compile-time constants and provisional engineering
+  targets, not verified limits.
+- Wasm hashes are recorded under `ci/`; changing a contract changes them and is a release-controlled event.
+- Any Testnet action (deployment, key creation, minting, RPC calls beyond read-only) needs the owner's explicit
+  authorisation. Mainnet is out of scope.
+
+## Reference
+
+See the [contracts reference](/docs/reference/contracts) for the function list, and the canonical
+[ABI and authorization reference](https://github.com/tobin-protocol/tobin/blob/main/docs/reference/MVP-1-ABI-AND-AUTHORIZATION-REFERENCE.md)
+for the authorization matrix.

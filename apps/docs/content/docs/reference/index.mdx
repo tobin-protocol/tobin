@@ -1,0 +1,39 @@
+---
+title: API and SDK reference
+description: What interfaces exist in the repository, where each is defined, and what is not documented because it does not exist.
+---
+
+This section describes only interfaces that exist in the repository today. It does not describe planned endpoints, and
+no OpenAPI specification exists.
+
+| Interface | Page | Source |
+|---|---|---|
+| Netting engine | [Engine](/docs/reference/engine) | `packages/mvp1-sdk/src/engine` |
+| TypeScript SDK | [SDK](/docs/reference/sdk) | `packages/mvp1-sdk/src/sdk` |
+| Soroban contracts | [Contracts](/docs/reference/contracts) | `contracts/clearing`, `contracts/token` |
+| Error codes | [Errors](/docs/reference/errors) | `packages/mvp1-sdk/src/sdk/errors.ts` |
+| Application HTTP routes | [HTTP routes](/docs/reference/http-routes) | `apps/web-console/app/api` |
+| Repository commands | [Commands](/docs/reference/commands) | `package.json` files |
+
+<Callout type="warn" title="Private workspace packages">
+  `tobin-mvp1-sdk` is a private workspace package (`"private": true`). It is not published to a package registry, and
+  its API is experimental and may change without notice.
+</Callout>
+
+## Subpath exports of the SDK package
+
+Imports use the package's `exports` map:
+
+| Import | File |
+|---|---|
+| `tobin-mvp1-sdk/amount` | `src/amount.ts` |
+| `tobin-mvp1-sdk/sha256` | `src/sha256.ts` |
+| `tobin-mvp1-sdk/strkey` | `src/strkey.ts` |
+| `tobin-mvp1-sdk/digest` | `src/digest.ts` |
+| `tobin-mvp1-sdk/engine` | `src/engine/index.ts` |
+| `tobin-mvp1-sdk/sdk` | `src/sdk/index.ts` |
+| `tobin-mvp1-sdk/local/bridge` | `src/local/bridge.ts` |
+
+The canonical, implementation-aligned
+[ABI and authorization reference](https://github.com/tobin-protocol/tobin/blob/main/docs/reference/MVP-1-ABI-AND-AUTHORIZATION-REFERENCE.md)
+is a repository record and is the authority for the contract's authorization matrix.

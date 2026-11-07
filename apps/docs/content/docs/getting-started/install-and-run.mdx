@@ -1,0 +1,76 @@
+---
+title: Install and run
+description: Clone the repository, install dependencies, and start the web console, the landing page and these docs.
+---
+
+## Install
+
+```bash
+git clone https://github.com/tobin-protocol/tobin.git
+cd tobin
+npm ci                  # CI uses: npm ci --ignore-scripts
+npm run typecheck       # all workspaces
+```
+
+## Run the web console
+
+```bash
+npm run dev --workspace tobin-web-console     # http://127.0.0.1:8787
+```
+
+Open `http://127.0.0.1:8787/sign-in`. The server is bound to the loopback interface and refuses other Host names by
+design. The page at `/` is the MVP-1 local sandbox console and needs the Rust bridge (below); the institutional pages
+do not.
+
+## Run the landing page
+
+```bash
+npm run dev --workspace tobin-landing
+```
+
+## Run these docs
+
+```bash
+npm run dev --workspace tobin-docs            # http://localhost:3000
+npm run build --workspace tobin-docs          # production build
+npm run start --workspace tobin-docs          # serve the production build
+npm run validate --workspace tobin-docs       # check links, images and navigation
+```
+
+The docs app is independent of the other two: it builds and runs without them.
+
+## Database migrations
+
+Migrations apply automatically when the console server starts. To run them by hand from the repository root:
+
+```bash
+npm run db:migrate --workspace tobin-web-console     # idempotent
+npm run db:status  --workspace tobin-web-console     # prints the version; exits 2 while migrations are pending
+npm run db:seed-demo --workspace tobin-web-console   # fixture demo data; needs TOBIN_DEMO_PASSWORD
+```
+
+## Rust contracts and the bridge
+
+```bash
+cd contracts
+cargo test --locked --workspace                                  # contract tests (native)
+cargo build --locked -p tobin-clearing-v1 --example bridge       # the development bridge used by TypeScript tests
+stellar contract build                                           # Wasm (needs the Stellar CLI)
+```
+
+Point `TOBIN_BRIDGE_EXE` at `contracts/target/debug/examples/bridge` (`bridge.exe` on Windows).
+
+## Build
+
+```bash
+npm run build:console                  # production build of the web console
+npm run build --workspace tobin-landing
+```
+
+## Windows and PowerShell
+
+- Use PowerShell syntax for variables: `$env:TOBIN_BRIDGE_EXE = "C:\path\to\tobin\contracts\target\debug\examples\bridge.exe"`.
+  `export` is for Bash.
+- Run database and tool commands through `npm run ... --workspace tobin-web-console` so the working directory is the
+  app directory; several tools resolve paths from it.
+- Stop a server by process, not by killing every `node` process on the machine.

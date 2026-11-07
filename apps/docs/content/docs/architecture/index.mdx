@@ -1,0 +1,61 @@
+---
+title: Architecture overview
+description: The layers of the system and how the application, the SDK and Stellar Testnet relate.
+---
+
+Tobin is a single-instance Next.js application backed by one SQLite file, a TypeScript SDK that holds the netting
+engine and digest code, Soroban contracts, and owner-run Testnet tools. The application and the chain are connected
+only through those tools.
+
+```text
+Browser (Next.js pages, Freighter extension)
+   │
+Next.js server on Node 24
+   ├─ route handlers: /api/auth, /api/registry, /api/stellar
+   ├─ AuthService: sessions, wallet challenges
+   ├─ Registry: organizations, sessions, authorization, settlement preparation
+   └─ lib/stellar: plan builder, signer sets, RPC adapter, owner-run tools
+   │                         │
+SQLite (node:sqlite)     packages/mvp1-sdk: netting engine, digests, prepared contract calls
+                              │
+                       Stellar Testnet: Soroban RPC and Horizon, TobinClearingV1 and token contracts
+```
+
+## Layers
+
+| Layer | What it is | Where |
+|---|---|---|
+| Frontend | Next.js 16 (App Router) with React 19; pages under `app/(institution)`; client components in `components/` | `apps/web-console` |
+| Backend and API | Route handlers on the Node runtime; a `proxy.ts` that enforces local-only Host/Origin guards and a per-request CSP | `apps/web-console/app/api`, `proxy.ts` |
+| Persistence | SQLite through `node:sqlite`; numbered, atomic migrations; immutable and append-only tables enforced by triggers | `apps/web-console/lib/db` |
+| Authentication and authorization | Opaque HttpOnly session cookie (hash stored); wallet challenges; membership and role checks on the server | `lib/auth`, `lib/registry` |
+| Stellar integration | `@stellar/stellar-sdk` 17.4.0 and `@stellar/freighter-api` 6.0.1; execution plan, signer-set verifier, RPC adapter, owner-run tools | `lib/stellar` |
+| Contracts and SDK | Rust 1.96.0 and Soroban SDK 29.0.0; the TypeScript engine, digest and SDK shared by the application and tests | `contracts/`, `packages/mvp1-sdk` |
+| Tests and CI | `node:test` suites, real-browser journeys over the Chrome DevTools Protocol, GitHub Actions workflows | `test/`, `.github/workflows/` |
+
+## Two halves, connected by hand
+
+<Callout title="What is and is not connected">
+  The persisted application records stop at *execution preconditions*. Real on-chain execution is performed by
+  separate, owner-run tools. They read the chain on request and compare it with the approved plan, but nothing is
+  submitted or reconciled automatically, and outcomes are not written back to the application.
+</Callout>
+
+1. **Application level** (nothing here is on-chain): wallet sign-in, onboarding, memberships, clearing sessions,
+   participants and obligations, deterministic calculation, institutional review, settlement preparation.
+2. **Stellar level** (Testnet, real signatures): authorization by the required accounts, execution of the contract
+   steps one transaction at a time, and confirmation by reading the network back.
+
+The approved plan is the input to the second half. See
+[Stellar execution](/docs/architecture/stellar-execution) for the steps.
+
+## Other workspaces
+
+- `apps/landing`: the project website (Next.js; it has its own `AGENTS.md`).
+- `apps/docs`: this site.
+- `scripts/`, `ci/`, `release/`: CI, release-gate, multisig and signer tooling, dependency baselines and release controls.
+- `accounts/`: public metadata of Testnet accounts (no secrets, ever).
+
+The repository layout is described on [Repository layout](/docs/development/repository-layout). The canonical
+architecture records for each milestone are linked from [Persistence](/docs/architecture/persistence) and
+[Stellar execution](/docs/architecture/stellar-execution).

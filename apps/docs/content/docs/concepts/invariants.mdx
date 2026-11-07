@@ -1,0 +1,24 @@
+---
+title: Invariants
+description: The rules that every change must preserve, with a short reason for each.
+---
+
+These are the non-negotiable invariants from the repository's agent and contributor guides.
+
+| Invariant | Why |
+|---|---|
+| Integer or fixed-precision arithmetic only (`bigint`; checked integers in Rust); never floating point for money | Rounding errors in settlement are real losses |
+| Conservation of value: net positions sum to zero and a plan moves exactly what the obligations require | Nothing is created or lost |
+| No stale approvals: a decision binds to one calculation and a batch approval to the instruction hash | An approval must mean the exact thing that is executed |
+| Immutable historical records (decisions, batches, attempts, signer-set snapshots, audit events) | Every state change can be explained afterwards |
+| Separation of duties: nobody decides on a result they recorded, changed or calculated; an administrator is not a reviewer | Prevents self-approval |
+| Authorization enforced on the server; client-supplied roles and ids are never trusted | The client is untrusted |
+| Wallet ownership verification: single-use, expiring, server-rebuilt challenges | A claimed address is not control of a key |
+| No duplicate execution: steps run in order from observed chain state; a completed step is never prepared again; no automatic retry | A double settlement is a failure even on Testnet |
+| Outcomes verified independently and reconciled against the approved record | An API reply is not chain truth |
+| The netting result is not described as the only valid or a globally optimal plan | The contract accepts any valid plan |
+
+<Callout title="A passing test is not a proof">
+  Passing tests are necessary but do not prove security or financial correctness. Reviewers look for the cases the
+  tests do not cover. See [Testing](/docs/development/testing).
+</Callout>

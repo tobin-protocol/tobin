@@ -1,0 +1,59 @@
+---
+title: Stellar execution
+description: How an approved plan is executed on Testnet by owner-run tools, one transaction at a time.
+---
+
+<Callout type="warn" title="Testnet, owner-run, manual">
+  Execution is performed by separate owner-run tools after the owner's typed confirmation. The web application does
+  not submit transactions or reconcile them automatically, and there is no Mainnet path.
+</Callout>
+
+## Contract lifecycle
+
+The clearing contract has its own session lifecycle:
+
+```text
+OPEN -> COMMITTED -> APPROVED -> SETTLED
+```
+
+There is no other state. A proposal is data inside COMMITTED or APPROVED, not a state, and replacing it clears all
+approvals and returns the session to COMMITTED.
+
+| Step | Function | Who authorizes |
+|---|---|---|
+| Create session | `create_session` | the creator (admitted automatically) |
+| Join | `join_session` | the joiner **and** the creator |
+| Submit obligation | `submit_obligation` | the debtor |
+| Finalize | `finalize_obligations` | any admitted participant |
+| Propose | `propose_settlement` | any admitted participant |
+| Approve | `approve_settlement` | each admitted participant, for the current digest |
+| Settle | `settle` | each debtor, for its own total; submission is open to any caller |
+
+Eight transactions take a session from creation to `settle`. An approval is not a debit authorization; the two are
+separate. Submission carries no authority and cannot bypass validation, approvals or debtor authorization.
+
+## Execution discipline
+
+- Steps run in order from the **observed chain state**; a completed step is never prepared again.
+- There is no automatic retry.
+- An unknown outcome (not found, timeout) is never treated as success or failure. The original hash is read again.
+- A transaction is trusted only after it is read back from the network by hash and matched against the approved plan.
+- Signed authorization entries of a failed transaction can remain reusable until they expire, so a fresh authorization
+  is required after any failed settlement. The signing policy caps authorization lifetime at 10 ledgers.
+
+## What was shown on Testnet
+
+One owner-run exercise with test assets: a full session settled on-chain with the expected balance deltas, and
+rejections of expired, tampered, replayed, wrong-signer and mismatched-intent authorizations. Evidence is same-author;
+the settlement was a one-base-unit run; resources are declared, not measured; fees were not decomposed; maximum-size
+and all-zero paths were not run on Testnet. The deployed test contract ids are in
+[`contracts/deployments/testnet.json`](https://github.com/tobin-protocol/tobin/blob/main/contracts/deployments/testnet.json).
+
+## Canonical records
+
+- [Stellar settlement architecture](https://github.com/tobin-protocol/tobin/blob/main/docs/product/architecture/mvp-1.5/MVP-1.5-ARCHITECTURE.md)
+- [Wallet and signing](https://github.com/tobin-protocol/tobin/blob/main/docs/product/architecture/mvp-1.5/MVP-1.5-WALLET-AND-SIGNING.md)
+- [Contract compatibility](https://github.com/tobin-protocol/tobin/blob/main/docs/product/architecture/mvp-1.5/MVP-1.5-CONTRACT-COMPATIBILITY.md)
+- [Testnet verification](https://github.com/tobin-protocol/tobin/blob/main/docs/product/architecture/mvp-1.5/MVP-1.5-TESTNET-VERIFICATION.md)
+- [MVP-1.5 threat model](https://github.com/tobin-protocol/tobin/blob/main/docs/product/architecture/mvp-1.5/MVP-1.5-THREAT-MODEL.md)
+- [MVP-1.5 closure](https://github.com/tobin-protocol/tobin/blob/main/docs/product/architecture/mvp-1.5/MVP-1.5-CLOSURE.md)

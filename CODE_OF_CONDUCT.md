@@ -40,13 +40,12 @@ Instances of abusive, harassing, or otherwise unacceptable behavior may be repor
 
 All community leaders are obligated to respect the privacy and security of the reporter of any incident.
 
-**How to report, today.** The community leaders are the maintainers of this repository (the repository owner is named in [`SECURITY.md`](SECURITY.md)). **No dedicated conduct email address, private conduct channel or moderation team has been established**, and none is invented here. Until one exists:
+**How to report.** The community leaders are the maintainers of this repository; in practice, the repository owner (named in [`SECURITY.md`](SECURITY.md)). Report conduct concerns privately by email to the project maintainer at [ebubechiihediwa@gmail.com](mailto:ebubechiihediwa@gmail.com). There is no moderation team, committee or formal incident-response organization: reports are handled by one person, on a best-effort basis, with no promised response time.
 
-- For conduct on GitHub, report the specific comment, issue or pull request to GitHub using its built-in report and block tools, and, if it is not sensitive, point to it in an issue so maintainers can edit, lock or remove it.
+- For conduct on GitHub you can also report the specific comment, issue or pull request to GitHub using its built-in report and block tools.
 - Do not post personal details, evidence of private harassment or anything sensitive in a public issue.
-- Do not use the private vulnerability-reporting form for conduct reports; it is for security vulnerabilities only.
-
-This is a known gap: the repository owner needs to establish a private contact method and then replace this paragraph with it.
+- Do not use the private vulnerability-reporting form for conduct reports; it is for security vulnerabilities only. Security vulnerabilities follow [`SECURITY.md`](SECURITY.md).
+- If the concern is about the maintainer, report it to GitHub using its report tools; no other independent channel exists yet.
 
 ## Enforcement Guidelines
 

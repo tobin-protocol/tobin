@@ -1,0 +1,63 @@
+# Documentation site checks (apps/docs): type check, content validation (links, images, navigation, frontmatter, forbidden strings) and the
+# production build, which compiles every MDX page. Runs only when the docs app or the files it depends on change. No secrets, no deployment.
+# The build fetches Google Fonts through next/font/google, the same way apps/landing does.
+name: docs
+
+on:
+  pull_request:
+    paths:
+      - "apps/docs/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "24.14.0"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  docs:
+    name: Docs site (typecheck, validate, build)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install TypeScript dependencies (lockfile, no install scripts)
+        run: npm ci --ignore-scripts
+
+      - name: Type check
+        run: npm run typecheck --workspace tobin-docs
+
+      - name: Validate content (links, images, navigation, frontmatter)
+        run: npm run validate --workspace tobin-docs
+
+      - name: Production build
+        run: npm run build --workspace tobin-docs
+
+      - name: Build must not modify tracked files
+        run: |
+          if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+            echo "::error::the build modified tracked files"
+            git status --short --untracked-files=no
+            exit 1
+          fi

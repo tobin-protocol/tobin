@@ -1,0 +1,67 @@
+---
+title: Developer onboarding path
+description: A suggested order for reading and running things when you are new to the repository.
+---
+
+<Steps>
+<Step>
+
+### Read the status and scope
+
+[Project status](/docs/introduction/project-status) and [What is Tobin?](/docs/introduction/what-is-tobin). Five
+minutes, and it prevents the most common misunderstanding: the system is experimental and Testnet-only.
+
+</Step>
+<Step>
+
+### Learn the vocabulary
+
+[Domain model](/docs/concepts/domain-model) and
+[State and trust boundaries](/docs/architecture/state-and-trust-boundaries). Tobin separates things that look alike
+(a prepared batch, a signed transaction, a submitted one, a confirmed one). Most review comments in this repository
+are about keeping them apart.
+
+</Step>
+<Step>
+
+### Get the code running
+
+Follow [Prerequisites](/docs/getting-started/prerequisites) and [Install and run](/docs/getting-started/install-and-run).
+Start the web console and sign in at `http://127.0.0.1:8787/sign-in`.
+
+</Step>
+<Step>
+
+### See the architecture
+
+[Architecture overview](/docs/architecture), then
+[Netting and contract validation](/docs/architecture/netting-and-validation) for the engine-versus-contract split.
+
+</Step>
+<Step>
+
+### Run the tests you will touch
+
+[Testing](/docs/development/testing) lists the command for each layer. Run the layer you plan to change before you
+change it, so you know the baseline.
+
+</Step>
+<Step>
+
+### Make a small change
+
+Pick a documentation fix or a small bug. Follow [Contributing](/docs/resources/contributing): branch type prefixes,
+Conventional Commits, and the pull request template.
+
+</Step>
+</Steps>
+
+## Reading the canonical records
+
+When a page links to a milestone record (acceptance, closure, security review), read the closure document first: it
+states what was and was not shown. The records live in
+[`docs/product/architecture`](https://github.com/tobin-protocol/tobin/tree/main/docs/product/architecture) and are not
+rewritten when the code moves on.
+
+If you are an AI coding agent, read [`AGENTS.md`](https://github.com/tobin-protocol/tobin/blob/main/AGENTS.md) first;
+it is authoritative for agents.

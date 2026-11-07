@@ -1,0 +1,40 @@
+---
+title: Engine
+description: The deterministic netting engine and the advisory plan validator.
+---
+
+Import from `tobin-mvp1-sdk/engine`. All amounts are `bigint`; addresses are strkeys (`G...` or `C...`).
+
+## Types
+
+```ts
+interface Obligation { id: string; debtor: string; creditor: string; amount: bigint }
+interface Instruction { payer: string; payee: string; amount: bigint }
+interface NetPosition { participant: string; net: bigint }   // net = outgoing - incoming
+type ValidationResult = { ok: true } | { ok: false; error: ValidationError; message: string }
+```
+
+`ValidationError` is one of `TooManyInstructions`, `BadAmount`, `InstructionSelfPay`, `UnknownParty`,
+`InstructionOrder`, `OffsettingFlows`, `FlowMismatch` or `Overflow`: the same names as the contract's error table.
+
+## Functions
+
+| Function | Purpose |
+|---|---|
+| `normalizeObligation(o)` | Validates and normalises an obligation (accepts `bigint` or string amounts). |
+| `computeNets(participants, obligations)` | Net position per participant: `outgoing - incoming`, with checked arithmetic. |
+| `allZero(nets)` | True when every net is zero. |
+| `defaultProposal(participants, obligations)` | Generates the engine's **default** instruction list, sorted into the contract's required order. |
+| `proposalFromNets(nets)` | The same, from precomputed nets. |
+| `sortInstructions(list)` | Sorts instructions strictly ascending by (payer, payee). |
+| `validatePlan(participants, obligations, plan)` | **Advisory** validation mirroring the contract's rules. |
+| `INSTRUCTION_CEILING` | `16`, a provisional engineering target. |
+
+## Guarantees and limits
+
+- `validatePlan` is not authority. The contract validates every plan itself; a plan that passes here can still be
+  rejected on chain.
+- The default proposal is one valid plan, not the only one and not claimed to be optimal.
+- Agreement between the TypeScript engine and the Rust contract is same-author evidence, not independent proof.
+
+See [Netting and contract validation](/docs/architecture/netting-and-validation).

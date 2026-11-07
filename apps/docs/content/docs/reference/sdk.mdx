@@ -1,0 +1,62 @@
+---
+title: SDK
+description: Prepared calls, the TobinClient, the transport boundary, and what the SDK deliberately does not do.
+---
+
+Import from `tobin-mvp1-sdk/sdk`. The SDK prepares contract calls, states which authorizations each needs, and decodes
+results and errors. It does **not** sign, hold keys, or talk to a network.
+
+## Prepared calls
+
+The `prepare*` functions return a `PreparedCall` describing the invocation and the authorizations required:
+
+| Function | Contract function |
+|---|---|
+| `prepareCreateSession(clearing, { creator, sessionId, token, maxParticipants, maxObligations })` | `create_session` |
+| `prepareJoin(clearing, { sessionId, participant, creator })` | `join_session` |
+| `prepareSubmitObligation(clearing, { sessionId, obligation })` | `submit_obligation` |
+| `prepareFinalize(clearing, { sessionId, caller })` | `finalize_obligations` |
+| `preparePropose(clearing, { sessionId, proposer, instructions })` | `propose_settlement` |
+| `prepareApprove(clearing, { sessionId, participant, digest })` | `approve_settlement` |
+| `prepareSettle(clearing, { sessionId, digest, instructions, token })` | `settle` |
+| `prepareMint(token, { minter, to, amount })` | token `mint` |
+| `prepareQuery(contract, fn, args)` | a read-only query |
+| `debtorAuthorizations(instructions)` | the per-debtor authorizations `settle` needs |
+
+## TobinClient
+
+`new TobinClient({ transport, clearing, networkId? })`. Methods include `createSession`, `joinSession`,
+`submitObligation`, `finalizeObligations`, `proposeSettlement`, `approveSettlement`, `settle`, `mint`, the queries
+`config`, `getSession`, `getObligations`, `getProposal`, `getSettlement`, `getApprovals`, `tokenBalance`, and the
+advisory helpers `generateDefaultProposal`, `validateProposal`, `verifyDigests`, `settlementIntent` and
+`getSessionStatus`.
+
+`getSessionStatus(sessionId)` returns the contract state plus advisory data: net positions computed locally, the
+approvals of the **current** digest only, the debtor authorizations still required, and suggested next steps. Approvals
+of an older digest never count.
+
+## Transport
+
+```ts
+interface Transport {
+  readonly description: string;
+  invoke(call: PreparedCall, options?: InvokeOptions): Promise<InvocationResult>;
+}
+```
+
+The only implemented transport is the **local sandbox** (`tobin-mvp1-sdk/local/bridge`), which runs the real contracts
+in the Soroban test host and applies the stated authorizations as simulated, unsigned grants that the real contract
+still enforces. `NetworkTransportNotAuthorized` makes the absence of a network transport explicit; there is no wallet
+or network transport in the SDK.
+
+## Digests
+
+`tobin-mvp1-sdk/digest` computes the version 2 obligation commitment and proposal digest used by the contract
+(`obligationCommitment`, `proposalDigest`, and the `*Bytes` variants). The proposal revision is bound into the digest,
+so an approval of an earlier proposal cannot be replayed against a later one. The format is the working MVP-1 format
+approved by the owner; it has not had independent cryptographic review.
+
+## Errors
+
+Failures are normalised into a `TobinError` with a kind: `contract`, `token`, `auth`, `host`, `transport` or `policy`.
+See [Errors](/docs/reference/errors).

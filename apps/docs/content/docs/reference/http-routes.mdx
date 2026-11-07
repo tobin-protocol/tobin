@@ -1,0 +1,24 @@
+---
+title: HTTP routes
+description: The route groups of the web console application, and why there is no single API reference.
+---
+
+<Callout type="warn" title="No institutional API reference exists">
+  There is no OpenAPI description and no single reference for the institutional API. This page lists the route
+  groups that exist and points to where each is defined. Do not treat it as a stable public API.
+</Callout>
+
+The application is a local, single-instance server. A `proxy.ts` enforces local-only Host and Origin guards and a
+per-request Content Security Policy, and the dev and start scripts bind to `127.0.0.1`.
+
+| Route group | Defined in | Notes |
+|---|---|---|
+| `/api/auth/*` | `apps/web-console/app/api/auth` | Wallet challenges and sessions. The endpoints are tabulated in the [wallet-first architecture](https://github.com/tobin-protocol/tobin/blob/main/docs/product/architecture/wallet-first-auth/WALLET-FIRST-AUTH-ARCHITECTURE.md). |
+| `/api/registry/*` | `apps/web-console/app/api/registry`, `lib/registry/http.ts` | Organizations, sessions, authorization and settlement preparation. |
+| `/api/stellar/cosign`, `/api/stellar/run`, `/api/stellar/validation` | `apps/web-console/app/api/stellar` | Owner-run Testnet tools. |
+| `/api/health` | `app/api/health/route.ts` | Reports only whether the database answers and its schema version. |
+| `/api/bootstrap`, `/api/rpc` | `app/api/bootstrap`, `app/api/rpc` | The local sandbox console, backed by the Rust bridge. |
+| `/api/w0/*` | `app/api/w0` | A mock API used by the W0 console. [`W1-API-REFERENCE.md`](https://github.com/tobin-protocol/tobin/blob/main/docs/product/architecture/w1/W1-API-REFERENCE.md) covers only this mock. |
+
+Authorization is enforced on the server for every route; a client-supplied role, user id or organization id is never
+trusted. Mutating routes require the request-header CSRF guard.

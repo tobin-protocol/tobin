@@ -1,0 +1,53 @@
+---
+title: Glossary
+description: Definitions of the terms used across the documentation.
+---
+
+**Approval.** A reviewer's decision on one exact calculation, recorded in the application. On chain, a participant's
+approval of the current proposal digest. Neither is a debit authorization.
+
+**Base unit.** The smallest integer unit of an asset. All amounts are integers in base units.
+
+**Batch (settlement batch).** An immutable set of generated settlement instructions derived from an approved
+calculation.
+
+**Calculation.** An immutable snapshot of net positions with an input hash.
+
+**Clearing.** Netting mutual obligations so that only net amounts need to be settled.
+
+**Commitment.** The digest of a session's frozen participants and obligations, stored at finalization.
+
+**Confirmation.** A transaction read back from the network by hash with a successful result.
+
+**Debtor / creditor.** The party that owes / is owed on an obligation. In a net position, positive means net debtor.
+
+**Digest.** A versioned SHA-256 value binding a proposal (including its revision) to a session, contract, token and
+network. Version 2 is the working MVP-1 format.
+
+**Engine.** The TypeScript netting engine. A calculator, never an authority.
+
+**Execution preconditions.** Application records of which accounts are verified and what steps are planned. They do not
+contact the network.
+
+**Freighter.** A Stellar browser wallet extension used for signing.
+
+**Instruction.** A payer, payee and amount in a settlement plan.
+
+**Net position.** `outgoing - incoming` for one participant. Positions across a session sum to zero.
+
+**Obligation.** A debtor, a creditor and a positive integer amount in one asset.
+
+**Provenance.** A label on a session record: `fixture`, `local-draft`, `chain-read` or `chain-confirmed`.
+
+**Reconciliation.** Comparing confirmed on-chain state with the approved batch. Any difference means stop.
+
+**Reviewer.** A user with an explicit grant to approve calculations and batches. Not implied by administrator.
+
+**Signer set.** The keys and weights that may sign for a multisig account.
+
+**Soroban.** Stellar's smart contract platform.
+
+**Testnet.** Stellar's public test network. The only network Tobin supports.
+
+**Unknown outcome.** A transaction whose result could not be determined (not found, timeout). Never treated as success
+or failure; the original hash is read again.

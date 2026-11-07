@@ -1,0 +1,64 @@
+---
+title: State and trust boundaries
+description: The four kinds of state, the transaction stages that must never be collapsed, and the provenance labels.
+---
+
+Tobin deliberately keeps apart things that look alike. Hold these distinctions in every change, comment and document.
+
+## Rules
+
+- Application records are not on-chain records.
+- Local drafts are not persisted or confirmed records.
+- A prepared settlement batch is not a submitted transaction.
+- A signed transaction is not proof of submission.
+- A submitted transaction is not proof of confirmation.
+- A confirmed chain transaction must be independently verified by reading the network, never inferred from an API
+  reply or a simulation.
+- A confirmed transaction must be reconciled against the approved settlement batch.
+- Wallet address claims are not proof of wallet ownership. Only a verified signature over a server-issued challenge is.
+- Wallet authentication is not institutional authorization.
+- Institutional roles are not Stellar signing authority.
+- Reviewer approval is not settlement execution.
+
+## Four kinds of state
+
+| State | What it is | Examples |
+|---|---|---|
+| **Application state** | Rows in SQLite. Not on-chain | organizations, sessions, obligations, users, wallets |
+| **Clearing and settlement preparation state** | Application records that define what was approved | calculation snapshots; reviewer decisions (`active`, `superseded`, `invalidated`); batches (`awaiting-review`, `approved`, `rejected`, `invalidated`, `superseded`) |
+| **Stellar transaction state** | What happened to a transaction Tobin built | `awaiting-signer`, `signing`, `signed`, `submission-pending`, `submitted`, `confirmed`, `reconciled`, `failed`, `expired`, `unknown-outcome`, `reconciliation-required` |
+| **Independently verified on-chain state** | What the network says when read back | the session, obligations, proposal, approvals and settlement record in the contract, token balances, a transaction read by hash |
+
+The transaction states are defined in `apps/web-console/lib/registry/settlement-state.ts`. Do not collapse stages into
+a generic "settled".
+
+## Transaction stages
+
+```text
+Prepared    an application record; nothing has been signed
+   |
+Signed      a signature exists; it is not proof of submission
+   |
+Submitted   the network accepted the transaction for inclusion
+   |
+Confirmed   read back from the network by hash, and successful
+   |
+Reconciled  matches the approved batch exactly
+
+Submitted --> Unknown   (NOT_FOUND or a timeout: neither success nor failure)
+```
+
+An unknown outcome is neither success nor failure. The only safe action is to read the original transaction hash
+again; the transaction is never resent.
+
+## Session provenance
+
+A session record carries a **provenance** label (defined in `apps/web-console/lib/registry/types.ts`) with an exact
+meaning. Do not add labels or blur them.
+
+| Label | Meaning |
+|---|---|
+| `fixture` | Demonstration data, never on-chain. |
+| `local-draft` | Created in the application; nothing submitted. |
+| `chain-read` | A read-only RPC observation of the session id exists; not tied to a verified transaction. |
+| `chain-confirmed` | A read matched the id **and** the creating transaction was confirmed successful. Only this label carries a transaction hash. |

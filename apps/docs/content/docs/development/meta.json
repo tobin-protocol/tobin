@@ -1,0 +1,4 @@
+{
+  "title": "Development",
+  "pages": ["repository-layout", "workflow", "testing", "contracts", "ci"]
+}

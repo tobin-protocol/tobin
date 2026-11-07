@@ -1,0 +1,30 @@
+{
+  "name": "tobin-docs",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "next typegen && tsc --noEmit",
+    "validate": "node scripts/validate-docs.mjs"
+  },
+  "dependencies": {
+    "@types/mdx": "^2.0.14",
+    "fumadocs-core": "^16.18.1",
+    "fumadocs-mdx": "^15.5.0",
+    "fumadocs-ui": "^16.18.1",
+    "next": "16.4.3",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/turbopack": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
