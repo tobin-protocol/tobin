@@ -12,7 +12,8 @@ interface Challenge { id: string; network: string; publicKey: string; message: s
 
 export function WalletVerification({ orgId }: { orgId: string }) {
   const [list, setList] = useState<Verification[] | null>(null);
-  const [network, setNetwork] = useState<'testnet' | 'public'>('testnet');
+  // Stellar Testnet is the only enabled network in this build
+  const network = 'testnet' as const;
   const [publicKey, setPublicKey] = useState('');
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const [signature, setSignature] = useState('');
@@ -71,7 +72,7 @@ export function WalletVerification({ orgId }: { orgId: string }) {
         </table>
       )}
       <form className="inst-form" onSubmit={request} aria-label="Request a challenge">
-        <label>Network <select value={network} onChange={(e) => setNetwork(e.target.value as 'testnet' | 'public')} aria-label="Network"><option value="testnet">testnet</option><option value="public">public (Mainnet)</option></select></label>
+        <p className="ss-note" style={{ flexBasis: '100%' }}>Network: <strong>Stellar Testnet</strong> (the only network enabled in this build).</p>
         <label>Stellar public key <input value={publicKey} onChange={(e) => setPublicKey(e.target.value)} placeholder="G…" autoComplete="off" spellCheck={false} aria-label="Stellar public key" /></label>
         <button type="submit" disabled={!publicKey.trim()}>Request challenge</button>
       </form>

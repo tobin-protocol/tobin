@@ -3,6 +3,7 @@
 import { authenticateRequest } from '../../../../lib/auth/http.ts';
 import { REQUEST_HEADER, json, readBody } from '../../../../lib/registry/http.ts';
 import { attachEntry, prepareStep, resolveStep, runStatus, submitStep } from '../../../../lib/stellar/run.ts';
+import { ownerToolsAllowed } from '../../../../lib/stellar/owner-access.ts';
 import { BackendUnavailable, getBackend } from '../../../../lib/server/backend.ts';
 
 export const runtime = 'nodejs';
@@ -13,6 +14,7 @@ export async function POST(request: Request): Promise<Response> {
     if (request.headers.get(REQUEST_HEADER) !== '1') return json(403, { error: 'FORBIDDEN', message: 'missing request header' });
     const user = await authenticateRequest(getBackend().auth)(request);
     if (!user) return json(401, { error: 'UNAUTHENTICATED', message: 'Sign in to continue.' });
+    if (!ownerToolsAllowed(user)) return json(403, { error: 'FORBIDDEN', message: 'This tool is restricted to the signers of the administrative account and the configured second account.' });
     const b = await readBody(request); const step = Number(b['step']);
     if (b['action'] === 'status') { const r = await runStatus(); return r.ok ? json(200, { status: r }) : json(503, { error: 'CHAIN_UNAVAILABLE', message: r.reason }); }
     if (b['action'] === 'prepare' && Number.isInteger(step)) { const r = await prepareStep(step); return r.ok ? json(200, { prepared: r.prepared }) : json(409, { error: 'REFUSED', message: r.reason }); }

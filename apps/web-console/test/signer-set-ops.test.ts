@@ -98,6 +98,6 @@ test('migration 7 upgrades a version-6 database in place and keeps its data', as
   const db = openDatabase(':memory:'); migrate(db, undefined, MIGRATIONS.slice(0, 6));
   db.raw.exec(`INSERT INTO users (id, email, display_name, password_hash, created_at) VALUES ('usr_1', 'a@x.test', 'A', 'h', 't');
     INSERT INTO organizations (id, name, visibility, created_at, created_by) VALUES ('org_1', 'Org', 'private', 't', 'usr_1');`);
-  assert.equal(migrate(db).current, 7);
+  assert.equal(migrate(db).current, 8);
   assert.equal((db.raw.prepare('SELECT count(*) AS n FROM organizations').get() as { n: number }).n, 1); assert.equal((db.raw.prepare('SELECT count(*) AS n FROM signer_set_snapshots').get() as { n: number }).n, 0);
 });

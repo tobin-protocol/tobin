@@ -3,7 +3,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { ActingUser } from './identity.ts';
 import type { RegistryStore } from './store.ts';
-import { RegistryError } from './types.ts';
+import { INSTITUTION_TYPES, RegistryError } from './types.ts';
 import type { ActivityRecord, CalculationRecord, ChainObservation, Invitation, Membership, ObligationRecord, Organization, OrgWallet, Role, SessionParticipant, SessionRecord, WorkflowState } from './types.ts';
 import { canonicalInput, currencyOf, inputHash, parseAsset, parseObligationAmount, readinessChecks, runNetting, TRANSITIONS } from './clearing.ts';
 import type { Currency, ReadinessCheck } from './clearing.ts';
@@ -52,7 +52,7 @@ export class Registry {
     this.#s.appendActivity(a);
   }
   #role(orgId: string, u: ActingUser): Role | null {
-    return this.#s.membershipsOfOrg(orgId).find((m) => m.userId === u.userId)?.role ?? null;
+    return this.#s.membershipsOfOrg(orgId).find((m) => m.userId === u.userId && (m.status ?? 'active') === 'active')?.role ?? null;
   }
   /** Not a member of the organization looks identical to "no such organization": isolation must not leak existence. */
   #need(orgId: string, u: ActingUser, admin = false): Role {
@@ -62,21 +62,28 @@ export class Registry {
     return r;
   }
 
-  createOrganization(u: ActingUser, input: { name: unknown; description?: unknown; visibility?: unknown }): Organization {
+  createOrganization(u: ActingUser, input: { name: unknown; description?: unknown; visibility?: unknown; institutionType?: unknown; jurisdiction?: unknown }): Organization {
     return this.#s.transaction(() => this.#createOrganization(u, input));
   }
-  #createOrganization(u: ActingUser, input: { name: unknown; description?: unknown; visibility?: unknown }): Organization {
+  #createOrganization(u: ActingUser, input: { name: unknown; description?: unknown; visibility?: unknown; institutionType?: unknown; jurisdiction?: unknown }): Organization {
     const name = text(input.name, 'name', 80, 2);
     const description = input.description === undefined ? '' : text(input.description, 'description', 500, 0);
     const visibility = input.visibility === 'public' ? 'public' : 'private';
-    const o: Organization = { id: id('org'), name, description, visibility, createdAt: this.#clock.now().toISOString(), createdBy: u.userId };
+    // Ambiguity guard: a user may not hold two institutions whose names differ only by case or spacing. (Names of OTHER institutions are never consulted: that would reveal that they exist.)
+    const key = (n: string) => n.toLowerCase().replace(/\s+/g, ' ');
+    if (this.myOrganizations(u).some((x) => key(x.name) === key(name))) throw new RegistryError('EXISTS', 'you already belong to an institution with this name');
+    let institutionType: Organization['institutionType'];
+    if (input.institutionType !== undefined && input.institutionType !== '') { if (typeof input.institutionType !== 'string' || !(INSTITUTION_TYPES as readonly string[]).includes(input.institutionType)) throw new RegistryError('INVALID', 'unknown institution type'); institutionType = input.institutionType as Organization['institutionType']; }
+    let jurisdiction: string | undefined;
+    if (input.jurisdiction !== undefined && input.jurisdiction !== '') { if (typeof input.jurisdiction !== 'string' || !/^[A-Z]{2}$/.test(input.jurisdiction)) throw new RegistryError('INVALID', 'jurisdiction must be a two-letter country code such as GB'); jurisdiction = input.jurisdiction; }
+    const o: Organization = { id: id('org'), name, description, visibility, createdAt: this.#clock.now().toISOString(), createdBy: u.userId, ...(institutionType ? { institutionType } : {}), ...(jurisdiction ? { jurisdiction } : {}) };
     this.#s.putOrganization(o);
     this.#s.putMembership({ orgId: o.id, userId: u.userId, role: 'admin', since: o.createdAt });
     this.#log(o.id, u, 'organization.created', o.id, name);
     return o;
   }
   myOrganizations(u: ActingUser): Organization[] {
-    return this.#s.membershipsOfUser(u.userId).map((m) => this.#s.getOrganization(m.orgId)).filter((o): o is Organization => !!o);
+    return this.#s.membershipsOfUser(u.userId).filter((m) => (m.status ?? 'active') === 'active').map((m) => this.#s.getOrganization(m.orgId)).filter((o): o is Organization => !!o);
   }
   getOrganization(u: ActingUser, orgId: string): Organization { this.#need(orgId, u); return this.#s.getOrganization(orgId) as Organization; }
   members(u: ActingUser, orgId: string): Membership[] { this.#need(orgId, u); return this.#s.membershipsOfOrg(orgId); }
@@ -102,7 +109,7 @@ export class Registry {
     this.#need(orgId, u, true);
     const ms = this.#s.membershipsOfOrg(orgId); const m = ms.find((x) => x.userId === userId);
     if (!m) throw new RegistryError('NOT_FOUND', 'member not found');
-    if (m.role === 'admin' && role !== 'admin' && ms.filter((x) => x.role === 'admin').length === 1) throw new RegistryError('LAST_ADMIN', 'an organization must keep at least one administrator');
+    if (m.role === 'admin' && role !== 'admin' && ms.filter((x) => x.role === 'admin' && (x.status ?? 'active') === 'active').length === 1) throw new RegistryError('LAST_ADMIN', 'an organization must keep at least one administrator');
     this.#s.putMembership({ ...m, role });
     this.#log(orgId, u, 'member.role', userId, role);
   }
@@ -113,7 +120,7 @@ export class Registry {
     this.#need(orgId, u, true);
     const ms = this.#s.membershipsOfOrg(orgId); const m = ms.find((x) => x.userId === userId);
     if (!m) throw new RegistryError('NOT_FOUND', 'member not found');
-    if (m.role === 'admin' && ms.filter((x) => x.role === 'admin').length === 1) throw new RegistryError('LAST_ADMIN', 'an organization must keep at least one administrator');
+    if (m.role === 'admin' && (m.status ?? 'active') === 'active' && ms.filter((x) => x.role === 'admin' && (x.status ?? 'active') === 'active').length === 1) throw new RegistryError('LAST_ADMIN', 'an organization must keep at least one administrator');
     for (const sess of this.#s.sessionsOfOrg(orgId)) {
       const part = this.#s.participantsOfSession(sess.sessionId).find((p) => p.userId === userId && (p.status ?? 'active') === 'active');
       if (!part) continue;
@@ -126,6 +133,21 @@ export class Registry {
     this.#log(orgId, u, 'member.removed', userId, m.role);
   }
 
+  /** An administrator may suspend or restore ANOTHER member. A suspended member keeps the record but has no access and no authority until restored. Own status and the last active administrator are protected. */
+  setMemberStatus(u: ActingUser, orgId: string, userId: string, status: 'active' | 'suspended'): void {
+    return this.#s.transaction(() => {
+      this.#need(orgId, u, true);
+      if (status !== 'active' && status !== 'suspended') throw new RegistryError('INVALID', 'status must be active or suspended');
+      if (userId === u.userId) throw new RegistryError('INVALID_STATE', 'you cannot change your own membership status');
+      const ms = this.#s.membershipsOfOrg(orgId); const m = ms.find((x) => x.userId === userId);
+      if (!m) throw new RegistryError('NOT_FOUND', 'member not found');
+      if (status === 'suspended' && m.role === 'admin' && (m.status ?? 'active') === 'active' && ms.filter((x) => x.role === 'admin' && (x.status ?? 'active') === 'active').length === 1) throw new RegistryError('LAST_ADMIN', 'an organization must keep at least one active administrator');
+      if ((m.status ?? 'active') === status) return;
+      this.#s.putMembership({ ...m, status });
+      this.#log(orgId, u, status === 'suspended' ? 'member.suspended' : 'member.restored', userId, m.role);
+    });
+  }
+
   /** Returns the secret token ONCE; only its hash is stored. */
   invite(u: ActingUser, orgId: string, input: { invitee: unknown; role: unknown }): { invitation: Invitation; token: string } {
     return this.#s.transaction(() => this.#invite(u, orgId, input));
@@ -133,6 +155,7 @@ export class Registry {
   #invite(u: ActingUser, orgId: string, input: { invitee: unknown; role: unknown }): { invitation: Invitation; token: string } {
     this.#need(orgId, u, true);
     const invitee = text(input.invitee, 'invitee', 120, 3);
+    if (/^G[A-Z2-7]{10,}$/.test(invitee) && !isStellarAccount(invitee)) throw new RegistryError('INVALID', 'the invitee looks like a Stellar address but is not a valid one');
     const role: Role = input.role === 'admin' ? 'admin' : 'member';
     const token = randomBytes(24).toString('base64url');
     const inv: Invitation = { id: id('inv'), orgId, invitee, role, tokenHash: sha256(token), status: 'pending', expiresAt: new Date(this.#clock.now().getTime() + INVITE_TTL_MS).toISOString(), createdBy: u.userId };
@@ -162,7 +185,10 @@ export class Registry {
     if (!i || i.status !== 'pending' || new Date(i.expiresAt).getTime() <= this.#clock.now().getTime()) throw bad;
     if (this.#role(i.orgId, u)) throw bad;
     // An invitation addressed to an email can only be accepted by the verified account with that email (a leaked token alone is not enough).
-    if (u.email !== undefined && i.invitee.includes('@') && i.invitee.toLowerCase() !== u.email.toLowerCase()) throw bad;
+    // The binding is by what the invitation names: an email needs the verified account holding that email (a wallet-only user has none); a Stellar address needs a user with that
+    // wallet VERIFIED and active. An invitation that names neither is open to the holder of the token. A leaked token alone never satisfies a bound invitation.
+    if (i.invitee.includes('@')) { if (u.email === undefined ? u.kind !== 'development' : i.invitee.toLowerCase() !== u.email.toLowerCase()) throw bad; }
+    else if (isStellarAccount(i.invitee)) { if (!(u.wallets ?? []).includes(i.invitee)) throw bad; }
     this.#s.putInvitation({ ...i, status: 'accepted' });
     const m: Membership = { orgId: i.orgId, userId: u.userId, role: i.role, since: this.#clock.now().toISOString() };
     this.#s.putMembership(m);
@@ -582,7 +608,7 @@ export class Registry {
     const dec = a.decisions.find((d) => d.calculationId === latest.id && d.status === 'active');
     add('approval', 'The exact calculation has an active institutional approval', dec?.decision === 'approved', dec ? (dec.decision === 'approved' ? 'approved by a reviewer' : 'the calculation was rejected') : 'no active approval: a reviewer must approve this exact calculation');
     const active = new Set(this.#s.participantsOfSession(sessionId).filter((p) => (p.status ?? 'active') === 'active').map((p) => p.userId));
-    const members = new Set(this.#s.membershipsOfOrg(orgId).map((m) => m.userId));
+    const members = new Set(this.#s.membershipsOfOrg(orgId).filter((m) => (m.status ?? 'active') === 'active').map((m) => m.userId));
     const badParty = latest.positions.filter((p) => !active.has(p.userId) || !members.has(p.userId));
     add('participants', 'Every participant is still valid', badParty.length === 0, badParty.length === 0 ? latest.positions.length + ' active participant(s) and organization members' : badParty.length + ' participant(s) were removed or left the organization');
     const rows = new Map(this.#s.obligationsOfSession(sessionId).map((o) => [o.id, o]));
@@ -730,11 +756,12 @@ export class Registry {
   issueWalletChallenge(u: ActingUser, orgId: string, input: { network: unknown; publicKey: unknown }): WalletChallenge {
     return this.#s.transaction(() => {
       this.#need(orgId, u);
-      if (input.network !== 'testnet' && input.network !== 'public') throw new RegistryError('INVALID', 'network must be testnet or public');
+      // Stellar Testnet is the only network enabled in this product: a Mainnet ("public") or any other network is refused here, whatever the client sends.
+      if (input.network !== 'testnet') throw new RegistryError('INVALID', 'only Stellar Testnet is enabled: network must be testnet');
       if (!isStellarAccount(input.publicKey)) throw new RegistryError('INVALID', 'not a valid Stellar account address');
       const issued = this.#clock.now();
       const nonce = randomBytes(24).toString('hex');
-      const base = { orgId, userId: u.userId, network: input.network as 'testnet' | 'public', publicKey: input.publicKey, nonce, issuedAt: issued.toISOString(), expiresAt: new Date(issued.getTime() + CHALLENGE_TTL_MS).toISOString() };
+      const base = { orgId, userId: u.userId, network: 'testnet' as const, publicKey: input.publicKey, nonce, issuedAt: issued.toISOString(), expiresAt: new Date(issued.getTime() + CHALLENGE_TTL_MS).toISOString() };
       const c: WalletChallenge = { id: id('wch'), ...base, message: challengeMessage(base) };
       this.#s.putChallenge(c);
       return c;

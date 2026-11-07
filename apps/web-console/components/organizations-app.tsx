@@ -8,7 +8,7 @@ import { WalletVerification } from './wallet-verification.tsx';
 import { api, ApiError } from './api-client.ts';
 
 interface Org { id: string; name: string; description: string }
-interface Member { userId: string; role: 'admin' | 'member'; reviewer?: boolean; name: string; email?: string; since: string; you: boolean }
+interface Member { userId: string; role: 'admin' | 'member'; reviewer?: boolean; name: string; email?: string; wallet?: string; status?: 'active' | 'suspended'; since: string; you: boolean }
 interface Invitation { id: string; invitee: string; role: string; status: string; expiresAt: string }
 
 export function OrganizationsApp() {
@@ -32,10 +32,11 @@ export function OrganizationsApp() {
 
   const loadOrgs = useCallback(async (select?: string) => {
     try {
-      const who = await api<{ user: { displayName: string } }>('GET', '/api/auth/me'); setMe(who.user.displayName);
+      const who = await api<{ user: { displayName: string }; lastOrgId?: string | null }>('GET', '/api/auth/me'); setMe(who.user.displayName);
       const r = await api<{ organizations: Org[] }>('GET', '/api/registry/orgs');
       setOrgs(r.organizations); setLoaded(true);
-      setOrg((cur) => select ?? (r.organizations.some((o) => o.id === cur) ? cur : r.organizations[0]?.id ?? ''));
+      // the last workspace is only a default: it is used only if the server says the user is still an active member of it
+      setOrg((cur) => select ?? (r.organizations.some((o) => o.id === cur) ? cur : r.organizations.some((o) => o.id === who.lastOrgId) ? (who.lastOrgId as string) : r.organizations[0]?.id ?? ''));
     } catch (e) { fail(e); setLoaded(true); }
   }, []);
   const loadOrg = useCallback(async (id: string) => {
@@ -77,7 +78,7 @@ export function OrganizationsApp() {
       {loaded && orgs.length === 0 && <p className="ss-empty">You are not a member of any organization yet. Create one below, or accept an invitation.</p>}
       {orgs.length > 0 && (
         <label>Active organization{' '}
-          <select value={org} onChange={(e) => setOrg(e.target.value)} aria-label="Active organization">{orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</select>
+          <select value={org} onChange={(e) => { setOrg(e.target.value); void api('POST', '/api/auth/workspace', { orgId: e.target.value }).catch(() => undefined); }} aria-label="Active organization">{orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</select>
         </label>
       )}
 
@@ -92,14 +93,15 @@ export function OrganizationsApp() {
             <thead><tr>{['Name', 'Role', 'Since', 'Actions'].map((c) => <th key={c} scope="col">{c}</th>)}</tr></thead>
             <tbody>{members.map((m) => (
               <tr key={m.userId}>
-                <td data-label="Name">{m.name}{m.you ? ' (you)' : ''}{m.email ? <><br /><small>{m.email}</small></> : null}</td>
-                <td data-label="Role">{m.role}{m.reviewer ? ', reviewer' : ''}</td>
+                <td data-label="Name">{m.name}{m.you ? ' (you)' : ''}{m.email ? <><br /><small>{m.email}</small></> : null}{m.wallet ? <><br /><small>wallet <code>{m.wallet.slice(0, 6)}…{m.wallet.slice(-6)}</code></small></> : null}</td>
+                <td data-label="Role">{m.role}{m.reviewer ? ', reviewer' : ''}{m.status === 'suspended' ? ', suspended' : ''}</td>
                 <td data-label="Since">{m.since.slice(0, 10)}</td>
                 <td data-label="Actions">{role === 'admin' ? (
                   <>
                     <button type="button" onClick={() => setMemberRole(m.userId, m.role === 'admin' ? 'member' : 'admin')}>{m.role === 'admin' ? `Make ${m.name} a member` : `Make ${m.name} an admin`}</button>{' '}
                     <button type="button" onClick={() => setReviewer(m.userId, !m.reviewer)}>{m.reviewer ? `Revoke reviewer from ${m.name}` : `Grant reviewer to ${m.name}`}</button>{' '}
-                    <button type="button" onClick={() => remove(m.userId)}>{`Remove ${m.name}`}</button>
+                    <button type="button" onClick={() => remove(m.userId)}>{`Remove ${m.name}`}</button>{' '}
+                    {!m.you && <button type="button" onClick={() => void run(async () => { await api('POST', `/api/registry/orgs/${org}/members/${m.userId}/status`, { status: m.status === 'suspended' ? 'active' : 'suspended' }); await loadOrg(org); })}>{m.status === 'suspended' ? `Restore ${m.name}` : `Suspend ${m.name}`}</button>}
                   </>) : '—'}</td>
               </tr>))}</tbody>
           </table>
@@ -109,7 +111,7 @@ export function OrganizationsApp() {
             <>
               <h3>Invitations</h3>
               <form onSubmit={invite} className="inst-form">
-                <label>Invitee email <input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} maxLength={120} required /></label>
+                <label>Invitee email or wallet address <input type="text" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} maxLength={120} required /></label>
                 <label>Role <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as 'member' | 'admin')}><option value="member">member</option><option value="admin">admin</option></select></label>
                 <button type="submit">Create invitation</button>
               </form>

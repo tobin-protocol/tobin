@@ -111,7 +111,8 @@ try {
     await P.navigate(`${BASE}/sessions`);
     await P.waitFor(`document.body.innerText.includes('Loading sessions')`, { what: 'loading text' });
     check('a loading message is shown while the list request is pending', true);
-    await P.waitFor(`true`); await sleep(100);
+    // wait for the condition (bounded) instead of a fixed pause: the request is issued after the organization lookups, which take a variable 100 to 250 ms
+    for (const t0 = Date.now(); held === null && Date.now() - t0 < 5000;) await sleep(10);
     check('the list request was intercepted by the test', held !== null);
     await P.send('Fetch.continueRequest', { requestId: held });
     await P.send('Fetch.disable');

@@ -6,7 +6,7 @@ import { api } from './api-client.ts';
 
 type Mode = 'signin' | 'register';
 
-export function AuthPanel() {
+export function AuthPanel({ embedded = false }: { embedded?: boolean } = {}) {
   const [mode, setMode] = useState<Mode>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -22,10 +22,11 @@ export function AuthPanel() {
     } catch (e) { setError((e as Error).message); setBusy(false); }
   };
 
+  const Root = (embedded ? 'div' : 'main') as 'div';
   return (
-    <main className="ss" aria-live="polite">
-      <h2>{mode === 'signin' ? 'Sign in' : 'Create an account'}</h2>
-      <p className="ss-note">Accounts are stored in this application. Signing in does not use a wallet and does not touch the Stellar network.</p>
+    <Root className={embedded ? 'wf-legacy' : 'ss'} aria-live="polite">
+      {embedded ? <h3>Existing email account</h3> : <h2>{mode === 'signin' ? 'Sign in' : 'Create an account'}</h2>}
+      <p className="ss-note">{embedded ? 'Accounts created with an email address keep working. ' : ''}Accounts are stored in this application. Signing in with an email does not use a wallet and does not touch the Stellar network.</p>
       <form onSubmit={submit} className="inst-form">
         {mode === 'register' && <label>Name <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={80} required autoComplete="name" /></label>}
         <label>Email <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={254} required autoComplete="email" /></label>
@@ -39,6 +40,6 @@ export function AuthPanel() {
           ? <>No account yet? <button type="button" className="ss-link" onClick={() => { setMode('register'); setError(null); }}>Create one</button></>
           : <>Already registered? <button type="button" className="ss-link" onClick={() => { setMode('signin'); setError(null); }}>Sign in</button></>}
       </p>
-    </main>
+    </Root>
   );
 }

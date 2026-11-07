@@ -11,7 +11,7 @@ async function handle(request: Request): Promise<Response> {
     return await handleRegistry(request, {
       registry: b.registry,
       authenticate: authenticateRequest(b.auth),
-      directory: (ids) => new Map([...b.auth.summaries(ids)].map(([k, v]) => [k, { displayName: v.displayName, email: v.email }])),
+      directory: (ids) => new Map([...b.auth.summaries(ids)].map(([k, v]) => [k, { displayName: v.displayName, email: v.email, ...(v.wallet ? { wallet: v.wallet } : {}) }])),
       rate: { count: (k, w) => b.auth.rateCount(k, w), fail: (k) => b.auth.rateFail(k) },
       newSessionId: randomSessionId,
     });

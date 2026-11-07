@@ -203,7 +203,7 @@ test('migration 5 upgrades a populated version-4 database without changing histo
     INSERT INTO settlement_instructions (id, batch_id, session_id, calculation_id, seq, payer, payee, asset_id, amount) VALUES ('ins_old', 'bat_old', '${SID}', '${CALC}', 1, 'usr_1', 'usr_2', '${ASSET}', '10');
     INSERT INTO settlement_batch_reviews (id, batch_id, decision, reason, decided_by, decided_at) VALUES ('brv_old', 'bat_old', 'rejected', 'old reason', 'usr_2', 't');
     INSERT INTO settlement_batch_invalidations (batch_id, cause, at, by_actor) VALUES ('bat_old', 'old cause', 't', 'usr_1');`);
-  const st = migrate(db); assert.equal(st.current, 7);
+  const st = migrate(db); assert.equal(st.current, 8);
   const g = (sql: string) => db.raw.prepare(sql).get() as Record<string, unknown>;
   const b = g("SELECT * FROM settlement_batches WHERE id = 'bat_old'"); assert.equal(b['attempt'], 1); assert.equal(b['instructions_hash'], FP); assert.equal(b['total_amount'], '10'); assert.equal(b['asset_id'], ASSET);
   const i = g("SELECT * FROM settlement_instructions WHERE id = 'ins_old'"); assert.equal(i['amount'], '10'); assert.equal(i['org_id'], 'org_1'); assert.equal(i['network'], 'testnet'); assert.equal(i['approval_decision_id'], 'dec_old'); assert.equal(i['fingerprint'], null, 'legacy rows get no invented fingerprint'); assert.equal(i['source_account'], null);

@@ -10,13 +10,23 @@ export interface Organization {
   visibility: 'private' | 'public';
   createdAt: string;
   createdBy: string;
+  /** optional institution details collected at onboarding (application data only) */
+  institutionType?: InstitutionType;
+  /** ISO 3166-1 alpha-2 country code of the institution, when given */
+  jurisdiction?: string;
 }
 
+export const INSTITUTION_TYPES = ['bank', 'payment-institution', 'broker-dealer', 'fintech', 'corporate-treasury', 'other'] as const;
+export type InstitutionType = (typeof INSTITUTION_TYPES)[number];
+
+export type MembershipStatus = 'active' | 'suspended';
 export interface Membership {
   orgId: string;
   userId: string;
   role: Role;
   since: string;
+  /** a suspended member keeps the record but has no access and no authority; absent means active */
+  status?: MembershipStatus;
 }
 
 /** A Stellar address linked to an organization. `proof: 'none'` means the link is a claim, NOT proof of control. */

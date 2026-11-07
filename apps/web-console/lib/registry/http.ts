@@ -13,13 +13,14 @@ export const REQUEST_HEADER = 'x-tobin-request';
 const USER_ID = /usr_[0-9a-f]{18}/g;
 
 export interface Directory { displayName(userId: string): string | undefined; email(userId: string): string | undefined }
+export interface DirectoryEntry { displayName: string; email: string; /** the user's first verified wallet, for display to administrators only */ wallet?: string }
 
 export interface RegistryDeps {
   registry: Registry;
   /** resolves the acting user from the request (session cookie), or null */
   authenticate: (request: Request) => Promise<ActingUser | null> | ActingUser | null;
   /** user display data for member lists and activity; absent for development identities */
-  directory?: (ids: readonly string[]) => Map<string, { displayName: string; email: string }>;
+  directory?: (ids: readonly string[]) => Map<string, DirectoryEntry>;
   /** failure counter used to slow down invitation-token guessing */
   rate?: { count: (key: string, windowMs: number) => number; fail: (key: string) => void };
   newSessionId: () => string;
@@ -49,7 +50,7 @@ export async function handleRegistry(request: Request, deps: RegistryDeps): Prom
     if (!user) return json(401, { error: 'UNAUTHENTICATED', message: 'Sign in to continue.' });
     const parts = new URL(request.url).pathname.replace(/^\/api\/registry\/?/, '').split('/').filter(Boolean);
     const r = deps.registry;
-    const names = (ids: readonly string[]) => deps.directory?.(ids) ?? new Map<string, { displayName: string; email: string }>();
+    const names = (ids: readonly string[]) => deps.directory?.(ids) ?? new Map<string, DirectoryEntry>();
 
     if (parts[0] === 'invitations' && parts[1] === 'accept' && parts.length === 2 && m === 'POST') {
       const key = `accept:${user.userId}`;
@@ -67,7 +68,7 @@ export async function handleRegistry(request: Request, deps: RegistryDeps): Prom
 
     if (parts[0] === 'orgs') {
       if (parts.length === 1 && m === 'GET') return json(200, { organizations: r.myOrganizations(user), actingAs: user.userId });
-      if (parts.length === 1 && m === 'POST') { const b = await readBody(request); return json(201, { organization: r.createOrganization(user, { name: b['name'], description: b['description'], visibility: b['visibility'] }) }); }
+      if (parts.length === 1 && m === 'POST') { const b = await readBody(request); return json(201, { organization: r.createOrganization(user, { name: b['name'], description: b['description'], visibility: b['visibility'], institutionType: b['institutionType'], jurisdiction: b['jurisdiction'] }) }); }
       const orgId = parts[1] as string;
       const sub = parts[2];
 
@@ -86,10 +87,11 @@ export async function handleRegistry(request: Request, deps: RegistryDeps): Prom
           const isAdmin = ms.some((x) => x.userId === user.userId && x.role === 'admin');
           const d = names(ms.map((x) => x.userId));
           const rv = new Set(r.reviewers(user, orgId).map((g) => g.userId));
-          return json(200, { members: ms.map((x) => ({ userId: x.userId, role: x.role, reviewer: rv.has(x.userId), since: x.since, name: d.get(x.userId)?.displayName ?? x.userId, ...(isAdmin && d.get(x.userId) ? { email: d.get(x.userId)?.email } : {}), you: x.userId === user.userId })) });
+          return json(200, { members: ms.map((x) => ({ userId: x.userId, role: x.role, reviewer: rv.has(x.userId), since: x.since, status: x.status ?? 'active', name: d.get(x.userId)?.displayName ?? x.userId, ...(isAdmin && d.get(x.userId) ? { email: d.get(x.userId)?.email, ...(d.get(x.userId)?.wallet ? { wallet: d.get(x.userId)?.wallet } : {}) } : {}), you: x.userId === user.userId })) });
         }
         if (parts.length === 5 && parts[4] === 'role' && m === 'POST') { const b = await readBody(request); r.setRole(user, orgId, parts[3] as string, roleOf(b['role'])); return json(200, { ok: true }); }
         if (parts.length === 5 && parts[4] === 'remove' && m === 'POST') { r.removeMember(user, orgId, parts[3] as string); return json(200, { ok: true }); }
+        if (parts.length === 5 && parts[4] === 'status' && m === 'POST') { const b = await readBody(request); r.setMemberStatus(user, orgId, parts[3] as string, b['status'] === 'suspended' ? 'suspended' : b['status'] === 'active' ? 'active' : (() => { throw new RegistryError('INVALID', 'status must be active or suspended'); })()); return json(200, { ok: true }); }
       }
       if (sub === 'wallet-challenges') {
         if (parts.length === 3 && m === 'POST') {

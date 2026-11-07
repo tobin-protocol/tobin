@@ -7,6 +7,10 @@ export interface ActingUser {
   kind: 'development' | 'verified';
   /** only for verified users; used to bind an invitation addressed to an email */
   email?: string;
+  /** Stellar addresses this user has VERIFIED (active). Used to bind an invitation addressed to a wallet and to gate owner tooling. Never an authority by itself. */
+  wallets?: string[];
+  /** how the session was established; informational */
+  authMethod?: 'password' | 'wallet';
 }
 
 export interface IdentityProvider {

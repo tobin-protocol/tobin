@@ -253,7 +253,7 @@ test('migration 3 upgrades a version-2 database and keeps its data', async () =>
   db.raw.exec(`INSERT INTO users (id, email, display_name, password_hash, created_at) VALUES ('usr_1', 'a@x.test', 'A', 'h', 't');
     INSERT INTO organizations (id, name, visibility, created_at, created_by) VALUES ('org_1', 'Org', 'private', 't', 'usr_1');
     INSERT INTO memberships (org_id, user_id, role, since) VALUES ('org_1', 'usr_1', 'admin', 't');`);
-  assert.equal(migrate(db).current, 7);
+  assert.equal(migrate(db).current, 8);
   assert.equal((db.raw.prepare('SELECT count(*) AS n FROM memberships').get() as { n: number }).n, 1);
   assert.equal((db.raw.prepare('SELECT count(*) AS n FROM authorization_decisions').get() as { n: number }).n, 0);
 });

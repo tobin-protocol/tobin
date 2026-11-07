@@ -542,6 +542,81 @@ CREATE TRIGGER signer_set_snapshots_no_update BEFORE UPDATE ON signer_set_snapsh
 CREATE TRIGGER signer_set_snapshots_no_delete BEFORE DELETE ON signer_set_snapshots BEGIN SELECT RAISE(ABORT, 'signer-set snapshots are immutable'); END;
 `,
   },
+  {
+    version: 8,
+    name: 'wallet-first authentication: verified user wallets, single-use sign-in challenges, auth audit, onboarding progress, institution fields, membership status',
+    sql: `
+-- A wallet signs in; it never grants an institutional role. An internal user can exist without an email or a password (auth_method = 'wallet'): such a user keeps a
+-- reserved placeholder email (the .invalid domain cannot be registered or used to sign in) because users.email is NOT NULL in the accepted schema.
+ALTER TABLE users ADD COLUMN auth_method TEXT NOT NULL DEFAULT 'password' CHECK (auth_method IN ('password', 'wallet'));
+ALTER TABLE users ADD COLUMN updated_at TEXT;
+ALTER TABLE auth_sessions ADD COLUMN last_seen_at TEXT;
+ALTER TABLE auth_sessions ADD COLUMN auth_method TEXT NOT NULL DEFAULT 'password' CHECK (auth_method IN ('password', 'wallet'));
+ALTER TABLE auth_sessions ADD COLUMN wallet_id TEXT;
+CREATE INDEX auth_sessions_wallet ON auth_sessions(wallet_id);
+
+-- Verified wallets of an internal user. History is kept: a wallet is revoked, never deleted. At most ONE active user per (network, key): a key is never silently moved or merged.
+CREATE TABLE user_wallets (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  network TEXT NOT NULL CHECK (network IN ('testnet')),
+  public_key TEXT NOT NULL CHECK (length(public_key) = 56 AND public_key GLOB 'G*'),
+  status TEXT NOT NULL CHECK (status IN ('active', 'revoked')),
+  verified_at TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  revoked_at TEXT,
+  revoked_reason TEXT,
+  CHECK ((status = 'revoked') = (revoked_at IS NOT NULL))
+);
+CREATE UNIQUE INDEX user_wallets_active_key ON user_wallets(network, public_key) WHERE status = 'active';
+CREATE INDEX user_wallets_user ON user_wallets(user_id, status);
+CREATE TRIGGER user_wallets_no_delete BEFORE DELETE ON user_wallets BEGIN SELECT RAISE(ABORT, 'wallet records are kept'); END;
+CREATE TRIGGER user_wallets_identity_fixed BEFORE UPDATE OF user_id, network, public_key, verified_at, created_at ON user_wallets BEGIN SELECT RAISE(ABORT, 'a wallet record cannot be moved to another user or key'); END;
+CREATE TRIGGER user_wallets_revoked_final BEFORE UPDATE ON user_wallets WHEN old.status = 'revoked' BEGIN SELECT RAISE(ABORT, 'a revoked wallet record is final'); END;
+
+-- One-time challenges for wallet sign-in and for adding a wallet. The signed text is rebuilt from THIS row, never taken from the client. Consumption is a single guarded UPDATE.
+CREATE TABLE auth_challenges (
+  id TEXT PRIMARY KEY CHECK (length(id) = 32 AND id NOT GLOB '*[^0-9a-f]*'),
+  purpose TEXT NOT NULL CHECK (purpose IN ('sign-in', 'link-wallet')),
+  network TEXT NOT NULL CHECK (network IN ('testnet')),
+  public_key TEXT NOT NULL CHECK (length(public_key) = 56 AND public_key GLOB 'G*'),
+  user_id TEXT REFERENCES users(id),
+  domain TEXT NOT NULL CHECK (length(domain) BETWEEN 1 AND 100),
+  nonce TEXT NOT NULL CHECK (length(nonce) = 32 AND nonce NOT GLOB '*[^0-9a-f]*'),
+  issued_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  consumed_at TEXT,
+  failures INTEGER NOT NULL DEFAULT 0,
+  CHECK ((purpose = 'link-wallet') = (user_id IS NOT NULL))
+);
+CREATE INDEX auth_challenges_expiry ON auth_challenges(expires_at);
+
+-- Authentication and wallet events (no signatures, no tokens). Append-only at the database level.
+CREATE TABLE auth_audit (
+  seq INTEGER PRIMARY KEY AUTOINCREMENT,
+  at TEXT NOT NULL,
+  user_id TEXT,
+  kind TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  detail TEXT NOT NULL
+);
+CREATE INDEX auth_audit_user ON auth_audit(user_id, seq);
+CREATE TRIGGER auth_audit_no_update BEFORE UPDATE ON auth_audit BEGIN SELECT RAISE(ABORT, 'auth audit records are immutable'); END;
+CREATE TRIGGER auth_audit_no_delete BEFORE DELETE ON auth_audit BEGIN SELECT RAISE(ABORT, 'auth audit records are immutable'); END;
+
+-- Onboarding progress and last workspace, kept on the server. The last workspace is only a preference: it is re-checked against active membership every time it is used.
+CREATE TABLE onboarding (
+  user_id TEXT PRIMARY KEY REFERENCES users(id),
+  profile_done INTEGER NOT NULL DEFAULT 0 CHECK (profile_done IN (0, 1)),
+  last_org_id TEXT REFERENCES organizations(id),
+  updated_at TEXT NOT NULL
+);
+
+ALTER TABLE organizations ADD COLUMN institution_type TEXT CHECK (institution_type IS NULL OR institution_type IN ('bank', 'payment-institution', 'broker-dealer', 'fintech', 'corporate-treasury', 'other'));
+ALTER TABLE organizations ADD COLUMN jurisdiction TEXT CHECK (jurisdiction IS NULL OR (length(jurisdiction) = 2 AND jurisdiction NOT GLOB '*[^A-Z]*'));
+ALTER TABLE memberships ADD COLUMN status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended'));
+`,
+  },
 ];
 
 export class Database {

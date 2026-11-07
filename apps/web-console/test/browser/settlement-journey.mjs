@@ -44,7 +44,8 @@ function check(name, cond, detail = '') {
 async function step(name, fn) {
   currentStep = name;
   try { await fn(); } catch (e) { let page = ''; try { page = await pages[0].ev("document.querySelector('main')?.innerText.slice(0, 700) ?? ''"); } catch { /* page unavailable */ }
-    check('step completed without an exception', false, (e instanceof Error ? e.message : String(e)) + ' | page: ' + page); }
+    let where = ''; try { where = await pages[0].ev("location.href + ' | readyState ' + document.readyState + ' | title ' + document.title + ' | html ' + document.documentElement.outerHTML.slice(0, 300).replace(/\s+/g, ' ')"); } catch { /* page unavailable */ }
+    check('step completed without an exception', false, (e instanceof Error ? e.message : String(e)) + ' | page: ' + page + ' | at: ' + where); }
 }
 
 // ---- seed through the application's own services; the settlement workflow itself is driven through the UI ----
@@ -386,8 +387,8 @@ try {
   if (browser) browser.child.kill();
   if (server) { server.removeAllListeners('exit'); server.kill(); }
   await sleep(800);
-  rmSync(join(out, '.profile-settlement'), { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
-  rmSync(dbDir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+  // temporary artifacts only: on Windows the browser may still hold a lock for a moment, and that must not turn finished results into a crash
+  for (const d of [join(out, '.profile-settlement'), dbDir]) { try { rmSync(d, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }); } catch (e) { console.log('note: could not remove ' + d + ' (' + (e.code ?? e.message) + ')'); } }
 }
 const failed = results.filter((r) => !r.ok);
 writeFileSync(join(out, `settlement-journey-results-${W}.json`), JSON.stringify({ browser: browser?.version, width: W, total: results.length, failed: failed.length, results }, null, 2));

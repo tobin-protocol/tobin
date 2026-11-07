@@ -14,7 +14,7 @@ function sessionOf(r: Row): SessionRecord {
   return s;
 }
 const invitationOf = (r: Row): Invitation => ({ id: r['id'] as string, orgId: r['org_id'] as string, invitee: r['invitee'] as string, role: r['role'] as Invitation['role'], tokenHash: r['token_hash'] as string, status: r['status'] as Invitation['status'], expiresAt: r['expires_at'] as string, createdBy: r['created_by'] as string });
-const membershipOf = (r: Row): Membership => ({ orgId: r['org_id'] as string, userId: r['user_id'] as string, role: r['role'] as Membership['role'], since: r['since'] as string });
+const membershipOf = (r: Row): Membership => ({ orgId: r['org_id'] as string, userId: r['user_id'] as string, role: r['role'] as Membership['role'], since: r['since'] as string, status: (r['status'] as Membership['status']) ?? 'active' });
 
 const obligationOf = (r: Row): ObligationRecord => ({ id: r['id'] as string, sessionId: r['session_id'] as string, orgId: r['org_id'] as string, debtor: r['debtor'] as string, creditor: r['creditor'] as string, amount: r['amount'] as string, asset: r['asset'] as string, reference: r['reference'] as string, status: r['status'] as ObligationRecord['status'], revision: Number(r['revision']), createdAt: r['created_at'] as string, createdBy: r['created_by'] as string, updatedAt: r['updated_at'] as string, updatedBy: r['updated_by'] as string, ...(r['asset_ref'] !== null ? { assetRef: r['asset_ref'] as string } : {}), assetIdentity: r['asset_identity'] as ObligationRecord['assetIdentity'] });
 const calculationOf = (r: Row): CalculationRecord => ({ id: r['id'] as string, sessionId: r['session_id'] as string, orgId: r['org_id'] as string, asset: r['asset'] as string, inputHash: r['input_hash'] as string, input: JSON.parse(r['input_json'] as string) as CalculationRecord['input'], positions: JSON.parse(r['positions_json'] as string) as CalculationRecord['positions'], gross: r['gross'] as string, createdAt: r['created_at'] as string, createdBy: r['created_by'] as string, ...(r['asset_ref'] !== null && r['asset_ref'] !== undefined ? { assetRef: r['asset_ref'] as string } : {}) });
@@ -27,15 +27,15 @@ export class SqliteRegistryStore implements RegistryStore {
   transaction<T>(fn: () => T): T { return this.#db.tx(fn); }
 
   putOrganization(o: Organization) {
-    this.#q('INSERT INTO organizations (id, name, description, visibility, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, description = excluded.description, visibility = excluded.visibility')
-      .run(o.id, o.name, o.description, o.visibility, o.createdAt, o.createdBy);
+    this.#q('INSERT INTO organizations (id, name, description, visibility, created_at, created_by, institution_type, jurisdiction) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, description = excluded.description, visibility = excluded.visibility')
+      .run(o.id, o.name, o.description, o.visibility, o.createdAt, o.createdBy, o.institutionType ?? null, o.jurisdiction ?? null);
   }
   getOrganization(id: string) {
     const r = this.#q('SELECT * FROM organizations WHERE id = ?').get(id) as Row | undefined;
-    return r && { id: r['id'] as string, name: r['name'] as string, description: r['description'] as string, visibility: r['visibility'] as Organization['visibility'], createdAt: r['created_at'] as string, createdBy: r['created_by'] as string };
+    return r && { id: r['id'] as string, name: r['name'] as string, description: r['description'] as string, visibility: r['visibility'] as Organization['visibility'], createdAt: r['created_at'] as string, createdBy: r['created_by'] as string, ...(r['institution_type'] ? { institutionType: r['institution_type'] as Organization['institutionType'] } : {}), ...(r['jurisdiction'] ? { jurisdiction: r['jurisdiction'] as string } : {}) };
   }
   putMembership(m: Membership) {
-    this.#q('INSERT INTO memberships (org_id, user_id, role, since) VALUES (?, ?, ?, ?) ON CONFLICT(org_id, user_id) DO UPDATE SET role = excluded.role').run(m.orgId, m.userId, m.role, m.since);
+    this.#q('INSERT INTO memberships (org_id, user_id, role, since, status) VALUES (?, ?, ?, ?, ?) ON CONFLICT(org_id, user_id) DO UPDATE SET role = excluded.role, status = excluded.status').run(m.orgId, m.userId, m.role, m.since, m.status ?? 'active');
   }
   removeMembership(orgId: string, userId: string) { this.#q('DELETE FROM memberships WHERE org_id = ? AND user_id = ?').run(orgId, userId); }
   membershipsOfOrg(orgId: string) { return rows(this.#q('SELECT * FROM memberships WHERE org_id = ? ORDER BY since, user_id').all(orgId)).map(membershipOf); }

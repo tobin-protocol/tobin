@@ -41,7 +41,7 @@ export function client(b: Backend) {
     const req = new Request(`http://127.0.0.1:8787${path}`, { method, headers, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
     const res = path.startsWith('/api/auth/')
       ? await handleAuth(req, { auth: b.auth, secureCookies: true })
-      : await handleRegistry(req, { registry: b.registry, authenticate: authenticateRequest(b.auth), directory: (ids) => new Map([...b.auth.summaries(ids)].map(([k, v]) => [k, { displayName: v.displayName, email: v.email }])), rate, newSessionId: () => crypto.randomUUID().replaceAll('-', '').repeat(2) });
+      : await handleRegistry(req, { registry: b.registry, authenticate: authenticateRequest(b.auth), directory: (ids) => new Map([...b.auth.summaries(ids)].map(([k, v]) => [k, { displayName: v.displayName, email: v.email, ...(v.wallet ? { wallet: v.wallet } : {}) }])), rate, newSessionId: () => crypto.randomUUID().replaceAll('-', '').repeat(2) });
     const set = res.headers.get('set-cookie');
     if (set) { const v = set.split(';')[0] as string; cookie = v.endsWith('=') ? '' : v; }
     return { status: res.status, headers: res.headers, body: (await res.json()) as Record<string, any> };

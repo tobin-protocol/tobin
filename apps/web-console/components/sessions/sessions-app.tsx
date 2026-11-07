@@ -37,8 +37,8 @@ export function SessionsApp() {
 
   const loadOrgs = useCallback(async () => {
     try {
-      const who = await api<{ user: { displayName: string } }>('GET', '/api/auth/me'); setMe(who.user.displayName);
-      const r = await api<{ organizations: Org[] }>('GET', '/api/registry/orgs'); setOrgs(r.organizations); setOrgsLoaded(true); setOrg((cur) => cur || r.organizations[0]?.id || '');
+      const who = await api<{ user: { displayName: string }; lastOrgId?: string | null }>('GET', '/api/auth/me'); setMe(who.user.displayName);
+      const r = await api<{ organizations: Org[] }>('GET', '/api/registry/orgs'); setOrgs(r.organizations); setOrgsLoaded(true); setOrg((cur) => cur || (r.organizations.some((o) => o.id === who.lastOrgId) ? (who.lastOrgId as string) : r.organizations[0]?.id) || '');
     } catch (e) { if (e instanceof ApiError && e.status === 401) setSignedOut(true); else setError((e as Error).message); setLoading(false); }
   }, []);
   const loadRows = useCallback(async (o: string) => {
@@ -84,7 +84,7 @@ export function SessionsApp() {
         <p className="ss-empty">You are not a member of any organization yet. <Link href="/organizations">Create one or accept an invitation</Link> under Organizations.</p>
       ) : null}
       {signedOut || (orgsLoaded && orgs.length === 0) ? null : <label>Organization{' '}
-        <select value={org} onChange={(e) => setOrg(e.target.value)} aria-label="Organization">
+        <select value={org} onChange={(e) => { setOrg(e.target.value); void api('POST', '/api/auth/workspace', { orgId: e.target.value }).catch(() => undefined); }} aria-label="Organization">
           {orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
         </select>
       </label>}

@@ -8,3 +8,31 @@
 .inst-form { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .8rem; margin: .5rem 0 1rem; }
 .inst-form small { flex-basis: 100%; }
 @media (max-width: 40rem) { .inst-nav .inst-end { margin-left: 0; flex-basis: 100%; } .inst-form label { display: block; width: 100%; } .inst-form input, .inst-form select { width: 100%; } }
+
+/* ---- wallet-first sign-in, onboarding and account (wf-*) ---- */
+.wf-hero { margin: .5rem 0 1rem; padding: 1.1rem 1.2rem; border: 1px solid var(--line); border-radius: 8px; }
+.wf-hero h2 { margin: 0 0 .35rem; }
+.wf-lead { margin: 0 0 .8rem; max-width: 42rem; }
+.wf-actions { display: flex; flex-wrap: wrap; gap: .5rem .7rem; align-items: center; margin: .6rem 0; }
+.wf-primary { padding: .55rem 1.1rem; font-size: 1rem; font-weight: 600; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: var(--bg); cursor: pointer; }
+.wf-primary:disabled { opacity: .6; cursor: progress; }
+.wf-primary:focus-visible, .wf-card button:focus-visible, .wf-actions button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.wf-status { margin: .5rem 0; padding: .55rem .8rem; border-left: 4px solid var(--line); }
+.wf-status[data-tone='ok'] { border-left-color: #2f9e44; }
+.wf-status[data-tone='warn'] { border-left-color: #e8590c; }
+.wf-status[data-tone='busy'] { border-left-color: var(--accent); }
+.wf-how { margin: .4rem 0 0; padding-left: 1.2rem; }
+.wf-how li { padding: .1rem 0; }
+.wf-card { margin: 1rem 0; padding: .9rem 1.1rem; border: 1px solid var(--line); border-radius: 8px; }
+.wf-card h3 { margin-top: 0; }
+.wf-secondary { margin-top: 1.5rem; padding-top: .8rem; border-top: 1px solid var(--line); }
+.wf-steps { display: flex; flex-wrap: wrap; gap: .4rem; list-style: none; margin: .4rem 0 1rem; padding: 0; }
+.wf-steps li { padding: .2rem .7rem; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); }
+.wf-steps li[aria-current='step'] { border-color: var(--accent); color: inherit; font-weight: 600; }
+.wf-steps li[data-done='true'] { color: inherit; }
+.wf-banner { margin: 0 auto; max-width: 60rem; padding: .5rem 1rem; }
+.wf-banner p { margin: 0; padding: .5rem .8rem; border: 1px solid #e8590c; border-radius: 6px; }
+.inst-nav select { max-width: 14rem; }
+@media (max-width: 40rem) { .wf-primary { width: 100%; } .wf-actions { flex-direction: column; align-items: stretch; } .wf-hero, .wf-card { padding: .8rem; } .wf-card textarea, .wf-card select, .wf-card input { max-width: 100%; width: 100%; } }
+.wf-card td[data-label='When'], .wf-card td[data-label='Event'], .wf-card td[data-label='Verified'] { white-space: nowrap; }
+@media (max-width: 40rem) { .wf-card td[data-label='When'], .wf-card td[data-label='Event'], .wf-card td[data-label='Verified'] { white-space: normal; } }

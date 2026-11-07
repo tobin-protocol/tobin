@@ -175,8 +175,12 @@ test('execution: an unapproved, rejected, invalidated or empty batch cannot star
   await w.c.ann.call('POST', `${w.base}/obligations/${(await w.c.ann.call('GET', `${w.base}/obligations`)).body['obligations'][0].id}/update`, { amount: '101' });
   const r = await w.c.ann.call('POST', `${w.base}/settlement/batches/${bid}/execution/start`, {}); assert.equal(r.status, 409); assert.match(r.body['message'], /invalidated|no longer eligible|only an approved/);
   assert.equal(count(w, 'settlement_executions'), 0);
-  // a key verified on the OTHER network does not satisfy a testnet batch
-  const w2 = await world(); for (const n of ['ann', 'bob', 'cat'] as N[]) await verifyKey(w2, n, newKey(), 'public');
+  // a key can no longer be verified on the OTHER network at all (Testnet is the only enabled network), so a testnet batch still finds no verified account
+  const w2 = await world();
+  for (const n of ['ann', 'bob', 'cat'] as N[]) {
+    const r0 = await w2.c[n].call('POST', `/api/registry/orgs/${w2.org}/wallet-challenges`, { network: 'public', publicKey: newKey().address });
+    assert.equal(r0.status, 400, JSON.stringify(r0.body)); assert.equal(r0.body['error'], 'INVALID');
+  }
   const b2 = await approvedBatch(w2);
   const r2 = await w2.c.ann.call('POST', `${w2.base}/settlement/batches/${b2}/execution/start`, {}); assert.equal(r2.status, 409); assert.match(r2.body['message'], /on testnet/);
 });
