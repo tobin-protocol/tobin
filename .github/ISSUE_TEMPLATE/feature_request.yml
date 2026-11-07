@@ -1,0 +1,76 @@
+name: Feature proposal
+description: Propose a capability or a change to the design.
+title: "proposal: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the proposal. Please read the [README](https://github.com/tobin-protocol/tobin/blob/main/README.md) (status and roadmap) and [CONTRIBUTING.md](https://github.com/tobin-protocol/tobin/blob/main/CONTRIBUTING.md) first. The approved milestones are not renamed, reordered or expanded through feature requests; a proposal that changes scope, architecture, security assumptions or financial invariants needs explicit owner approval before anyone builds it.
+
+        Tobin is Testnet-only. Proposals for Mainnet use, token minting or supply changes, or contract governance changes are handled by the project owner, not through this form.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem does this solve? Who has it today?
+    validations:
+      required: true
+  - type: textarea
+    id: users
+    attributes:
+      label: Intended users
+      description: Which kind of institution, role or contributor benefits?
+    validations:
+      required: true
+  - type: textarea
+    id: capability
+    attributes:
+      label: Proposed capability
+      description: What should Tobin do? Describe behaviour, not code.
+    validations:
+      required: true
+  - type: textarea
+    id: value
+    attributes:
+      label: Expected value
+      description: What improves, and how would we know?
+    validations:
+      required: true
+  - type: textarea
+    id: implementation
+    attributes:
+      label: Suggested implementation (optional)
+      description: If you know where it would go, name the files or subsystems.
+    validations:
+      required: false
+  - type: textarea
+    id: architecture
+    attributes:
+      label: Architecture implications
+      description: Does it touch a trust boundary, a state machine, the database schema (a migration), an API, a contract or the ABI, or add a dependency?
+    validations:
+      required: true
+  - type: textarea
+    id: security-financial
+    attributes:
+      label: Security and financial implications
+      description: Effects on authorization, wallet or signer handling, secrets, approvals, conservation of value, duplicate execution or reconciliation. Write "none identified" only if you considered them.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other ways to solve it, including doing nothing.
+    validations:
+      required: false
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and pull requests for the same idea.
+          required: true
+        - label: I understand that this proposal needs agreement before implementation.
+          required: true

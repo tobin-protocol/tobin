@@ -147,3 +147,22 @@ test('the exception does not change the other rules: a seed in an ordinary file 
   assert.equal(scanFile('docs/notes.md', 'x ' + contractId('C'), known).length, 1);
   assert.equal(scanFile('apps/web-console/lib/x.ts', 'const a = "' + contractId('B') + '";', known).length, 1);
 });
+
+// ---- the repository-root CLAUDE.md is a published file; a CLAUDE.md anywhere else is still excluded ----
+test('the repository-root CLAUDE.md is allowed, and its content is still scanned', () => {
+  assert.deepEqual(scanFile('CLAUDE.md', '# Claude Code\n\nRead AGENTS.md first.\n'), []);
+  assert.ok(scanFile('CLAUDE.md', secretSeed()).some((x) => /secret-seed-shaped/.test(x)), 'a secret in the root file still fails');
+  assert.ok(scanFile('CLAUDE.md', 'see ' + '/c/' + 'Users/someone/project').some((x) => /absolute local user path/.test(x)), 'a local path in the root file still fails');
+  assert.ok(scanFile('CLAUDE.md', 'x ' + contractId('C'), new Set()).some((x) => /contract-id-shaped/.test(x)), 'a contract id in the root file still fails');
+});
+test('a CLAUDE.md in any subdirectory is still an excluded path, whatever it contains', () => {
+  for (const p of ['apps/CLAUDE.md', 'docs/CLAUDE.md', 'apps/web-console/CLAUDE.md', 'a/b/c/CLAUDE.md', 'tobin-protocol/CLAUDE.md']) {
+    assert.ok(scanFile(p, 'harmless').some((x) => /excluded or unsuitable path/.test(x)), p);
+  }
+});
+test('other agent instruction files are not excluded, and a lookalike root name is not the allowed file', () => {
+  assert.deepEqual(scanFile('AGENTS.md', '# agents\n'), []);
+  assert.deepEqual(scanFile('apps/landing/AGENTS.md', '# agents\n'), []);
+  assert.deepEqual(scanFile('claude.md', 'x'), [], 'a different file name is simply an ordinary file');
+  assert.ok(scanFile('docs/NOT-CLAUDE.md', 'x').length === 0, 'only the exact name CLAUDE.md is special');
+});
