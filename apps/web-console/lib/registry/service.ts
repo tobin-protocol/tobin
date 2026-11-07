@@ -10,6 +10,9 @@ import type { Currency, ReadinessCheck } from './clearing.ts';
 import { authState, conflictedActors, decisionStatus } from './authorization.ts';
 import type { AuthState, DecisionStatus } from './authorization.ts';
 import type { AuthorizationDecision, ReviewerGrant } from './types.ts';
+import { ALGORITHM, INSTRUCTION_CEILING, assetCanonicalId, batchStatus, buildInstructions, instructionId, instructionsHash, integrityChecks, resolveAsset } from './settlement.ts';
+import type { BatchStatus, PlannedInstruction, PrepCheck } from './settlement.ts';
+import type { BatchInvalidation, BatchReview, SettlementBatch, SettlementInstruction, SupportedAsset } from './types.ts';
 
 export interface Clock { now(): Date }
 const systemClock: Clock = { now: () => new Date() };
@@ -421,6 +424,12 @@ export class Registry {
       this.#s.putInvalidation({ decisionId: d.id, cause, at: this.#clock.now().toISOString(), by: u.userId });
       this.#log(orgId, u, 'authorization.invalidated', sessionId, `${d.decision} decision on calculation ${this.#short(d.calculationId)} no longer applies: ${cause}`);
     }
+    const batchDone = new Set(this.#s.batchInvalidationsOfSession(sessionId).map((i) => i.batchId));
+    for (const b of this.#s.batchesOfSession(sessionId)) {
+      if (batchDone.has(b.id)) continue;
+      this.#s.putBatchInvalidation({ batchId: b.id, cause, at: this.#clock.now().toISOString(), by: u.userId });
+      this.#log(orgId, u, 'settlement.batch-invalidated', sessionId, `batch ${this.#short(b.id.slice(4))} no longer eligible for settlement: ${cause}`);
+    }
   }
   #isReviewer(orgId: string, userId: string): boolean { return this.#s.reviewersOfOrg(orgId).some((r) => r.userId === userId); }
 
@@ -499,6 +508,153 @@ export class Registry {
       try { this.#s.putDecision(d); } catch (e) { if (/UNIQUE/i.test((e as Error).message)) throw new RegistryError('EXISTS', 'a decision has already been recorded for this calculation'); throw e; }
       this.#log(orgId, u, kind === 'approved' ? 'authorization.approved' : 'authorization.rejected', sessionId, `calculation ${this.#short(named.id)}${reason ? `: ${reason}` : ''}`);
       return d;
+    });
+  }
+
+  // ---- settlement PREPARATION (MVP-1.4): instructions derived from an approved calculation snapshot. Nothing is signed, submitted or settled. ----
+  supportedAssets(): SupportedAsset[] { return this.#s.assets(); }
+
+  /** The preconditions for preparing (and the live eligibility of a batch). Every check is evaluated server-side from stored data only. */
+  #evaluate(u: ActingUser, orgId: string, sessionId: string, forBatch: boolean): { checks: PrepCheck[]; ok: boolean; calc?: CalculationRecord; asset?: SupportedAsset; plan?: PlannedInstruction[] } {
+    const s = this.#opSession(u, orgId, sessionId);
+    const view = this.calculationView(u, orgId, sessionId);
+    const latest = view.calculation ?? undefined;
+    const checks: PrepCheck[] = [];
+    const add = (key: string, label: string, ok: boolean, detail: string) => { checks.push({ key, label, ok, detail }); };
+    add('session-open', 'The session is not closed', (s.workflow ?? 'configuring') !== 'closed', (s.workflow ?? 'configuring') === 'closed' ? 'a closed session cannot produce or review a batch' : 'session is ' + (s.workflow ?? 'configuring'));
+    add('calculation', 'A calculation exists', !!latest, latest ? 'calculation ' + this.#short(latest.id) : 'calculate net positions first');
+    if (!latest) {
+      for (const [k, l] of [['current', 'The calculation is the latest and current'], ['approval', 'The exact calculation has an active institutional approval'], ['participants', 'Every participant is still valid'], ['obligations', 'Every obligation is still valid'], ['recalculation', 'The net positions recompute exactly'], ['asset', 'The asset is in the supported asset list']] as const) add(k, l, false, 'needs a calculation');
+      return { checks, ok: false };
+    }
+    add('current', 'The calculation is the latest and current', view.currency === 'current', view.currency === 'current' ? 'matches the present participants and obligations' : 'participants or obligations changed after it: calculate again');
+    const a = this.authorization(u, orgId, sessionId);
+    const dec = a.decisions.find((d) => d.calculationId === latest.id && d.status === 'active');
+    add('approval', 'The exact calculation has an active institutional approval', dec?.decision === 'approved', dec ? (dec.decision === 'approved' ? 'approved by a reviewer' : 'the calculation was rejected') : 'no active approval: a reviewer must approve this exact calculation');
+    const active = new Set(this.#s.participantsOfSession(sessionId).filter((p) => (p.status ?? 'active') === 'active').map((p) => p.userId));
+    const members = new Set(this.#s.membershipsOfOrg(orgId).map((m) => m.userId));
+    const badParty = latest.positions.filter((p) => !active.has(p.userId) || !members.has(p.userId));
+    add('participants', 'Every participant is still valid', badParty.length === 0, badParty.length === 0 ? latest.positions.length + ' active participant(s) and organization members' : badParty.length + ' participant(s) were removed or left the organization');
+    const rows = new Map(this.#s.obligationsOfSession(sessionId).map((o) => [o.id, o]));
+    const badOb = latest.input.obligations.filter((o) => { const r = rows.get(o.id); return !r || r.status !== 'active' || r.revision !== o.revision || r.asset !== latest.asset || !active.has(r.debtor) || !active.has(r.creditor); });
+    add('obligations', 'Every obligation is still valid', badOb.length === 0, badOb.length === 0 ? latest.input.obligations.length + ' active obligation(s) as calculated' : badOb.length + ' obligation(s) changed, were voided, or name an inactive participant');
+    let recalcOk = false; let recalcDetail = '';
+    try { const again = runNetting(sessionId, latest.input); recalcOk = JSON.stringify(again.positions) === JSON.stringify(latest.positions) && again.gross === latest.gross && again.positions.reduce((t, p) => t + BigInt(p.net), 0n) === 0n; recalcDetail = recalcOk ? 'the stored positions recompute exactly and sum to zero' : 'the stored positions differ from a fresh calculation of the same input'; } catch (e) { recalcDetail = (e as Error).message; }
+    add('recalculation', 'The net positions recompute exactly', recalcOk, recalcDetail);
+    const res = resolveAsset(latest.asset, this.#s.assets());
+    add('asset', 'The asset is in the supported asset list', res.ok, res.ok ? res.asset.id + ' (operator-configured; no on-chain check)' : res.detail);
+    if (!forBatch) { const have = this.#s.batchesOfSession(sessionId).find((b) => b.calculationId === latest.id); add('no-batch', 'No batch exists yet for this calculation', !have, have ? 'batch ' + this.#short(have.id.slice(4)) + ' already prepared from it' : 'none yet'); }
+    let plan: PlannedInstruction[] | undefined;
+    if (recalcOk) {
+      const built = buildInstructions(sessionId, latest);
+      plan = built.instructions;
+      add('engine', 'The netting engine accepts the generated plan', built.engine.ok, built.engine.ok ? built.instructions.length + ' instruction(s); at most ' + INSTRUCTION_CEILING + ' are supported' : built.engine.message);
+      const bad = integrityChecks(latest, res.ok ? res.asset.id : 'unresolved', built.instructions).filter((c) => !c.ok);
+      add('instructions', 'The instructions reconcile exactly to the approved net positions', bad.length === 0, bad.length === 0 ? 'checked independently of the engine' : bad.map((c) => c.label).join('; '));
+    } else { add('engine', 'The netting engine accepts the generated plan', false, 'needs exact net positions'); add('instructions', 'The instructions reconcile exactly to the approved net positions', false, 'needs exact net positions'); }
+    return { checks, ok: checks.every((c) => c.ok), calc: latest, ...(res.ok ? { asset: res.asset } : {}), ...(plan ? { plan } : {}) };
+  }
+
+  /** What preparing now would require, for display. Read-only. */
+  settlementPreview(u: ActingUser, orgId: string, sessionId: string): { checks: PrepCheck[]; ready: boolean; calculationId: string | null } {
+    const e = this.#evaluate(u, orgId, sessionId, false);
+    return { checks: e.checks, ready: e.ok, calculationId: e.calc?.id ?? null };
+  }
+
+  prepareSettlementBatch(u: ActingUser, orgId: string, sessionId: string, input: { calculationId: unknown }): SettlementBatch {
+    return this.#s.transaction(() => {
+      this.#need(orgId, u, true);
+      this.#opSession(u, orgId, sessionId);
+      if (typeof input.calculationId !== 'string') throw new RegistryError('INVALID', 'name the approved calculation to prepare from');
+      const all = this.#s.calculationsOfSession(sessionId);
+      const named = all.find((c) => c.id === input.calculationId);
+      if (!named) throw new RegistryError('NOT_FOUND', 'calculation not found');
+      if (named.id !== (all[all.length - 1] as CalculationRecord).id) throw new RegistryError('STALE', 'that calculation has been superseded by a newer one');
+      const e = this.#evaluate(u, orgId, sessionId, false);
+      const failed = e.checks.filter((c) => !c.ok);
+      if (failed.length > 0) throw new RegistryError(failed.length === 1 && failed[0]?.key === 'no-batch' ? 'EXISTS' : 'INVALID_STATE', failed.length === 1 && failed[0]?.key === 'no-batch' ? 'a batch has already been prepared from this calculation' : 'cannot prepare a batch: ' + failed.map((c) => c.label + ' (' + c.detail + ')').join('; '));
+      const calc = e.calc as CalculationRecord; const asset = e.asset as SupportedAsset; const plan = e.plan as PlannedInstruction[];
+      const batchId = id('bat');
+      const total = plan.reduce((t, p) => t + BigInt(p.amount), 0n).toString();
+      const validation = [...e.checks, ...integrityChecks(calc, asset.id, plan)];
+      const batch: SettlementBatch = { id: batchId, sessionId, orgId, calculationId: calc.id, asset: { id: asset.id, network: asset.network, kind: asset.kind, code: asset.code, ...(asset.issuer ? { issuer: asset.issuer } : {}) }, instructionCount: plan.length, totalAmount: total, instructionsHash: instructionsHash(calc.id, asset.id, plan), algorithm: ALGORITHM, validation, preparedBy: u.userId, preparedAt: this.#clock.now().toISOString() };
+      const instructions: SettlementInstruction[] = plan.map((p) => ({ id: instructionId(calc.id, p), batchId, sessionId, calculationId: calc.id, seq: p.seq, payer: p.payer, payee: p.payee, assetId: asset.id, amount: p.amount }));
+      try { this.#s.putBatch(batch, instructions); } catch (err) { if (/UNIQUE/i.test((err as Error).message)) throw new RegistryError('EXISTS', 'a batch has already been prepared from this calculation'); throw err; }
+      this.#log(orgId, u, 'settlement.batch-prepared', sessionId, 'batch ' + this.#short(batchId.slice(4)) + ' from calculation ' + this.#short(calc.id) + ': ' + plan.length + ' instruction(s), ' + asset.code + ', total ' + total);
+      return batch;
+    });
+  }
+
+  #batchOf(sessionId: string, batchId: string): SettlementBatch {
+    const b = typeof batchId === 'string' ? this.#s.batchesOfSession(sessionId).find((x) => x.id === batchId) : undefined;
+    if (!b) throw new RegistryError('NOT_FOUND', 'batch not found');
+    return b;
+  }
+  /** Live validation of a stored batch: its own integrity plus whether its source is still eligible. */
+  #batchValidation(u: ActingUser, orgId: string, sessionId: string, b: SettlementBatch): PrepCheck[] {
+    const calc = this.#s.calculationsOfSession(sessionId).find((c) => c.id === b.calculationId) as CalculationRecord;
+    const list = this.#s.instructionsOfBatch(b.id);
+    const planned = list.map((i) => ({ seq: i.seq, payer: i.payer, payee: i.payee, amount: i.amount, assetId: i.assetId }));
+    const latest = this.#s.latestCalculation(sessionId);
+    const source: PrepCheck[] = latest?.id === calc.id ? this.#evaluate(u, orgId, sessionId, true).checks : [{ key: 'current', label: 'The calculation is the latest and current', ok: false, detail: 'a newer calculation exists: this batch is superseded' }];
+    const countOk = list.length === b.instructionCount && list.reduce((t, i) => t + BigInt(i.amount), 0n).toString() === b.totalAmount;
+    return [...source, { key: 'count', label: 'The stored count and total match the instructions', ok: countOk, detail: countOk ? b.instructionCount + ' instruction(s), total ' + b.totalAmount : 'the stored summary differs from the instructions' }, ...integrityChecks(calc, b.asset.id, planned, b.instructionsHash)];
+  }
+  #batchStatusOf(u: ActingUser, orgId: string, sessionId: string, b: SettlementBatch): { status: BatchStatus; review?: BatchReview; invalidation?: BatchInvalidation } {
+    const view = this.calculationView(u, orgId, sessionId);
+    const a = this.authorization(u, orgId, sessionId);
+    const approvalActive = a.decisions.some((d) => d.calculationId === b.calculationId && d.decision === 'approved' && d.status === 'active');
+    const review = this.#s.batchReviewsOfSession(sessionId).find((r) => r.batchId === b.id);
+    const invalidation = this.#s.batchInvalidationsOfSession(sessionId).find((i) => i.batchId === b.id);
+    return { status: batchStatus({ batch: b, review, inv: invalidation, latest: view.calculation ?? undefined, currency: view.currency, approvalActive }), ...(review ? { review } : {}), ...(invalidation ? { invalidation } : {}) };
+  }
+
+  settlementBatches(u: ActingUser, orgId: string, sessionId: string): { batch: SettlementBatch; status: BatchStatus; review?: BatchReview; invalidation?: BatchInvalidation }[] {
+    this.#opSession(u, orgId, sessionId);
+    return this.#s.batchesOfSession(sessionId).map((b) => ({ batch: b, ...this.#batchStatusOf(u, orgId, sessionId, b) }));
+  }
+  settlementBatch(u: ActingUser, orgId: string, sessionId: string, batchId: string): {
+    batch: SettlementBatch; instructions: SettlementInstruction[]; status: BatchStatus; review?: BatchReview; invalidation?: BatchInvalidation;
+    validation: PrepCheck[]; eligibility: { canDecide: boolean; reasons: string[] };
+  } {
+    this.#opSession(u, orgId, sessionId);
+    const batch = this.#batchOf(sessionId, batchId);
+    const st = this.#batchStatusOf(u, orgId, sessionId, batch);
+    const validation = this.#batchValidation(u, orgId, sessionId, batch);
+    const reasons: string[] = [];
+    if (!this.#isReviewer(orgId, u.userId)) reasons.push('You have not been granted the reviewer capability. An organization administrator can grant it.');
+    if (batch.preparedBy === u.userId) reasons.push('Separation of duties: you prepared this batch. A different reviewer must decide.');
+    if (st.status === 'approved' || st.status === 'rejected') reasons.push('A decision has already been recorded for this batch.');
+    if (st.status === 'invalidated' || st.status === 'superseded') reasons.push('This batch is no longer eligible: its calculation or approval no longer applies. Calculate, approve and prepare again.');
+    if (st.status === 'awaiting-review' && validation.some((c) => !c.ok)) reasons.push('Validation fails: ' + validation.filter((c) => !c.ok).map((c) => c.label).join('; '));
+    return { batch, instructions: this.#s.instructionsOfBatch(batch.id), ...st, validation, eligibility: { canDecide: reasons.length === 0, reasons } };
+  }
+  settlementBatchValidation(u: ActingUser, orgId: string, sessionId: string, batchId: string): PrepCheck[] {
+    this.#opSession(u, orgId, sessionId);
+    return this.#batchValidation(u, orgId, sessionId, this.#batchOf(sessionId, batchId));
+  }
+
+  /** Approve or reject ONE batch for settlement. Application-level only: not a signature, not a transaction. */
+  decideSettlementBatch(u: ActingUser, orgId: string, sessionId: string, batchId: string, kind: 'approved' | 'rejected', input: { instructionsHash: unknown; reason?: unknown }): BatchReview {
+    return this.#s.transaction(() => {
+      this.#need(orgId, u);
+      this.#opSession(u, orgId, sessionId);
+      if (!this.#isReviewer(orgId, u.userId)) throw new RegistryError('FORBIDDEN', 'the reviewer capability is required to decide on a batch');
+      const batch = this.#batchOf(sessionId, batchId);
+      if (this.session(u, orgId, sessionId).workflow === 'closed') throw new RegistryError('INVALID_STATE', 'the session is closed and cannot receive a decision');
+      if (typeof input.instructionsHash !== 'string') throw new RegistryError('INVALID', 'name the instruction fingerprint you reviewed');
+      if (input.instructionsHash !== batch.instructionsHash) throw new RegistryError('STALE', 'the instructions you reviewed are not the ones in this batch');
+      const st = this.#batchStatusOf(u, orgId, sessionId, batch);
+      if (st.status === 'invalidated' || st.status === 'superseded') throw new RegistryError('STALE', 'this batch is no longer eligible: its calculation or approval no longer applies');
+      if (st.status !== 'awaiting-review') throw new RegistryError('EXISTS', 'a decision has already been recorded for this batch');
+      const failed = this.#batchValidation(u, orgId, sessionId, batch).filter((c) => !c.ok);
+      if (failed.length > 0) throw new RegistryError('INVALID_STATE', 'validation fails: ' + failed.map((c) => c.label).join('; '));
+      if (batch.preparedBy === u.userId) throw new RegistryError('SEPARATION_OF_DUTIES', 'separation of duties: you prepared this batch; a different reviewer must decide');
+      const reason = kind === 'rejected' ? text(input.reason, 'a rejection reason', 500, 1) : '';
+      const r: BatchReview = { id: id('brv'), batchId: batch.id, decision: kind, reason, decidedBy: u.userId, decidedAt: this.#clock.now().toISOString() };
+      try { this.#s.putBatchReview(r); } catch (err) { if (/UNIQUE/i.test((err as Error).message)) throw new RegistryError('EXISTS', 'a decision has already been recorded for this batch'); throw err; }
+      this.#log(orgId, u, kind === 'approved' ? 'settlement.batch-approved' : 'settlement.batch-rejected', sessionId, 'batch ' + this.#short(batch.id.slice(4)) + (reason ? ': ' + reason : ''));
+      return r;
     });
   }
 

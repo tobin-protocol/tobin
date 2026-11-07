@@ -2,7 +2,7 @@
 // the append-only activity triggers live in the schema (lib/db/database.ts); this file only maps rows to records.
 import type { Database } from '../db/database.ts';
 import type { RegistryStore } from './store.ts';
-import type { ActivityRecord, AuthorizationDecision, AuthorizationInvalidation, ReviewerGrant, CalculationRecord, ChainObservation, ObligationRecord, Invitation, Membership, Organization, OrgWallet, SessionParticipant, SessionRecord } from './types.ts';
+import type { BatchInvalidation, BatchReview, SettlementBatch, SettlementInstruction, SupportedAsset, ActivityRecord, AuthorizationDecision, AuthorizationInvalidation, ReviewerGrant, CalculationRecord, ChainObservation, ObligationRecord, Invitation, Membership, Organization, OrgWallet, SessionParticipant, SessionRecord } from './types.ts';
 
 type Row = Record<string, unknown>;
 const rows = (x: unknown) => x as Row[];
@@ -89,6 +89,32 @@ export class SqliteRegistryStore implements RegistryStore {
   }
   latestCalculation(sessionId: string) { const r = this.#q('SELECT * FROM calculations WHERE session_id = ? ORDER BY seq DESC LIMIT 1').get(sessionId) as Row | undefined; return r && calculationOf(r); }
   calculationsOfSession(sessionId: string) { return rows(this.#q('SELECT * FROM calculations WHERE session_id = ? ORDER BY seq').all(sessionId)).map(calculationOf); }
+
+  putAsset(a: SupportedAsset) {
+    this.#q('INSERT INTO supported_assets (id, network, kind, code, issuer, status, source, added_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET status = excluded.status').run(a.id, a.network, a.kind, a.code, a.issuer ?? null, a.status, a.source, a.addedAt);
+  }
+  assets() {
+    return rows(this.#q('SELECT * FROM supported_assets ORDER BY id').all()).map((r): SupportedAsset => ({ id: r['id'] as string, network: r['network'] as SupportedAsset['network'], kind: r['kind'] as SupportedAsset['kind'], code: r['code'] as string, ...(r['issuer'] !== null ? { issuer: r['issuer'] as string } : {}), status: r['status'] as SupportedAsset['status'], source: 'operator-configured', addedAt: r['added_at'] as string }));
+  }
+  putBatch(b: SettlementBatch, instructions: SettlementInstruction[]) {
+    this.#q('INSERT INTO settlement_batches (id, session_id, org_id, calculation_id, asset_id, asset_network, asset_kind, asset_code, asset_issuer, instruction_count, total_amount, instructions_hash, algorithm, validation_json, prepared_by, prepared_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(b.id, b.sessionId, b.orgId, b.calculationId, b.asset.id, b.asset.network, b.asset.kind, b.asset.code, b.asset.issuer ?? null, b.instructionCount, b.totalAmount, b.instructionsHash, b.algorithm, JSON.stringify(b.validation), b.preparedBy, b.preparedAt);
+    for (const i of instructions) this.#q('INSERT INTO settlement_instructions (id, batch_id, session_id, calculation_id, seq, payer, payee, asset_id, amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(i.id, i.batchId, i.sessionId, i.calculationId, i.seq, i.payer, i.payee, i.assetId, i.amount);
+  }
+  batchesOfSession(sessionId: string) {
+    return rows(this.#q('SELECT * FROM settlement_batches WHERE session_id = ? ORDER BY seq').all(sessionId)).map((r): SettlementBatch => ({ id: r['id'] as string, sessionId: r['session_id'] as string, orgId: r['org_id'] as string, calculationId: r['calculation_id'] as string, asset: { id: r['asset_id'] as string, network: r['asset_network'] as string, kind: r['asset_kind'] as string, code: r['asset_code'] as string, ...(r['asset_issuer'] !== null ? { issuer: r['asset_issuer'] as string } : {}) }, instructionCount: Number(r['instruction_count']), totalAmount: r['total_amount'] as string, instructionsHash: r['instructions_hash'] as string, algorithm: r['algorithm'] as string, validation: JSON.parse(r['validation_json'] as string) as SettlementBatch['validation'], preparedBy: r['prepared_by'] as string, preparedAt: r['prepared_at'] as string }));
+  }
+  instructionsOfBatch(batchId: string) {
+    return rows(this.#q('SELECT * FROM settlement_instructions WHERE batch_id = ? ORDER BY seq').all(batchId)).map((r): SettlementInstruction => ({ id: r['id'] as string, batchId: r['batch_id'] as string, sessionId: r['session_id'] as string, calculationId: r['calculation_id'] as string, seq: Number(r['seq']), payer: r['payer'] as string, payee: r['payee'] as string, assetId: r['asset_id'] as string, amount: r['amount'] as string }));
+  }
+  putBatchReview(r: BatchReview) { this.#q('INSERT INTO settlement_batch_reviews (id, batch_id, decision, reason, decided_by, decided_at) VALUES (?, ?, ?, ?, ?, ?)').run(r.id, r.batchId, r.decision, r.reason, r.decidedBy, r.decidedAt); }
+  batchReviewsOfSession(sessionId: string) {
+    return rows(this.#q('SELECT r.* FROM settlement_batch_reviews r JOIN settlement_batches b ON b.id = r.batch_id WHERE b.session_id = ? ORDER BY r.seq').all(sessionId)).map((r): BatchReview => ({ id: r['id'] as string, batchId: r['batch_id'] as string, decision: r['decision'] as BatchReview['decision'], reason: r['reason'] as string, decidedBy: r['decided_by'] as string, decidedAt: r['decided_at'] as string }));
+  }
+  putBatchInvalidation(i: BatchInvalidation) { this.#q('INSERT INTO settlement_batch_invalidations (batch_id, cause, at, by_actor) VALUES (?, ?, ?, ?) ON CONFLICT(batch_id) DO NOTHING').run(i.batchId, i.cause, i.at, i.by); }
+  batchInvalidationsOfSession(sessionId: string) {
+    return rows(this.#q('SELECT i.* FROM settlement_batch_invalidations i JOIN settlement_batches b ON b.id = i.batch_id WHERE b.session_id = ?').all(sessionId)).map((r): BatchInvalidation => ({ batchId: r['batch_id'] as string, cause: r['cause'] as string, at: r['at'] as string, by: r['by_actor'] as string }));
+  }
 
   putReviewer(r: ReviewerGrant) {
     this.#q('INSERT INTO org_reviewers (org_id, user_id, granted_by, granted_at) VALUES (?, ?, ?, ?) ON CONFLICT(org_id, user_id) DO NOTHING').run(r.orgId, r.userId, r.grantedBy, r.grantedAt);

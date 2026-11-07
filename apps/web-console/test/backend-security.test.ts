@@ -242,5 +242,5 @@ test('health: schema status only, no paths or credentials', async () => {
   const { b } = makeBackend();
   const { migrationStatus } = await import('../lib/db/database.ts');
   const st = migrationStatus(b.db);
-  assert.equal(st.pending.length, 0); assert.equal(st.current, 3);
+  assert.equal(st.pending.length, 0); assert.equal(st.current, 4);
 });

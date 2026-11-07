@@ -159,3 +159,35 @@ export interface AuthorizationDecision {
 }
 /** Recorded once when a decision stops being current; the decision row itself is never changed. */
 export interface AuthorizationInvalidation { decisionId: string; cause: string; at: string; by: string }
+
+/** An asset the application may prepare settlement for. OPERATOR-CONFIGURED LOCAL DATA: not an on-chain query; says nothing about availability, liquidity or transferability. */
+export interface SupportedAsset {
+  /** canonical: network:native or network:CODE:ISSUER */
+  id: string;
+  network: 'testnet' | 'public';
+  kind: 'native' | 'issued';
+  code: string;
+  issuer?: string;
+  status: 'supported' | 'disabled';
+  source: 'operator-configured';
+  addedAt: string;
+}
+
+/** A prepared set of settlement instructions bound to ONE approved calculation snapshot. Immutable. Preparation only: nothing is signed, submitted or settled. */
+export interface SettlementBatch {
+  id: string;
+  sessionId: string;
+  orgId: string;
+  calculationId: string;
+  asset: { id: string; network: string; kind: string; code: string; issuer?: string };
+  instructionCount: number;
+  totalAmount: string;
+  instructionsHash: string;
+  algorithm: string;
+  validation: { key: string; label: string; ok: boolean; detail: string }[];
+  preparedBy: string;
+  preparedAt: string;
+}
+export interface SettlementInstruction { id: string; batchId: string; sessionId: string; calculationId: string; seq: number; payer: string; payee: string; assetId: string; amount: string }
+export interface BatchReview { id: string; batchId: string; decision: 'approved' | 'rejected'; reason: string; decidedBy: string; decidedAt: string }
+export interface BatchInvalidation { batchId: string; cause: string; at: string; by: string }

@@ -212,6 +212,89 @@ CREATE TRIGGER authorization_invalidations_no_update BEFORE UPDATE ON authorizat
 CREATE TRIGGER authorization_invalidations_no_delete BEFORE DELETE ON authorization_invalidations BEGIN SELECT RAISE(ABORT, 'authorization invalidations are immutable'); END;
 `,
   },
+  {
+    version: 4,
+    name: 'settlement preparation: supported assets, batches, instructions, batch reviews, invalidations',
+    sql: `
+-- Operator-configured list of assets the application will prepare settlement for. LOCAL CONFIGURATION: it is not an on-chain query and says nothing about
+-- availability, liquidity or transferability. Identity is network + (native | code + issuer): a code alone is never an identity.
+CREATE TABLE supported_assets (
+  id TEXT PRIMARY KEY,
+  network TEXT NOT NULL CHECK (network IN ('testnet', 'public')),
+  kind TEXT NOT NULL CHECK (kind IN ('native', 'issued')),
+  code TEXT NOT NULL CHECK (length(code) BETWEEN 1 AND 12 AND code NOT GLOB '*[^A-Z0-9]*'),
+  issuer TEXT,
+  status TEXT NOT NULL CHECK (status IN ('supported', 'disabled')),
+  source TEXT NOT NULL DEFAULT 'operator-configured' CHECK (source = 'operator-configured'),
+  added_at TEXT NOT NULL,
+  CHECK ((kind = 'native') = (issuer IS NULL)),
+  CHECK (kind = 'issued' OR code = 'XLM'),
+  CHECK (issuer IS NULL OR (length(issuer) = 56 AND issuer GLOB 'G*' AND issuer NOT GLOB '*[^A-Z2-7]*')),
+  CHECK (id = CASE WHEN kind = 'native' THEN network || ':native' ELSE network || ':' || code || ':' || issuer END)
+);
+-- A batch is bound to exactly one calculation snapshot (UNIQUE). Everything is immutable; status is derived from reviews and invalidations.
+CREATE TABLE settlement_batches (
+  seq INTEGER PRIMARY KEY AUTOINCREMENT,
+  id TEXT NOT NULL UNIQUE,
+  session_id TEXT NOT NULL,
+  org_id TEXT NOT NULL,
+  calculation_id TEXT NOT NULL UNIQUE REFERENCES calculations(id),
+  asset_id TEXT NOT NULL,
+  asset_network TEXT NOT NULL,
+  asset_kind TEXT NOT NULL,
+  asset_code TEXT NOT NULL,
+  asset_issuer TEXT,
+  instruction_count INTEGER NOT NULL CHECK (instruction_count >= 0),
+  total_amount TEXT NOT NULL CHECK (length(total_amount) BETWEEN 1 AND 39 AND total_amount NOT GLOB '*[^0-9]*'),
+  instructions_hash TEXT NOT NULL CHECK (length(instructions_hash) = 64),
+  algorithm TEXT NOT NULL,
+  validation_json TEXT NOT NULL,
+  prepared_by TEXT NOT NULL REFERENCES users(id),
+  prepared_at TEXT NOT NULL,
+  UNIQUE (id, session_id, calculation_id),
+  FOREIGN KEY (session_id, org_id) REFERENCES sessions(session_id, org_id)
+);
+CREATE INDEX settlement_batches_session ON settlement_batches(session_id, seq);
+CREATE TABLE settlement_instructions (
+  id TEXT PRIMARY KEY,
+  batch_id TEXT NOT NULL,
+  session_id TEXT NOT NULL,
+  calculation_id TEXT NOT NULL,
+  seq INTEGER NOT NULL CHECK (seq >= 1),
+  payer TEXT NOT NULL,
+  payee TEXT NOT NULL,
+  asset_id TEXT NOT NULL,
+  amount TEXT NOT NULL CHECK (length(amount) BETWEEN 1 AND 39 AND amount NOT GLOB '*[^0-9]*' AND amount NOT GLOB '0*'),
+  CHECK (payer <> payee),
+  UNIQUE (batch_id, seq),
+  UNIQUE (batch_id, payer, payee),
+  FOREIGN KEY (batch_id, session_id, calculation_id) REFERENCES settlement_batches(id, session_id, calculation_id)
+);
+CREATE TABLE settlement_batch_reviews (
+  seq INTEGER PRIMARY KEY AUTOINCREMENT,
+  id TEXT NOT NULL UNIQUE,
+  batch_id TEXT NOT NULL UNIQUE REFERENCES settlement_batches(id),
+  decision TEXT NOT NULL CHECK (decision IN ('approved', 'rejected')),
+  reason TEXT NOT NULL DEFAULT '' CHECK (length(reason) <= 500 AND ((decision = 'rejected') = (length(trim(reason)) > 0))),
+  decided_by TEXT NOT NULL REFERENCES users(id),
+  decided_at TEXT NOT NULL
+);
+CREATE TABLE settlement_batch_invalidations (
+  batch_id TEXT PRIMARY KEY REFERENCES settlement_batches(id),
+  cause TEXT NOT NULL CHECK (length(cause) BETWEEN 1 AND 300),
+  at TEXT NOT NULL,
+  by_actor TEXT NOT NULL
+);
+CREATE TRIGGER settlement_batches_no_update BEFORE UPDATE ON settlement_batches BEGIN SELECT RAISE(ABORT, 'settlement batches are immutable'); END;
+CREATE TRIGGER settlement_batches_no_delete BEFORE DELETE ON settlement_batches BEGIN SELECT RAISE(ABORT, 'settlement batches are immutable'); END;
+CREATE TRIGGER settlement_instructions_no_update BEFORE UPDATE ON settlement_instructions BEGIN SELECT RAISE(ABORT, 'settlement instructions are immutable'); END;
+CREATE TRIGGER settlement_instructions_no_delete BEFORE DELETE ON settlement_instructions BEGIN SELECT RAISE(ABORT, 'settlement instructions are immutable'); END;
+CREATE TRIGGER settlement_batch_reviews_no_update BEFORE UPDATE ON settlement_batch_reviews BEGIN SELECT RAISE(ABORT, 'settlement batch reviews are immutable'); END;
+CREATE TRIGGER settlement_batch_reviews_no_delete BEFORE DELETE ON settlement_batch_reviews BEGIN SELECT RAISE(ABORT, 'settlement batch reviews are immutable'); END;
+CREATE TRIGGER settlement_batch_invalidations_no_update BEFORE UPDATE ON settlement_batch_invalidations BEGIN SELECT RAISE(ABORT, 'settlement batch invalidations are immutable'); END;
+CREATE TRIGGER settlement_batch_invalidations_no_delete BEFORE DELETE ON settlement_batch_invalidations BEGIN SELECT RAISE(ABORT, 'settlement batch invalidations are immutable'); END;
+`,
+  },
 ];
 
 export class Database {

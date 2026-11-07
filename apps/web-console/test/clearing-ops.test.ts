@@ -257,7 +257,7 @@ test('migration 2 upgrades a version-1 database in place and keeps its data', as
     INSERT INTO memberships (org_id, user_id, role, since) VALUES ('org_1', 'usr_1', 'admin', 't');
     INSERT INTO sessions (session_id, org_id, label, provenance, created_at) VALUES ('${'ab'.repeat(32)}', 'org_1', 'S', 'local-draft', 't');
     INSERT INTO session_participants (session_id, org_id, user_id, added_by, added_at) VALUES ('${'ab'.repeat(32)}', 'org_1', 'usr_1', 'usr_1', 't');`);
-  const st = migrate(db); assert.equal(st.current, 3);
+  const st = migrate(db); assert.equal(st.current, 4);
   const p = db.raw.prepare('SELECT status FROM session_participants').get() as { status: string }; assert.equal(p.status, 'active');
   const s = db.raw.prepare('SELECT workflow_state FROM sessions').get() as { workflow_state: string }; assert.equal(s.workflow_state, 'configuring');
   void PASSWORD;

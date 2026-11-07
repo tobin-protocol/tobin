@@ -61,6 +61,10 @@ export async function handleRegistry(request: Request, deps: RegistryDeps): Prom
       } catch (e) { if (e instanceof RegistryError && e.code === 'INVALID_INVITATION') deps.rate?.fail(key); throw e; }
     }
 
+    if (parts[0] === 'assets' && parts.length === 1 && m === 'GET') {
+      return json(200, { assets: r.supportedAssets(), note: 'Operator-configured local list. It is not an on-chain query and says nothing about availability, liquidity or transferability. It cannot be changed through this API.' });
+    }
+
     if (parts[0] === 'orgs') {
       if (parts.length === 1 && m === 'GET') return json(200, { organizations: r.myOrganizations(user), actingAs: user.userId });
       if (parts.length === 1 && m === 'POST') { const b = await readBody(request); return json(201, { organization: r.createOrganization(user, { name: b['name'], description: b['description'], visibility: b['visibility'] }) }); }
@@ -166,6 +170,47 @@ export async function handleRegistry(request: Request, deps: RegistryDeps): Prom
               return json(200, { obligations: viewObligations() });
             }
             if (parts.length === 7 && parts[6] === 'void' && m === 'POST') { const b = await readBody(request); r.voidObligation(user, orgId, sessionId, parts[5] as string, b['reason']); return json(200, { obligations: viewObligations() }); }
+          }
+          if (leaf === 'settlement') {
+            const NOTE = 'Settlement PREPARATION only. These instructions are not signed, not submitted and not settled: no wallet, transaction or network is involved, and no funds have moved. Approving a batch is an application-level decision, not a Stellar signature.';
+            const batchView = (id: string) => {
+              const v = r.settlementBatch(user, orgId, sessionId, id);
+              const d = who([v.batch.preparedBy, ...(v.review ? [v.review.decidedBy] : []), ...v.instructions.flatMap((i) => [i.payer, i.payee])]);
+              const nm = (u: string) => d.get(u)?.displayName ?? 'a former user';
+              return {
+                batch: { id: v.batch.id, calculationId: v.batch.calculationId, asset: v.batch.asset, instructionCount: v.batch.instructionCount, totalAmount: v.batch.totalAmount, instructionsHash: v.batch.instructionsHash, algorithm: v.batch.algorithm, preparedBy: nm(v.batch.preparedBy), preparedAt: v.batch.preparedAt },
+                status: v.status, validation: v.validation, eligibility: v.eligibility,
+                instructions: v.instructions.map((i) => ({ id: i.id, seq: i.seq, payer: i.payer, payerName: nm(i.payer), payee: i.payee, payeeName: nm(i.payee), assetId: i.assetId, amount: i.amount, sessionId: i.sessionId, calculationId: i.calculationId, batchId: i.batchId, validation: 'valid' })),
+                ...(v.review ? { review: { decision: v.review.decision, reason: v.review.reason, decidedBy: nm(v.review.decidedBy), decidedAt: v.review.decidedAt } } : {}),
+                ...(v.invalidation ? { invalidation: { cause: v.invalidation.cause, at: v.invalidation.at } } : {}),
+                note: NOTE,
+              };
+            };
+            const listView = () => {
+              const list = r.settlementBatches(user, orgId, sessionId);
+              const d = who(list.flatMap((x) => [x.batch.preparedBy, ...(x.review ? [x.review.decidedBy] : [])]));
+              const pv = r.settlementPreview(user, orgId, sessionId);
+              return {
+                preview: pv, note: NOTE, assets: r.supportedAssets().map((a) => ({ id: a.id, code: a.code, status: a.status })),
+                batches: list.map((x) => ({ id: x.batch.id, calculationId: x.batch.calculationId, status: x.status, asset: x.batch.asset, instructionCount: x.batch.instructionCount, totalAmount: x.batch.totalAmount, preparedBy: d.get(x.batch.preparedBy)?.displayName ?? 'a former user', preparedAt: x.batch.preparedAt, ...(x.review ? { decision: { decision: x.review.decision, reason: x.review.reason, decidedBy: d.get(x.review.decidedBy)?.displayName ?? 'a former user', decidedAt: x.review.decidedAt } } : {}), ...(x.invalidation ? { invalidation: { cause: x.invalidation.cause, at: x.invalidation.at } } : {}) })),
+              };
+            };
+            if (parts.length === 5 && m === 'GET') return json(200, listView());
+            if (parts.length === 6 && parts[5] === 'prepare' && m === 'POST') {
+              const b = await readBody(request);
+              const batch = r.prepareSettlementBatch(user, orgId, sessionId, { calculationId: b['calculationId'] });
+              return json(201, { batchId: batch.id, ...listView() });
+            }
+            if (parts[5] === 'batches') {
+              const bid = parts[6] as string;
+              if (parts.length === 7 && m === 'GET') return json(200, batchView(bid));
+              if (parts.length === 8 && parts[7] === 'validation' && m === 'GET') return json(200, { validation: r.settlementBatchValidation(user, orgId, sessionId, bid), note: NOTE });
+              if (parts.length === 8 && (parts[7] === 'approve' || parts[7] === 'reject') && m === 'POST') {
+                const b = await readBody(request);
+                r.decideSettlementBatch(user, orgId, sessionId, bid, parts[7] === 'approve' ? 'approved' : 'rejected', { instructionsHash: b['instructionsHash'], reason: b['reason'] });
+                return json(201, batchView(bid));
+              }
+            }
           }
           if (leaf === 'authorization') {
             const view = () => {

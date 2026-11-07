@@ -8,11 +8,12 @@ import { api, ApiError } from '../api-client.ts';
 import { activityLabel, listingState } from '../../lib/registry/session-view.ts';
 import type { ListingRow, Workspace } from '../../lib/registry/session-view.ts';
 import { AuthorizationPanel } from './authorization-panel.tsx';
+import { SettlementPanel } from './settlement-panel.tsx';
 import { NetPositionsPanel, ObligationsPanel, ParticipantsPanel, ReadinessPanel, WORKFLOW_LABEL } from './session-operations.tsx';
 
 interface Org { id: string; name: string }
-type Tab = 'overview' | 'participants' | 'obligations' | 'nets' | 'authorization' | 'activity';
-const TABS: [Tab, string][] = [['overview', 'Overview'], ['participants', 'Participants'], ['obligations', 'Obligations'], ['nets', 'Net positions'], ['authorization', 'Authorization'], ['activity', 'Activity and history']];
+type Tab = 'overview' | 'participants' | 'obligations' | 'nets' | 'authorization' | 'settlement' | 'activity';
+const TABS: [Tab, string][] = [['overview', 'Overview'], ['participants', 'Participants'], ['obligations', 'Obligations'], ['nets', 'Net positions'], ['authorization', 'Authorization'], ['settlement', 'Settlement preparation'], ['activity', 'Activity and history']];
 
 const Badge = ({ tone, children }: { tone: string; children: string }) => <span className={`ss-badge ss-${tone}`}>{children}</span>;
 
@@ -95,7 +96,7 @@ export function SessionsApp() {
           <div className={`ss-provenance ss-${ws.banner.tone}`} role="status"><strong>{ws.banner.label}.</strong> {ws.banner.meaning}</div>
           <h3>{ws.overview.label}</h3>
           <ul className="ss-tabs" role="tablist">
-            {TABS.filter(([k]) => k !== 'authorization' || operational).map(([k, t]) => <li key={k}><button type="button" role="tab" aria-selected={tab === k} aria-current={tab === k ? 'page' : undefined} onClick={() => setTab(k)}>{t}</button></li>)}
+            {TABS.filter(([k]) => (k !== 'authorization' && k !== 'settlement') || operational).map(([k, t]) => <li key={k}><button type="button" role="tab" aria-selected={tab === k} aria-current={tab === k ? 'page' : undefined} onClick={() => setTab(k)}>{t}</button></li>)}
           </ul>
           {tab === 'overview' && (
             <>
@@ -116,6 +117,7 @@ export function SessionsApp() {
           {tab === 'participants' && operational && <ParticipantsPanel {...ops} />}
           {tab === 'obligations' && operational && <ObligationsPanel {...ops} />}
           {tab === 'nets' && operational && <NetPositionsPanel {...ops} />}
+          {tab === 'settlement' && operational && <SettlementPanel {...ops} />}
           {tab === 'authorization' && operational && <AuthorizationPanel orgId={org} sessionId={sid} workflow={workflow} onChanged={changed} />}
           {tab === 'nets' && !operational && (
             <>

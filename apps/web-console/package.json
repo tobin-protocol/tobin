@@ -18,6 +18,7 @@
     "test:browser": "node test/browser/journey.mjs",
     "test:w0-browser": "node test/browser/w0-journey.mjs",
     "test:sessions-browser": "node test/browser/sessions-journey.mjs",
+    "test:settlement-browser": "node test/browser/settlement-journey.mjs",
     "test:authorization-browser": "node test/browser/authorization-journey.mjs",
     "test:clearing-browser": "node test/browser/clearing-journey.mjs",
     "test:backend-browser": "node test/browser/backend-journey.mjs",

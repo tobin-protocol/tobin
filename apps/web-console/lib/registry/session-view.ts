@@ -145,6 +145,7 @@ const ACTIVITY_LABEL: Record<string, string> = {
   'obligation.created': 'Obligation created', 'obligation.updated': 'Obligation updated', 'obligation.voided': 'Obligation voided',
   'netting.calculated': 'Net positions calculated', 'netting.failed': 'Calculation refused',
   'authorization.approved': 'Calculation approved', 'authorization.rejected': 'Calculation rejected', 'authorization.invalidated': 'Decision no longer applies',
+  'settlement.batch-prepared': 'Settlement batch prepared', 'settlement.batch-approved': 'Settlement batch approved', 'settlement.batch-rejected': 'Settlement batch rejected', 'settlement.batch-invalidated': 'Settlement batch no longer eligible',
   'reviewer.granted': 'Reviewer capability granted', 'reviewer.revoked': 'Reviewer capability revoked',
 };
 export const activityLabel = (kind: string): string => ACTIVITY_LABEL[kind] ?? kind;

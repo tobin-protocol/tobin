@@ -1,6 +1,6 @@
 // Persistence interface for the registry. The database choice is an open owner decision; this in-memory implementation is NON-PRODUCTION (lost on
 // restart) and exists only for isolated unit tests. The production store is SqliteRegistryStore (sqlite-store.ts). Reads return copies.
-import type { ActivityRecord, AuthorizationDecision, AuthorizationInvalidation, ReviewerGrant, CalculationRecord, Invitation, ObligationRecord, Membership, Organization, OrgWallet, SessionParticipant, SessionRecord } from './types.ts';
+import type { BatchInvalidation, BatchReview, SettlementBatch, SettlementInstruction, SupportedAsset, ActivityRecord, AuthorizationDecision, AuthorizationInvalidation, ReviewerGrant, CalculationRecord, Invitation, ObligationRecord, Membership, Organization, OrgWallet, SessionParticipant, SessionRecord } from './types.ts';
 
 const clone = <T>(x: T): T => structuredClone(x);
 
@@ -38,6 +38,17 @@ export interface RegistryStore {
   decisionsOfSession(sessionId: string): AuthorizationDecision[];
   putInvalidation(i: AuthorizationInvalidation): void;
   invalidationsOfSession(sessionId: string): AuthorizationInvalidation[];
+  /** operator configuration is written by the operator tool, not by the application API */
+  putAsset(a: SupportedAsset): void;
+  assets(): SupportedAsset[];
+  /** throws if a batch for the same calculation already exists */
+  putBatch(b: SettlementBatch, instructions: SettlementInstruction[]): void;
+  batchesOfSession(sessionId: string): SettlementBatch[];
+  instructionsOfBatch(batchId: string): SettlementInstruction[];
+  putBatchReview(r: BatchReview): void;
+  batchReviewsOfSession(sessionId: string): BatchReview[];
+  putBatchInvalidation(i: BatchInvalidation): void;
+  batchInvalidationsOfSession(sessionId: string): BatchInvalidation[];
   appendActivity(a: ActivityRecord): void;
   activityOfOrg(orgId: string): ActivityRecord[];
 }
@@ -55,15 +66,29 @@ export class InMemoryRegistryStore implements RegistryStore {
   readonly #reviewers = new Map<string, ReviewerGrant>();
   readonly #decisions: AuthorizationDecision[] = [];
   readonly #invalidations = new Map<string, AuthorizationInvalidation>();
+  readonly #assets = new Map<string, SupportedAsset>();
+  readonly #batches: SettlementBatch[] = [];
+  readonly #instructions: SettlementInstruction[] = [];
+  readonly #reviews: BatchReview[] = [];
+  readonly #batchInv = new Map<string, BatchInvalidation>();
   transaction<T>(fn: () => T): T {
-    const maps = [this.#orgs, this.#members, this.#wallets, this.#invites, this.#sessions, this.#participants, this.#obligations, this.#reviewers, this.#invalidations] as Map<string, unknown>[];
+    const maps = [this.#orgs, this.#members, this.#wallets, this.#invites, this.#sessions, this.#participants, this.#obligations, this.#reviewers, this.#invalidations, this.#assets, this.#batchInv] as Map<string, unknown>[];
     const snap = maps.map((m) => new Map(m));
-    const act = this.#activity.length; const calcs = this.#calcs.length; const decs = this.#decisions.length;
+    const act = this.#activity.length; const calcs = this.#calcs.length; const decs = this.#decisions.length; const bats = this.#batches.length; const ins = this.#instructions.length; const revs = this.#reviews.length;
     try { return fn(); } catch (e) {
       for (const [i, m] of maps.entries()) { m.clear(); for (const [k, v] of snap[i] as Map<string, unknown>) m.set(k, v); }
-      this.#activity.length = act; this.#calcs.length = calcs; this.#decisions.length = decs; throw e;
+      this.#activity.length = act; this.#calcs.length = calcs; this.#decisions.length = decs; this.#batches.length = bats; this.#instructions.length = ins; this.#reviews.length = revs; throw e;
     }
   }
+  putAsset(a: SupportedAsset) { this.#assets.set(a.id, clone(a)); }
+  assets() { return [...this.#assets.values()].map(clone); }
+  putBatch(b: SettlementBatch, instructions: SettlementInstruction[]) { if (this.#batches.some((x) => x.calculationId === b.calculationId)) throw new Error('UNIQUE constraint failed: settlement_batches.calculation_id'); this.#batches.push(clone(b)); for (const i of instructions) this.#instructions.push(clone(i)); }
+  batchesOfSession(sessionId: string) { return this.#batches.filter((b) => b.sessionId === sessionId).map(clone); }
+  instructionsOfBatch(batchId: string) { return this.#instructions.filter((i) => i.batchId === batchId).sort((a, b) => a.seq - b.seq).map(clone); }
+  putBatchReview(r: BatchReview) { if (this.#reviews.some((x) => x.batchId === r.batchId)) throw new Error('UNIQUE constraint failed: settlement_batch_reviews.batch_id'); this.#reviews.push(clone(r)); }
+  batchReviewsOfSession(sessionId: string) { const ids = new Set(this.#batches.filter((b) => b.sessionId === sessionId).map((b) => b.id)); return this.#reviews.filter((r) => ids.has(r.batchId)).map(clone); }
+  putBatchInvalidation(i: BatchInvalidation) { if (!this.#batchInv.has(i.batchId)) this.#batchInv.set(i.batchId, clone(i)); }
+  batchInvalidationsOfSession(sessionId: string) { const ids = new Set(this.#batches.filter((b) => b.sessionId === sessionId).map((b) => b.id)); return [...this.#batchInv.values()].filter((i) => ids.has(i.batchId)).map(clone); }
   putReviewer(r: ReviewerGrant) { this.#reviewers.set(`${r.orgId}|${r.userId}`, clone(r)); }
   removeReviewer(orgId: string, userId: string) { this.#reviewers.delete(`${orgId}|${userId}`); }
   reviewersOfOrg(orgId: string) { return [...this.#reviewers.values()].filter((r) => r.orgId === orgId && this.#members.has(`${r.orgId}|${r.userId}`)).map(clone); }
