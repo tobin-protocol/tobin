@@ -1,0 +1,142 @@
+{
+  "at": "2026-11-07T14:15:28.315Z",
+  "kind": "REAL TESTNET: independent chain reads (RPC + Horizon); no keys used; nothing submitted",
+  "plan": {
+    "sessionId": "a053fd423ffba849424bb6d9c593e98543fb176fae92bf0cd3d5d5c100f0bd8c",
+    "fingerprint": "7edcf9c8fed3894fc090273603e28de2e6ca7d1a8018e60405c475d6924e5de5",
+    "expectedDigest": "d5e052c5195d1d876159fb9a67dcbf8bc18a990c156a3bd49df69306cfeeb34e",
+    "expectedCommitment": "afac843a782d3479c0424997bb8c00d814ce8f1ed23f0d8e21c9561f28e12fef",
+    "expectedTotalMoved": "1"
+  },
+  "comparison": {
+    "ok": true,
+    "progress": "settled",
+    "mismatches": []
+  },
+  "session": {
+    "state": "Settled",
+    "participants": [
+      "GAS7VMM764FIEP6Q5KDWXXC56QE7YGORME27MFKWPMP63QL3LX7QJL2M",
+      "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ"
+    ]
+  },
+  "settlement": {
+    "digest": "d5e052c5195d1d876159fb9a67dcbf8bc18a990c156a3bd49df69306cfeeb34e",
+    "ledgerSequence": 5607448,
+    "totalMoved": "1",
+    "instructionCount": 1
+  },
+  "approvals": [
+    {
+      "participant": "GAS7VMM764FIEP6Q5KDWXXC56QE7YGORME27MFKWPMP63QL3LX7QJL2M",
+      "digest": "d5e052c5195d1d876159fb9a67dcbf8bc18a990c156a3bd49df69306cfeeb34e"
+    },
+    {
+      "participant": "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ",
+      "digest": "d5e052c5195d1d876159fb9a67dcbf8bc18a990c156a3bd49df69306cfeeb34e"
+    }
+  ],
+  "balances": {
+    "admin": "0",
+    "second": "1"
+  },
+  "totalSupply": "1",
+  "steps": [
+    {
+      "step": 1,
+      "hash": "a86fdd0f79ad2ba968e183f60808dc3e474a478c4e3b769b3516cdbbc65ffe8b",
+      "rpcStatus": "SUCCESS",
+      "rpcLedger": 5606084,
+      "horizonSuccessful": true,
+      "horizonLedger": 5606084,
+      "sourceAccount": "GAS7VMM764FIEP6Q5KDWXXC56QE7YGORME27MFKWPMP63QL3LX7QJL2M",
+      "feeCharged": "383342",
+      "signatures": 1
+    },
+    {
+      "step": 2,
+      "hash": "4b7350e8cd3338c91d8f5284942a69dd3efedd26b8a982ebf7eb97c2b3113644",
+      "rpcStatus": "SUCCESS",
+      "rpcLedger": 5606163,
+      "horizonSuccessful": true,
+      "horizonLedger": 5606163,
+      "sourceAccount": "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ",
+      "feeCharged": "45929",
+      "signatures": 2
+    },
+    {
+      "step": 3,
+      "hash": "87873dffe08c463d0e770590ee287e46eca334e77a463e867e7a1ff60194a074",
+      "rpcStatus": "SUCCESS",
+      "rpcLedger": 5606308,
+      "horizonSuccessful": true,
+      "horizonLedger": 5606308,
+      "sourceAccount": "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ",
+      "feeCharged": "307193",
+      "signatures": 2
+    },
+    {
+      "step": 4,
+      "hash": "33623a3394d8f9877bc7e45c59476535eacc71c29697611149975f67f0e29ca1",
+      "rpcStatus": "SUCCESS",
+      "rpcLedger": 5606388,
+      "horizonSuccessful": true,
+      "horizonLedger": 5606388,
+      "sourceAccount": "GAS7VMM764FIEP6Q5KDWXXC56QE7YGORME27MFKWPMP63QL3LX7QJL2M",
+      "feeCharged": "35148",
+      "signatures": 1
+    },
+    {
+      "step": 5,
+      "hash": "d9591044b3664e8cd5e5320f9090826a064e4c4b256835ca8a7f24185c4aeaeb",
+      "rpcStatus": "SUCCESS",
+      "rpcLedger": 5606444,
+      "horizonSuccessful": true,
+      "horizonLedger": 5606444,
+      "sourceAccount": "GAS7VMM764FIEP6Q5KDWXXC56QE7YGORME27MFKWPMP63QL3LX7QJL2M",
+      "feeCharged": "407170",
+      "signatures": 1
+    },
+    {
+      "step": 6,
+      "hash": "a1bc02c161712c10d2a2ab0eb11c7cd517ad8e429e75d516f9e327d64e3b789e",
+      "rpcStatus": "SUCCESS",
+      "rpcLedger": 5606525,
+      "horizonSuccessful": true,
+      "horizonLedger": 5606525,
+      "sourceAccount": "GAS7VMM764FIEP6Q5KDWXXC56QE7YGORME27MFKWPMP63QL3LX7QJL2M",
+      "feeCharged": "233143",
+      "signatures": 1
+    },
+    {
+      "step": 7,
+      "hash": "0bee25b75e0068b396a69c4644fa4c23685c52533c49510ec2b09401024a0370",
+      "rpcStatus": "SUCCESS",
+      "rpcLedger": 5607401,
+      "horizonSuccessful": true,
+      "horizonLedger": 5607401,
+      "sourceAccount": "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ",
+      "feeCharged": "117295",
+      "signatures": 2
+    },
+    {
+      "step": 8,
+      "hash": "002fff31c93233d4d9529f8447699870bb9c5ff056b5ad0eec2a9943e183daee",
+      "rpcStatus": "SUCCESS",
+      "rpcLedger": 5607448,
+      "horizonSuccessful": true,
+      "horizonLedger": 5607448,
+      "sourceAccount": "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ",
+      "feeCharged": "390980",
+      "signatures": 2
+    }
+  ],
+  "settleOperation": [
+    {
+      "type": "invoke_host_function",
+      "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+      "source": "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ"
+    }
+  ],
+  "settleEffects": []
+}

@@ -1,0 +1,476 @@
+{
+  "browser": "Chrome/156.0.8078.81",
+  "width": 1200,
+  "total": 78,
+  "failed": 0,
+  "results": [
+    {
+      "step": "S0 sign in through the real sign-in page",
+      "name": "without a session, /sessions asks the user to sign in and shows no organization data",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "S0 sign in through the real sign-in page",
+      "name": "the session cookie is HttpOnly, SameSite=Strict and Secure",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "S0 sign in through the real sign-in page",
+      "name": "document.cookie cannot read it",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "A1 loading state (response delayed by the test)",
+      "name": "a loading message is shown while the list request is pending",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "A1 loading state (response delayed by the test)",
+      "name": "the list request was intercepted by the test",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "A2 error state with Retry (500 produced by the test)",
+      "name": "the error is shown in an alert with a readable message and a Retry button",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "A2 error state with Retry (500 produced by the test)",
+      "name": "Retry recovers and shows the sessions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "A3 listing",
+      "name": "/sessions loads and the organization is visible",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "A3 listing",
+      "name": "the banner names the signed-in user and states no wallet, no network, drafts not on-chain",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "A3 listing",
+      "name": "row: name, short id, status, participants, created, provenance, activity",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "A3 listing",
+      "name": "the full session id is available on the short id (title)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "A3 listing",
+      "name": "the activity cell shows a count and last-activity date when activity exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "A3 listing",
+      "name": "the provenance badge is visible",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "A3 listing",
+      "name": "accessibility structure (listing): labels, captions, scope, headings, names",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "A3 listing",
+      "name": "no horizontal page overflow (listing)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "A3 listing",
+      "name": "no control clipped outside the viewport (listing)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "N navigation",
+      "name": "a \"Sessions\" link to /sessions is in the Institution navigation",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "N navigation",
+      "name": "it is marked as the current page (aria-current) on /sessions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "N navigation",
+      "name": "it is inside the viewport and at least 24px tall",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "N navigation",
+      "name": "the navigation precedes the identity banner and the page keeps exactly one h1",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "N navigation",
+      "name": "the signed-in banner is still shown",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "N navigation",
+      "name": "the link is the first control reached by keyboard and shows a focus outline",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "N navigation",
+      "name": "Enter on the link keeps the user on /sessions with the list shown",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "N navigation",
+      "name": "/w0 has no Institution navigation and no link to /sessions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "N navigation",
+      "name": "/ has no Institution navigation and no link to /sessions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "N navigation",
+      "name": "the Sessions page is not linked from /w0 text either",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "B session creation",
+      "name": "the form states a draft is not an on-chain session",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "B session creation",
+      "name": "the only creation input is the name: no session id or provenance field",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "B session creation",
+      "name": "the name field is required",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "B session creation",
+      "name": "empty submission is blocked by validation (nothing created)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "B session creation",
+      "name": "an invalid name shows a clear server error and creates nothing",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "B session creation",
+      "name": "the notice says it is not an on-chain session",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "B session creation",
+      "name": "the new draft is listed as \"Draft (not on-chain)\" with provenance Local draft",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "B session creation",
+      "name": "the alert from the invalid attempt is gone after a successful create",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "B session creation",
+      "name": "no horizontal page overflow (after create)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "B session creation",
+      "name": "no control clipped outside the viewport (after create)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "C/D fixture workspace",
+      "name": "tab \"Overview\" is a visible, reachable tab control",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "C/D fixture workspace",
+      "name": "tab \"Participants\" is a visible, reachable tab control",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "C/D fixture workspace",
+      "name": "tab \"Obligations\" is a visible, reachable tab control",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "C/D fixture workspace",
+      "name": "tab \"Net positions\" is a visible, reachable tab control",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "C/D fixture workspace",
+      "name": "tab \"Activity and history\" is a visible, reachable tab control",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "C/D fixture workspace",
+      "name": "\"Overview\": selected state exposed and the provenance banner stays visible above",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "C/D fixture workspace",
+      "name": "no horizontal page overflow (tab Overview)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "C/D fixture workspace",
+      "name": "no control clipped outside the viewport (tab Overview)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "C/D fixture workspace",
+      "name": "\"Participants\": selected state exposed and the provenance banner stays visible above",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "C/D fixture workspace",
+      "name": "no horizontal page overflow (tab Participants)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "C/D fixture workspace",
+      "name": "no control clipped outside the viewport (tab Participants)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "C/D fixture workspace",
+      "name": "\"Obligations\": selected state exposed and the provenance banner stays visible above",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "C/D fixture workspace",
+      "name": "no horizontal page overflow (tab Obligations)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "C/D fixture workspace",
+      "name": "no control clipped outside the viewport (tab Obligations)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "C/D fixture workspace",
+      "name": "\"Net positions\": selected state exposed and the provenance banner stays visible above",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "C/D fixture workspace",
+      "name": "no horizontal page overflow (tab Net positions)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "C/D fixture workspace",
+      "name": "no control clipped outside the viewport (tab Net positions)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "C/D fixture workspace",
+      "name": "\"Activity and history\": selected state exposed and the provenance banner stays visible above",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "C/D fixture workspace",
+      "name": "no horizontal page overflow (tab Activity and history)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "C/D fixture workspace",
+      "name": "no control clipped outside the viewport (tab Activity and history)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "C/D fixture workspace",
+      "name": "overview: full session id, status, created date, provenance",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "C/D fixture workspace",
+      "name": "participants labelled FIXTURE",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "C/D fixture workspace",
+      "name": "obligations labelled FIXTURE with three rows",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "C/D fixture workspace",
+      "name": "net positions labelled FIXTURE",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "C/D fixture workspace",
+      "name": "A +30, B -20, C -10",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "C/D fixture workspace",
+      "name": "gross 250 and moved 30, marked as fixture figures",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "C/D fixture workspace",
+      "name": "activity tab shows an explicit state (empty message or rows)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "C/D fixture workspace",
+      "name": "accessibility structure (workspace): labels, captions, scope, headings, names",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "E draft workspace",
+      "name": "banner identifies a Local draft and says it is not on-chain",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "E draft workspace",
+      "name": "Participants: unavailable, explained, and no table fabricated",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "E draft workspace",
+      "name": "Obligations: unavailable, explained, and no table fabricated",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "E draft workspace",
+      "name": "Net positions: unavailable, explained, and no table fabricated",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "E draft workspace",
+      "name": "draft activity lists the recording event",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "F organization isolation (same browser, signing in as the other user)",
+      "name": "the demo organization can open its own session (200)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "F organization isolation (same browser, signing in as the other user)",
+      "name": "another organization gets 404 NOT_FOUND for list and session",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "F organization isolation (same browser, signing in as the other user)",
+      "name": "foreign access is indistinguishable from nonexistent (same status and code)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "F organization isolation (same browser, signing in as the other user)",
+      "name": "the other user only ever sees their own organization",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "G keyboard and focus",
+      "name": "Tab moves through distinct controls",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "G keyboard and focus",
+      "name": "focused controls show an outline of at least 2px",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "G keyboard and focus",
+      "name": "a session can be opened with the keyboard alone",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "G keyboard and focus",
+      "name": "a tab can be activated with the keyboard alone",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "step": "H page health",
+      "name": "no JavaScript exception or console error during the whole journey",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

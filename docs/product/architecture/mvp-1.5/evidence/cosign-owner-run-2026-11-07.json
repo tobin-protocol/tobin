@@ -1,0 +1,19 @@
+{
+  "kind": "OWNER-RUN real signing (Edge + Freighter, Stellar Testnet); NOT submitted",
+  "at": "2026-11-07T11:59:13.351Z",
+  "browser": "Edge",
+  "account": "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ",
+  "transactionHash": "6709b7828005aaead9289ac52d15bfb0c7ad72c8c0bdbe75fbb9561d8ace256f",
+  "transaction": "harmless manageData, sequence far ahead, cannot execute",
+  "signerSetFingerprint": "c1ce351584b6ba97bea871bd7f68dbc6d313bc0f90f5e4a279c557ce3c3d0f76",
+  "signedBy": ["founder", "security"],
+  "combinedWeight": 6,
+  "threshold": 6,
+  "signers": ["GB4NFBRAPQQH7GP24WXR7RKD2SHJWZXTBZH6CTJTEXZWUHTULDUME6OL", "GATMFOGT2C25JK3AU635RKUXBFQ7JTBF3JXEFNZTONYM3VC4SPHX25AP"],
+  "unchangedSincePrepared": true,
+  "freshSignerSet": true,
+  "policySatisfied": true,
+  "verified": true,
+  "submitted": false,
+  "source": "evidence block pasted by the owner; verification by the server against the live Horizon+RPC signer set. Not independently re-verified by a second implementation. On-chain ACCEPTANCE of a co-signed envelope for this account is shown only by the earlier governed-token mint (deployment record), not by this test."
+}

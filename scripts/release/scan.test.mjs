@@ -3,7 +3,7 @@
 // Test identifiers are built at run time (not written out) so that this file does not itself look like a contract ID or a secret seed.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { manifestProblems, scanFile, TESTNET_MANIFEST_PATH } from './scan.mjs';
+import { EVIDENCE_CONTRACT_ID_EXCEPTIONS, MANIFEST_CONTRACT_IDS, manifestProblems, scanFile, TESTNET_MANIFEST_PATH } from './scan.mjs';
 
 const contractId = (c) => 'C' + c.repeat(55);
 const accountId = (c) => 'G' + c.repeat(55);
@@ -97,4 +97,53 @@ test('the other detections still apply, including inside the manifest', () => {
   assert.match(scanFile('notes.md', 'C:' + String.fromCharCode(92) + 'Users' + String.fromCharCode(92) + 'x').join('\n'), /absolute local user path/);
   assert.match(scanFile(TESTNET_MANIFEST_PATH, text({ ...valid(), note: '/ho' + 'me/alice/keys' })).join('\n'), /absolute local user path/);
   assert.deepEqual(scanFile('docs/ok.md', 'plain text'), []);
+});
+
+// ---- the evidence exception: exactly two MVP-1.5 evidence files, only for contract ids that the deployment manifest records ----
+const EVIDENCE = 'docs/product/architecture/mvp-1.5/evidence/simulation-oneunit-2026-11-07.json';
+const EVIDENCE_2 = 'docs/product/architecture/mvp-1.5/evidence/multisig-live-audit-2026-11-07.json';
+const known = new Set([contractId('B'), contractId('C')]);
+const evidenceText = (extra = {}) => JSON.stringify({ clearing: contractId('C'), token: contractId('B'), ...extra });
+
+test('the exception is exactly the two accepted evidence files and nothing broader', () => {
+  assert.deepEqual([...EVIDENCE_CONTRACT_ID_EXCEPTIONS].sort(), [EVIDENCE_2, EVIDENCE].sort());
+  assert.ok(Object.isFrozen(EVIDENCE_CONTRACT_ID_EXCEPTIONS));
+  assert.ok(EVIDENCE_CONTRACT_ID_EXCEPTIONS.every((p) => p.endsWith('.json') && !/[*?]/.test(p)), 'no glob and no directory');
+});
+test('the real manifest ids are what the real evidence files use (the exception is tied to the manifest, not to a copy)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const real = (p) => readFileSync(new URL('../../' + p, import.meta.url), 'utf8');
+  assert.ok(MANIFEST_CONTRACT_IDS.size >= 2);
+  for (const p of EVIDENCE_CONTRACT_ID_EXCEPTIONS) assert.deepEqual(scanFile(p, real(p)), [], p);
+});
+test('an excepted evidence file with only manifest ids is accepted', () => {
+  assert.deepEqual(scanFile(EVIDENCE, evidenceText(), known), []);
+  assert.deepEqual(scanFile(EVIDENCE_2, evidenceText(), known), []);
+});
+test('an excepted evidence file with a contract id the manifest does not record is still a finding', () => {
+  const f = scanFile(EVIDENCE, evidenceText({ other: contractId('D') }), known);
+  assert.equal(f.length, 1); assert.match(f[0], /not recorded in the deployment manifest/);
+});
+test('the same evidence content anywhere else is still a finding: a sibling file, another directory, a prefix, a different case', () => {
+  for (const p of ['docs/product/architecture/mvp-1.5/evidence/other.json', 'docs/product/architecture/mvp-1.5/evidence/simulation-oneunit-2026-11-07.json.bak',
+    'docs/product/architecture/mvp-1.4/evidence/simulation-oneunit-2026-11-07.json', 'evidence/simulation-oneunit-2026-11-07.json',
+    'docs/product/architecture/mvp-1.5/evidence/Simulation-oneunit-2026-11-07.json', 'docs/product/architecture/mvp-1.5/MVP-1.5-TESTNET-VERIFICATION.md']) {
+    const f = scanFile(p, evidenceText(), known);
+    assert.equal(f.length, 1, p); assert.match(f[0], /contract-id-shaped string outside test fixtures/);
+  }
+});
+test('an excepted file must stay valid JSON', () => {
+  const f = scanFile(EVIDENCE, 'not json ' + contractId('C'), known);
+  assert.ok(f.some((x) => /not valid JSON/.test(x)));
+});
+test('real secrets, private keys, local paths and excluded paths still fail inside an excepted file', () => {
+  assert.ok(scanFile(EVIDENCE, evidenceText({ s: secretSeed() }), known).some((x) => /secret-seed-shaped/.test(x)));
+  assert.ok(scanFile(EVIDENCE, evidenceText({ k: '-----BEGIN ' + 'PRIVATE KEY-----' }), known).some((x) => /private key block/.test(x)));
+  assert.ok(scanFile(EVIDENCE, evidenceText({ p: '/c/' + 'Users/someone/project' }), known).some((x) => /absolute local user path/.test(x)));
+  assert.ok(scanFile('docs/product/architecture/mvp-1.5/evidence/.env', evidenceText(), known).some((x) => /excluded or unsuitable path/.test(x)));
+});
+test('the exception does not change the other rules: a seed in an ordinary file and a contract id in an ordinary file still fail', () => {
+  assert.equal(scanFile('docs/notes.md', 'x ' + secretSeed()).length, 1);
+  assert.equal(scanFile('docs/notes.md', 'x ' + contractId('C'), known).length, 1);
+  assert.equal(scanFile('apps/web-console/lib/x.ts', 'const a = "' + contractId('B') + '";', known).length, 1);
 });

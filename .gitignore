@@ -65,3 +65,6 @@ next-env.d.ts
 # Landing page source images (originals, background-removed PNGs and Unsplash downloads). The optimised
 # files actually served live in apps/landing/public/; the sources are never committed.
 apps/landing/assets-src/
+
+# local development database (apps/web-console/.data)
+.data/

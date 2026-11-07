@@ -124,11 +124,14 @@ export class Page {
 
   async waitFor(expression, { timeout = 10000, what = expression } = {}) {
     const t0 = Date.now();
+    let lastError = '';
     while (Date.now() - t0 < timeout) {
-      if (await this.ev(`Boolean(${expression})`)) return true;
+      // A document that is still loading or being replaced (right after a navigation, reload or redirect) has no <main> yet, so the expression can throw. That is a reason to keep
+      // waiting, not a result. The condition must still become true within the timeout, and the last page error is reported if it never does, so a real error is never hidden.
+      try { if (await this.ev(`Boolean(${expression})`)) return true; lastError = ''; } catch (e) { lastError = String(e.message ?? e).slice(0, 200); }
       await sleep(80);
     }
-    throw new Error(`timed out waiting for: ${what}`);
+    throw new Error(`timed out waiting for: ${what}${lastError ? ` (last page error: ${lastError})` : ''}`);
   }
 
   /** A real mouse click (move, press, release) at the centre of the element the expression returns, scrolled into view. */

@@ -1,0 +1,225 @@
+{
+  "at": "2026-11-07T10:42:09.589Z",
+  "network": "testnet",
+  "passphrase": "Test SDF Network ; September 2015",
+  "account": "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ",
+  "horizon": "https://horizon-testnet.stellar.org",
+  "rpc": "https://soroban-testnet.stellar.org",
+  "checks": [
+    {
+      "name": "Horizon and RPC agree on the signer set and thresholds",
+      "ok": true,
+      "detail": {
+        "horizon": "c1ce351584b6ba97bea871bd7f68dbc6d313bc0f90f5e4a279c557ce3c3d0f76",
+        "rpc": "c1ce351584b6ba97bea871bd7f68dbc6d313bc0f90f5e4a279c557ce3c3d0f76"
+      }
+    },
+    {
+      "name": "live signer set equals the repository record (accounts/testnet-admin.json)",
+      "ok": true,
+      "detail": {
+        "recorded": [
+          [
+            "founder",
+            "GB4NFBRAPQQH7GP24WXR7RKD2SHJWZXTBZH6CTJTEXZWUHTULDUME6OL",
+            5
+          ],
+          [
+            "technical",
+            "GAE67UNGUDUCBUEHOJKU2OXVF5I6SSGWMH2ZLCS3Q5EXPQ63URNUR26H",
+            2
+          ],
+          [
+            "security",
+            "GATMFOGT2C25JK3AU635RKUXBFQ7JTBF3JXEFNZTONYM3VC4SPHX25AP",
+            1
+          ]
+        ]
+      }
+    },
+    {
+      "name": "thresholds are 5 / 6 / 7",
+      "ok": true,
+      "detail": {
+        "low": 5,
+        "medium": 6,
+        "high": 7
+      }
+    },
+    {
+      "name": "master key weight (the bootstrap key is still enabled)",
+      "ok": true,
+      "detail": {
+        "key": "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ",
+        "weight": 1
+      }
+    },
+    {
+      "name": "the governed token minter recorded in the deployment is this account",
+      "ok": true,
+      "detail": "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ"
+    }
+  ],
+  "horizonAccount": {
+    "id": "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ",
+    "sequence": "23747277906509828",
+    "subentryCount": 3,
+    "flags": {
+      "auth_required": false,
+      "auth_revocable": false,
+      "auth_immutable": false,
+      "auth_clawback_enabled": false
+    },
+    "thresholds": {
+      "low_threshold": 5,
+      "med_threshold": 6,
+      "high_threshold": 7
+    },
+    "signers": [
+      {
+        "weight": 2,
+        "key": "GAE67UNGUDUCBUEHOJKU2OXVF5I6SSGWMH2ZLCS3Q5EXPQ63URNUR26H",
+        "type": "ed25519_public_key"
+      },
+      {
+        "weight": 1,
+        "key": "GATMFOGT2C25JK3AU635RKUXBFQ7JTBF3JXEFNZTONYM3VC4SPHX25AP",
+        "type": "ed25519_public_key"
+      },
+      {
+        "weight": 5,
+        "key": "GB4NFBRAPQQH7GP24WXR7RKD2SHJWZXTBZH6CTJTEXZWUHTULDUME6OL",
+        "type": "ed25519_public_key"
+      },
+      {
+        "weight": 1,
+        "key": "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ",
+        "type": "ed25519_public_key"
+      }
+    ],
+    "balances": [
+      {
+        "balance": "9999.9530204",
+        "buying_liabilities": "0.0000000",
+        "selling_liabilities": "0.0000000",
+        "asset_type": "native"
+      }
+    ],
+    "lastModifiedLedger": 5533978
+  },
+  "rpcAccount": {
+    "sequence": "23747277906509828",
+    "thresholdsHex": "01050607",
+    "signers": [
+      {
+        "key": "GAE67UNGUDUCBUEHOJKU2OXVF5I6SSGWMH2ZLCS3Q5EXPQ63URNUR26H",
+        "weight": 2
+      },
+      {
+        "key": "GATMFOGT2C25JK3AU635RKUXBFQ7JTBF3JXEFNZTONYM3VC4SPHX25AP",
+        "weight": 1
+      },
+      {
+        "key": "GB4NFBRAPQQH7GP24WXR7RKD2SHJWZXTBZH6CTJTEXZWUHTULDUME6OL",
+        "weight": 5
+      }
+    ],
+    "lastModifiedLedgerSeq": 5533978,
+    "latestLedger": 5604903
+  },
+  "signerSet": {
+    "network": "testnet",
+    "account": "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ",
+    "thresholds": {
+      "low": 5,
+      "medium": 6,
+      "high": 7
+    },
+    "signers": [
+      {
+        "key": "GAE67UNGUDUCBUEHOJKU2OXVF5I6SSGWMH2ZLCS3Q5EXPQ63URNUR26H",
+        "weight": 2
+      },
+      {
+        "key": "GATMFOGT2C25JK3AU635RKUXBFQ7JTBF3JXEFNZTONYM3VC4SPHX25AP",
+        "weight": 1
+      },
+      {
+        "key": "GB4NFBRAPQQH7GP24WXR7RKD2SHJWZXTBZH6CTJTEXZWUHTULDUME6OL",
+        "weight": 5
+      },
+      {
+        "key": "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ",
+        "weight": 1
+      }
+    ],
+    "fingerprint": "c1ce351584b6ba97bea871bd7f68dbc6d313bc0f90f5e4a279c557ce3c3d0f76"
+  },
+  "minimalSetsFor_low": [
+    [
+      {
+        "key": "GB4NFBRAPQQH7GP24WXR7RKD2SHJWZXTBZH6CTJTEXZWUHTULDUME6OL",
+        "weight": 5
+      }
+    ]
+  ],
+  "minimalSetsFor_medium": [
+    [
+      {
+        "key": "GAE67UNGUDUCBUEHOJKU2OXVF5I6SSGWMH2ZLCS3Q5EXPQ63URNUR26H",
+        "weight": 2
+      },
+      {
+        "key": "GB4NFBRAPQQH7GP24WXR7RKD2SHJWZXTBZH6CTJTEXZWUHTULDUME6OL",
+        "weight": 5
+      }
+    ],
+    [
+      {
+        "key": "GATMFOGT2C25JK3AU635RKUXBFQ7JTBF3JXEFNZTONYM3VC4SPHX25AP",
+        "weight": 1
+      },
+      {
+        "key": "GB4NFBRAPQQH7GP24WXR7RKD2SHJWZXTBZH6CTJTEXZWUHTULDUME6OL",
+        "weight": 5
+      }
+    ],
+    [
+      {
+        "key": "GB4NFBRAPQQH7GP24WXR7RKD2SHJWZXTBZH6CTJTEXZWUHTULDUME6OL",
+        "weight": 5
+      },
+      {
+        "key": "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ",
+        "weight": 1
+      }
+    ]
+  ],
+  "minimalSetsFor_high": [
+    [
+      {
+        "key": "GAE67UNGUDUCBUEHOJKU2OXVF5I6SSGWMH2ZLCS3Q5EXPQ63URNUR26H",
+        "weight": 2
+      },
+      {
+        "key": "GB4NFBRAPQQH7GP24WXR7RKD2SHJWZXTBZH6CTJTEXZWUHTULDUME6OL",
+        "weight": 5
+      }
+    ],
+    [
+      {
+        "key": "GATMFOGT2C25JK3AU635RKUXBFQ7JTBF3JXEFNZTONYM3VC4SPHX25AP",
+        "weight": 1
+      },
+      {
+        "key": "GB4NFBRAPQQH7GP24WXR7RKD2SHJWZXTBZH6CTJTEXZWUHTULDUME6OL",
+        "weight": 5
+      },
+      {
+        "key": "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ",
+        "weight": 1
+      }
+    ]
+  ],
+  "tokenContract": "CD5OK4ZSFLAQIEVQZ44D3MFKESLBRYJLCGO2MEH6UKWWCV63LVQNOKYO"
+}

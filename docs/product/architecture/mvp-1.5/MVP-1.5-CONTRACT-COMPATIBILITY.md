@@ -1,0 +1,67 @@
+# MVP-1.5 contract compatibility
+
+Evidence labels: **SOURCE** (read from `contracts/clearing/src/lib.rs`, `contracts/token/src/lib.rs`, `packages/mvp1-sdk/src/sdk/*`), **NETWORK-READ** (a real read-only call to the Stellar Testnet RPC on 2026-11-07 by `apps/web-console/scripts/testnet-preflight.mjs` and `testnet-simulate.mjs`; raw output in `evidence/preflight-readonly.json` and `evidence/simulation-readonly.json`), **NOT VERIFIED**. No transaction was submitted to obtain any of this.
+
+## Network and protocol (NETWORK-READ)
+Testnet RPC `https://soroban-testnet.stellar.org`, version 30.0.0 (commit 13e5351), captive core stellar-core 30.0.0, **protocol 30**, passphrase `Test SDF Network ; September 2015`. Health: healthy. Ledger retention about 120,960 ledgers (older transactions read back as NOT_FOUND).
+
+## Deployed contracts (NETWORK-READ, compared with `contracts/deployments/testnet.json`)
+| Name | Contract id | Wasm hash on chain = recorded | Notes |
+|---|---|---|---|
+| `tobin_clearing_v1` | `CCV3EF...Y4DT` | yes (`80bea964...47e5e4`) | immutable, no admin or upgrade path (SOURCE and record); no constructor; instance live until ledger 6494355 |
+| `tobin_test_token_governed` | `CD5OK4...OKYO` | yes (`ef483732...83241f`) | the intended MVP token; symbol TTT, 7 decimals, cap 10,000,000,000,000; minter = the administrative multisig; **total supply 1 base unit**, **balance of the administrative account 1** |
+| `tobin_test_token` (legacy) | `CD7HOX...UC4O` | yes | legacy, minter is a disposable deployer whose key is gone; not the intended token |
+`config()` on the clearing contract (NETWORK-READ): version 1, **participant ceiling 4, obligation ceiling 16, instruction ceiling 16**. The recorded session `c62df908...46ee` is readable (`get_session`): state Open, one participant (its creator), token = the legacy token, capacity 3 participants and 4 obligations.
+Administrative account `GCZD5U7G...MU5MJ` (NETWORK-READ): exists, thresholds low 5, medium 6, high 7, signers Founder 5, Technical 2, Security 1 (plus the master key at weight 1 per the record); balance about 9,999.95 XLM. Mint of 1 unit succeeded earlier with Founder + Security (weight 6); Founder alone was rejected (weight 5 below medium 6): the independent read of the recorded mint transaction `c54b4e12...621f28` returned SUCCESS at ledger 5533978, matching the record.
+
+## Capability matrix
+| Capability | Contract support | Evidence | Tobin integration requirement |
+|---|---|---|---|
+| Create on-chain session | SUPPORTED | SOURCE `create_session(creator, session_id, token, max_participants, max_obligations)`: creator authorizes, creator admitted, token fixed, token must be a contract address. NETWORK-READ: simulation of `create_session` succeeded (resource fee 444,922 stroops) | the designated initiator creates it; session id = hash of the batch id (`onChainSessionId`), so a retry can only continue the same session |
+| Join session | SUPPORTED | SOURCE `join_session(session_id, participant)`: **both** the joiner and the session creator authorize. NETWORK-READ: a valid join into the recorded Open session simulated successfully (resource fee 159,151) | creator signs membership only; each participant signs for themselves |
+| Record obligations | SUPPORTED (state OPEN, by the debtor) | SOURCE `submit_obligation(session_id, obligation)`: debtor authorizes; obligation = (id 32 bytes, debtor, creditor, amount i128) | one on-chain obligation per application obligation with the same id, parties (as accounts) and amount (`execution-plan.ts`) |
+| Authorize participant | SUPPORTED, per step | SOURCE `require_auth` per function; the SDK states each signer as data (`prepare*`) | every signer enumerated in the plan; the initiator never signs for others |
+| Calculate net positions | SUPPORTED (inside the contract, over the frozen obligations; validates plans against them) | SOURCE `propose_settlement` validation (nets, order, ceilings); engine and contract agree by the repository's host-parity tests (same author) | independent comparison engine recomputes nets from what is on chain and compares with the approved calculation |
+| Submit settlement instructions | SUPPORTED as a PROPOSAL | SOURCE `propose_settlement(session_id, proposer, instructions)`: any admitted participant, any valid plan, replaceable (revision +1, clears approvals) | the approved batch is the proposal, re-ordered only into the contract's (payer, payee) order; revision must be 1 |
+| Authorize settlement | SUPPORTED | SOURCE `approve_settlement(session_id, participant, digest)`: each participant approves the CURRENT digest (not a debit authorization) | all participants approve the expected digest (`expectedDigest`, recomputed locally with the DB-09 v2 digest) |
+| Execute transfers | SUPPORTED | SOURCE `settle(session_id, digest)`: **every debtor authorizes** `settle(session, digest, own total)` together with its own `token.transfer` sub-invocations; atomic: all succeed or none | requires the token to be a Soroban token contract with `transfer`; the debtors must hold the amounts |
+| Read session / participant / obligation / proposal / approval / settlement state | SUPPORTED | SOURCE getters; NETWORK-READ: `config`, `get_session` | `readObservedChain` (shapes of obligations, proposal, approvals, settlement are from SOURCE and **not yet confirmed against a live non-empty session**) |
+| Read events | PARTIALLY SUPPORTED | SOURCE: the contract publishes events (for example `SessionCreated`); reading them is not implemented here | not needed for reconciliation: state getters and the transaction read suffice; event-based checks are future work |
+| Handle expiry | NOT SUPPORTED by the contract (no session timeout) | SOURCE: no deadline fields (consistent with DB-06: sessions may stall); expiry exists only as transaction validity and authorization-entry expiry | an expired TRANSACTION is a new attempt after revalidation; a stalled SESSION is not auto-abortable |
+| Handle failed execution | PARTIALLY SUPPORTED | SOURCE: `settle` is atomic (a failed transfer reverts everything); a failed transaction leaves the session in its prior state | attempts record failure; a retry continues the same on-chain session |
+| Mixed asset or classic asset | NOT SUPPORTED | SOURCE: one token contract per session | batch asset must be `testnet:contract:C...`; mapping a classic issued asset to its Stellar Asset Contract is not implemented and NOT VERIFIED |
+| Capacity | PARTIALLY SUPPORTED | NETWORK-READ ceilings 4 / 16 / 16 | the adapter refuses larger settlements |
+
+## Authorization and credentials (NETWORK-READ, protocol 30)
+Simulation returns, per authorization entry, a credential type: **`source_account`** when the signer is the transaction's source account (authorized by the transaction envelope signatures), and **`address_v2`** (CAP-71) when the signer is a different account. Observed: `create_session` with the creator as source returned one `source_account` entry; a `join_session` with the joiner as source returned `source_account` (joiner) plus `address_v2` (creator). Consequences: (1) every signer who is not the source of its transaction needs an AddressV2 authorization entry signed through the official SDK `authorizeEntry` (handles V2, builds the preimage, verifies the signature); (2) a single-key account can avoid address entries by being the transaction source for its own steps; (3) a **multi-signature account can only authorize through the transaction envelope** (as source), since the SDK helper signs with one key. The Rust offline signer accepts legacy `Address` only and fails closed on V2: unchanged, not used.
+
+## Economic constraint (NETWORK-READ)
+The governed token's total supply is 1 base unit, held by the administrative multisig account. Minting is not authorized for this work. The only settlement the existing supply can fund is therefore: the administrative account owes one participant at most 1 base unit. The administrative account is a multisig (Founder + Security needed, weight 6 against medium threshold 6), so every step it takes must be a transaction sourced from it with an envelope signed by both wallet profiles.
+
+## Gaps and required decisions
+1. **Freighter `signAuthEntry` with AddressV2: NOT VERIFIED.** Any settlement with two or more participants needs at least one address entry (the join). This is what the owner-run validation page tests (`/wallet-check`).
+2. **Ownership proof for a multisig account.** Tobin proves control of a key by a signature of that key. The administrative account's own address key is the master key (weight 1), not one of the Founder or Security wallets; a Founder signature proves control of a signer, not of the account. A multisig-aware proof (signers and thresholds read from the chain, signatures from enough signers) is required before the administrative account can be a verified participant. Not implemented.
+3. A second funded Testnet account owned in Freighter (the other participant). None was provided.
+4. Retry design after a failed execution beyond attempts (settled: new attempt after review; the on-chain session continues).
+5. Shapes of non-empty getters are unconfirmed until a real session with data is read.
+
+Note: contract ids are shortened in this document and in `evidence/` to follow the release gate (full ids live only in `contracts/deployments/testnet.json`).
+
+## Stage 2 (2026-11-07): live audit of the administrative multisig and the signer matrix
+Evidence: `evidence/multisig-live-audit-2026-11-07.json` (complete identifiers; Horizon and the Soroban RPC read independently and compared; produced by `scripts/testnet-multisig-audit.mjs`). **Verified (NETWORK-READ):** Horizon and the RPC agree; the live signer set equals `accounts/testnet-admin.json`; thresholds low 5, medium 6, high 7; signers Founder `GB4NFBRAPQQH7GP24WXR7RKD2SHJWZXTBZH6CTJTEXZWUHTULDUME6OL` weight 5, Technical `GAE67UNGUDUCBUEHOJKU2OXVF5I6SSGWMH2ZLCS3Q5EXPQ63URNUR26H` weight 2, Security `GATMFOGT2C25JK3AU635RKUXBFQ7JTBF3JXEFNZTONYM3VC4SPHX25AP` weight 1, and the **master key `GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ` weight 1 (still enabled)**; no auth flags set; native balance 9,999.9530204 XLM; the account is the minter of the governed token (deployment record). Signer-set fingerprint `c1ce351584b6ba97bea871bd7f68dbc6d313bc0f90f5e4a279c557ce3c3d0f76`. **Every combination that reaches the medium threshold 6 contains the Founder** (Founder + Technical = 7, Founder + Security = 6, Founder + master = 6; the other three together weigh 4). The institutional policy requires Founder AND Security; weight reached another way (for example with the master key) does not satisfy that policy (enforced and tested).
+
+Two separate mechanisms (not interchangeable):
+1. **Account-level multisig:** the signatures on the transaction ENVELOPE must reach the operation's threshold. InvokeHostFunction needs the MEDIUM threshold (real chain evidence recorded in the deployment record: the governed-token mint with Founder alone, weight 5, was rejected at submission as OpBadAuth; with Founder + Security, weight 6, it succeeded at ledger 5533978).
+2. **Soroban authorization entries:** a `source_account` credential is satisfied by mechanism 1; an `address` / `address_v2` credential is a separate signature on the entry. For a classic multi-signer account an address credential would need a signature vector meeting the threshold; the official SDK helper signs with one key and Tobin does not hand-assemble vectors. **Not verified here:** whether a single master-key signature on an entry (weight 1) would be accepted for this account on chain (it should not meet weight 6). The owner run of `/wallet-check` showed Freighter can SIGN an AddressV2 entry; it did not test acceptance.
+
+Signer matrix for the one-unit settlement (administrative account A = debtor; second account X = creator and creditor). The plan makes A the transaction SOURCE for every step that needs A, so A is authorized through the envelope only:
+| Operation | Required identity | Authorization mechanism | Required weight / threshold | Evidence |
+|---|---|---|---|---|
+| `create_session` | X | X is source: `source_account` credential, envelope signed by X | X single key (default thresholds) | NETWORK-READ simulation: `source_account` |
+| `join_session` (A joins, creator X) | A and X | source = A (envelope, Founder + Security, medium 6); X needs an `address_v2` entry (`signAuthEntry` via the SDK `authorizeEntry`) | A weight 6 (policy Founder + Security); X single key | NETWORK-READ: credentials `source_account` + `address_v2`; owner run: Freighter signed an `address_v2` entry |
+| `submit_obligation` (debtor A) | A | source = A, envelope | weight 6 | SOURCE `require_auth(debtor)` |
+| `finalize_obligations` | any participant | source = X | X | SOURCE |
+| `propose_settlement` | any participant (proposer X) | source = X | X | SOURCE |
+| `approve_settlement` | A, then X (each for themselves) | A: source A envelope; X: source X | A weight 6; X | SOURCE |
+| `settle` | every debtor: A (with its `token.transfer` sub-invocation) | source = A, envelope | weight 6 | SOURCE `settle` authorizations |
+`authorizationRequirements` in `lib/stellar/signer-set.ts` derives these rows from the plan and a signer set, refuses a step that needs two multi-key accounts, and treats an account with no recorded set as single-key. Discrepancy check: the live set matched the repository assumptions, so nothing was changed.

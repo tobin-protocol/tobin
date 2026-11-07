@@ -15,6 +15,23 @@ const RULES = [
   [/[A-Za-z]:\\Users\\|\/c\/Users\/|\/home\/[a-z]/, 'absolute local user path'],
 ];
 const CONTRACT_ID = /\bC[A-Z2-7]{55}\b/;
+const CONTRACT_ID_G = /\bC[A-Z2-7]{55}\b/g;
+
+/** The public Testnet contract ids recorded in the deployment manifest (the one place they may live). Read once. */
+export const MANIFEST_CONTRACT_IDS = new Set(readFileSync(new URL('../../' + TESTNET_MANIFEST_PATH, import.meta.url), 'utf8').match(CONTRACT_ID_G) ?? []);
+
+/**
+ * EXCEPTION (owner decision, recorded in docs/product/architecture/wallet-first-auth/RELEASE-SCAN-EXCEPTIONS.md): two accepted MVP-1.5 Testnet evidence files keep COMPLETE public
+ * contract ids. The exception is deliberately narrow:
+ *   - exactly these two repository paths (no directory, glob or prefix);
+ *   - it covers ONLY the contract-id finding, and only for ids that appear in the deployment manifest: any other contract-id-shaped string in these files is still a finding;
+ *   - every other rule still applies to these files (secret seeds, private keys, absolute user paths, excluded paths), and the file must still be valid JSON.
+ * Editing the evidence to add another id, a secret or anything else therefore still fails the scan.
+ */
+export const EVIDENCE_CONTRACT_ID_EXCEPTIONS = Object.freeze([
+  'docs/product/architecture/mvp-1.5/evidence/multisig-live-audit-2026-11-07.json',
+  'docs/product/architecture/mvp-1.5/evidence/simulation-oneunit-2026-11-07.json',
+]);
 const MAINNET = /Public Global Stellar Network|mainnet/i;
 
 /** Validates `value` against the subset of JSON Schema the manifest schema uses; returns a list of problems (empty when valid). */
@@ -45,8 +62,8 @@ export function manifestProblems(text) {
   return problems;
 }
 
-/** Findings for one file. `f` is the repository-relative path (forward slashes), `text` its content. */
-export function scanFile(f, text) {
+/** Findings for one file. `f` is the repository-relative path (forward slashes), `text` its content. `allowedIds` is the set of manifest contract ids (a parameter so tests can supply their own). */
+export function scanFile(f, text, allowedIds = MANIFEST_CONTRACT_IDS) {
   const findings = [];
   if (BAD_PATH.test(f)) findings.push(`excluded or unsuitable path tracked: ${f}`);
   for (const [re, label] of RULES) if (re.test(text)) findings.push(`${label}: ${f}`);
@@ -54,6 +71,12 @@ export function scanFile(f, text) {
     if (f === TESTNET_MANIFEST_PATH) {
       const problems = manifestProblems(text);
       if (problems.length) findings.push(`contract-id-shaped string in an invalid Testnet deployment manifest (${problems.slice(0, 3).join('; ')}): ${f}`);
+    } else if (EVIDENCE_CONTRACT_ID_EXCEPTIONS.includes(f)) {
+      let json = true;
+      try { JSON.parse(text); } catch { json = false; }
+      const stray = [...new Set(text.match(CONTRACT_ID_G) ?? [])].filter((id) => !allowedIds.has(id));
+      if (!json) findings.push(`excepted evidence file is not valid JSON: ${f}`);
+      if (stray.length) findings.push(`contract-id-shaped string not recorded in the deployment manifest (${stray.length} id(s)) in an excepted evidence file: ${f}`);
     } else {
       findings.push(`contract-id-shaped string outside test fixtures: ${f}`);
     }

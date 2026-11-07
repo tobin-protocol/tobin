@@ -1,0 +1,52 @@
+{
+  "at": "2026-11-07T11:55:18.143Z",
+  "network": "testnet",
+  "account": "GAS7VMM764FIEP6Q5KDWXXC56QE7YGORME27MFKWPMP63QL3LX7QJL2M",
+  "administrativeAccount": "GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ",
+  "checks": [
+    {
+      "name": "public key is a valid Stellar account address (G...)",
+      "ok": true,
+      "detail": "GAS7VMM764FIEP6Q5KDWXXC56QE7YGORME27MFKWPMP63QL3LX7QJL2M"
+    },
+    {
+      "name": "distinct from the administrative multisig account",
+      "ok": true,
+      "detail": "different"
+    },
+    {
+      "name": "exists on Testnet (Horizon)",
+      "ok": true,
+      "detail": {
+        "sequence": "24073837154926592",
+        "thresholds": {
+          "low_threshold": 0,
+          "med_threshold": 0,
+          "high_threshold": 0
+        },
+        "signers": [
+          [
+            "GAS7VMM764FIEP6Q5KDWXXC56QE7YGORME27MFKWPMP63QL3LX7QJL2M",
+            1
+          ]
+        ],
+        "subentryCount": 0
+      }
+    },
+    {
+      "name": "is a single-key account (master key only, weight 1 or more, default thresholds)",
+      "ok": true,
+      "detail": "1 signer(s)"
+    },
+    {
+      "name": "native XLM balance covers transaction fees (at least 100 XLM expected from Friendbot; at least 5 XLM required here)",
+      "ok": true,
+      "detail": "10000.0000000"
+    },
+    {
+      "name": "exists on Testnet (Soroban RPC, independent read)",
+      "ok": true,
+      "detail": "found"
+    }
+  ]
+}
