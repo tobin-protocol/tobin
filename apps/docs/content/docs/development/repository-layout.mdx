@@ -1,0 +1,45 @@
+---
+title: Repository layout
+description: Where each part of the monorepo lives and what may be edited.
+---
+
+```text
+tobin/
+├── apps/
+│   ├── web-console/        Next.js application: institutional app, owner-run Testnet tools,
+│   │   ├── app/            local sandbox console and the W0 console; pages and route handlers
+│   │   ├── components/     client components
+│   │   ├── lib/            auth, db (migrations), registry, stellar, server guards, console, w0
+│   │   ├── scripts/        database operator commands and Testnet read-only scripts
+│   │   └── test/           unit and integration tests; browser journeys in test/browser/
+│   ├── landing/            the project website (Next.js, has its own AGENTS.md)
+│   └── docs/               this documentation site (Fumadocs)
+├── packages/
+│   └── mvp1-sdk/           TypeScript netting engine, digests, SDK and local bridge client
+├── contracts/              Rust and Soroban: clearing/, token/, deployments/ (Testnet manifest)
+├── docs/                   canonical engineering records, governance, reference, reports, spec, assets
+├── scripts/                CI, release-gate, multisig and signer tooling
+├── ci/                     dependency baseline, Wasm hash records, CI notes
+├── release/                release controls, gate definitions, process-deviation log
+├── accounts/               public metadata of Testnet accounts (no secrets, ever)
+└── .github/                workflows, issue forms and the pull request template
+```
+
+## Instruction files
+
+| File | Applies to |
+|---|---|
+| [`AGENTS.md`](https://github.com/tobin-protocol/tobin/blob/main/AGENTS.md) | the whole repository; authoritative for AI coding agents |
+| [`CLAUDE.md`](https://github.com/tobin-protocol/tobin/blob/main/CLAUDE.md) | a short entry point that defers to `AGENTS.md` |
+| `apps/landing/AGENTS.md` | the landing page only (its Next.js version differs from common knowledge) |
+| `apps/docs/AGENTS.md` | this docs site only; defers to the root `AGENTS.md` |
+
+## What not to edit casually
+
+The root `docs/` directory holds accepted milestone records, audits, threat models, Testnet evidence and the contract
+reference. Do not rename, move or rewrite them to make them look current; correct a factual error with a clearly
+marked note, or write a new record. See [Documentation governance](/docs/resources/documentation-governance).
+
+Also treat as protected: `contracts/deployments/testnet.json`, the Testnet evidence, the release gate definitions
+(`release/RELEASE-GATES.json`) and the dependency baseline (`ci/dependency-baseline.csv`, which is regenerated with
+`node scripts/ci/update-npm-baseline.mjs` when dependencies change).

@@ -1,0 +1,139 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/preset.css";
+
+/*
+ * Tobin Docs design tokens. Values come from apps/landing/src/app/globals.css (greyscale ink/grey/paper
+ * scale, 8px button radius, hairline borders). The landing page is light-only, so the dark theme here is
+ * derived from the same scale (ink-soft surfaces, hairline-dark borders), not an inversion of it.
+ *
+ * Contrast (WCAG): ink-soft on paper 16:1; grey-600 on paper 6.0:1 and on grey-100 5.4:1;
+ * grey-100 on the dark background 16:1; grey-400 on the dark background 9:1. The one accent, net green,
+ * marks success and complete states only; the iridescent colours of the symbol are not used.
+ */
+@theme {
+  --color-ink: #000000;
+  --color-ink-soft: #1d1d1d;
+  --color-grey-850: #313131;
+  --color-grey-600: #626262;
+  --color-grey-500: #818181;
+  --color-grey-400: #b1b1b1;
+  --color-grey-200: #dedede;
+  --color-grey-100: #f0f0f0;
+  --color-paper: #ffffff;
+  --color-net: #00b27a;
+  --color-net-ink: #007a52;
+
+  --radius-btn: 8px;
+  --radius-card-s: 16px;
+
+  --font-heading: var(--font-urbanist), var(--font-instrument-sans), system-ui, sans-serif;
+  --font-sans: var(--font-instrument-sans), system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-display: var(--font-outfit), var(--font-urbanist), system-ui, sans-serif;
+  --font-label: var(--font-space-grotesk), var(--font-instrument-sans), system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+
+  /* Fumadocs UI colour tokens, light. */
+  --color-fd-background: var(--color-paper);
+  --color-fd-foreground: var(--color-ink-soft);
+  --color-fd-muted: var(--color-grey-100);
+  --color-fd-muted-foreground: var(--color-grey-600);
+  --color-fd-popover: var(--color-paper);
+  --color-fd-popover-foreground: var(--color-ink-soft);
+  --color-fd-card: #f7f7f7;
+  --color-fd-card-foreground: var(--color-ink-soft);
+  --color-fd-border: var(--color-grey-200);
+  --color-fd-primary: var(--color-ink-soft);
+  --color-fd-primary-foreground: var(--color-paper);
+  --color-fd-secondary: var(--color-grey-100);
+  --color-fd-secondary-foreground: var(--color-ink-soft);
+  --color-fd-accent: var(--color-grey-100);
+  --color-fd-accent-foreground: var(--color-ink);
+  --color-fd-ring: var(--color-ink-soft);
+  --color-fd-overlay: rgb(0 0 0 / 0.25);
+  --color-fd-success: var(--color-net-ink);
+}
+
+/*
+ * Callout and diff colours used by Fumadocs UI components. "static" makes Tailwind emit them although
+ * no utility in this app references them. Callouts are the only place these appear. Success is the
+ * landing page's net green; the others are the Fumadocs defaults, kept for legibility of warnings
+ * and errors.
+ */
+@theme static {
+  --color-fd-info: oklch(55% 0.19 259);
+  --color-fd-warning: oklch(70% 0.17 70);
+  --color-fd-error: oklch(58% 0.22 25);
+  --color-fd-idea: oklch(70.5% 0.209 60.849);
+  --color-fd-diff-remove: rgba(200, 10, 100, 0.12);
+  --color-fd-diff-remove-symbol: rgb(230, 10, 100);
+  --color-fd-diff-add: rgba(14, 180, 100, 0.1);
+  --color-fd-diff-add-symbol: rgb(10, 200, 100);
+}
+
+.dark {
+  --color-fd-background: #0c0c0c;
+  --color-fd-foreground: var(--color-grey-100);
+  --color-fd-muted: #161616;
+  --color-fd-muted-foreground: var(--color-grey-400);
+  --color-fd-popover: #141414;
+  --color-fd-popover-foreground: var(--color-grey-100);
+  --color-fd-card: #121212;
+  --color-fd-card-foreground: var(--color-grey-100);
+  --color-fd-border: rgb(255 255 255 / 0.12);
+  --color-fd-primary: var(--color-paper);
+  --color-fd-primary-foreground: var(--color-ink-soft);
+  --color-fd-secondary: var(--color-ink-soft);
+  --color-fd-secondary-foreground: var(--color-grey-100);
+  --color-fd-accent: rgb(255 255 255 / 0.08);
+  --color-fd-accent-foreground: var(--color-paper);
+  --color-fd-ring: var(--color-grey-400);
+  --color-fd-overlay: rgb(0 0 0 / 0.5);
+  --color-fd-success: var(--color-net);
+}
+
+html {
+  scrollbar-gutter: stable;
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  font-family: var(--font-sans);
+}
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-heading);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+code,
+kbd,
+pre,
+samp {
+  font-family: var(--font-mono);
+}
+
+/* Landing focus ring: 2px, offset. */
+:focus-visible {
+  outline: 2px solid var(--color-fd-ring);
+  outline-offset: 2px;
+}
+
+/* Landing link: 1px underline, 3px offset, thickens on hover. */
+.prose a:not([data-card]) {
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+.prose a:not([data-card]):hover {
+  text-decoration-thickness: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

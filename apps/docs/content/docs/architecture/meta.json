@@ -1,0 +1,11 @@
+{
+  "title": "Architecture",
+  "pages": [
+    "index",
+    "state-and-trust-boundaries",
+    "netting-and-validation",
+    "authentication-and-authorization",
+    "stellar-execution",
+    "persistence"
+  ]
+}

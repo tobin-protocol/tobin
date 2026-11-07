@@ -1,0 +1,42 @@
+---
+title: Documentation
+description: How these docs are organised, what they cover, and where the canonical engineering records live.
+---
+
+<Callout type="warn" title="Experimental software">
+  Tobin is experimental and targets **Stellar Testnet**. It is not production-ready, and Mainnet and real-value use
+  are not authorised. Read [Project status](/docs/introduction/project-status) before relying on anything here.
+</Callout>
+
+These pages are the maintained developer documentation for the Tobin Clearing Protocol repository. They explain how
+the system is built, how to run and change it, and what each part does and does not guarantee.
+
+## Where to start
+
+| If you want to... | Read |
+|---|---|
+| Understand what Tobin is and is not | [What is Tobin?](/docs/introduction/what-is-tobin) |
+| Run the code on your machine | [Prerequisites](/docs/getting-started/prerequisites), then [Install and run](/docs/getting-started/install-and-run) |
+| Get oriented as a new contributor | [Developer onboarding path](/docs/getting-started/onboarding-path) |
+| See how the pieces fit together | [Architecture overview](/docs/architecture) |
+| Learn the vocabulary | [Domain model](/docs/concepts/domain-model) and the [glossary](/docs/resources/glossary) |
+| Call the SDK or the contracts | [API and SDK reference](/docs/reference) |
+| Send a change | [Contributing](/docs/resources/contributing) |
+
+## Two kinds of documentation
+
+This site is the **maintained developer documentation**: it is edited as the code changes. The repository also holds
+**canonical engineering records** in the root `docs/` directory: milestone acceptance and closure documents, audits,
+security reviews, threat models, Testnet evidence and the contract reference. Those records are historical and are
+not copied or rewritten here. Where a page depends on one, it links to the record on GitHub.
+
+See [Documentation governance](/docs/resources/documentation-governance) for the rule of thumb and
+[Writing documentation](/docs/resources/writing-docs) if you want to add a page.
+
+## What these docs do not claim
+
+- No independent audit has been performed. The reviews in the repository are the implementing author's own.
+- Testnet runs were a single, owner-run exercise with test assets. They show the mechanics work, not that the
+  system is ready for real value.
+- There is no published HTTP API reference for the institutional application and no OpenAPI description. The
+  [HTTP routes](/docs/reference/http-routes) page says what exists and where to read it.

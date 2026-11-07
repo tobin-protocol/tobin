@@ -1,0 +1,42 @@
+---
+title: Clearing lifecycle
+description: From recorded obligations to prepared settlement, and from there to the contract's four session states.
+---
+
+## Application workflow
+
+| Step | What happens |
+|---|---|
+| 1. Draft | A clearing session is created as a local draft. Nothing is on chain. |
+| 2. Participants and obligations | Participants are added; each obligation is a debtor, a creditor and an integer amount in one asset. |
+| 3. Calculation | The netting engine produces net positions as an immutable snapshot. Any change to participants or obligations makes the earlier result stale. |
+| 4. Institutional review | A reviewer approves or rejects **that exact calculation**. Nobody can decide on a result they recorded, changed or calculated. |
+| 5. Settlement preparation | An approved calculation becomes an immutable batch of generated instructions; a second review approves the batch. Every participant needs a verified Stellar account on the right network before execution is allowed. |
+| 6. Execution (owner-run) | The accounts authorize their own steps and the contract settles. |
+| 7. Confirmation and reconciliation (owner-run) | The result is read back by hash and compared with the approved plan. |
+
+Preparation moves no funds. A prepared batch is not a submitted transaction.
+
+## Contract states
+
+```text
+OPEN -> COMMITTED -> APPROVED -> SETTLED
+```
+
+- **OPEN**: participants join; debtors submit obligations.
+- **COMMITTED**: obligations are frozen and their commitment stored; a settlement proposal may be made and replaced.
+- **APPROVED**: every admitted participant has approved the current proposal digest.
+- **SETTLED**: `settle` executed atomically. It happens once.
+
+Replacing a proposal in COMMITTED or APPROVED clears all approvals atomically and returns the session to COMMITTED.
+An approval is bound to a digest, so a stale approval cannot be counted against a different plan.
+
+## Special case: all-zero nets
+
+When every net position is zero, the session can still finalize. The proposal is the empty plan, everyone approves, and
+`settle` makes no token call and records SETTLED with zero value.
+
+## What is deliberately absent
+
+There are no timeouts, abort, default handling, recovery, collateral or carry-over, and no privileged administrator or
+override. A session may stall indefinitely. These belong to the broader protocol design and are not implemented.

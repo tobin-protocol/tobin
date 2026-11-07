@@ -1,0 +1,54 @@
+---
+title: Authentication and authorization
+description: Wallet-first sign-in, institutional roles, reviewer separation of duties, and how each is enforced.
+---
+
+Three separate questions have three separate answers. None implies another.
+
+| Question | Answer comes from |
+|---|---|
+| Who controls this key? | A signature over a server-issued challenge, verified on the server |
+| Which institution may this user act for, and in what role? | Memberships, roles and reviewer grants recorded in the application |
+| May this account authorize a Stellar step? | The account's own signature (and, for multisig accounts, the required signers) on the transaction |
+
+## Wallet-first sign-in
+
+- Challenges are server-issued, bound to site, network, key and purpose, **single-use**, and expire in five minutes.
+- The signed text is rebuilt on the server and the signature is verified there; the client's claim is never trusted.
+- Sessions use an opaque HttpOnly, SameSite=Strict cookie (Secure in production) with hash-only storage, rotation on
+  sign-in, an absolute limit (and an idle limit for wallet sessions), revocation, a request-header CSRF guard and
+  persisted rate limiting.
+- Wallet sign-in, the ownership proof and signer-set recording accept **Stellar Testnet only**.
+
+## Institutional roles
+
+- A user has no authority by itself. Authority comes from a membership with role `admin` or `member` and status
+  `active` or `suspended`.
+- A **reviewer** is an explicit grant. An administrator is not automatically a reviewer.
+- Authorization is enforced on the server on every request. Never trust a client-supplied role, user id or
+  organization id.
+
+## Reviewer separation of duties
+
+A reviewer cannot decide on a calculation they recorded, changed or calculated. Decisions are bound to the exact
+calculation snapshot; a batch approval is bound to the instruction hash. Any later change invalidates the approval
+instead of silently carrying it over.
+
+## Stellar authority
+
+An application administrator is not a multisig signer and not a reviewer. The owner-run Testnet tools additionally
+require a verified wallet that is a configured signer, the administrative account, or the second account. On chain,
+each debtor authorizes `settle` for its own total and its own token transfer; a reviewer's approval is a database
+record, not a debit authorization.
+
+## Account recovery
+
+Deferred. A user must keep access to at least one verified wallet; there is no administrator or support override.
+
+## Canonical records
+
+- [Wallet-first architecture](https://github.com/tobin-protocol/tobin/blob/main/docs/product/architecture/wallet-first-auth/WALLET-FIRST-AUTH-ARCHITECTURE.md)
+- [Wallet-first security review](https://github.com/tobin-protocol/tobin/blob/main/docs/product/architecture/wallet-first-auth/WALLET-FIRST-AUTH-SECURITY-REVIEW.md)
+- [MVP-1.3 authorization security](https://github.com/tobin-protocol/tobin/blob/main/docs/product/architecture/mvp-1.3/MVP-1.3-AUTHORIZATION-SECURITY.md)
+
+These are the implementing author's own reviews, not independent audits.

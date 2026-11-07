@@ -1,0 +1,27 @@
+---
+title: Prerequisites
+description: The tools you need to build, test and run each part of the repository.
+---
+
+| Tool | Version | Needed for |
+|---|---|---|
+| Node.js | 24 or later (CI uses 24.14.0) | everything TypeScript; Node 24 runs `.ts` files directly and provides `node:sqlite` |
+| npm | the version bundled with Node 24 (11.19.0 was used locally) | workspaces and `npm ci` |
+| Rust | 1.96.0 with `rustfmt`, `clippy` and the `wasm32v1-none` target (the CI pin) | the contracts and the Rust development bridge |
+| Stellar CLI | 28.0.0 | building contract Wasm only |
+| Chrome or Edge | any recent version | the browser journeys (set `TOBIN_BROWSER` if it is not detected) |
+
+No database server is needed: the application uses SQLite through `node:sqlite`. Freighter is needed only to try the
+wallet flows by hand, and only on **Testnet**.
+
+<Callout title="You can work on most of the repository without Rust">
+  The TypeScript parts (the application, the SDK and these docs) need only Node and npm. Rust is needed for the
+  contracts and for the bridge-backed tests; without the bridge those tests are skipped and the skips are reported.
+</Callout>
+
+## Package manager
+
+The repository uses **npm workspaces** only, with the lockfile at the root. Do not introduce another package manager.
+CI installs with `npm ci --ignore-scripts`.
+
+Continue with [Install and run](/docs/getting-started/install-and-run).

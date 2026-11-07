@@ -1,0 +1,13 @@
+{
+  "title": "Resources",
+  "pages": [
+    "roadmap",
+    "faq",
+    "glossary",
+    "security",
+    "contributing",
+    "writing-docs",
+    "documentation-governance",
+    "licence"
+  ]
+}

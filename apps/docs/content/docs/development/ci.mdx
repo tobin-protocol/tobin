@@ -1,0 +1,30 @@
+---
+title: Continuous integration
+description: The workflows that run on pull requests and the checks you can run locally.
+---
+
+Workflows are in `.github/workflows/`:
+
+| Workflow | Purpose |
+|---|---|
+| `ci.yml` | the main checks job on pull requests (formatting, Rust tests, type check, builds, SDK and console suites, dependency-baseline and link checks, scan tests) |
+| `integration.yml` | dependency report, contract tests against the compiled Wasm, and a browser job; on pushes, scheduled runs and pull requests that touch its paths |
+| `release-readiness.yml` | the release gates; started manually |
+| `signer-tests.yml` | signer tooling tests (portable and Windows); on pull requests that touch its paths |
+| `w0-console.yml` | the W0 console browser journey; on pull requests that touch its paths |
+| `docs.yml` | this docs site: type check, production build and content validation; only when docs files change |
+
+CI installs with `npm ci --ignore-scripts`. No workflow needs a secret, and none deploys.
+
+## Checks that can fail a pull request
+
+- **Dependency baseline.** `node scripts/ci/update-npm-baseline.mjs --check` fails when the dependency set differs from
+  `ci/dependency-baseline.csv`. When you add or change a dependency, regenerate it with
+  `node scripts/ci/update-npm-baseline.mjs` and commit the result with the lockfile.
+- **Repository link check.** `node scripts/ci/check-links.mjs` checks links in tracked Markdown files.
+- **Release scan.** The source-tree scan (gate G09) rejects secrets, full contract ids, local paths and disallowed
+  paths in tracked files.
+- **Tracked files unchanged by the build.** A build must not modify tracked files.
+
+Project policy requires the checks to pass; GitHub's ruleset does not enforce specific checks, so reviewers must verify.
+See [Testing](/docs/development/testing).

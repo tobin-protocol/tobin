@@ -1,0 +1,20 @@
+{
+  "title": "Tobin Docs",
+  "pages": [
+    "index",
+    "---Introduction---",
+    "...introduction",
+    "---Getting Started---",
+    "...getting-started",
+    "---Architecture---",
+    "...architecture",
+    "---Core Concepts---",
+    "...concepts",
+    "---Development---",
+    "...development",
+    "---API and SDK Reference---",
+    "...reference",
+    "---Resources---",
+    "...resources"
+  ]
+}

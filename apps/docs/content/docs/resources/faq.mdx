@@ -1,0 +1,54 @@
+---
+title: FAQ
+description: Short answers to questions new readers ask most.
+---
+
+### Is Tobin production-ready?
+
+No. It is experimental software on Stellar Testnet. Mainnet and real-value use are not authorised, and nothing has been
+independently audited.
+
+### Does Tobin move money?
+
+The application does not. It prepares settlement instructions. On Testnet, separate owner-run tools execute the
+contract steps with test assets, one transaction at a time, after the owner's typed confirmation.
+
+### Is the engine's plan the only valid plan?
+
+No. The engine produces one deterministic default plan. The contract accepts any plan that meets its rules, and does not
+require it to equal the engine's output, or to be minimal or unique.
+
+### What is "non-custodial" here?
+
+A technical statement only: no Tobin operator key can move funds under the contract's rules. It is not a legal or
+regulatory claim, and Tobin does not decide any institution's KYC or regulatory obligations.
+
+### Does Tobin replace SEP-31, SEP-24 or SEP-38?
+
+No. It is designed to sit above Stellar's existing standards. It defines no protocol token.
+
+### Does approving a calculation authorize payment?
+
+No. A reviewer's approval is a database record. Each debtor separately authorizes its own transfers on chain.
+
+### What happens when execution results are confirmed?
+
+They are read back from the network by an owner-run tool and compared with the approved plan. The result is not written
+back into the application's records.
+
+### Is there an API reference or an OpenAPI file?
+
+No. See [HTTP routes](/docs/reference/http-routes) for what exists.
+
+### Can I use it with Mainnet?
+
+No. Wallet sign-in and signer-set recording accept Testnet only, and no Mainnet path exists.
+
+### Where do I report a security problem?
+
+Privately, through GitHub private vulnerability reporting. See the [security policy](/docs/resources/security).
+
+### Can I use the Tobin name and logo?
+
+The Apache-2.0 licence covers the code. It does not grant rights to the Tobin name, logo or brand assets. See
+[Licence](/docs/resources/licence).

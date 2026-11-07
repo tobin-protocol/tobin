@@ -1,0 +1,57 @@
+---
+title: What is Tobin?
+description: An open-source clearing and settlement preparation system for institutions that move money on Stellar.
+---
+
+Tobin is an open-source clearing and settlement system for financial institutions that already move money on
+[Stellar](https://stellar.org). Institutions record the payment obligations they owe each other. Tobin computes each
+participant's **net position** deterministically, requires a reviewer to approve the exact result, and prepares
+settlement instructions for only the net amounts.
+
+## The problem
+
+When institutions have recurring obligations to several counterparties, the obligations cross and mostly offset,
+yet each one is usually settled on its own. That leads to fragmented records, manual reconciliation, more settlement
+volume than the net exposure requires, weak approval structure, and uncertainty about what was actually settled.
+
+A worked example (arithmetic only, not data): A owes B 100, B owes C 80, C owes A 70. Settled one by one, that moves
+250. Cleared first, A pays 30, B receives 20 and C receives 10, so only 30 is settled. Net positions always sum to
+zero.
+
+<Callout title="One valid plan, not the only one">
+  That result is one valid way to settle those net positions. Other plans can satisfy the same positions, and the
+  contract accepts any plan that meets its own rules. See
+  [Netting and contract validation](/docs/architecture/netting-and-validation).
+</Callout>
+
+## What is in the repository
+
+The repository holds three connected things:
+
+1. **An institutional application** (`apps/web-console`): organizations and memberships, clearing sessions,
+   obligations, calculations, reviewer approval, settlement preparation and wallet-first sign-in. State is persisted
+   in SQLite.
+2. **Soroban contracts and a TypeScript SDK** (`contracts/`, `packages/mvp1-sdk`): a clearing contract that settles a
+   session atomically in a Soroban token contract, a capped-supply test token, and the netting engine and digest code
+   shared by the application and the tests.
+3. **Stellar Testnet tooling** (inside `apps/web-console`): owner-run tools that verify wallet control, check
+   multisig signer sets, collect real Freighter signatures, submit the settlement transactions one step at a time
+   after the owner's typed confirmation, and read the results back from the network.
+
+## Who it is for
+
+Institutions with recurring payment obligations to several counterparties on Stellar: anchors, payment institutions,
+cross-border payment providers and institutional Stellar applications. Multilateral clearing only helps where
+several institutions owe each other. Whether real Stellar payment flows are interconnected enough to benefit has
+**not** been measured.
+
+## What it is not
+
+- It sits above Stellar's existing standards; it does not replace SEP-31, SEP-24 or SEP-38 and defines no protocol token.
+- It is not an anchor, custodian, payment processor, DEX, lender or bank, and it does not decide any institution's KYC
+  or regulatory obligations.
+- "Non-custodial" is used in a technical sense only: no Tobin operator key can move funds under the contract's rules.
+- It is not a universal clearing network and not fully decentralised. The application is a single-instance web app
+  backed by one SQLite file; the on-chain part is a settlement contract plus signatures.
+
+Next: [Project status](/docs/introduction/project-status).

@@ -1,0 +1,61 @@
+---
+title: Documentation governance
+description: Which documentation lives where, who owns it, and how to change it.
+---
+
+The repository has two categories of documentation. They follow different rules.
+
+## Category A: maintained developer documentation
+
+**Location:** `apps/docs/content/docs/` (this site).
+
+**Purpose:** explain how the system works and how to work on it. It is edited as the code changes.
+
+**Rules**
+
+- A pull request that changes behaviour, an interface, an environment variable, a command, a trust boundary or a
+  security property updates the affected page in the same pull request.
+- Pages state limitations. Do not describe planned or imagined functionality as existing.
+- Every command on a page must have been run or checked against `package.json`, Cargo or CI configuration.
+- Milestone names and statuses match the README. Do not create a second source of truth.
+- Pages that are not ready are not merged: keep them on a branch or in a draft pull request (see
+  [Writing documentation](/docs/resources/writing-docs)). A merged page is published.
+
+## Category B: canonical engineering records
+
+**Location:** the root `docs/` directory, plus `release/`, `ci/` and `contracts/deployments/`.
+
+**Purpose:** the historical record of what was decided, built, reviewed and shown: milestone acceptance and closure
+documents, audits, security reviews, threat models, Testnet evidence, deployment manifests, the contract reference and
+release-gate records.
+
+**Rules**
+
+- Do **not** copy, duplicate, move, rename or rewrite them. Other documents link to them instead.
+- A factual error is corrected with a clearly marked note or a new record, not by silently rewriting history.
+- Link only to files that are tracked in the repository. The repository link check enforces this for Markdown.
+- Never link to evidence that is deliberately unpublished.
+
+## Which one do I edit?
+
+| Situation | Edit |
+|---|---|
+| A command changed, or the setup steps are wrong | Category A |
+| A new feature needs explaining | Category A, linking to the record if there is one |
+| A milestone was closed or an audit finished | Category B, as a new record, then update the roadmap in Category A and the README |
+| An accepted record contains a wrong statement | Category B, with a marked correction, and raise it in the pull request |
+
+## Ownership and review
+
+The repository owner is the maintainer and approves documentation changes like any other change: one approving review on
+a pull request. Documentation reviewers check technical accuracy first, then clarity. Security-sensitive pages
+(authentication, signing, key handling) should be reviewed by someone other than the author.
+
+## Proposing architecture changes
+
+Open an issue describing the problem and the proposed change, with the affected components and trust boundaries. There
+is no ADR directory; decisions are recorded in the milestone documents. An accepted decision gets a Category B record, and
+the Category A pages are updated to match.
+
+See also [`CONTRIBUTING.md`](https://github.com/tobin-protocol/tobin/blob/main/CONTRIBUTING.md) (documentation
+requirements) and [`apps/docs/README.md`](https://github.com/tobin-protocol/tobin/blob/main/apps/docs/README.md).

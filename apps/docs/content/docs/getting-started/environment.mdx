@@ -1,0 +1,29 @@
+---
+title: Environment variables
+description: The optional variables the application and tools read. No .env file is required.
+---
+
+No `.env` file is required and none exists in the repository. **Never commit credentials**; `.env*` files are
+git-ignored.
+
+| Variable | Purpose |
+|---|---|
+| `TOBIN_DB_PATH` | The database file. **Required when `NODE_ENV=production`**; otherwise defaults to `.data/tobin-dev.sqlite` relative to the app directory (git-ignored). |
+| `PORT` | Must match the `--port` the server is started with (default 8787). |
+| `TOBIN_BRIDGE_EXE` | Path to the Rust bridge executable (sandbox console and bridge-backed tests). |
+| `TOBIN_STELLAR_CLEARING_CONTRACT` | Public id of the deployed clearing contract used by the execution-plan adapter. |
+| `TOBIN_SECOND_ACCOUNT` | Public key of the second participant account for the owner-run settlement tool. |
+| `TOBIN_ADMIN_ACCOUNT_RECORD`, `TOBIN_DEPLOYMENT_RECORD`, `TOBIN_BATCH_ID`, `TOBIN_VALIDATION_CREATOR`, `TOBIN_REPO_ROOT` | Owner-run tool inputs; see `apps/web-console/lib/stellar/`. |
+| `TOBIN_DEMO_PASSWORD` | Password for the `db:seed-demo` demonstration users (refused in production). |
+| `TOBIN_BROWSER`, `TOBIN_WIDTH` | Browser path and viewport width for the browser journeys. |
+
+## Docs app
+
+| Variable | Purpose |
+|---|---|
+| `NEXT_PUBLIC_LANDING_URL` | Optional. Overrides the main-website link in the docs header and footer. Defaults to the website named in the repository README. |
+
+<Callout type="warn" title="Keys and seeds">
+  The documentation, the examples and the tools never need a private key or seed phrase in the repository. Keep
+  disposable Testnet keys outside the repository and never paste them into issues, pull requests or chat.
+</Callout>

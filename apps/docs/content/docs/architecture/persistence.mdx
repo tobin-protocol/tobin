@@ -1,0 +1,35 @@
+---
+title: Persistence
+description: SQLite storage, numbered migrations, and the immutable records enforced by database triggers.
+---
+
+The application stores its state in a single SQLite file through `node:sqlite`. There is no database server and
+exactly one application instance is supported.
+
+## Properties
+
+- **Numbered, atomic migrations.** They apply automatically on server start and can be run by hand
+  (`npm run db:migrate --workspace tobin-web-console`). `db:status` prints the schema version and exits 2 while
+  migrations are pending.
+- **Immutable and append-only records.** Reviewer decisions, batches, execution attempts, signer-set snapshots and
+  authentication events are immutable or append-only, enforced by database triggers as well as by code. Do not add
+  `UPDATE` or `DELETE` paths for them.
+- **Snapshots with input hashes.** A calculation is an immutable snapshot with an input hash; it is `current` only
+  while participants and obligations are unchanged.
+- **Production requires an explicit path.** `TOBIN_DB_PATH` must be set when `NODE_ENV=production`.
+
+## Health endpoint
+
+`GET /api/health` reports only whether the database answers and which schema version it is at: no path, connection
+detail or user data.
+
+## Limitations
+
+- Migration 8 was tested on fresh databases and a populated version-7 test database, not on a real operator database.
+- A single SQLite file with a single instance is a deliberate scope limit of the experimental application.
+
+## Canonical records
+
+- [Persistence architecture](https://github.com/tobin-protocol/tobin/blob/main/docs/product/architecture/mvp-1.2/BACKEND_PERSISTENCE_ARCHITECTURE.md)
+- [Data model](https://github.com/tobin-protocol/tobin/blob/main/docs/product/architecture/mvp-1.2/BACKEND_PERSISTENCE_DATA_MODEL.md)
+- [Operations](https://github.com/tobin-protocol/tobin/blob/main/docs/product/architecture/mvp-1.2/BACKEND_PERSISTENCE_OPERATIONS.md)

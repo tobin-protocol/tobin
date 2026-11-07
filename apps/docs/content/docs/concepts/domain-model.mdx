@@ -1,0 +1,38 @@
+---
+title: Domain model
+description: The terms the code and documentation use, and where each one lives.
+---
+
+Use the project's terms. The code says `Organization` for an institution.
+
+| Concept | Meaning and where it lives |
+|---|---|
+| **Institution** | An `Organization` (`organizations`); has a type and jurisdiction. Application data. |
+| **User** | An internal Tobin account (`users`); signs in by email or by wallet; has no authority by itself. |
+| **Wallet** | A verified Stellar key of a user (`user_wallets`, Testnet only). A separate, organization-scoped ownership proof (`wallet_challenges`, `wallet_verifications`) maps participants to accounts for execution. |
+| **Membership** | A user in an organization with role `admin` or `member` and status `active` or `suspended` (`memberships`). |
+| **Reviewer** | An explicit grant (`org_reviewers`); not implied by `admin`. |
+| **Clearing session** | A `SessionRecord` (`sessions`) with a provenance label and a workflow state `configuring`, `ready` or `closed`. |
+| **Participant** | A member added to a session (`session_participants`). |
+| **Obligation** | A debtor, a creditor and a positive integer amount in one canonical asset (`obligations`). |
+| **Calculation** | An immutable snapshot of deterministic net positions (`calculations`, with an input hash); `current` only while participants and obligations are unchanged. |
+| **Approval** | A reviewer decision (`authorization_decisions`) bound to one exact calculation; `active`, `superseded` or `invalidated`. |
+| **Settlement batch** | An immutable batch derived from an approved calculation (`settlement_batches`), with instructions (`settlement_instructions`) and a batch review; `awaiting-review`, `approved`, `rejected`, `invalidated`, `superseded`. |
+| **Execution preconditions** | `settlement_executions` and attempts: which accounts are verified and the planned steps. They do not contact the network. |
+| **Stellar transaction** | One of the contract calls built by `lib/stellar/execution-plan.ts` and sent by the owner-run tool. |
+| **Confirmation** | A transaction read back from the network by hash with a successful result. |
+| **Reconciliation** | Comparing the confirmed on-chain state with the approved batch (`lib/stellar/compare.ts`); any difference means stop. |
+| **Signer set** | The keys and weights that may sign for a multisig account, read from Horizon and the RPC (`signer_set_snapshots`). |
+
+## Sign convention
+
+For every participant, `net = outgoing obligations - incoming obligations`. A positive net means the participant is a
+net debtor and pays; negative means net creditor; net positions across a session always sum to zero.
+
+## Amounts
+
+Amounts are integers in base units (`bigint` in TypeScript, checked `i128` in Rust). Floating point is never used for
+money.
+
+See also the [glossary](/docs/resources/glossary) and
+[State and trust boundaries](/docs/architecture/state-and-trust-boundaries).

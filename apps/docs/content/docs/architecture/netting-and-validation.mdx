@@ -1,0 +1,46 @@
+---
+title: Netting and contract validation
+description: The netting engine is a calculator; the Soroban contract is the validator. They are different things.
+---
+
+## The netting engine
+
+The engine lives in `packages/mvp1-sdk/src/engine`. It computes each participant's net position and generates a
+**default** set of settlement instructions.
+
+- `net = outgoing - incoming`. A positive net means the participant is a net debtor and pays; a negative net means a
+  net creditor; zero means no net transfer.
+- Amounts are `bigint` integers in base units. Money is never a floating-point number.
+- The application stores the engine's result in an immutable batch for review.
+
+The engine is a calculator and an advisory check, **never an authority**.
+
+## The contract
+
+`TobinClearingV1` enforces its own rules on whatever plan it is given, using the net positions it derives from the
+obligations recorded in the session:
+
+1. every party is an admitted participant;
+2. every amount is positive and no instruction pays its own payer;
+3. for each participant, the amount paid equals the net debit `max(0, net)` and the amount received equals the net
+   credit `max(0, -net)`, so nothing is omitted, duplicated or introduced;
+4. arithmetic is checked throughout;
+5. instructions are strictly ascending by (payer, payee);
+6. at most 16 instructions (a provisional engineering ceiling, not a verified limit);
+7. the empty plan is valid exactly when every net is zero.
+
+<Callout type="warn" title="Do not describe the engine's plan as the only valid one">
+  The contract does **not** compare a proposal with the engine's output and does **not** require the plan to be
+  minimal or unique. It accepts any plan that meets its rules. Owner-run execution proposes the approved batch's
+  instructions, re-ordered only into the contract's required order, and refuses locally if the instructions no longer
+  satisfy the rules.
+</Callout>
+
+## Why both exist
+
+The engine gives reviewers a deterministic, explainable result and lets the application detect stale approvals
+cheaply. The contract is what actually protects value on chain: it re-validates the plan at proposal time and again
+inside `settle`, so a wrong or tampered plan is rejected no matter where it came from.
+
+See the [engine reference](/docs/reference/engine) and the [contracts reference](/docs/reference/contracts) for the
+functions involved.

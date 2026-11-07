@@ -1,0 +1,86 @@
+---
+title: Writing documentation
+description: A guide for authors of pages in this site - structure, MDX conventions, links, code, callouts and review.
+---
+
+## Adding a page
+
+1. Create `apps/docs/content/docs/<section>/<slug>.mdx`. The file name is the URL slug: lowercase, hyphenated.
+2. Add the slug to the section's `meta.json` `pages` list. A page that is not listed is appended automatically by
+   Fumadocs, but listing it makes the order explicit and is required by the validator.
+3. Run `npm run validate --workspace tobin-docs`, then `npm run build --workspace tobin-docs`.
+
+## Frontmatter
+
+Every page needs a `title` and a one-sentence `description`. Both are used for search and for the page header.
+
+```mdx
+---
+title: Install and run
+description: Clone the repository, install dependencies, and start the apps.
+---
+```
+
+There is no draft flag: every `.mdx` file under `content/docs` is published, searchable and in the sidebar. Do not
+commit unfinished pages or placeholders. Keep work in progress on a branch or in a draft pull request, and merge a page
+only when it is accurate. If a page is accurate but incomplete, say so in the page itself.
+
+## Headings
+
+- Do not repeat the title as a level 1 heading; the page header renders it.
+- Start body headings at level 2. Do not skip levels.
+- Write headings in sentence case.
+
+## Links
+
+- Link to other pages by their absolute docs path: `[Testing](/docs/development/testing)`.
+- Link to a repository file with its GitHub URL on `main`, for example
+  `https://github.com/tobin-protocol/tobin/blob/main/CONTRIBUTING.md`. The target must be a tracked file; the
+  validator checks this.
+- Link to canonical records instead of copying them.
+- Never link to evidence that is unpublished, or to a local path.
+
+## Code
+
+- Fence code blocks with a language: `bash`, `ts`, `json`, `text`.
+- Use `bash` for commands. Mention PowerShell where the command differs on Windows.
+- Every command must be one you ran or checked against `package.json`, Cargo or CI. Do not invent flags.
+- Never include a secret, a seed phrase, a real key, a local path, or a full production contract id.
+
+## Callouts, tabs and steps
+
+```mdx
+<Callout type="warn" title="Testnet only">Text.</Callout>
+```
+
+Callout types are `info` (default), `warn` and `error`. Use `<Steps>` and `<Step>` for ordered procedures and
+`<Tabs>` only for genuine alternatives such as operating systems. Prefer plain prose and tables.
+
+## Images
+
+Put images under `apps/docs/public/` and reference them with an absolute path such as `/img/example.png`. Give every
+image meaningful alt text. The validator reports missing files. Do not add third-party logos or invented screenshots.
+
+## MDX pitfalls
+
+Curly braces and a bare `<` start JSX. Put them in code spans, or escape them.
+
+## Style and accuracy
+
+- Be direct and specific. State limitations rather than hiding them.
+- Use the project's terms (see the [glossary](/docs/resources/glossary)). The code says `Organization` for an
+  institution.
+- Keep the provenance and transaction-state distinctions exact. Do not write "settled" for a prepared or submitted
+  batch.
+- Do not claim production readiness, Mainnet support, an audit, wallet compatibility beyond what was shown, or
+  conformance.
+- Do not invent partners, customers, statistics, benchmarks, slogans, social links or contact addresses.
+
+## Review checklist
+
+- [ ] Facts checked against the code, tests or a canonical record.
+- [ ] Commands run or verified.
+- [ ] Links resolve (`npm run validate --workspace tobin-docs`).
+- [ ] Limitations stated; no unsupported claims.
+- [ ] Listed in `meta.json`.
+- [ ] Builds locally.

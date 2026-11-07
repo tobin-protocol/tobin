@@ -1,0 +1,46 @@
+---
+title: Contracts
+description: The functions of TobinClearingV1 and TobinTestToken as implemented.
+---
+
+Both contracts are experimental validation code for MVP-1, not production code, and make no conformance claim to the
+broader protocol draft. The authoritative description is the repository's
+[contracts README](https://github.com/tobin-protocol/tobin/blob/main/contracts/README.md) and the
+[ABI and authorization reference](https://github.com/tobin-protocol/tobin/blob/main/docs/reference/MVP-1-ABI-AND-AUTHORIZATION-REFERENCE.md).
+
+## TobinClearingV1
+
+| Function | Effect |
+|---|---|
+| `create_session(creator, session_id, token, max_participants, max_obligations)` | Creator authorizes and is admitted. One immutable token per session. |
+| `join_session(session_id, participant)` | Needs the joiner's **and** the creator's authorization. OPEN only. |
+| `submit_obligation(session_id, obligation)` | The debtor authorizes. Checks parties, positive amount, unique id, capacity and overflow. |
+| `finalize_obligations(session_id, caller)` | Any admitted participant. Freezes participants, token and obligations; stores the commitment. |
+| `propose_settlement(session_id, proposer, instructions)` | Any admitted participant. Validates before the plan becomes current; replaceable; a replacement clears all approvals. |
+| `approve_settlement(session_id, participant, digest)` | Each admitted participant approves the **current** digest; stale digests are rejected. |
+| `settle(session_id, digest)` | No caller restriction. Needs APPROVED, the current digest, every approval, re-validation, and each debtor's authorization for its own total. Atomic. |
+
+Queries: `config`, `get_session`, `get_obligations`, `get_obligation`, `get_commitment`, `get_proposal`,
+`get_settlement`, `get_approvals`, `get_approval`, `commitment_bytes`, `proposal_bytes`.
+
+Ceilings: 4 participants, 16 obligations, 16 instructions. They are compile-time constants and provisional engineering
+targets, not verified limits.
+
+## TobinTestToken
+
+A custom Soroban test token with one fixed minter and one fixed hard supply cap (checked arithmetic), no burn and no
+allowance. It implements a **subset** of the standard token interface and is a test instrument only.
+
+Functions the SDK uses: `mint`, `transfer`, `balance`, `total_supply`, `cap`, `minter`, `decimals`, `name`, `symbol`.
+
+## Authorization
+
+A failed `require_auth` is a **host** error (`Error(Auth, ...)`), not a contract error: a contract cannot return its own
+code for it. Token failures inside `settle` pass through as the token's own contract errors. See
+[Errors](/docs/reference/errors).
+
+## Deployments
+
+Testnet contract ids and Wasm hashes are recorded in
+[`contracts/deployments/testnet.json`](https://github.com/tobin-protocol/tobin/blob/main/contracts/deployments/testnet.json).
+These are disposable test deployments with test assets.
