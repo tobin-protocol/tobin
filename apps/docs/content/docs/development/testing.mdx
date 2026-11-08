@@ -1,38 +1,185 @@
 ---
 title: Testing
-description: The test layers, the command for each, and what hosted CI does and does not run.
+description: Test suites, browser journeys, execution commands, and running tests in isolation.
 ---
+
+Tobin uses layered automated tests across its smart contracts, TypeScript SDK, web console, and browser user journeys.
+
+## Test layers
 
 | Layer | Command | Notes |
 |---|---|---|
-| TypeScript type check | `npm run typecheck` | all workspaces, including this docs app |
-| SDK tests | `npm test --workspace tobin-mvp1-sdk` | `node:test`; use the bridge to avoid skips |
-| Console unit, integration, security and persistence tests | `npm test --workspace tobin-web-console` | real SQLite; bridge-backed tests are skipped without `TOBIN_BRIDGE_EXE` |
-| Contract tests | `cd contracts && cargo test --locked --workspace` | also run against Wasm in the integration workflow |
-| Release-scan rule tests | `node --test scripts/release/scan.test.mjs` | the source-tree scan behind gate G09 |
-| Documentation checks | `npm run validate --workspace tobin-docs` | links, images, navigation and frontmatter of this docs site |
-| Browser journeys | from `apps/web-console`: `TOBIN_WIDTH=1200 node test/browser/<journey>.mjs <output dir>` | needs a production build; run at 1200 and 420 |
+| TypeScript type check | `npm run typecheck` | All workspaces, including the documentation app. |
+| SDK tests | `npm test --workspace tobin-mvp1-sdk` | `node:test` suite; uses the Rust development bridge to avoid skips. |
+| Console unit, integration, security and persistence tests | `npm test --workspace tobin-web-console` | Real SQLite; bridge-backed tests are skipped without `TOBIN_BRIDGE_EXE`. |
+| Contract tests | `cd contracts && cargo test --locked --workspace` | Native host tests; also run against compiled Wasm in integration workflows. |
+| Release-scan rule tests | `node --test scripts/release/scan.test.mjs` | The repository source scan validating release gate G09. |
+| Documentation checks | `npm run validate --workspace tobin-docs` | Validates frontmatter, navigation, internal anchors, and repository links. |
+| Browser journeys | From `apps/web-console`: `TOBIN_WIDTH=1200 node test/browser/<journey>.mjs <output dir>` | Driven over Chrome DevTools Protocol; requires a production build (`npm run build:console`). |
 
-The browser journeys are `journey`, `w0-journey`, `sessions-journey`, `settlement-journey`, `authorization-journey`,
-`clearing-journey`, `backend-journey` and `wallet-auth-journey`.
+## Running a single test file
+
+Node 24 executes TypeScript test files natively without a separate compilation step.
+
+### Web console tests
+
+Run any single test file from the repository root:
+
+```bash
+node --test apps/web-console/test/guards.test.ts
+node --test apps/web-console/test/backend-security.test.ts
+```
+
+For tests that require the Rust development bridge (such as `console.test.ts`), provide `TOBIN_BRIDGE_EXE`:
+
+```bash
+TOBIN_BRIDGE_EXE="$PWD/contracts/target/debug/examples/bridge" node --test apps/web-console/test/console.test.ts
+```
+
+On Windows PowerShell:
+
+```powershell
+$env:TOBIN_BRIDGE_EXE = "C:\path\to\tobin\contracts\target\debug\examples\bridge.exe"
+node --test apps/web-console/test/console.test.ts
+```
+
+### SDK tests
+
+Run individual SDK test files directly:
+
+```bash
+node --test packages/mvp1-sdk/test/engine.test.ts
+node --test packages/mvp1-sdk/test/primitives.test.ts
+```
+
+To run cross-language bridge tests in the SDK:
+
+```bash
+TOBIN_BRIDGE_EXE="$PWD/contracts/target/debug/examples/bridge" node --test packages/mvp1-sdk/test/interop.test.ts
+```
+
+### Contract tests
+
+Run a specific contract test integration file from the `contracts` directory:
+
+```bash
+cd contracts
+cargo test --locked -p tobin-clearing-v1 --test lifecycle
+cargo test --locked -p tobin-clearing-v1 --test settlement
+```
+
+To run a single test function within a test file:
+
+```bash
+cargo test --locked -p tobin-clearing-v1 --test lifecycle create_admits_the_creator
+```
+
+## Browser journeys catalogue
+
+Browser journeys in `apps/web-console/test/browser/` execute against a production Next.js instance using a headless Chromium browser over the Chrome DevTools Protocol (CDP).
+
+Each journey verifies user interactions, state persistence, error boundaries, and visual layouts. Run them at both desktop (`TOBIN_WIDTH=1200`) and mobile (`TOBIN_WIDTH=420`) viewport widths.
+
+| Journey | Script / npm invocation | What it proves | Typical duration | Prerequisites |
+|---|---|---|:--:|---|
+| **Local Sandbox** | `node test/browser/journey.mjs`<br/>`npm run test:browser --workspace tobin-web-console` | Full lifecycle of the local sandbox (`/`) against real contracts via the bridge: minting, session creation, obligation submission, netting calculation, and atomic settlement. | ~15 s | `npm run build:console`, `TOBIN_BRIDGE_EXE`, browser |
+| **W0 Console** | `node test/browser/w0-journey.mjs`<br/>`npm run test:w0-browser --workspace tobin-web-console` | Mock-adapter console (`/w0`): scenario switching (`ok`), development IDP sign-in, session navigation, participant and obligations tables, and mock approval flows. | ~8 s | `npm run build:console`, browser |
+| **Sessions Experience** | `node test/browser/sessions-journey.mjs`<br/>`npm run test:sessions-browser --workspace tobin-web-console` | Institutional sessions view (`/sessions`): session lists, filtering, draft creation, participant management, and CDP error interception handling. | ~10 s | `npm run build:console`, browser |
+| **Settlement Preparation** | `node test/browser/settlement-journey.mjs`<br/>`npm run test:settlement-browser --workspace tobin-web-console` | Settlement preparation (MVP-1.4): batch creation from approved calculations, instruction validation, reviewer approval and rejection, and SQLite persistence across server restarts. | ~12 s | `npm run build:console`, browser |
+| **Authorization** | `node test/browser/authorization-journey.mjs`<br/>`npm run test:authorization-browser --workspace tobin-web-console` | Institutional authorization (MVP-1.3): reviewer grants, separation of duties, immutable decisions, automatic invalidation upon data edits, and tenant isolation. | ~10 s | `npm run build:console`, browser |
+| **Clearing Operations** | `node test/browser/clearing-journey.mjs`<br/>`npm run test:clearing-browser --workspace tobin-web-console` | Clearing operations: organization onboarding, session creation, obligation entry and editing, deterministic calculation snapshotting, and calculation staleness checks. | ~12 s | `npm run build:console`, browser |
+| **Backend Foundation** | `node test/browser/backend-journey.mjs`<br/>`npm run test:backend-browser --workspace tobin-web-console` | Core application backend: user registration, HttpOnly cookie sessions, organization creation, invitations, roles (`admin`, `member`), and session expiry across server restarts. | ~10 s | `npm run build:console`, browser |
+| **Wallet Authentication** | `node test/browser/wallet-auth-journey.mjs` | Wallet-first authentication and onboarding: wallet challenges, SEP-53 message signing via injected Freighter stand-in, returning user sign-in, and account/network switching. | ~14 s | `npm run build:console`, browser |
+| **Sticky Badge Check** | `node test/browser/badge.mjs` | Verifies live sticky positioning of the "LOCAL SANDBOX" badge during page scrolling at short viewports (height 500 px) for 1200 px and 420 px widths. | ~4 s | `npm run build:console`, `TOBIN_BRIDGE_EXE`, browser |
+
+<Callout type="info" title="Browser discovery on Linux and macOS">
+  On Linux and macOS, the CDP test driver requires setting `TOBIN_BROWSER` to the path of your installed Chromium binary
+  (for example, `export TOBIN_BROWSER=$(which google-chrome || which chromium)`).
+</Callout>
+
+## Major test suites catalogue
+
+### Web console suites (`apps/web-console/test/`)
+
+The console suite contains 494 tests executed via `node --test`:
+
+| File | What it proves | Typical duration | Prerequisites |
+|---|---|:--:|---|
+| `guards.test.ts` | Loopback host allowlist (`127.0.0.1`, `localhost`), foreign origin rejection on API routes, JSON body parsing, and request streaming limits (1 MB). | ~0.5 s | None |
+| `api.test.ts` | API route handlers for `/api/bootstrap` and `/api/rpc`, typed error responses, and bridge process error propagation. | ~0.4 s | None |
+| `backend-db.test.ts` | SQLite schema migrations (1 through 8), atomic rollbacks on failed migrations, and database schema forward-compatibility checks. | ~0.3 s | None |
+| `backend-security.test.ts` | User registration, password hashing (scrypt), HttpOnly cookie sessions, idle timeouts, and invitation token expiry. | ~0.7 s | None |
+| `clearing.test.ts`<br/>`clearing-ops.test.ts` | Session lifecycle (`configuring`, `ready`, `closed`), participant admission, obligation addition and editing, and deterministic netting snapshots. | ~1.5 s | None |
+| `authorization.test.ts`<br/>`authorization-ops.test.ts` | Institutional reviewer authorization, separation of duties, snapshot binding, and automatic approval invalidation upon obligation edits. | ~1.2 s | None |
+| `settlement.test.ts`<br/>`settlement-ops.test.ts` | Settlement batch generation, instruction ordering, batch approval and rejection, and execution precondition verification. | ~1.4 s | None |
+| `settlement-policy.test.ts`<br/>`settlement-state.test.ts` | Asset eligibility, settlement attempt lifecycle transitions (`awaiting-signer` through `reconciled`), and terminal state rules. | ~0.8 s | None |
+| `asset-identity.test.ts` | Canonical asset identity parsing and serialization across Stellar native XLM and issued alphanumeric assets. | ~0.3 s | None |
+| `attempts-ops.test.ts` | Settlement execution attempt tracking, transaction step sequencing, single-submission constraints, and immutable event recording. | ~0.8 s | None |
+| `signer-set.test.ts`<br/>`signer-set-ops.test.ts` | Horizon and Soroban RPC signer set snapshots, signature threshold validation, and multisig weight verification. | ~0.8 s | None |
+| `stellar-plan.test.ts` | Translation of approved settlement batches into executable Soroban contract calls. | ~0.5 s | None |
+| `stellar-rpc.test.ts` | Soroban RPC client adapter, transaction simulation, fee estimation, and transaction retrieval by ledger hash. | ~0.4 s | None |
+| `wallet-auth.test.ts` | Server-side wallet authentication, single-use challenge issuance, replay prevention, and session cookie rotation. | ~0.5 s | None |
+| `wallet-ops.test.ts`<br/>`wallet-signin.test.ts` | Client-side wallet challenge signing flow, Freighter error state mapping, and wallet account binding. | ~0.6 s | None |
+| `console.test.ts` | Interactive Console controller driving the SDK against real smart contracts running in the Soroban test host. | ~1.5 s | `TOBIN_BRIDGE_EXE` |
+| `next-server.test.ts` | Live production Next.js HTTP server (`next start`) on `127.0.0.1` testing CSP headers, script nonces, and loopback guards. | ~1.0 s | `TOBIN_BRIDGE_EXE`, `npm run build:console` |
+| `w0-*.test.ts` (6 files) | Mock-adapter console suite testing mock scenarios, session isolation, and approval flows. | ~1.0 s | None |
+
+### SDK test suites (`packages/mvp1-sdk/test/`)
+
+The SDK suite contains 64 tests executed via `node --test`:
+
+| File | What it proves | Typical duration | Prerequisites |
+|---|---|:--:|---|
+| `engine.test.ts` | Deterministic netting engine property tests across 2,000 randomized sessions: value conservation, debit/credit bounds, and deterministic tie-breaking. | ~1.5 s | None |
+| `digest.test.ts` | Cryptographic digests matching domain tags (`TOBIN-MVP1/OBLIGATIONS/v2`, `TOBIN-MVP1/SETTLEMENT/v2`) and byte serialization specifications. | ~0.2 s | None |
+| `primitives.test.ts` | Fixed-precision `i128` checked arithmetic, big-endian encodings, strkey checksums, and address XDR conversions. | ~0.4 s | None |
+| `intent.test.ts` | Soroban authorization intent generation, debtor transfer authorization trees (`settle(session, digest, total)`), and deployment record validation. | ~0.2 s | None |
+| `interop.test.ts` | Cross-language test comparing TypeScript netting outputs and digests against the Rust contracts running via the bridge. | ~17 s | `TOBIN_BRIDGE_EXE` |
+| `sdk.test.ts`<br/>`sdk-unit.test.ts` | High-level `TobinClient`, contract call preparation, single-use authorization round guarantees (EQ-20), and error mapping. | ~1.0 s | None (bridge tests skip without `TOBIN_BRIDGE_EXE`) |
+
+### Contract test suites (`contracts/clearing/tests/`)
+
+Contract tests execute inside the native Soroban host environment using `cargo test`:
+
+| File | What it proves | Typical duration | Prerequisites |
+|---|---|:--:|---|
+| `lifecycle.rs` | Full contract lifecycle (`OPEN -> COMMITTED -> APPROVED -> SETTLED`), authorization checks on session creation, joining, and freezing. | ~0.2 s | Rust toolchain |
+| `proposal.rs` | Contract-side settlement plan validation (`validate_plan`), positive non-zero transfer amounts, XDR byte ordering, and proposal revisions (EQ-05). | ~0.2 s | Rust toolchain |
+| `settlement.rs` | Atomic settlement execution, individual debtor authorizations, transfer failure propagation, and all-zero net positions. | ~0.3 s | Rust toolchain |
+| `digest.rs` | Host-side SHA-256 calculation for obligation commitments and settlement proposal digests. | ~0.2 s | Rust toolchain |
+| `authsigner.rs` | Test signer for Soroban authorization entries, intent validation, and expiration ledger bounds (EQ-20). | ~0.3 s | Rust toolchain |
+| `authcosigners.rs` | Multi-party signature collection and weight threshold validation for multisig accounts. | ~0.2 s | Rust toolchain |
+| `property.rs` | Randomized contract property tests verifying value conservation across multi-participant sessions. | ~0.4 s | Rust toolchain |
+| `resources.rs` | Resource consumption metering (CPU instructions and memory bytes) for each contract invocation. | ~0.3 s | Rust toolchain |
+| `catch.rs` | Verification that host invocation panics roll back contract state without swallowing missing authorizations. | ~0.1 s | Rust toolchain |
 
 ## Skipped tests
 
-Without `TOBIN_BRIDGE_EXE`, tests that need the Rust bridge are **skipped, not passed**. Report skips alongside passes;
-a pull request must state them.
+Without `TOBIN_BRIDGE_EXE`, tests that require the Rust development bridge are **skipped, not passed**.
+
+- **SDK suite:** Reports 9 skipped tests without the bridge (8 bridge tests and 1 intentional skip for attribution-pending intent fixtures). With the bridge, exactly 1 test is skipped.
+- **Web console suite:** Reports 8 skipped tests without the bridge (`console.test.ts`). With the bridge but without a production build, 2 tests skip (`next-server.test.ts`). With both the bridge and a production build, 0 tests skip.
+
+Always report test skip counts alongside passing counts in pull requests.
 
 ## Hosted CI is not local validation
 
-On pull requests, hosted CI runs formatting, Rust tests, the type check, both production builds, the SDK and console
-suites with the bridge, the dependency-baseline and link checks, the scan tests, and the W0 browser journey. Most other
-browser journeys are **not** run on pull requests, so run the ones your change affects locally.
+On pull requests, hosted CI executes:
+- Rust formatting check and locked workspace tests
+- Bridge build and TypeScript typecheck
+- Web console and landing page production builds
+- SDK tests and Console unit/security tests with the bridge
+- Dependency baseline and documentation link checks
+- Release gate scanner tests
+- The W0 mock browser journey (`w0-journey.mjs`)
+
+Most other browser journeys (`journey.mjs`, `sessions-journey.mjs`, `settlement-journey.mjs`, etc.) are **not** run on pull requests. Run the journeys relevant to your changes locally before opening a pull request.
 
 ## What a test proves
 
-A passing test proves only what it asserts. Most of the evidence in this repository is same-author. When you add a
-test, add the case that would have caught the defect, and never weaken a test to make broken code pass.
+A passing test proves only what it asserts. When implementing fixes or new capabilities, write tests that would have detected the bug, and never weaken assertions to achieve a passing status.
 
-Canonical test records:
-[MVP-1 test plan](https://github.com/tobin-protocol/tobin/blob/main/docs/reference/MVP-1-TEST-PLAN-AND-STAGE-B.md),
-[wallet-first validation record](https://github.com/tobin-protocol/tobin/blob/main/docs/product/architecture/wallet-first-auth/WALLET-FIRST-AUTH-VALIDATION.md),
-and [`ci/README.md`](https://github.com/tobin-protocol/tobin/blob/main/ci/README.md).
+Canonical test specifications:
+- [MVP-1 test plan](https://github.com/tobin-protocol/tobin/blob/main/docs/reference/MVP-1-TEST-PLAN-AND-STAGE-B.md)
+- [Wallet-first validation record](https://github.com/tobin-protocol/tobin/blob/main/docs/product/architecture/wallet-first-auth/WALLET-FIRST-AUTH-VALIDATION.md)
+- [`ci/README.md`](https://github.com/tobin-protocol/tobin/blob/main/ci/README.md)
