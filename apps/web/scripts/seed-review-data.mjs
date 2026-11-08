@@ -33,6 +33,9 @@ const newSession = async (label) => (await call(alice.cookie, 'POST', `${O}/sess
 const addAll = async (sid) => { for (const u of [alice, bob, carol]) await call(alice.cookie, 'POST', `${O}/sessions/${sid}/participants`, { userId: u.id }); };
 const ob = (sid, d, c, amount, reference) => call(alice.cookie, 'POST', `${O}/sessions/${sid}/obligations`, { debtor: d.id, creditor: c.id, amount, asset: 'USD', reference });
 
+// optional filler sessions, created FIRST so the seeded ones stay among the newest 10 the Overview reads (SEED_EXTRA_SESSIONS=8 gives 11 in total: two list pages)
+for (let i = 0; i < Number(process.env.SEED_EXTRA_SESSIONS ?? 0); i++) await newSession(`Weekly netting ${i + 1}`);
+
 // 1: calculated and awaiting review (Bob is the reviewer)
 const s1 = await newSession('Q4 clearing run'); await addAll(s1);
 await ob(s1, alice, bob, '100', 'invoice 1'); await ob(s1, bob, carol, '80', 'invoice 2'); await ob(s1, carol, alice, '70', 'invoice 3');

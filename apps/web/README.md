@@ -1,6 +1,6 @@
 # Tobin web app (`apps/web`)
 
-A new UI for Tobin's institutional workflows. It is a client of the web console's API (`apps/web-console`), reached through a server-side proxy. **Phase A of the build is complete** (see [Build status](#build-status)); later phases are not started.
+A new UI for Tobin's institutional workflows. It is a client of the web console's API (`apps/web-console`), reached through a server-side proxy. **Phases A and B of the build are complete** (see [Build status](#build-status)); later phases are not started.
 
 Written to [`docs/web-app-plan.md`](../../docs/web-app-plan.md), which records the owner's decisions D1 to D6, and to the PRD and design specification it cites. Maturity: pre-production, Stellar Testnet only, same-author evidence. See the [terminology guide](../../docs/COMMUNICATION-AND-MATURITY-TERMINOLOGY.md).
 
@@ -47,7 +47,8 @@ Open `http://127.0.0.1:3000`. `TOBIN_API_URL` (default `http://127.0.0.1:8787`) 
 | Sign-in (wallet and email), wallet connection failure states | Done |
 | First-time onboarding (profile, create organization, join with an invitation code) | Done |
 | Overview | Done, with real and derived data only |
-| Clearing Sessions, Obligations, Organization, Activity, Wallets, Settings | Placeholder pages ("Not built yet"), phases B to E |
+| Phase B: Clearing Sessions list (search, filter, sort, pagination in the URL; cards under 900 px), create-session wizard, session workspace (Stepper, next action, 420 px action panel, seven sub-tabs; Overview, Participants, Obligations, Netting, Approvals and Activity read real data, Settlement is Not built yet) | Done |
+| Obligations, Organization, Activity, Wallets, Settings tabs | Placeholder pages ("Not built yet"), phases C to E |
 
 Real, derived and not supported are listed in the plan (sections 3 and 3a) and in the Phase A report. Notifications and global search render "Not supported".
 
@@ -57,13 +58,13 @@ Real, derived and not supported are listed in the plan (sections 3 and 3a) and i
 npm run typecheck --workspace tobin-web
 npm run lint      --workspace tobin-web
 npm test          --workspace tobin-web          # node --test: permissions, derivation and cap, proxy policy, stage rule, wallet sequence, source check
-cd apps/web && npx playwright test               # smoke tests; use the system Chrome, no backend needed
+cd apps/web && npx playwright test               # smoke tests; system Chrome, no backend needed. LOCAL ONLY: not in CI yet (owner decision after the Phase A review)
 ```
 
 Review screenshots (1440, 900 and 390 px) are produced from the real UI against a real, seeded throwaway backend:
 
 ```bash
-node apps/web/scripts/seed-review-data.mjs                       # fictional people and the documented arithmetic example, through the console's real API
+SEED_EXTRA_SESSIONS=8 node apps/web/scripts/seed-review-data.mjs                       # fictional people and the documented arithmetic example, through the console's real API
 node apps/web/scripts/review-screenshots.mjs docs/screenshots/phase-a
 ```
 

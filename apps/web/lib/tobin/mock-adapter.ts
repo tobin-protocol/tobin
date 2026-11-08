@@ -45,6 +45,9 @@ export class MockAdapter implements TobinClient {
   };
   sessions: TobinClient["sessions"] = {
     list: async () => ROWS,
+    create: async (_o, label) => ({ sessionId: "b".repeat(64), label, provenance: "local-draft", createdAt: "2026-02-02T09:00:00.000Z" }),
+    readiness: async () => ({ state: "configuring", ready: false, checks: [], currency: "none" }),
+    calculation: async () => ({ currency: "none", asset: null, calculation: null }),
     get: async (): Promise<SessionDetail> => ({
       workflow: "configuring",
       workspace: {
@@ -53,6 +56,7 @@ export class MockAdapter implements TobinClient {
       },
     }),
   };
+  participants: TobinClient["participants"] = { list: async () => [], add: async () => {}, remove: async () => {} };
   obligations: TobinClient["obligations"] = { listBySession: async () => OBLIGATIONS };
   authorization: TobinClient["authorization"] = {
     get: async (): Promise<AuthorizationView> => ({ state: "no-calculation", sessionState: "configuring", calculationId: null, eligibility: { canDecide: false, isReviewer: false, reasons: [] }, decisions: [] }),

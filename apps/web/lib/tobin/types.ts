@@ -60,6 +60,7 @@ export interface ActivityItem { at: string; kind: string; actor: string; detail:
 export interface SessionDetail {
   workflow: WorkflowState;
   workspace: {
+    banner?: { label: string; meaning: string };
     overview: { sessionId: string; label: string; status: string; createdAt: string; provenance: SessionRow["provenance"] };
     activity: { items: ActivityItem[]; empty: string | null };
   };
@@ -86,3 +87,25 @@ export interface AuthorizationView {
 
 /** A capability the backend does not provide. The UI renders it as "Not supported"; it is never mocked. */
 export interface NotSupported { supported: false; reason: string }
+
+// ---- Phase B: session workspace (shapes read from apps/web-console/lib/registry/http.ts) ----
+export interface SessionParticipantView {
+  userId: string;
+  name: string;
+  organization: string;
+  orgId: string;
+  status: "active" | "removed";
+  addedAt: string;
+  removedAt?: string;
+  walletClaim?: string;
+}
+export type Currency = "current" | "stale" | "none";
+export interface ReadinessCheck { key: string; label: string; ok: boolean; fix: string }
+export interface Readiness { state: WorkflowState; ready: boolean; checks: ReadinessCheck[]; currency: Currency }
+export interface CalculationPosition { userId: string; name: string; net: string; role: "debtor" | "creditor" | "flat" }
+export interface CalculationView {
+  currency: Currency;
+  asset: string | null;
+  calculation: null | { id: string; asset: string; createdAt: string; createdBy: string; gross: string; obligationCount: number; positions: CalculationPosition[] };
+}
+export interface CreatedSession { sessionId: string; label: string; provenance: SessionRow["provenance"]; createdAt: string }

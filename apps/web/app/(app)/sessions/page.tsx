@@ -1,7 +1,8 @@
-import { PhasePlaceholder } from "../../../components/PhasePlaceholder.tsx";
+import { Suspense } from "react";
+import { SessionsList } from "../../../components/sessions/SessionsList.tsx";
 
 export const metadata = { title: "Clearing Sessions" };
 
 export default function Page() {
-  return <PhasePlaceholder title="Clearing Sessions" phase="B" scope="the sessions list, the create-session wizard and the session workspace." />;
+  return <Suspense fallback={null}><SessionsList /></Suspense>;
 }

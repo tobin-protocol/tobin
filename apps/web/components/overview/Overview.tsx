@@ -8,7 +8,7 @@ import { derive, selectForReading, SESSION_REQUEST_CAP, type AttentionItem, type
 import { formatDateTime, humanizeKind, INSTITUTION_LABEL, relativeTime } from "../../lib/format.ts";
 import { useWorkspace } from "../shell/session.tsx";
 import { PageFrame } from "../shell/PageFrame.tsx";
-import { Button } from "../ui/Button.tsx";
+import { Button, ButtonLink } from "../ui/Button.tsx";
 import { Table, type Col, Identifier } from "../ui/Data.tsx";
 import { EmptyState, ErrorState, NotSupported, Skeleton, StatusMark } from "../ui/Feedback.tsx";
 import { Card, DataCard, DerivedNote, Panel, StatGrid } from "../ui/Surfaces.tsx";
@@ -16,7 +16,7 @@ import { Card, DataCard, DerivedNote, Panel, StatGrid } from "../ui/Surfaces.tsx
 const attentionColumns: Col<AttentionItem>[] = [
   { id: "item", header: "Needs attention", cell: (r) => <span><span className="block font-medium">{r.label}</span><span className="block text-muted">{r.detail}</span></span> },
   { id: "state", header: "Status", cell: (r) => <StatusMark kind="action">{r.kind === "review" ? "Awaiting your review" : r.kind === "stale" ? "Needs recalculation" : "Awaiting response"}</StatusMark>, hideBelow: "md" },
-  { id: "open", header: "", align: "right", cell: (r) => (r.sessionId ? <Button variant="quiet" disabled title="The session workspace is built in Phase B">Open</Button> : <Button variant="quiet" disabled title="Organization pages are built in Phase E">Open</Button>) },
+  { id: "open", header: "", align: "right", cell: (r) => (r.sessionId ? <ButtonLink href={`/sessions/${r.sessionId}`} variant="quiet">Open</ButtonLink> : <Button variant="quiet" disabled title="Organization pages are built in Phase E">Opens in Phase E</Button>) },
 ];
 const recentColumns: Col<RecentItem>[] = [
   { id: "when", header: "When", cell: (r) => <span title={formatDateTime(r.at)} className="text-muted">{relativeTime(r.at)}</span> },

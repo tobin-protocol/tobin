@@ -3,7 +3,7 @@
 // NEXT_PUBLIC_TOBIN_SAMPLE_DATA=1, always bannered). A capability with no backend is a NotSupported constant, never a method that returns invented data.
 import { api } from "../api/http.ts";
 import type {
-  AuthorizationView, CreateOrganizationInput, Invitation, Me, Member, NotSupported, ObligationView, OrgDetail, Organization, SessionDetail, SessionRow,
+  AuthorizationView, CalculationView, CreateOrganizationInput, CreatedSession, Readiness, SessionParticipantView, Invitation, Me, Member, NotSupported, ObligationView, OrgDetail, Organization, SessionDetail, SessionRow,
 } from "./types.ts";
 
 export interface WalletChallenge { challenge: { id: string; message: string; expiresAt: string } }
@@ -30,6 +30,15 @@ export interface TobinClient {
   sessions: {
     list(orgId: string): Promise<SessionRow[]>;
     get(orgId: string, sessionId: string): Promise<SessionDetail>;
+    /** Records a LOCAL DRAFT: the only accepted field is the label; the server generates the id. */
+    create(orgId: string, label: string): Promise<CreatedSession>;
+    readiness(orgId: string, sessionId: string): Promise<Readiness>;
+    calculation(orgId: string, sessionId: string): Promise<CalculationView>;
+  };
+  participants: {
+    list(orgId: string, sessionId: string): Promise<SessionParticipantView[]>;
+    add(orgId: string, sessionId: string, userId: string): Promise<void>;
+    remove(orgId: string, sessionId: string, userId: string): Promise<void>;
   };
   obligations: { listBySession(orgId: string, sessionId: string): Promise<ObligationView[]> };
   authorization: { get(orgId: string, sessionId: string): Promise<AuthorizationView> };
@@ -78,6 +87,14 @@ export class HttpAdapter implements TobinClient {
   sessions: TobinClient["sessions"] = {
     list: async (orgId) => (await api<{ rows: SessionRow[] }>(`${org(orgId)}/sessions`)).rows,
     get: (orgId, sessionId) => api<SessionDetail>(`${org(orgId)}/sessions/${encodeURIComponent(sessionId)}`),
+    create: async (orgId, label) => (await api<{ session: CreatedSession }>(`${org(orgId)}/sessions`, { method: "POST", body: { label } })).session,
+    readiness: (orgId, sessionId) => api<Readiness>(`${org(orgId)}/sessions/${encodeURIComponent(sessionId)}/readiness`),
+    calculation: (orgId, sessionId) => api<CalculationView>(`${org(orgId)}/sessions/${encodeURIComponent(sessionId)}/calculation`),
+  };
+  participants: TobinClient["participants"] = {
+    list: async (orgId, sessionId) => (await api<{ participants: SessionParticipantView[] }>(`${org(orgId)}/sessions/${encodeURIComponent(sessionId)}/participants`)).participants,
+    add: async (orgId, sessionId, userId) => { await api(`${org(orgId)}/sessions/${encodeURIComponent(sessionId)}/participants`, { method: "POST", body: { userId } }); },
+    remove: async (orgId, sessionId, userId) => { await api(`${org(orgId)}/sessions/${encodeURIComponent(sessionId)}/participants/${encodeURIComponent(userId)}/remove`, { method: "POST" }); },
   };
   obligations: TobinClient["obligations"] = {
     listBySession: async (orgId, sessionId) => (await api<{ obligations: ObligationView[] }>(`${org(orgId)}/sessions/${encodeURIComponent(sessionId)}/obligations`)).obligations,

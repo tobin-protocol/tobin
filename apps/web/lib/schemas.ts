@@ -40,3 +40,10 @@ export type OrganizationForm = z.infer<typeof organizationForm>;
 
 export const invitationForm = z.object({ token: z.string().trim().min(8, "Paste the one-time code you were given.") });
 export type InvitationForm = z.infer<typeof invitationForm>;
+
+/** Mirrors Registry.recordSession's only accepted field: 1 to 80 printable characters, no < or > (apps/web-console/lib/registry/service.ts `text`). The server decides. */
+export const sessionForm = z.object({
+  label: z.string().trim().min(1, "Enter a name for the session.").max(80, "Use at most 80 characters.")
+    .refine((v) => !/[\u0000-\u001f\u007f<>]/.test(v), "Do not use control characters, < or >."),
+});
+export type SessionForm = z.infer<typeof sessionForm>;
