@@ -15,7 +15,7 @@ For initial setup instructions, see [Local environment setup](/docs/development/
 | `TOBIN_BRIDGE_EXE is not set` | The Rust development bridge has not been compiled or the variable is unset. | Build the bridge (`cargo build -p tobin-clearing-v1 --example bridge`) and set `TOBIN_BRIDGE_EXE`. |
 | `.next is missing: run the production build first` | `apps/web-console/.next` build directory is absent. | Run `npm run build:console` from the repository root. |
 | `no Chrome or Edge found (set TOBIN_BROWSER)` | Browser driver could not find a Chromium binary at default Windows paths. | Export `TOBIN_BROWSER` pointing to your installed browser executable. |
-| `listen EADDRINUSE: address already in use 127.0.0.1:8787` | Another process is already listening on the web console port. | Stop the existing Node process or start the app on a different port using `PORT=8788`. |
+| `listen EADDRINUSE: address already in use 127.0.0.1:8787` | Another process is already listening on the web console port. | Stop the existing Node process, or start the console on a different port (see the section below). |
 | `db:status` exits with code 2 | Unapplied SQLite migrations exist in the database. | Run `npm run db:migrate --workspace tobin-web-console`. |
 | `TOBIN_DB_PATH is required in production` | `NODE_ENV=production` is set but no database path was configured. | Set `TOBIN_DB_PATH` to a valid disk path before starting the production server. |
 | `No space left on device (os error 28)` | Cargo build cache in `contracts/target/` has exhausted partition storage. | Run `cargo clean` inside `contracts` or set `CARGO_TARGET_DIR` to another partition. |
@@ -79,7 +79,7 @@ The TypeScript SDK and web console do not bundle compiled Rust binaries. They co
    export TOBIN_BRIDGE_EXE="$PWD/contracts/target/debug/examples/bridge"
    ```
    On Windows PowerShell:
-   ```bash
+   ```powershell
    $env:TOBIN_BRIDGE_EXE = "C:\path\to\tobin\contracts\target\debug\examples\bridge.exe"
    ```
 
@@ -154,8 +154,9 @@ The web console defaults to port `8787` (the docs app defaults to `3000`). If a 
    - On Linux/macOS:
      ```bash
      lsof -i :8787
-     kill -9 <PID>
+     kill <PID>
      ```
+     Use `kill -9 <PID>` only if the process does not exit after a plain `kill`.
    - On Windows PowerShell:
      ```powershell
      Get-NetTCPConnection -LocalPort 8787
@@ -163,8 +164,16 @@ The web console defaults to port `8787` (the docs app defaults to `3000`). If a 
      ```
 2. Alternatively, specify a different port when launching:
    ```bash
-   PORT=8788 npm run dev --workspace tobin-web-console
+   cd apps/web-console
+   PORT=8788 npx next dev --hostname 127.0.0.1 --port 8788
    ```
+   On Windows PowerShell:
+   ```powershell
+   cd apps/web-console
+   $env:PORT = "8788"
+   npx next dev --hostname 127.0.0.1 --port 8788
+   ```
+   Set **both**. The `dev` and `start` scripts in `apps/web-console/package.json` fix Next's listening port at 8787, so `PORT` alone does not move it; and the request guards read `PORT` to decide which `Host` header (`127.0.0.1:<port>`) to accept, so `--port` alone makes every request fail the host check.
 
 ## Pending database migrations
 
