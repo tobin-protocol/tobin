@@ -1,8 +1,8 @@
 # Tobin web app (`apps/web`)
 
-A new UI for Tobin's institutional workflows. It is a client of the web console's API (`apps/web-console`), reached through a server-side proxy. **Phases A to D of the build are complete** (see [Build status](#build-status)); later phases are not started.
+A new UI for Tobin's institutional workflows. It is a client of the web console's API (`apps/web-console`), reached through a server-side proxy. **All five phases of the build (A to E) are complete**; see [What is real, derived and not supported](#what-is-real-derived-and-not-supported).
 
-Written to [`docs/web-app-plan.md`](../../docs/web-app-plan.md), which records the owner's decisions D1 to D6, and to the PRD and design specification it cites. Maturity: pre-production, Stellar Testnet only, same-author evidence. See the [terminology guide](../../docs/COMMUNICATION-AND-MATURITY-TERMINOLOGY.md).
+Built to [`docs/web-app-plan.md`](../../docs/web-app-plan.md), which records the owner's decisions D1 to D6, exactly which backend operations exist for each screen (sections 5a to 5d), and the final list of what remains Not supported (section 12). Maturity: pre-production, Stellar Testnet only, same-author evidence. See the [terminology guide](../../docs/COMMUNICATION-AND-MATURITY-TERMINOLOGY.md).
 
 ## Hosting: local only
 
@@ -12,9 +12,9 @@ Written to [`docs/web-app-plan.md`](../../docs/web-app-plan.md), which records t
 
 Until `apps/web` reaches parity, **`apps/web-console` remains the canonical institutional UI**. Once every row marked Supported in the plan is implemented here, with tests and the owner's review, **`apps/web` becomes the canonical institutional UI** and the console's institutional pages are retired. The console stays as the backend, the owner-run Testnet tools and the local sandbox (decision D1).
 
-## Run it
+## Set up and run
 
-Both servers must run. From the repository root, after `npm ci`:
+Needs Node 24 and, for the browser scripts, an installed Chrome. From the repository root, after `npm ci`, both servers must run:
 
 ```bash
 # 1. the backend (the web console) on 127.0.0.1:8787, with a throwaway database
@@ -26,51 +26,76 @@ npm run dev --workspace tobin-web          # or: npm run build --workspace tobin
 
 Open `http://127.0.0.1:3000`. `TOBIN_API_URL` (default `http://127.0.0.1:8787`) points the proxy at a different console. No other environment variable is needed, and nothing secret is read.
 
+Settlement can only be prepared when the operator has configured a supported asset (there is no API for it). For a throwaway database:
+
+```bash
+cd apps/web-console
+TOBIN_DB_PATH=/tmp/tobin-web.sqlite node scripts/db.ts asset-add testnet USD <a Stellar account address as issuer>
+```
+
 `NEXT_PUBLIC_TOBIN_SAMPLE_DATA=1` switches the data layer to a fictional `MockAdapter` and shows a persistent "Sample data" banner. It is **off by default**, and per decision D3 no feature that lacks a backend is mocked.
+
+## Scripts
+
+```bash
+npm run typecheck --workspace tobin-web
+npm run lint      --workspace tobin-web
+npm test          --workspace tobin-web          # node --test: permissions, derivation and cap, proxy policy, stage rule, wallet sequence, lifecycle, netting,
+                                                 # settlement diff, failed states, activity, roles, source checks
+cd apps/web && npx playwright test               # smoke tests, system Chrome, no backend needed. LOCAL ONLY: not in CI
+```
+
+Real-backend review scripts (they assert behaviour, check horizontal overflow and save screenshots; run each on a fresh, seeded throwaway database):
+
+```bash
+# seed fictional people and sessions through the console's real API
+SEED_EXTRA_SESSIONS=8 SEED_WALLET=1 SEED_ASSET_REF=<asset id, for example testnet:USD:G...> node apps/web/scripts/seed-review-data.mjs
+
+node apps/web/scripts/review-screenshots.mjs   docs/screenshots/phase-a   # sign-in, onboarding, Overview
+node apps/web/scripts/review-screenshots-b.mjs docs/screenshots/phase-b   # sessions list, create, workspace
+node apps/web/scripts/review-screenshots-c.mjs docs/screenshots/phase-c   # obligations, netting
+node apps/web/scripts/review-screenshots-d.mjs docs/screenshots/phase-d   # approvals, settlement
+node apps/web/scripts/review-screenshots-e.mjs docs/screenshots/phase-e   # activity, wallets, organization, settings, bottom sheet
+
+node apps/web/scripts/keyboard-walkthrough.mjs                            # keyboard-only main flows
+AXE_PATH=<path to axe.min.js> node apps/web/scripts/a11y-scan.mjs         # axe scan, tap targets, overflow
+```
+
+`axe-core` is not a dependency of the repository: install it anywhere (for example `npm i axe-core` in a scratch folder) and point `AXE_PATH` at its `axe.min.js`.
 
 ## How it works
 
 - **Proxy** (`app/api/[...path]/route.ts`, policy in `lib/proxy-policy.ts`). Forwards only `GET` and `POST` to `/api/auth/*` and `/api/registry/*`, forwards the session cookie, drops the browser `Origin`, and adds the `x-tobin-request` header the console requires. The owner-run Stellar routes, the sandbox routes and the W0 mock API are not reachable through it.
 - **Data layer** (`lib/tobin/`). A typed `TobinClient` with two adapters: `HttpAdapter` (real, default) and `MockAdapter` (sample, off). Features with no backend are `NotSupported` constants.
 - **Wallet** (`lib/wallet/`). The pinned `@stellar/freighter-api` (decision D4). The text that is signed comes from the server, the signature is verified by the server, and no key or seed phrase is ever seen.
-- **Permissions** (`lib/permissions/can.ts`). One `can(role, capability)` helper mirrors the backend's rules and is presentation only. The UI shows the real role names (Admin, Member, Reviewer); the product brief's role names appear in help text only (decision D5).
-- **Derived data** (`lib/derived/overview.ts`). Overview counts that the API cannot provide are computed from per-session requests, capped at 10 sessions, and labelled "Derived from session data" with "Showing N of M sessions" whenever the cap applies (decision D6).
-- **Confirmed rule** (`lib/stages.ts`). A transaction stage rail never shows Confirmed without a verified read-back, which no endpoint reports. A unit test and a source check enforce it.
-- **Design tokens** (`packages/ui-tokens`). CSS variables and a Tailwind v4 theme. The ink and grey values equal the landing page's; the landing page does not consume the package yet.
+- **Permissions** (`lib/permissions/can.ts`). One `can(role, capability)` helper mirrors the backend's rules and is presentation only; the server always decides. The UI shows the real role names (Admin, Member) and the separate Reviewer capability (decision D5).
+- **Derived data** (`lib/derived/`, `lib/activity/`). Counts and lists the API cannot provide are computed from per-session requests, capped at 10 sessions, labelled "Derived from session data" with "Showing N of M sessions" whenever the cap applies (decision D6).
+- **Confirmed rule** (`lib/stages.ts`). A stage rail never shows Confirmed without a verified read-back, which no endpoint reports. A unit test and a source check enforce it. Only Prepared is a stage the backend records; Signed, Submitted and Confirmed read "Not supported".
+- **Design tokens** (`packages/ui-tokens`). CSS variables and a Tailwind v4 theme.
+- **Responsive.** Tables become cards under 900 px; under 768 px the session action panel is a sticky bottom sheet above the bottom bar; tap targets are at least 44 px there.
+
+## What is real, derived and not supported
+
+| | |
+|---|---|
+| **Real** | Sign-in (wallet and email), onboarding, organization profile, members (role, reviewer grant, suspend, remove), invitations, wallets (own, verified accounts, claims, disconnect), sessions (list, create, participants), obligations (record, void, history), netting, calculation review, settlement preparation and batch review, execution record (read-only), account settings |
+| **Derived** | Overview counts and attention, global Obligations, Activity and Approvals, the pending-approvals badge, list workflow state for visible rows, excluded items, activity outcome, invitation Expired |
+| **Sample** | None shown. Failed execution states exist only as labelled fixtures in `/dev/components` |
+| **Not supported** | Notifications, global search, cross-organization sessions, N-of-M approval, signing, submission, verification and confirmation, session list and revoke, extra roles. Each is rendered as such, never mocked. The full list with the backend work each needs is section 12 of the plan |
 
 ## Build status
 
-| Area | Phase A |
-|---|---|
-| Tokens, Tailwind theme, app shell (two header rows, environment indicator, organization selector, Freighter wallet cell, seven tabs, bottom bar under 768 px) | Done |
-| Shared components with all states, and the gallery at `/dev/components` | Done |
-| Sign-in (wallet and email), wallet connection failure states | Done |
-| First-time onboarding (profile, create organization, join with an invitation code) | Done |
-| Overview | Done, with real and derived data only |
-| Phase B: Clearing Sessions list (search, filter, sort, pagination in the URL; cards under 900 px), create-session wizard, session workspace (Stepper, next action, 420 px action panel, seven sub-tabs; Overview, Participants, Obligations, Netting, Approvals and Activity read real data, Settlement is Not built yet) | Done |
-| Phase C: obligations (record in the action panel, detail with history, void, search and filter), Netting tab (inputs and excluded items, run netting, gross versus net, grouped positions, original versus net, calculation details), global Obligations page (derived, capped) | Done |
-| Phase D: Approvals tab (one reviewer decision, Approve and Reject as separate confirmed dialogs, Reject needs a reason), global Approvals page (derived, capped), Settlement tab (prepare, review, red diff on any mismatch, stage rail, execution record read-only). Sign, Submit, Verify and Confirmed: Not supported | Done |
-| Organization, Activity, Wallets, Settings tabs | Placeholder pages, phase E |
+| Phase | Scope | Status |
+|---|---|---|
+| A | Tokens, shell, shared components, sign-in, wallet connection, onboarding, Overview | Done |
+| B | Sessions list, create wizard, session workspace (Stepper, next action, action panel, tabs) | Done |
+| C | Obligations (record, void, history), netting, global Obligations | Done |
+| D | Approvals, settlement preparation and review, stage rail, global Approvals | Done |
+| E | Activity, wallets, organization, members, invitations, settings, notifications page, command panel, bottom sheet, accessibility pass | Done |
 
-Real, derived and not supported are listed in the plan (sections 3 and 3a) and in the Phase A report. Notifications and global search render "Not supported".
+## Accessibility
 
-## Test
-
-```bash
-npm run typecheck --workspace tobin-web
-npm run lint      --workspace tobin-web
-npm test          --workspace tobin-web          # node --test: permissions, derivation and cap, proxy policy, stage rule, wallet sequence, source check
-cd apps/web && npx playwright test               # smoke tests; system Chrome, no backend needed. LOCAL ONLY: not in CI yet (owner decision after the Phase A review)
-```
-
-Review screenshots (1440, 900 and 390 px) are produced from the real UI against a real, seeded throwaway backend:
-
-```bash
-SEED_EXTRA_SESSIONS=8 node apps/web/scripts/seed-review-data.mjs                       # fictional people and the documented arithmetic example, through the console's real API
-node apps/web/scripts/review-screenshots.mjs docs/screenshots/phase-a
-# Phases B, C and D: scripts/review-screenshots-b.mjs, -c.mjs and -d.mjs (they assert behaviour as well as saving screenshots; run them on a fresh seeded database).
-# Phase D needs a supported asset: `node scripts/db.ts asset-add testnet USD <issuer>` in apps/web-console, then seed with SEED_ASSET_REF set to the asset id (see the script header).
-```
+Keyboard-only walkthrough of sign-in, navigation, the create wizard, recording an obligation, dialogs, the command panel and a drawer; a 2px focus ring everywhere; a skip link; axe-core with no violations on the key screens at 1440 and 390 px; tap targets of at least 44 px under 768 px. Not done: a screen-reader pass, cross-browser testing, or a test with the real Freighter extension.
 
 ## Licence
 

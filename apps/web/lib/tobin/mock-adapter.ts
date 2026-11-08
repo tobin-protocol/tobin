@@ -35,6 +35,9 @@ export class MockAdapter implements TobinClient {
     setProfile: async () => {},
     setWorkspace: async () => {},
     logout: async () => {},
+    logoutAll: async () => {},
+    removeWallet: async () => {},
+    audit: async () => [],
   };
   organizations: TobinClient["organizations"] = {
     get: async () => ({ organization: ORG, role: "admin" }),
@@ -42,6 +45,12 @@ export class MockAdapter implements TobinClient {
     members: async (): Promise<Member[]> => [{ userId: ME.user.id, role: "admin", reviewer: false, since: ORG.createdAt, status: "active", name: ME.user.displayName, you: true }],
     invitations: async (): Promise<Invitation[]> => [],
     acceptInvitation: async () => ({ orgId: ORG.id }),
+    update: async () => ORG,
+    verifications: async () => [],
+    claims: async () => [],
+    setRole: async () => {}, setStatus: async () => {}, removeMember: async () => {}, setReviewer: async () => {},
+    invite: async () => { throw new Error("Invitations are not available with sample data."); },
+    revokeInvitation: async () => {},
   };
   sessions: TobinClient["sessions"] = {
     list: async () => ROWS,

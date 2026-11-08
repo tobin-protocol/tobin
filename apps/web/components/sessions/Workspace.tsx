@@ -17,6 +17,7 @@ import { ErrorState, Skeleton } from "../ui/Feedback.tsx";
 import { NextAction as NextActionCard, Stepper } from "../ui/Flow.tsx";
 import { Card, Panel } from "../ui/Surfaces.tsx";
 import { CopyButton } from "./shared.tsx";
+import { ActionSheet } from "./ActionSheet.tsx";
 import { ActivityTab, OverviewTab, ParticipantsTab } from "./tabs.tsx";
 import { ApprovalsTab } from "../approvals/ApprovalsTab.tsx";
 import { ReviewPanel } from "../approvals/ReviewPanel.tsx";
@@ -101,7 +102,7 @@ export function Workspace() {
   if (detail.isLoading || !detail.data || !view || !next || factsPending) {
     return (
       <PageFrame title="Session" breadcrumbs={crumbs} sensitive>
-        <div className="space-y-4" aria-busy="true" aria-label="Loading session"><Skeleton className="h-24 w-full" /><Skeleton className="h-12 w-full" /><Skeleton className="h-64 w-full" /></div>
+        <div className="space-y-4" role="status" aria-busy="true" aria-label="Loading session"><Skeleton className="h-24 w-full" /><Skeleton className="h-12 w-full" /><Skeleton className="h-64 w-full" /></div>
       </PageFrame>
     );
   }
@@ -130,23 +131,23 @@ export function Workspace() {
 
       <div className="mb-6 border-b border-divider"><PageTabs label="Session sections" items={tabs} activeHref={href(tab)} /></div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
-        <Panel className="order-2 min-w-0 space-y-6 lg:order-1" id="tab-content" aria-label="Section content">
+      <div className="grid gap-6 max-md:pb-16 lg:grid-cols-[minmax(0,1fr)_420px]">
+        <Panel className="min-w-0 space-y-6 lg:order-1" id="tab-content" aria-label="Section content">
           {tab === "overview" ? <OverviewTab detail={detail.data} readiness={readiness} next={next} /> : null}
           {tab === "participants" ? <ParticipantsTab sessionId={sessionId} query={participants} workflow={detail.data.workflow} onChanged={refresh} /> : null}
           {tab === "obligations" ? <ObligationsTab sessionId={sessionId} query={obligations} workflow={detail.data.workflow} activity={detail.data.workspace.activity.items} onChanged={refresh} /> : null}
           {tab === "netting" ? <NettingTab sessionId={sessionId} obligations={obligations.data} participants={participants.data} readiness={readiness.data} running={running} runError={runError} /> : null}
           {tab === "approvals" ? <ApprovalsTab query={authorization} /> : null}
           {tab === "settlement" ? <SettlementTab s={settle} /> : null}
-          {tab === "activity" ? <ActivityTab detail={detail.data} /> : null}
+          {tab === "activity" ? <ActivityTab detail={detail.data} sessionId={sessionId} /> : null}
         </Panel>
-        <aside className="order-1 min-w-0 lg:sticky lg:top-24 lg:order-2 lg:self-start" aria-label="Session action">
+        <ActionSheet summary={tab === "obligations" ? "Record an obligation" : tab === "netting" ? "Run netting" : tab === "approvals" ? "Review the calculation" : tab === "settlement" ? "Settlement steps" : next.primary?.label ?? next.title}>
           {tab === "obligations" ? <RecordObligationPanel sessionId={sessionId} participants={participants.data ?? []} workflow={detail.data.workflow} onRecorded={refresh} />
             : tab === "netting" ? <RunNettingPanel eligibleCount={nettingElig.eligible.length} excludedBlocking={nettingElig.excluded.filter((x) => x.reason === "inactive-participant").length} participantCount={activeIds.size} asset={nettingElig.eligible[0]?.asset ?? null} workflow={detail.data.workflow} running={running} error={runError} onRun={runNetting} />
             : tab === "approvals" && authorization.data ? <ReviewPanel sessionId={sessionId} auth={authorization.data} onDecided={refresh} />
             : tab === "settlement" ? <SettlementPanel sessionId={sessionId} s={settle} workflow={detail.data.workflow} onChanged={refresh} />
             : <ActionPanel next={next} href={href} onReload={refresh} actorLabel={roleLabels(actor).join(", ")} />}
-        </aside>
+        </ActionSheet>
       </div>
     </PageFrame>
   );

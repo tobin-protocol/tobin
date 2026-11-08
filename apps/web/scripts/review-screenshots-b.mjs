@@ -34,13 +34,15 @@ async function shot(page, name, w) {
   await settled(page);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   check(overflow <= 0, `${name}-${w}: no horizontal overflow (${overflow}px)`);
-  await page.addStyleTag({ content: "nav[aria-label=Primary].fixed{position:static!important}" }).catch(() => {});
+  await page.addStyleTag({ content: "nav[aria-label=Primary].fixed,[data-sheet]{position:static!important}" }).catch(() => {});
   await page.screenshot({ path: `${out}/${name}-${w}.png`, fullPage: true });
 }
 const open = async (page, label) => { await page.goto(`${BASE}/sessions?q=${encodeURIComponent(label)}`); await settled(page); await page.getByRole("link", { name: "Open" }).locator("visible=true").first().click(); await page.waitForURL(/\/sessions\/[0-9a-f]{64}/); await settled(page); };
 
 for (const w of WIDTHS) {
   const ctx = await browser.newContext({ viewport: { width: w, height: w < 500 ? 844 : 900 }, deviceScaleFactor: 1 });
+  // the action panel is a bottom sheet under 768px: open it for the whole run so flows can reach its controls
+  await ctx.addInitScript(() => { try { sessionStorage.setItem("tobin-sheet", "open"); } catch {} });
   const page = await ctx.newPage();
   page.on("pageerror", (e) => problems.push(`${w}: page error ${e}`));
   page.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource/.test(m.text())) problems.push(`${w}: console error ${m.text().slice(0, 160)}`); });
@@ -100,7 +102,7 @@ for (const w of WIDTHS) {
   await open(page, "Q4 clearing");
   const base = page.url().split("?")[0];
   await vis(page.getByText("Calculation awaiting review").first(), `${w}: stepper sub-label says the calculation awaits review`);
-  check(await page.getByRole("button", { name: "Review the calculation" }).isDisabled(), `${w}: the Phase D action is disabled, not faked`);
+  check(await page.getByRole("button", { name: "Review the calculation", exact: true }).isDisabled(), `${w}: the Phase D action is disabled, not faked`);
   await shot(page, "workspace-overview", w);
   for (const t of ["participants", "obligations", "netting", "approvals", "settlement", "activity"]) {
     await page.goto(`${base}?tab=${t}`); await settled(page); await shot(page, `workspace-${t}`, w);

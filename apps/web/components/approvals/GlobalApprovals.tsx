@@ -63,7 +63,7 @@ export function GlobalApprovals() {
           </Card>
 
           {sessions.isLoading || reading ? (
-            <div className="space-y-px" aria-busy="true" aria-label="Loading approvals">{Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
+            <div className="space-y-px" role="status" aria-busy="true" aria-label="Loading approvals">{Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
           ) : shown.length === 0 ? (
             <EmptyState title="Nothing here" message={filter === "awaiting" ? "No calculation or settlement batch in the sessions read is awaiting review." : "No items match."} />
           ) : (
@@ -72,7 +72,7 @@ export function GlobalApprovals() {
                 <li key={i.key} className="rounded-card bg-card p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <Link href={`/sessions/${i.sessionId}?tab=${i.tab}`} className="block text-entity font-medium">{i.session}</Link>
+                      <Link href={`/sessions/${i.sessionId}?tab=${i.tab}`} className="inline-flex min-h-11 items-center text-entity font-medium">{i.session}</Link>
                       <p className="text-body text-muted">{i.kind}</p>
                     </div>
                     <div className="text-right">
@@ -80,7 +80,7 @@ export function GlobalApprovals() {
                       <p className="mt-1 text-label text-muted">{i.youCanDecide ? "You can decide" : i.at ? relativeTime(i.at) : "No data"}</p>
                     </div>
                   </div>
-                  <ButtonLink href={`/sessions/${i.sessionId}?tab=${i.tab}`} variant="quiet" className="mt-3 w-full sm:w-auto">Open</ButtonLink>
+                  <div className="mt-3"><ButtonLink href={`/sessions/${i.sessionId}?tab=${i.tab}`} variant="quiet" className="w-full sm:w-auto">Open</ButtonLink></div>
                 </li>
               ))}
             </ul>

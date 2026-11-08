@@ -47,3 +47,17 @@ export const sessionForm = z.object({
     .refine((v) => !/[\u0000-\u001f\u007f<>]/.test(v), "Do not use control characters, < or >."),
 });
 export type SessionForm = z.infer<typeof sessionForm>;
+
+/** The only organization fields the backend lets an administrator change. */
+export const orgProfileForm = z.object({
+  name: z.string().trim().min(2, "Enter the organization name (at least 2 characters).").max(120, "Use at most 120 characters."),
+  description: z.string().trim().max(500, "Use at most 500 characters."),
+  visibility: z.enum(["private", "public"]),
+});
+export type OrgProfileForm = z.infer<typeof orgProfileForm>;
+
+export const invitationCreateForm = z.object({
+  invitee: z.string().trim().min(3, "Enter an email address or a Stellar address (at least 3 characters).").max(120, "Use at most 120 characters."),
+  role: z.enum(["member", "admin"]),
+});
+export type InvitationCreateForm = z.infer<typeof invitationCreateForm>;

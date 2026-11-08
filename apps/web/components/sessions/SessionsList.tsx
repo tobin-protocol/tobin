@@ -39,7 +39,7 @@ const UNSUPPORTED_QUICK = ["Awaiting my review", "Calculation stale", "Marked re
 
 const STATE_LABEL = { configuring: "Being configured", ready: "Marked ready", closed: "Closed" } as const;
 const columns = (onOpen: (r: SessionRow) => string, state: (r: SessionRow) => string): Col<SessionRow>[] => [
-  { id: "label", header: "Session", sortable: true, cell: (r) => <Link href={onOpen(r)} className="block"><span className="block font-medium">{r.label}</span><span className="block font-mono text-ident text-muted">{r.shortId}</span></Link> },
+  { id: "label", header: "Session", sortable: true, cell: (r) => <Link href={onOpen(r)} className="block max-md:py-2"><span className="block font-medium">{r.label}</span><span className="block font-mono text-ident text-muted">{r.shortId}</span></Link> },
   { id: "state", header: "State (derived)", cell: (r) => <span className="whitespace-nowrap">{state(r)}</span> },
   { id: "activity", header: "Last activity", sortable: true, cell: (r) => (r.lastActivity ? <span title={formatDateTime(r.lastActivity)} className="whitespace-nowrap text-muted">{relativeTime(r.lastActivity)} · {r.activityCount} event{r.activityCount === 1 ? "" : "s"}</span> : <span className="text-muted">No data</span>) },
   { id: "created", header: "Created", sortable: true, cell: (r) => <span title={formatDateTime(r.createdAt)} className="whitespace-nowrap text-muted">{formatDate(r.createdAt)}</span> },
@@ -92,7 +92,7 @@ export function SessionsList() {
       </div>
 
       {q.isLoading ? (
-        <div className="space-y-px" aria-busy="true" aria-label="Loading sessions">{Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
+        <div className="space-y-px" role="status" aria-busy="true" aria-label="Loading sessions">{Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
       ) : q.error ? (
         <ErrorState title="Could not load sessions" message={(q.error as Error).message} retry={<Button onClick={() => q.refetch()}>Try again</Button>} />
       ) : result && result.total === 0 ? (
@@ -110,7 +110,7 @@ export function SessionsList() {
           <ul className="space-y-3 min-[900px]:hidden" aria-label="Sessions">
             {result.rows.map((r) => (
               <li key={r.sessionId} className="rounded-card bg-card p-4">
-                <Link href={open(r)} className="block">
+                <Link href={open(r)} className="block max-md:min-h-11">
                   <span className="block text-entity font-medium">{r.label}</span>
                   <span className="mt-0.5 block font-mono text-ident text-muted">{r.shortId}</span>
                 </Link>

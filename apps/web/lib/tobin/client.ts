@@ -3,7 +3,7 @@
 // NEXT_PUBLIC_TOBIN_SAMPLE_DATA=1, always bannered). A capability with no backend is a NotSupported constant, never a method that returns invented data.
 import { api } from "../api/http.ts";
 import type {
-  AuthorizationView, AttemptView, BatchView, CalculationView, ExecutionView, SettlementList, RecordObligationInput, SupportedAssetView, CreateOrganizationInput, CreatedSession, Readiness, SessionParticipantView, Invitation, Me, Member, NotSupported, ObligationView, OrgDetail, Organization, SessionDetail, SessionRow,
+  AuditEvent, AuthorizationView, AttemptView, CreatedInvitation, OrgVerification, OrgWalletClaim, UpdateOrganizationInput, BatchView, CalculationView, ExecutionView, SettlementList, RecordObligationInput, SupportedAssetView, CreateOrganizationInput, CreatedSession, Readiness, SessionParticipantView, Invitation, Me, Member, Role, NotSupported, ObligationView, OrgDetail, Organization, SessionDetail, SessionRow,
 } from "./types.ts";
 
 export interface WalletChallenge { challenge: { id: string; message: string; expiresAt: string } }
@@ -19,6 +19,11 @@ export interface TobinClient {
     setProfile(displayName: string): Promise<void>;
     setWorkspace(orgId: string): Promise<void>;
     logout(): Promise<void>;
+    /** Revokes every session of the account, including this one. There is no list of sessions. */
+    logoutAll(): Promise<void>;
+    /** Removes (disconnects) a verified wallet: revokes sessions signed in with it. It does not touch the Stellar account. */
+    removeWallet(walletId: string): Promise<void>;
+    audit(): Promise<AuditEvent[]>;
   };
   organizations: {
     get(orgId: string): Promise<OrgDetail>;
@@ -26,6 +31,18 @@ export interface TobinClient {
     members(orgId: string): Promise<Member[]>;
     invitations(orgId: string): Promise<Invitation[]>;
     acceptInvitation(token: string): Promise<{ orgId: string }>;
+    /** Admin. Only name, description and visibility can change. */
+    update(orgId: string, input: UpdateOrganizationInput): Promise<Organization>;
+    verifications(orgId: string): Promise<OrgVerification[]>;
+    claims(orgId: string): Promise<OrgWalletClaim[]>;
+    /** Admin. A role is Admin or Member; Reviewer is a separate grant. */
+    setRole(orgId: string, userId: string, role: Role): Promise<void>;
+    setStatus(orgId: string, userId: string, status: "active" | "suspended"): Promise<void>;
+    removeMember(orgId: string, userId: string): Promise<void>;
+    setReviewer(orgId: string, userId: string, grant: boolean): Promise<void>;
+    /** Admin. No email is sent: the one-time token is returned once and must be handed over. */
+    invite(orgId: string, input: { invitee: string; role: Role }): Promise<CreatedInvitation>;
+    revokeInvitation(orgId: string, invitationId: string): Promise<void>;
   };
   sessions: {
     list(orgId: string): Promise<SessionRow[]>;
@@ -94,6 +111,9 @@ export class HttpAdapter implements TobinClient {
     setProfile: async (displayName) => { await api("/api/auth/profile", { method: "POST", body: { displayName } }); },
     setWorkspace: async (orgId) => { await api("/api/auth/workspace", { method: "POST", body: { orgId } }); },
     logout: async () => { await api("/api/auth/logout", { method: "POST" }); },
+    logoutAll: async () => { await api("/api/auth/logout-all", { method: "POST" }); },
+    removeWallet: async (walletId) => { await api("/api/auth/wallet/remove", { method: "POST", body: { walletId } }); },
+    audit: async () => (await api<{ events: AuditEvent[] }>("/api/auth/audit")).events,
   };
 
   organizations: TobinClient["organizations"] = {
@@ -105,6 +125,15 @@ export class HttpAdapter implements TobinClient {
       const r = await api<{ membership: { orgId: string } }>("/api/registry/invitations/accept", { method: "POST", body: { token } });
       return { orgId: r.membership.orgId };
     },
+    update: async (orgId, input) => (await api<{ organization: Organization }>(`${org(orgId)}/update`, { method: "POST", body: input })).organization,
+    verifications: async (orgId) => (await api<{ verifications: OrgVerification[] }>(`${org(orgId)}/wallet-verifications`)).verifications,
+    claims: async (orgId) => (await api<{ wallets: OrgWalletClaim[] }>(`${org(orgId)}/wallets`)).wallets,
+    setRole: async (orgId, userId, role) => { await api(`${org(orgId)}/members/${encodeURIComponent(userId)}/role`, { method: "POST", body: { role } }); },
+    setStatus: async (orgId, userId, status) => { await api(`${org(orgId)}/members/${encodeURIComponent(userId)}/status`, { method: "POST", body: { status } }); },
+    removeMember: async (orgId, userId) => { await api(`${org(orgId)}/members/${encodeURIComponent(userId)}/remove`, { method: "POST" }); },
+    setReviewer: async (orgId, userId, grant) => { await api(`${org(orgId)}/reviewers/${encodeURIComponent(userId)}/${grant ? "grant" : "revoke"}`, { method: "POST" }); },
+    invite: async (orgId, input) => { const r = await api<{ invitation: Invitation; token: string }>(`${org(orgId)}/invitations`, { method: "POST", body: input }); return { invitation: r.invitation, token: r.token }; },
+    revokeInvitation: async (orgId, invitationId) => { await api(`${org(orgId)}/invitations/${encodeURIComponent(invitationId)}/revoke`, { method: "POST" }); },
   };
 
   sessions: TobinClient["sessions"] = {

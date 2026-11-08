@@ -35,7 +35,7 @@ async function shot(page, name, w) {
   await settled(page);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   check(overflow <= 0, `${name}-${w}: no horizontal overflow (${overflow}px)`);
-  await page.addStyleTag({ content: "nav[aria-label=Primary].fixed{position:static!important}" }).catch(() => {});
+  await page.addStyleTag({ content: "nav[aria-label=Primary].fixed,[data-sheet]{position:static!important}" }).catch(() => {});
   await page.screenshot({ path: `${out}/${name}-${w}.png`, fullPage: true });
 }
 const dialog = (page) => page.getByRole("dialog").last();
@@ -43,6 +43,8 @@ const go = async (page, base, tab) => { await page.goto(`${base}?tab=${tab}`); a
 
 for (const w of WIDTHS) {
   const ctx = await browser.newContext({ viewport: { width: w, height: w < 500 ? 844 : 900 }, deviceScaleFactor: 1 });
+  // the action panel is a bottom sheet under 768px: open it for the whole run so flows can reach its controls
+  await ctx.addInitScript(() => { try { sessionStorage.setItem("tobin-sheet", "open"); } catch {} });
   const page = await ctx.newPage();
   page.on("pageerror", (e) => problems.push(`${w}: page error ${e}`));
   page.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource/.test(m.text())) problems.push(`${w}: console error ${m.text().slice(0, 160)}`); });
@@ -68,7 +70,7 @@ for (const w of WIDTHS) {
   };
   await rec("Alice", "Bob", "100", "inv 1"); await rec("Bob", "Carol", "80", "inv 2"); await rec("Carol", "Alice", "70", "inv 3");
   await go(page, base, "netting");
-  await page.getByRole("button", { name: "Run netting" }).click();
+  await page.getByRole("button", { name: "Run netting", exact: true }).click();
   await vis(page.getByText("Netting removes 220 USD of gross payments."), `${w}: netting ran (gross 250, net 30)`);
 
   // Approvals before any decision: Alice recorded and calculated everything, so she cannot decide
@@ -88,7 +90,7 @@ for (const w of WIDTHS) {
   check(await page.getByRole("button", { name: "Reject", exact: true }).isDisabled(), `${w}: a plain member has Reject disabled`);
   await shot(page, "approvals-member", w);
   await go(page, base, "settlement");
-  check(await page.getByRole("button", { name: "Prepare settlement" }).isDisabled(), `${w}: a member cannot prepare settlement`);
+  check(await page.getByRole("button", { name: "Prepare settlement", exact: true }).isDisabled(), `${w}: a member cannot prepare settlement`);
   await shot(page, "settlement-member-before", w);
 
   // ============ Bob: reviewer ============
@@ -123,7 +125,7 @@ for (const w of WIDTHS) {
   await go(page, base, "settlement");
   await vis(page.getByText("No settlement has been prepared for this session."), `${w}: the empty settlement state lists what preparing needs`);
   await shot(page, "settlement-before", w);
-  await page.getByRole("button", { name: "Prepare settlement" }).click();
+  await page.getByRole("button", { name: "Prepare settlement", exact: true }).click();
   await shot(page, "settlement-prepare-dialog", w);
   await dialog(page).getByRole("button", { name: "Prepare settlement" }).click();
   await vis(page.getByRole("heading", { name: "Prepared settlement" }), `${w}: the settlement is prepared`);
@@ -131,7 +133,7 @@ for (const w of WIDTHS) {
   await vis(page.getByLabel("Transaction stages").getByText("Prepared").first(), `${w}: the stage rail reaches Prepared`);
   const stagesText = await page.getByLabel("Transaction stages").innerText();
   check((stagesText.match(/Not supported/g) ?? []).length === 3, `${w}: Signed, Submitted and the final stage each read Not supported (${(stagesText.match(/Not supported/g) ?? []).length})`);
-  check(await page.getByRole("button", { name: "Approve settlement" }).isDisabled(), `${w}: the preparer cannot approve their own batch`);
+  check(await page.getByRole("button", { name: "Approve settlement", exact: true }).isDisabled(), `${w}: the preparer cannot approve their own batch`);
   await vis(page.getByText(/Separation of duties|reviewer capability/), `${w}: the reason is shown to the preparer`);
   await shot(page, "settlement-awaiting-review-preparer", w);
 
@@ -146,12 +148,12 @@ for (const w of WIDTHS) {
   });
   await page.reload(); await settled(page);
   await vis(page.getByText("The prepared settlement does not match the approved result"), `${w}: [simulated tamper] a mismatch shows the red diff`);
-  check(await page.getByRole("button", { name: "Approve settlement" }).isDisabled(), `${w}: [simulated tamper] a mismatch blocks approval`);
+  check(await page.getByRole("button", { name: "Approve settlement", exact: true }).isDisabled(), `${w}: [simulated tamper] a mismatch blocks approval`);
   await shot(page, "settlement-mismatch-simulated", w);
   await page.unroute(/\/settlement\/batches\/[^/?]+$/); await page.reload(); await settled(page);
 
   await shot(page, "settlement-awaiting-review-reviewer", w);
-  await page.getByRole("button", { name: "Reject settlement" }).click();
+  await page.getByRole("button", { name: "Reject settlement", exact: true }).click();
   check(await dialog(page).getByRole("button", { name: "Reject settlement" }).isDisabled(), `${w}: rejecting the batch needs a reason`);
   await dialog(page).getByLabel("Reason (required)").fill("Wrong settlement window; prepare again.");
   await shot(page, "settlement-reject-dialog", w);
@@ -169,7 +171,7 @@ for (const w of WIDTHS) {
 
   await signIn(page, "bob@example.test");
   await go(page, base, "settlement");
-  await page.getByRole("button", { name: "Approve settlement" }).click();
+  await page.getByRole("button", { name: "Approve settlement", exact: true }).click();
   await vis(dialog(page).getByText("30 USD"), `${w}: the approve dialog lists the instructions with their asset`);
   await shot(page, "settlement-approve-dialog", w);
   await dialog(page).getByRole("button", { name: "Approve settlement" }).click();

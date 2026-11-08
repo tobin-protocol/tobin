@@ -40,6 +40,8 @@ export interface Member {
   status: "active" | "suspended";
   name: string;
   email?: string;
+  /** a wallet the member verified, shown to administrators only */
+  wallet?: string;
   you: boolean;
 }
 export interface Invitation { id: string; orgId: string; invitee: string; role: Role; status: "pending" | "accepted" | "revoked"; expiresAt: string; createdBy: string }
@@ -157,3 +159,10 @@ export interface ExecutionView {
   note?: string;
 }
 export interface AttemptView { attemptNo: number; state: ExecState; network: string; planFingerprint: string; createdAt: string; events: { kind: string; from: string | null; to: string | null; at: string; actor?: string; detail: string }[] }
+
+// ---- Phase E: wallets, members, invitations, account (apps/web-console/lib/registry/http.ts, lib/auth/http.ts) ----
+export interface OrgVerification { userId: string; name: string; network: string; publicKey: string; verifiedAt: string }
+export interface OrgWalletClaim { orgId: string; address: string; proof: "none" | "signature-verified" }
+export interface AuditEvent { at: string; kind: string; subject: string; detail: string }
+export interface UpdateOrganizationInput { name: string; description: string; visibility: "private" | "public" }
+export interface CreatedInvitation { invitation: Invitation; token: string }

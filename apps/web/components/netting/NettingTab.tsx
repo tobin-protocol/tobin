@@ -163,7 +163,7 @@ export function NettingTab({ sessionId, obligations, participants, readiness, ru
 
           <Card>
             <h3 className="text-entity font-medium">Original versus net</h3>
-            <p className="mt-1 text-body text-muted">Point at or focus a row to highlight the rows it connects to. The links are by participant: net settlement instructions exist only in a prepared settlement, which is built in Phase D.</p>
+            <p className="mt-1 text-body text-muted">Point at or focus a row to highlight the rows it connects to. The links are by participant: net settlement instructions exist only in a prepared settlement, which is on the Settlement tab.</p>
             <div className="mt-3 grid gap-4 md:grid-cols-2">
               <div>
                 <h4 className="mb-1 text-body font-medium">Original obligations</h4>

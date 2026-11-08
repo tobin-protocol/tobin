@@ -11,7 +11,7 @@ const variants: Record<ButtonVariant, string> = {
   quiet: "bg-ink-5 text-ink hover:bg-ink-10 disabled:text-disabled disabled:hover:bg-ink-5",
   destructive: "border border-danger-line bg-card text-danger hover:bg-ink-5 disabled:border-ink-10 disabled:text-disabled disabled:hover:bg-card",
 };
-const sizes = { md: "h-9 px-3 text-body", lg: "h-[52px] w-full px-4 text-action" } as const;
+const sizes = { md: "h-9 px-3 text-body max-md:h-11", lg: "h-[52px] w-full px-4 text-action" } as const;
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;

@@ -19,7 +19,7 @@ export function Identifier({ value, head = 8, tail = 6, className }: { value: st
     try { await navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* clipboard unavailable: the full value is in the title */ }
   };
   return (
-    <button type="button" onClick={copy} title={value} aria-label={`Copy ${value}`} className={cn("rounded-btn font-mono text-ident text-muted transition-colors duration-150 hover:text-ink", className)}>
+    <button type="button" onClick={copy} title={value} aria-label={`Copy ${value}`} className={cn("rounded-btn font-mono text-ident text-muted transition-colors duration-150 hover:text-ink max-md:inline-flex max-md:min-h-11 max-md:items-center", className)}>
       {copied ? "Copied" : middle(value, head, tail)}
     </button>
   );
@@ -39,7 +39,7 @@ export function AvatarStack({ names, max = 4 }: { names: string[]; max?: number 
   );
 }
 
-export interface TabItem { href: string; label: string; count?: number | null }
+export interface TabItem { href: string; label: string; count?: number | null; /** what the count means, for assistive technology and the tooltip */ countLabel?: string }
 /** Underline tabs for page-level navigation: 14/500, active black with a 2px underline, inactive #626262. A plain number (no pill) follows a label when action is pending. */
 export function PageTabs({ items, activeHref, label }: { items: TabItem[]; activeHref: string; label: string }) {
   return (
@@ -49,9 +49,9 @@ export function PageTabs({ items, activeHref, label }: { items: TabItem[]; activ
           const active = t.href === activeHref;
           return (
             <li key={t.href} className="shrink-0">
-              <Link href={t.href} aria-current={active ? "page" : undefined} className={cn("-mb-px inline-flex h-12 items-center gap-1.5 border-b-2 text-body font-medium transition-colors duration-150", active ? "border-ink text-ink" : "border-transparent text-muted hover:text-ink")}>
+              <Link href={t.href} aria-current={active ? "page" : undefined} className={cn("-mb-px inline-flex h-12 min-w-11 items-center justify-center gap-1.5 border-b-2 text-body font-medium transition-colors duration-150", active ? "border-ink text-ink" : "border-transparent text-muted hover:text-ink")}>
                 {t.label}
-                {t.count ? <span className="num text-muted">{t.count}</span> : null}
+                {t.count ? <span className="num text-muted" title={t.countLabel}>{t.count}{t.countLabel ? <span className="sr-only"> {t.countLabel}</span> : null}</span> : null}
               </Link>
             </li>
           );
@@ -66,7 +66,7 @@ export function SegmentTabs<T extends string>({ items, value, onChange, label }:
   return (
     <div role="group" aria-label={label} className="inline-flex flex-wrap gap-1.5">
       {items.map((i) => (
-        <button key={i.value} type="button" aria-pressed={value === i.value} onClick={() => onChange(i.value)} className={cn("h-9 rounded-btn px-3 text-body font-medium transition-colors duration-150", value === i.value ? "bg-button text-on-button" : "bg-ink-5 text-ink hover:bg-ink-10")}>
+        <button key={i.value} type="button" aria-pressed={value === i.value} onClick={() => onChange(i.value)} className={cn("h-9 max-md:h-11 max-md:min-w-11 rounded-btn px-3 text-body font-medium transition-colors duration-150", value === i.value ? "bg-button text-on-button" : "bg-ink-5 text-ink hover:bg-ink-10")}>
           {i.label}
         </button>
       ))}
@@ -90,7 +90,7 @@ export function Table<T extends RowData>({ columns, data, getRowId, loading, err
   const defs = useMemo(() => columns.map((c) => helper.display({ id: c.id, header: c.header, cell: ({ row }) => c.cell(row.original) })), [columns]);
   const table = useTable({ features, columns: defs, data, getRowId });
 
-  if (loading) return <div className="space-y-px" aria-busy="true" aria-label="Loading table">{Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-14 w-full rounded-none first:rounded-t-card last:rounded-b-card" />)}</div>;
+  if (loading) return <div className="space-y-px" role="status" aria-busy="true" aria-label="Loading table">{Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-14 w-full rounded-none first:rounded-t-card last:rounded-b-card" />)}</div>;
   if (error) return <ErrorState title="Could not load this table" message={error} retry={onRetry ? <Button onClick={onRetry}>Try again</Button> : undefined} />;
   if (data.length === 0) return <>{empty}</>;
 
@@ -109,10 +109,10 @@ export function Table<T extends RowData>({ columns, data, getRowId, loading, err
                   return (
                     <th key={h.id} scope="col" aria-sort={sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : undefined} className={cn("sticky top-0 h-12 bg-card px-3 text-label sm:px-4 font-medium uppercase tracking-wide text-muted", c?.align === "right" && "text-right", c?.hideBelow === "md" && "hidden md:table-cell")}>
                       {c?.sortable && onSortChange ? (
-                        <button type="button" className="inline-flex items-center gap-1 uppercase hover:text-ink" onClick={() => onSortChange({ id: h.column.id, dir: sorted === "asc" ? "desc" : "asc" })}>
+                        <button type="button" className="inline-flex items-center gap-1 uppercase hover:text-ink max-md:min-h-11" onClick={() => onSortChange({ id: h.column.id, dir: sorted === "asc" ? "desc" : "asc" })}>
                           {c.header}<span aria-hidden="true">{sorted === "asc" ? "↑" : sorted === "desc" ? "↓" : ""}</span>
                         </button>
-                      ) : c?.header}
+                      ) : c?.header || <span className="sr-only">Actions</span>}
                     </th>
                   );
                 })}

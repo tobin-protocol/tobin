@@ -1,7 +1,7 @@
-import { PhasePlaceholder } from "../../../components/PhasePlaceholder.tsx";
+import { GlobalActivity } from "../../../components/activity/GlobalActivity.tsx";
 
 export const metadata = { title: "Activity" };
 
 export default function Page() {
-  return <PhasePlaceholder title="Activity" phase="E" scope="the session activity history and a derived organization feed." />;
+  return <GlobalActivity />;
 }

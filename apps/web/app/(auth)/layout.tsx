@@ -14,7 +14,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
           <span className="flex h-9 items-center gap-2 rounded-btn bg-ink-5 px-3 text-body font-medium"><span aria-hidden="true" className="size-2 rounded-full border border-ink" />Stellar Testnet</span>
         </div>
       </header>
-      <main id="main" className="flex flex-1 items-start justify-center px-4 py-10 sm:py-16">{children}</main>
+      <main id="main" tabIndex={-1} className="flex flex-1 items-start justify-center px-4 py-10 outline-none sm:py-16">{children}</main>
       <footer className="px-4 pb-8 text-center text-label text-muted">Testnet. Test assets only. Nothing here moves real funds. Production deployment has not been approved.</footer>
     </div>
   );

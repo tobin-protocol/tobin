@@ -15,7 +15,7 @@ export function PageFrame({ title, breadcrumbs, actions, sensitive, children }: 
             <ol className="flex flex-wrap gap-1.5">
               {breadcrumbs.map((b, i) => (
                 <li key={b.label} className="flex items-center gap-1.5">
-                  {b.href ? <Link href={b.href} className="hover:text-ink">{b.label}</Link> : <span>{b.label}</span>}
+                  {b.href ? <Link href={b.href} className="inline-flex hover:text-ink max-md:min-h-11 max-md:items-center">{b.label}</Link> : <span>{b.label}</span>}
                   {i < breadcrumbs.length - 1 ? <span aria-hidden="true">/</span> : null}
                 </li>
               ))}

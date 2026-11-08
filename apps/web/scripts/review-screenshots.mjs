@@ -30,13 +30,15 @@ async function shot(page, name, w) {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   if (overflow > 0) problems.push(`${name}-${w}: horizontal overflow ${overflow}px`);
   // the fixed bottom bar (under 768px) would be drawn mid-page in a full-page capture, so it is hidden for the capture only
-  await page.addStyleTag({ content: "nav[aria-label=Primary].fixed{position:static!important}" }).catch(() => {});
+  await page.addStyleTag({ content: "nav[aria-label=Primary].fixed,[data-sheet]{position:static!important}" }).catch(() => {});
   await page.screenshot({ path: `${out}/${name}-${w}.png`, fullPage: true });
   note(`saved ${name}-${w}.png`);
 }
 
 for (const w of WIDTHS) {
   const ctx = await browser.newContext({ viewport: { width: w, height: w < 500 ? 844 : 900 }, deviceScaleFactor: 1 });
+  // the action panel is a bottom sheet under 768px: open it for the whole run so flows can reach its controls
+  await ctx.addInitScript(() => { try { sessionStorage.setItem("tobin-sheet", "open"); } catch {} });
   const page = await ctx.newPage();
   page.on("pageerror", (e) => problems.push(`${w}: page error ${e}`));
   page.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource/.test(m.text())) problems.push(`${w}: console error ${m.text().slice(0, 160)}`); });
@@ -57,7 +59,8 @@ for (const w of WIDTHS) {
   if (w === 1440) {
     await page.getByRole("button", { name: /^Organization:/ }).click(); await page.waitForTimeout(200); await shot(page, "menu-organization", w); await page.keyboard.press("Escape");
     await page.getByRole("button", { name: /^Wallet:/ }).click(); await page.waitForTimeout(200); await shot(page, "menu-wallet", w); await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: "Notifications" }).click(); await page.waitForTimeout(200); await shot(page, "menu-notifications-not-supported", w); await page.keyboard.press("Escape");
+    // the bell is a muted link to the Not supported page (there are no notifications)
+    await page.getByRole("link", { name: "Notifications: not supported" }).click(); await page.waitForURL(/notifications/); await shot(page, "notifications-not-supported", w); await page.goBack(); await settled(page);
     await page.keyboard.press("Control+k"); await page.waitForTimeout(300); await shot(page, "command-panel", w); await page.keyboard.press("Escape");
     await page.goto(BASE + "/sessions"); await settled(page); await shot(page, "placeholder-sessions", w);
   }

@@ -102,14 +102,14 @@ Unless a row says otherwise, writes require the **admin** role and decisions req
 | 6 Organization overview | Derived | counts from session data; settled value Not supported |
 | 7 Clearing sessions | Supported | list (client-side filter and sort) and create by label. Cross-organization participants, parameters, invitations and joining: Not supported. The 12-state lifecycle is Not supported; six derived stepper groups replace it |
 | 8 Session workspace | Supported | participants are users of the same organization |
-| 9 Obligations | Supported | create, correct (revision), void with reason. Global list Derived. Due date and supporting information: Not supported |
+| 9 Obligations | Supported | record and void with reason (correction exists in the backend; the owner asked for void only). Global list Derived. Due date and supporting information: Not supported |
 | 10 Netting | Supported | per asset; excluded-with-reasons limited to voided and legacy assets |
 | 11 Approvals | Supported | single reviewer decision. N-of-M, approval requests, Stellar authorization: Not supported |
 | 12 Settlement | Supported to Prepared and review; execution attempt states read-only | signing, submission, verification, confirmation: **Not supported** |
 | 13 Activity | Supported (session), Derived (global) | |
-| 14 Wallets | Supported | connected and verified separate; signer information limited |
+| 14 Wallets | Supported | connected (browser) and verified (backend) are separate columns; no provider (not returned); disconnect built; linking a wallet is not built (needs the Freighter flow) |
 | 15 Notifications | Not supported | |
-| 16 Settings | Supported (display name, revoke all sessions) | notification preferences Not supported |
+| 16 Settings | Supported (display name, default organization, sign out everywhere, account audit) | notification preferences and a session list Not supported |
 | 17 Global search | Not supported | |
 | 18 Journeys | 1, 2, 5, 6, 7, 10 Supported; 3 limited; 8 to Prepared only; 4 Not supported; 9 partial | |
 | 19 States | Supported | loading, empty, error, permission, confirmation |
@@ -235,6 +235,37 @@ Everything below is under `/api/registry/orgs/{org}/sessions/{id}/`. **Nothing o
 
 **Settlement page.** The seven-tab navigation has no separate Settlement destination; the **Settlement tab** of the session workspace is the settlement page. A global **Approvals** page (derived, capped) lists items awaiting review across sessions.
 
+## 5d. Phase E: activity, wallets, organization, members, invitations and settings (read from source 2026-11-08)
+
+Registry routes are under `/api/registry/orgs/{org}/`, account routes under `/api/auth/`. Writes need the header `x-tobin-request: 1`.
+
+| Area | Operation | Route | Who | What it does and returns |
+|---|---|---|---|---|
+| Activity | Org-wide activity | **none** | | The registry keeps one activity log per organization (`id, at, orgId, actor, kind, subject, detail`) but exposes it **only through a session's detail**, filtered to that session. Events with no session subject (member, invitation, reviewer, organization events) cannot be read over HTTP. The Activity page is therefore **derived from per-session reads** (capped, "Showing N of M sessions"). Fields: `at, kind, actor, detail`. There is **no result field**; "outcome" is derived from the event kind. There is no per-event reference. |
+| Wallets | Own verified wallets | `GET /api/auth/me` (`wallets[]`) | self | `id, publicKey, network, verifiedAt`. **No provider field and no connection state**: connection is a browser-side Freighter fact, shown only for the current browser and labelled as such. |
+| Wallets | Disconnect (remove) a wallet | `POST /api/auth/wallet/remove {walletId}` | self | Marks the wallet revoked, **revokes every session signed in with it**. Refused with `LAST_METHOD` when it is the only way a wallet-account can sign in. It does not touch the Stellar account. |
+| Wallets | Link a wallet | `POST /api/auth/wallet/link/challenge`, `.../link/verify` | self | Exists; needs a Freighter signature. **Not built**: it would add a new signing flow while the real-extension flow is being tested by the owner. |
+| Wallets | Verified accounts of the organization | `GET wallet-verifications` | member | `userId, name, network, publicKey, verifiedAt`: proof of control of a key, **no role and no signing authority**. |
+| Wallets | Organization wallet claims | `GET wallets`, `POST wallets` | member / admin | `address, proof` (`none` or `signature-verified`): unproven claims. Reading is built; adding a claim is **not built** (not needed by any screen). |
+| Organization | Profile | `GET orgs/{id}`; `POST orgs/{id}/update {name, description, visibility}` | member / admin | Institution type and jurisdiction are returned but **cannot be changed**. |
+| Members | List | `GET members` | member | `userId, role, reviewer, since, status (active/suspended), name, you`; `email` and `wallet` only for admins. |
+| Members | Change role | `POST members/{u}/role {role: admin or member}` | admin | `LAST_ADMIN`: the last active administrator cannot be demoted. |
+| Members | Suspend or restore | `POST members/{u}/status {status}` | admin | Not your own status; not the last active administrator. A suspended member keeps the record but has no access or authority. |
+| Members | Remove | `POST members/{u}/remove` | admin | Refused for the last active administrator, for a participant with active obligations, and for a participant of a session no longer being configured. Otherwise the member is removed from every configuring session they are in (which invalidates that session's calculation and review) and the membership ends. |
+| Members | Reviewer grant and revoke | `POST reviewers/{u}/grant`, `.../revoke` | admin | A separate capability from the role. Revoking keeps earlier decisions on record. |
+| Invitations | List, create, revoke | `GET/POST invitations`, `POST invitations/{id}/revoke` | admin | `invitee` (3 to 120 characters; an email or a Stellar address), `role`; statuses `pending`, `accepted`, `revoked`; `expiresAt`. **No email is sent**: the one-time token is returned once and must be handed over. Only a pending invitation can be revoked. |
+| Settings | Display name | `POST /api/auth/profile {displayName}` | self | |
+| Settings | Default organization | `POST /api/auth/workspace {orgId}` | self | |
+| Settings | Sign out everywhere | `POST /api/auth/logout-all` | self | Revokes **all** of the account's sessions, including this one. There is **no list of active sessions**, so no per-session revoke. |
+| Settings | Account audit | `GET /api/auth/audit` | self | `at, kind, subject, detail` of the account's own security events (read-only). |
+| Notifications | any | **none** | | Not supported: no route, no model. |
+| Global search | any | **none** | | Not supported. The command panel offers navigation and the sessions already loaded in this browser, and says so. |
+| Roles | Owner, Operator, Approver, Viewer | **none** | | Not roles in the backend (Admin and Member, plus the separate Reviewer grant). |
+
+**Settings groups.** Account: display name, sign out everywhere, account audit. Organization: default organization (the profile itself lives on the Organization page).
+
+**Responsive pass (decision, Phase D review).** Under 768 px the action panel becomes a sticky bottom sheet above the bottom bar, collapsed to its title and expandable.
+
 ## 6. Data layer: the typed `TobinClient`
 
 One interface, three adapters, chosen at startup and always visible.
@@ -293,8 +324,59 @@ Each phase ends with typecheck, lint, tests, screenshots at 1440, 900 and 390 px
 | B (built; see section 5a) | sessions list, create wizard (Details, Participants, Review, Created), workspace shell, stepper, action panel, read-only tabs | list, create, participants real; list filters by workflow state, cross-organization participants, invitations Not supported |
 | C | obligations (create, correction, void), netting tab | real; global list derived |
 | D (built; see section 5c) | approvals, settlement preparation, batch review, execution record (read-only) | real up to Prepared and reviewed; Sign, Submit, Verify and Confirmed Not supported; starting an execution and attempts exist in the backend but are not built (they need verified wallets, Phase E) |
-| E | activity, wallets, organization, settings | activity session-real and global-derived; notifications and search Not supported |
+| E (built; see sections 5d and 12) | activity, wallets, organization, members, invitations, settings, notifications page, command panel, bottom sheet, accessibility pass | activity session-real and global-derived; notifications and search Not supported |
 
 ## 11. What I will not do without approval
 
 Change any backend, API, guard, schema or contract; add a dependency beyond the list above; present sample data as real; show Confirmed; implement signing or submission for ordinary users; invent roles, counts, volumes or balances; commit, push or open a pull request.
+
+## 12. Final status (Phase E complete, 2026-11-08)
+
+All five phases are built. **Supported** and **Derived** are implemented against the real console API; everything below is rendered "Not supported" or "Not built yet" and nothing about it is mocked.
+
+### 12.1 What is real, derived and sample
+
+- **Real:** sign-in (wallet challenge and email), onboarding, organization profile, members (role, reviewer, suspend, remove), invitations, wallets (own, verified accounts, claims; disconnect), sessions (list, create, participants), obligations (record, void, history), netting (run, results), calculation review (approve, reject), settlement (prepare, batch review, execution record read-only), account settings.
+- **Derived (labelled, capped at 10 sessions, "Showing N of M sessions"):** Overview counts and attention items, the global Obligations, Activity and Approvals pages, the pending-approvals badge, the list's workflow state for visible rows, the excluded-items table, invitation Expired, activity outcome.
+- **Sample:** none shown. The fictional adapter exists only behind `NEXT_PUBLIC_TOBIN_SAMPLE_DATA=1`; no screen mocks a missing feature (D3). The failed execution states exist only as labelled fixtures in `/dev/components`.
+
+### 12.2 Built but deliberately not wired
+
+| Thing | Why |
+|---|---|
+| Start an execution, begin an attempt | The routes exist; the owner said not to start executions yet. They also need a verified account for every payer and payee and a configured clearing contract. |
+| Link a wallet from the app | The route exists; it needs a Freighter signing flow, and the owner is testing the real extension. |
+| Edit an obligation | The route exists; the owner asked for void only. |
+| Add an organization wallet claim | The route exists; no screen needs it. |
+
+### 12.3 Everything in the PRD that remains Not supported, and the backend work it needs
+
+| PRD item | What is missing | Backend work needed |
+|---|---|---|
+| Cross-organization sessions, participants and joining | Participants are users of one organization | A session model with participants from several organizations, a join and consent protocol between organizations, and authorization that is not scoped to one organization |
+| Notifications and unread counts | No notification model or route | A notification store with read state, triggers from the existing events, delivery rules and an API |
+| Global search (records, organizations, transactions) | No search route | A search endpoint that respects organization scoping and roles |
+| N-of-M approval, approval requests | One reviewer decision per calculation | A policy model (threshold, eligible approvers), per-approver records, quorum and invalidation rules |
+| Sign, Submit, Verify and Confirmed | No route can sign, submit, read a transaction back or advance an execution (the advance functions are server-side only) | Transaction construction and submission services, a network read-back that checks Horizon and the RPC agree, reconciliation, routes or workers that advance the state machine, evidence storage, and a backend-reported verified read-back flag. Confirmed stays unreachable in the UI until the backend reports that flag |
+| Stellar authorization and signer collection in the app | Signing is done by owner-run tools | Intent endpoints bound to the approved batch and a wallet signing flow with server-side verification |
+| Failed, expired and unknown-outcome states on real screens | The backend cannot reach them over HTTP | The same work as sign, submit and verify |
+| Settled value metrics | Nothing is confirmed on-chain | Confirmed settlement records |
+| Owner, Operator, Approver, Viewer and External participant roles | Roles are Admin and Member plus the Reviewer grant | A role and permission model beyond admin and member |
+| Active sessions list and revoking one session | Only "sign out everywhere" exists | A session listing endpoint and per-session revoke |
+| Wallet provider, and server-side connection state | Not stored; connection is a browser fact | A provider field recorded at verification (if wanted) |
+| Organization-wide activity, including member, invitation and reviewer events | Activity is readable only through a session | An organization activity endpoint with filters, pagination, a result field and a reference or evidence per event |
+| Server-side list search, filter, sort and pagination; workflow state in list rows | The session list returns everything | Query parameters and an indexed, paginated list endpoint (see the scale limit in section 5a) |
+| Obligation due date, supporting information, duplicate detection | The backend accepts debtor, creditor, amount, asset and reference only | Additional fields and a duplicate rule |
+| Calculation version and an excluded-items list | Not returned | A version on calculation records and recorded exclusions |
+| Settlement instructions before preparation; per-instruction stage and explorer link | Instructions exist only in a prepared batch; there are no transaction hashes | Available once submission exists |
+| Session initiator and updated time in the session header | Not returned by the session detail | Add the fields to the detail response |
+| Organization website, logo, contact, ownership transfer; changing institution type or jurisdiction | Not accepted | Profile fields and a transfer rule |
+| Hosting beyond one machine | The console binds to loopback and refuses foreign origins; the UI reaches it through a server-side proxy | A reachable backend with an agreed origin and guard policy (a decision, not code in this app) |
+
+### 12.3b Deviations from the design spec (all accepted or recorded)
+
+Grey "Not supported" text is #626262; focus ring is 2px on everything; Testnet indicator is fixed; Approvals is outside the seven top tabs (bottom bar, command panel, Overview attention, and a count on the Clearing Sessions tab); the wallet-signature block is the same white card as the approval block, told apart by title, key icon and "Not supported"; the create wizard has three steps; the sheet's collapsed bar shows the panel's purpose and the primary action appears when it is opened; the session header has no initiator or updated time; Confirmed is never rendered.
+
+### 12.4 Verification record
+
+Typecheck, lint, unit tests and local Playwright smoke tests; real-backend runs of the Phase A to E scripts (`apps/web/scripts/review-screenshots*.mjs`) with admin, member and reviewer; an axe scan of every key screen at 1440 and 390 px; a tap-target audit at 390 px; a horizontal-overflow check at 1440, 900 and 390 px; and a keyboard-only walkthrough. Same-author evidence, one browser (Chrome), no real Freighter test, no hosted CI run of this app.

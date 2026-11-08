@@ -8,13 +8,13 @@ import { client, SAMPLE_DATA } from "../../lib/tobin/index.ts";
 import { cn, INSTITUTION_LABEL, middle } from "../../lib/format.ts";
 import { roleLabels } from "../../lib/permissions/can.ts";
 import { Button } from "../ui/Button.tsx";
-import { NotSupported } from "../ui/Feedback.tsx";
 import { PageTabs, type TabItem } from "../ui/Data.tsx";
 import { CommandPanel, Dialog, Popover } from "../ui/Overlays.tsx";
 import { SampleDataBanner } from "../ui/Surfaces.tsx";
 import { useWallet } from "../wallet/WalletProvider.tsx";
 import { Wordmark } from "./BrandMark.tsx";
 import { useWorkspace } from "./session.tsx";
+import { useApprovalsPending } from "../approvals/usePending.ts";
 
 export const NAV: TabItem[] = [
   { href: "/", label: "Overview" },
@@ -28,8 +28,8 @@ export const NAV: TabItem[] = [
 
 /** Reached from the bottom bar, the command panel and the attention list. It is not one of the seven destinations of the top navigation. */
 const APPROVALS = { href: "/approvals", label: "Approvals" };
-const activeOf = (path: string) => (path === "/approvals" || path.startsWith("/approvals/") ? "/approvals" : NAV.find((n) => (n.href === "/" ? path === "/" : path === n.href || path.startsWith(n.href + "/")))?.href ?? "/");
-const IconBtn = "flex h-9 min-w-9 items-center justify-center gap-2 rounded-btn bg-ink-5 px-2 text-body font-medium transition-colors duration-150 hover:bg-ink-10";
+const activeOf = (path: string) => (path === "/notifications" ? "" : path === "/approvals" || path.startsWith("/approvals/") ? "/approvals" : NAV.find((n) => (n.href === "/" ? path === "/" : path === n.href || path.startsWith(n.href + "/")))?.href ?? "/");
+const IconBtn = "flex h-9 min-w-9 max-md:h-11 max-md:min-w-11 items-center justify-center gap-2 rounded-btn bg-ink-5 px-2 text-body font-medium transition-colors duration-150 hover:bg-ink-10";
 
 function OrgSelector() {
   const { orgs, org, switchOrg } = useWorkspace();
@@ -38,8 +38,8 @@ function OrgSelector() {
   return (
     <Popover
       trigger={({ open, toggle, ref, id }) => (
-        <button ref={ref} type="button" onClick={toggle} aria-expanded={open} aria-controls={id} aria-label={`Organization: ${org.name}. Change organization`} className="flex h-10 max-w-[44vw] items-center gap-2.5 rounded-btn px-2 transition-colors duration-150 hover:bg-ink-5 sm:max-w-xs">
-          <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-btn bg-ink-10 text-body font-medium">{org.name.trim()[0]?.toUpperCase() ?? "?"}</span>
+        <button ref={ref} type="button" onClick={toggle} aria-expanded={open} aria-controls={id} aria-label={`Organization: ${org.name}. Change organization`} className="flex h-10 max-md:h-11 max-w-full items-center gap-2.5 rounded-btn px-2 transition-colors duration-150 hover:bg-ink-5 sm:max-w-xs">
+          <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-btn bg-ink-10 text-body font-medium max-sm:hidden">{org.name.trim()[0]?.toUpperCase() ?? "?"}</span>
           <span className="min-w-0 text-left">
             <span className="block truncate text-body font-medium">{org.name}</span>
             <span className="hidden truncate text-label text-muted sm:block">{type ? INSTITUTION_LABEL[type] ?? type : "Organization"}</span>
@@ -133,17 +133,11 @@ function WalletCell() {
 }
 
 function Bell() {
+  // Not supported: the backend has no notifications. A muted bell that leads to the explanation, with no badge, no count and no items.
   return (
-    <Popover
-      align="right"
-      trigger={({ open, toggle, ref, id }) => (
-        <button ref={ref} type="button" onClick={toggle} aria-expanded={open} aria-controls={id} aria-label="Notifications" className={IconBtn}>
-          <svg aria-hidden="true" viewBox="0 0 20 20" className="size-5"><path d="M10 3a4.5 4.5 0 00-4.5 4.5c0 3-1.5 4-1.5 4h12s-1.5-1-1.5-4A4.5 4.5 0 0010 3zM8.5 15a1.5 1.5 0 003 0" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
-        </button>
-      )}
-    >
-      {() => <div className="w-72 p-2"><NotSupported feature="Notifications" reason="The backend has no notifications, so there is nothing to list and no unread count." /></div>}
-    </Popover>
+    <Link href="/notifications" aria-label="Notifications: not supported" title="Notifications are not supported" className={`${IconBtn} text-disabled hover:text-muted`}>
+      <svg aria-hidden="true" viewBox="0 0 20 20" className="size-5"><path d="M10 3a4.5 4.5 0 00-4.5 4.5c0 3-1.5 4-1.5 4h12s-1.5-1-1.5-4A4.5 4.5 0 0010 3zM8.5 15a1.5 1.5 0 003 0" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" /><path d="M3 3l14 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+    </Link>
   );
 }
 
@@ -186,23 +180,31 @@ function AccountMenu() {
 
 function SearchButton() {
   const router = useRouter();
+  const { org } = useWorkspace();
+  const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setOpen(true); } };
+    const onOpen = () => setOpen(true);
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("tobin-open-search", onOpen);
+    return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("tobin-open-search", onOpen); };
   }, []);
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} aria-label="Search (Ctrl or Cmd plus K)" className={IconBtn}>
+      <button type="button" onClick={() => setOpen(true)} aria-label="Search (Ctrl or Cmd plus K)" className={`${IconBtn} max-sm:hidden`}>
         <svg aria-hidden="true" viewBox="0 0 20 20" className="size-5"><circle cx="9" cy="9" r="5.5" stroke="currentColor" strokeWidth="1.5" fill="none" /><path d="M13.2 13.2L17 17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
         <span className="hidden text-muted xl:inline">Search</span>
       </button>
       <CommandPanel
         open={open}
         onClose={() => setOpen(false)}
-        commands={[...NAV, APPROVALS].map((n) => ({ id: n.href, label: n.label, group: "Go to", onSelect: () => router.push(n.href) }))}
-        notice={<><span className="font-medium text-ink">Not supported:</span> searching sessions, organizations, obligations, settlements, transactions and activity. The backend has no search. This panel only jumps between pages.</>}
+        commands={[
+          ...[...NAV, APPROVALS].map((n) => ({ id: n.href, label: n.label, group: "Go to", onSelect: () => router.push(n.href) })),
+          // only the sessions this browser has already loaded: there is no backend search
+          ...((qc.getQueryData<{ sessionId: string; label: string }[]>(["sessions", org.id]) ?? []).slice(0, 50).map((x) => ({ id: `s-${x.sessionId}`, label: x.label, group: "Loaded sessions", onSelect: () => router.push(`/sessions/${x.sessionId}`) }))),
+        ]}
+        notice={<><span className="font-medium text-ink">Searches loaded sessions only.</span> This panel jumps between pages and to sessions this browser has already loaded. It is not a search of the organization: the backend has no search, so obligations, settlements, transactions and activity cannot be searched.</>}
       />
     </>
   );
@@ -220,9 +222,9 @@ function BottomNav({ active }: { active: string }) {
         <Popover
           align="right"
           panelClassName="bottom-full top-auto mb-2 mt-0"
-          trigger={({ open, toggle, ref, id }) => <button ref={ref} type="button" onClick={toggle} aria-expanded={open} aria-controls={id} className={cn("flex-1 px-4 text-body font-medium", more.some((m) => m.href === active) ? "text-ink" : "text-muted")}>More</button>}
+          trigger={({ open, toggle, ref, id }) => <button ref={ref} type="button" onClick={toggle} aria-expanded={open} aria-controls={id} className={cn("flex h-full flex-1 items-center justify-center px-4 text-body font-medium", more.some((m) => m.href === active) ? "text-ink" : "text-muted")}>More</button>}
         >
-          {(close) => <ul>{more.map((m) => <li key={m.href}><Link href={m.href} onClick={close} className="flex h-11 items-center rounded-btn px-3 text-body font-medium hover:bg-ink-5">{m.label}</Link></li>)}</ul>}
+          {(close) => <ul><li><button type="button" onClick={() => { close(); window.dispatchEvent(new Event("tobin-open-search")); }} className="flex h-11 w-full items-center rounded-btn px-3 text-left text-body font-medium hover:bg-ink-5">Search loaded sessions</button></li><li><Link href="/notifications" onClick={close} className="flex h-11 items-center rounded-btn px-3 text-body font-medium text-muted hover:bg-ink-5">Notifications (not supported)</Link></li>{more.map((m) => <li key={m.href}><Link href={m.href} onClick={close} className="flex h-11 items-center rounded-btn px-3 text-body font-medium hover:bg-ink-5">{m.label}</Link></li>)}</ul>}
         </Popover>
       </div>
     </nav>
@@ -233,28 +235,30 @@ function BottomNav({ active }: { active: string }) {
 export function Shell({ children }: { children: ReactNode }) {
   const path = usePathname();
   const active = activeOf(path);
+  const pending = useApprovalsPending();
+  const navItems: TabItem[] = NAV.map((n) => (n.href === "/sessions" && pending.count ? { ...n, count: pending.count, countLabel: `approval${pending.count === 1 ? "" : "s"} awaiting your review (derived from up to 10 sessions)` } : n));
   return (
     <div className="flex min-h-dvh flex-col">
       {SAMPLE_DATA ? <SampleDataBanner /> : null}
       <header className="sticky top-0 z-20 bg-page">
         <div className="border-b border-divider">
           <div className="mx-auto flex h-16 max-w-[1200px] items-center gap-2 px-4 sm:px-6">
-            <Link href="/" aria-label="Tobin home" className="shrink-0 rounded-btn"><Wordmark /></Link>
-            <div className="ml-1 min-w-0"><OrgSelector /></div>
+            <Link href="/" aria-label="Tobin home" className="flex shrink-0 items-center rounded-btn max-md:min-h-11 max-md:min-w-11 max-md:justify-center"><Wordmark /></Link>
+            <div className="ml-1 min-w-0 flex-1 sm:flex-none"><OrgSelector /></div>
             <div className="ml-auto flex items-center gap-2">
               <EnvIndicator />
               <WalletCell />
               <span className="hidden sm:block"><Bell /></span>
-              <span className="hidden sm:block"><SearchButton /></span>
+              <SearchButton />
               <AccountMenu />
             </div>
           </div>
         </div>
         <div className="hidden border-b border-divider md:block">
-          <div className="mx-auto max-w-[1200px] px-6"><PageTabs items={NAV} activeHref={active} label="Primary" /></div>
+          <div className="mx-auto max-w-[1200px] px-6"><PageTabs items={navItems} activeHref={active} label="Primary" /></div>
         </div>
       </header>
-      <main id="main" className="flex-1">{children}</main>
+      <main id="main" tabIndex={-1} className="flex-1 outline-none">{children}</main>
       <BottomNav active={active} />
     </div>
   );

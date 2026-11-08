@@ -1,7 +1,8 @@
-import { PhasePlaceholder } from "../../../components/PhasePlaceholder.tsx";
+import { Suspense } from "react";
+import { Organization } from "../../../components/organization/Organization.tsx";
 
 export const metadata = { title: "Organization" };
 
 export default function Page() {
-  return <PhasePlaceholder title="Organization" phase="E" scope="the profile, members, invitations and reviewer grants." />;
+  return <Suspense fallback={null}><Organization /></Suspense>;
 }

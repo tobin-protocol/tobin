@@ -14,7 +14,7 @@ export interface SessionBundle {
   failed: boolean;
 }
 
-export interface AttentionItem { kind: "review" | "stale" | "invitations"; sessionId?: string; label: string; detail: string }
+export interface AttentionItem { kind: "review" | "stale" | "invitations" | "approvals"; sessionId?: string; label: string; detail: string }
 export interface RecentItem extends ActivityItem { sessionId: string; sessionLabel: string }
 
 export interface OverviewDerived {

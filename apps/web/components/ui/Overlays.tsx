@@ -105,7 +105,7 @@ export function CommandPanel({ open, onClose, commands, notice }: { open: boolea
     <dialog ref={ref} aria-label="Command panel" className="mx-auto mt-[12vh] w-[calc(100%-2rem)] max-w-xl rounded-panel bg-card p-0 shadow-float backdrop:bg-scrim">
       <div className="p-4">
         <label htmlFor="cmd-input" className="sr-only">Go to</label>
-        <input ref={input} id="cmd-input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Go to a page" className="w-full rounded-btn border border-field bg-card px-3 py-2.5 text-action font-medium outline-none placeholder:text-disabled focus:outline-2 focus:outline-offset-2 focus:outline-button" />
+        <input ref={input} id="cmd-input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Go to a page or a loaded session" className="w-full rounded-btn border border-field bg-card px-3 py-2.5 text-action font-medium outline-none placeholder:text-disabled focus:outline-2 focus:outline-offset-2 focus:outline-button" />
         <div className="mt-3 max-h-72 overflow-y-auto">
           {groups.length === 0 ? <p className="px-2 py-3 text-body text-muted">No pages match.</p> : groups.map((g) => (
             <div key={g} className="mb-2">

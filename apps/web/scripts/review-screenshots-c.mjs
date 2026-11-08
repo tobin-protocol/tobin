@@ -33,7 +33,7 @@ async function shot(page, name, w) {
   await settled(page);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   check(overflow <= 0, `${name}-${w}: no horizontal overflow (${overflow}px)`);
-  await page.addStyleTag({ content: "nav[aria-label=Primary].fixed{position:static!important}" }).catch(() => {});
+  await page.addStyleTag({ content: "nav[aria-label=Primary].fixed,[data-sheet]{position:static!important}" }).catch(() => {});
   await page.screenshot({ path: `${out}/${name}-${w}.png`, fullPage: true });
 }
 const open = async (page, label, tab) => {
@@ -54,6 +54,8 @@ async function setAsset(page, code) {
 
 for (const w of WIDTHS) {
   const ctx = await browser.newContext({ viewport: { width: w, height: w < 500 ? 844 : 900 }, deviceScaleFactor: 1 });
+  // the action panel is a bottom sheet under 768px: open it for the whole run so flows can reach its controls
+  await ctx.addInitScript(() => { try { sessionStorage.setItem("tobin-sheet", "open"); } catch {} });
   const page = await ctx.newPage();
   page.on("pageerror", (e) => problems.push(`${w}: page error ${e}`));
   page.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource/.test(m.text())) problems.push(`${w}: console error ${m.text().slice(0, 160)}`); });
@@ -102,7 +104,7 @@ for (const w of WIDTHS) {
   const base = page.url().split("?")[0];
 
   await page.goto(`${base}?tab=netting`); await settled(page);
-  check(await page.getByRole("button", { name: "Run netting" }).isDisabled(), `${w}: Run netting is disabled with no obligations`);
+  check(await page.getByRole("button", { name: "Run netting", exact: true }).isDisabled(), `${w}: Run netting is disabled with no obligations`);
   await vis(page.getByText("There are no active obligations to net. Record one first."), `${w}: the reason it cannot run is shown`);
   await shot(page, "netting-empty", w);
 
@@ -161,7 +163,7 @@ for (const w of WIDTHS) {
   await vis(page.getByText("Voided, so it is not netted."), `${w}: the excluded table gives the real reason`);
   await vis(page.getByText("Will include 1 active obligation among 3 participants in USD."), `${w}: the panel summarises what will be included`);
   await shot(page, "netting-inputs", w);
-  await page.getByRole("button", { name: "Run netting" }).click();
+  await page.getByRole("button", { name: "Run netting", exact: true }).click();
   await vis(page.getByRole("heading", { name: "Zero positions" }), `${w}: a participant with no obligations is grouped as zero`);
   await vis(page.getByLabel("Netting steps").getByText("3. Result"), `${w}: running netting moves the strip to Result`);
   await shot(page, "netting-after-run", w);
@@ -194,7 +196,7 @@ for (const w of WIDTHS) {
   await shot(page, "obligation-detail-member", w);
   await page.keyboard.press("Escape");
   await page.goto(`${page.url().split("?")[0]}?tab=netting`); await settled(page);
-  check(await page.getByRole("button", { name: "Run netting" }).isDisabled(), `${w}: a member cannot run netting`);
+  check(await page.getByRole("button", { name: "Run netting", exact: true }).isDisabled(), `${w}: a member cannot run netting`);
   await shot(page, "netting-member", w);
   await ctx.close();
 }

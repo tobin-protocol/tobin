@@ -52,3 +52,22 @@ export const PRD_ROLE_HELP = [
   { real: "Reviewer", prd: "is a separate grant that lets a person approve or reject; it is closest to the PRD's Approver." },
   { real: "Owner", prd: "does not exist. The last active administrator cannot be removed or demoted." },
 ] as const;
+
+/** What each capability means in words, for the role-change dialog. Presentation only. */
+export const CAPABILITY_LABEL: Record<Capability, string> = {
+  "org.view": "View the organization", "org.edit": "Edit the organization profile", "members.manage": "Change roles, suspend or remove members",
+  "invitations.manage": "Invite people and revoke invitations", "reviewers.manage": "Grant or revoke the reviewer capability",
+  "sessions.view": "View sessions", "sessions.create": "Create sessions", "sessions.manage": "Manage sessions", "participants.manage": "Add and remove session participants",
+  "obligations.view": "View obligations", "obligations.record": "Record obligations", "obligations.correct": "Void obligations",
+  "netting.run": "Run netting", "authorization.decide": "Approve or reject a calculation (needs the reviewer capability)",
+  "settlement.prepare": "Prepare settlement", "settlement.decide": "Approve or reject a settlement batch (needs the reviewer capability)", "execution.begin": "Begin an execution attempt",
+  "wallets.verify": "Verify own wallet", "wallets.link": "Record organization wallet claims", "signer-sets.record": "Record signer sets", "activity.view": "View activity",
+};
+const ALL_CAPS = Object.keys(CAPABILITY_LABEL) as Capability[];
+export const capabilitiesFor = (actor: Actor): Capability[] => ALL_CAPS.filter((c) => can(actor, c).allowed);
+
+/** The real permission differences between two roles (the reviewer capability is separate and is not part of a role). */
+export function roleDifferences(from: Role, to: Role): { gains: string[]; losses: string[] } {
+  const a = new Set(capabilitiesFor({ role: from, reviewer: false })); const b = new Set(capabilitiesFor({ role: to, reviewer: false }));
+  return { gains: ALL_CAPS.filter((c) => b.has(c) && !a.has(c)).map((c) => CAPABILITY_LABEL[c]), losses: ALL_CAPS.filter((c) => a.has(c) && !b.has(c)).map((c) => CAPABILITY_LABEL[c]) };
+}

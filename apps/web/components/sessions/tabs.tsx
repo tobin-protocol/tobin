@@ -3,11 +3,13 @@
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { useState } from "react";
 import { can } from "../../lib/permissions/can.ts";
-import { formatDateTime, humanizeKind, relativeTime } from "../../lib/format.ts";
+import { formatDateTime } from "../../lib/format.ts";
 import type { NextAction } from "../../lib/sessions/next-action.ts";
 import { client } from "../../lib/tobin/index.ts";
 import type { Readiness, SessionDetail, SessionParticipantView } from "../../lib/tobin/types.ts";
 import { useWorkspace } from "../shell/session.tsx";
+import { ActivityView } from "../activity/ActivityView.tsx";
+import { outcomeOf, type ActivityEntry } from "../../lib/activity/derive.ts";
 import { Button } from "../ui/Button.tsx";
 import { Table, type Col } from "../ui/Data.tsx";
 import { EmptyState, ErrorState, InlineError, NotSupported, Skeleton, StatusMark } from "../ui/Feedback.tsx";
@@ -123,20 +125,16 @@ export function ParticipantsTab({ sessionId, query, workflow, onChanged }: { ses
 }
 
 // ---------------- Activity ----------------
-export function ActivityTab({ detail }: { detail: SessionDetail }) {
-  const items = detail.workspace.activity.items;
-  const cols: Col<(typeof items)[number]>[] = [
-    { id: "when", header: "When", cell: (r) => <span title={formatDateTime(r.at)} className="text-muted">{relativeTime(r.at)}</span> },
-    { id: "who", header: "Who", cell: (r) => r.actor, hideBelow: "md" },
-    { id: "what", header: "Event", cell: (r) => <span><span className="block">{humanizeKind(r.kind)}</span><span className="block text-muted">{r.detail}</span></span> },
-  ];
+export function ActivityTab({ detail, sessionId }: { detail: SessionDetail; sessionId: string }) {
+  const label = detail.workspace.overview.label;
+  const entries: ActivityEntry[] = detail.workspace.activity.items.map((e) => ({ ...e, sessionId, sessionLabel: label, outcome: outcomeOf(e.kind) })).sort((a, b) => b.at.localeCompare(a.at));
   return (
-    <Card>
-      <h2 className="text-entity font-medium">Activity</h2>
-      <p className="mt-1 text-body text-muted">What was recorded for this session, newest first.</p>
-      <div className="mt-4">
-        <Table columns={cols} data={[...items].reverse()} getRowId={(r) => `${r.at}-${r.kind}-${r.detail}`} empty={<EmptyState message={detail.workspace.activity.empty ?? "No activity has been recorded for this session yet."} />} />
-      </div>
-    </Card>
+    <div className="space-y-4">
+      <Card>
+        <h2 className="text-entity font-medium">Activity</h2>
+        <p className="mt-1 text-body text-muted">What was recorded for this session, newest first. Read-only.</p>
+      </Card>
+      <ActivityView entries={entries} showSession={false} />
+    </div>
   );
 }

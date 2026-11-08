@@ -7,6 +7,8 @@ import { useState, type ReactNode } from "react";
 import { Button } from "../../../components/ui/Button.tsx";
 import { Amount, AvatarStack, Identifier, PageTabs, SegmentTabs, Table, type Col, type Sort } from "../../../components/ui/Data.tsx";
 import { AccessDenied, EmptyState, ErrorState, InlineError, NotSupported, PermissionState, Skeleton, StatusMark } from "../../../components/ui/Feedback.tsx";
+import { FailureNote } from "../../../components/settlement/FailureNote.tsx";
+import { FAILED_FIXTURES } from "../../../lib/fixtures/failed-states.ts";
 import { ApprovalBlock, NextAction, SignatureBlock, StageRail, Stepper } from "../../../components/ui/Flow.tsx";
 import { ChoiceGroup, InputCard, SelectField, TextAreaField, TextField } from "../../../components/ui/Form.tsx";
 import { CommandPanel, Dialog, Popover, SidePanel } from "../../../components/ui/Overlays.tsx";
@@ -50,7 +52,7 @@ export default function ComponentsPage() {
   const sorted = [...ROWS].sort((a, b) => (sort ? (sort.dir === "asc" ? 1 : -1) * (sort.id === "amount" ? Number(a.amount) - Number(b.amount) : String(a[sort.id as "debtor"]).localeCompare(String(b[sort.id as "debtor"]))) : 0));
 
   return (
-    <div className="mx-auto max-w-[1200px] space-y-16 px-4 py-10 sm:px-6">
+    <main id="main" tabIndex={-1} className="mx-auto max-w-[1200px] space-y-16 px-4 py-10 sm:px-6">
       <header>
         <p className="text-label uppercase tracking-wide text-muted">Development</p>
         <h1 className="text-title font-medium">Component gallery</h1>
@@ -152,7 +154,7 @@ export default function ComponentsPage() {
           <Label>Transaction stage rail (labelled demonstration)</Label>
           <div className="mb-3 flex flex-wrap items-center gap-3 text-body">
             <label className="flex items-center gap-2">Backend state
-              <select className="rounded-btn border border-field bg-card px-2 py-1" value={exec} onChange={(e) => setExec(e.target.value as ExecState | "none")}>
+              <select className="rounded-btn border border-field bg-card px-2 py-1 max-md:min-h-11" value={exec} onChange={(e) => setExec(e.target.value as ExecState | "none")}>
                 {["none", "awaiting-signer", "signed", "submitted", "confirmed", "reconciled", "failed", "unknown-outcome"].map((s) => <option key={s}>{s}</option>)}
               </select>
             </label>
@@ -162,13 +164,20 @@ export default function ComponentsPage() {
         </Card>
       </Section>
 
+      <Section id="failed-states" title="Failed execution states (fixture)">
+        <p className="mb-3 text-body text-muted" role="note">FIXTURE. The real backend cannot reach these states over HTTP today, so no real screen shows them. They are rendered here from invented data so the layout is reviewed before a route exists.</p>
+        <div className="grid gap-4 md:grid-cols-3">
+          {FAILED_FIXTURES.map((x) => <div key={x.state}><p className="mb-1 text-label uppercase tracking-wide text-muted">Fixture: {x.state}</p><FailureNote state={x.state} events={x.events} /></div>)}
+        </div>
+      </Section>
+
       <Section id="overlays" title="Dialog, side panel, popover, command panel">
         <div className="flex flex-wrap gap-3">
           <Button onClick={() => { setDestructive(false); setDialog(true); }}>Open dialog</Button>
           <Button variant="destructive" onClick={() => { setDestructive(true); setDialog(true); }}>Open destructive dialog</Button>
           <Button onClick={() => setSide(true)}>Open side panel</Button>
           <Button onClick={() => setCmd(true)}>Open command panel</Button>
-          <Popover trigger={({ open, toggle, ref, id }) => <button ref={ref} type="button" onClick={toggle} aria-expanded={open} aria-controls={id} className="h-9 rounded-btn bg-ink-10 px-3 text-body font-medium hover:bg-ink-15">Open popover</button>}>{() => <p className="p-3 text-body">A popover panel: closes on Escape and on an outside click.</p>}</Popover>
+          <Popover trigger={({ open, toggle, ref, id }) => <button ref={ref} type="button" onClick={toggle} aria-expanded={open} aria-controls={id} className="h-9 max-md:h-11 rounded-btn bg-ink-10 px-3 text-body font-medium hover:bg-ink-15">Open popover</button>}>{() => <p className="p-3 text-body">A popover panel: closes on Escape and on an outside click.</p>}</Popover>
         </div>
         <Dialog open={dialog} onClose={() => setDialog(false)} title={destructive ? "Reject operation?" : "Create session?"} description="A dialog states the consequence and uses an action-labelled primary button." destructive={destructive} primary={{ label: destructive ? "Reject operation" : "Create session", onClick: () => setDialog(false) }}>
           <StatGrid columns={2} items={[{ label: "Session", value: "Example" }, { label: "Network", value: "Stellar Testnet" }]} />
@@ -176,6 +185,6 @@ export default function ComponentsPage() {
         <SidePanel open={side} onClose={() => setSide(false)} title="Record detail"><p className="text-body text-muted">A 480px drawer for detail without leaving the list.</p></SidePanel>
         <CommandPanel open={cmd} onClose={() => setCmd(false)} commands={[{ id: "a", label: "Overview", group: "Go to", onSelect: () => {} }, { id: "b", label: "Clearing Sessions", group: "Go to", onSelect: () => {} }]} notice="Not supported: searching records. This panel only jumps between pages." />
       </Section>
-    </div>
+    </main>
   );
 }

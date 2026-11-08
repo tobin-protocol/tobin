@@ -3,6 +3,7 @@
 import { decisionStatusText } from "../../lib/approvals/rules.ts";
 import { formatAmount, formatDateTime, middle } from "../../lib/format.ts";
 import { isStopped, NO_AUTOMATIC_RETRY } from "../../lib/stages.ts";
+import { FailureNote } from "./FailureNote.tsx";
 import type { InstructionView } from "../../lib/tobin/types.ts";
 import { Button } from "../ui/Button.tsx";
 import { Amount, Table, type Col } from "../ui/Data.tsx";
@@ -106,13 +107,7 @@ export function SettlementTab({ s }: { s: SettlementData }) {
             {execution.data?.execution ? (
               <div className="mt-4 space-y-3 border-t border-divider pt-3">
                 <p className="text-body"><span className="text-muted">Execution state: </span><span className="font-medium">{execution.data.execution.state}</span> · {formatDateTime(execution.data.execution.createdAt)}</p>
-                {isStopped(execution.data.execution.state) ? (
-                  <div role="alert" className="rounded-card bg-panel p-3">
-                    <p className="flex items-center gap-2 text-body font-medium text-danger"><CrossIcon />This execution stopped</p>
-                    <p className="mt-1 text-body">{execution.data.execution.events[execution.data.execution.events.length - 1]?.detail ?? "No data"}</p>
-                    <p className="text-label text-muted">{formatDateTime(execution.data.execution.events[execution.data.execution.events.length - 1]?.at)} · {NO_AUTOMATIC_RETRY}</p>
-                  </div>
-                ) : null}
+                <FailureNote state={execution.data.execution.state} events={execution.data.execution.events} />
                 <ul className="divide-y divide-divider" aria-label="Execution events">
                   {execution.data.execution.events.map((e, i) => <li key={i} className="py-2 text-body"><span className="block">{e.detail}</span><span className="block text-label text-muted">{e.actor} · {formatDateTime(e.at)}{e.to ? ` · ${e.to}` : ""}</span></li>)}
                 </ul>

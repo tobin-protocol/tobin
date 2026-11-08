@@ -79,7 +79,7 @@ export function AppGate({ children }: { children: ReactNode }) {
   }
   if (!value) {
     return (
-      <div className="mx-auto max-w-[1200px] space-y-4 p-6" aria-busy="true" aria-label="Loading">
+      <div className="mx-auto max-w-[1200px] space-y-4 p-6" role="status" aria-busy="true" aria-label="Loading">
         <Skeleton className="h-16 w-full" />
         <Skeleton className="h-12 w-full" />
         <Skeleton className="h-64 w-full" />

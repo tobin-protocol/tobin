@@ -8,13 +8,13 @@ export function InputCard({ label, htmlFor, hint, error, right, disabled, childr
 }) {
   return (
     <div className={cn(className)}>
-      <div className={cn("rounded-card border bg-card p-4 transition-colors duration-150 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-button", error ? "border-danger-line" : "border-field", disabled && "opacity-70")}>
-        <label htmlFor={htmlFor} className="block text-body text-muted">{label}</label>
+      <label htmlFor={htmlFor} className={cn("block rounded-card border bg-card p-4 transition-colors duration-150 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-button", error ? "border-danger-line" : "border-field", disabled && "opacity-70")}>
+        <span className="block text-body text-muted">{label}</span>
         <div className="mt-1 flex items-center gap-3">
           <div className="min-w-0 flex-1">{children}</div>
           {right ? <div className="shrink-0">{right}</div> : null}
         </div>
-      </div>
+      </label>
       {hint && !error ? <p className="mt-1.5 text-label text-muted">{hint}</p> : null}
       {error ? <InlineError id={`${htmlFor}-error`}>{error}</InlineError> : null}
     </div>

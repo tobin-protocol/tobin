@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { APPROVAL_NOTE, approvalNote, canSubmitReject, hasActiveApproval, rejectReasonError } from "../lib/approvals/rules.ts";
 import { blocksApproval, diffSettlement, instructionNets } from "../lib/settlement/diff.ts";
 import { BACKEND_RECORDS, isStopped, NO_AUTOMATIC_RETRY, stageText, stageView, STAGES } from "../lib/stages.ts";
+import { failureOf } from "../lib/settlement/failure.ts";
+import { FAILED_FIXTURES } from "../lib/fixtures/failed-states.ts";
 import type { BatchView, CalculationView, DecisionView, InstructionView } from "../lib/tobin/types.ts";
 
 const calc = (positions: [string, string][], over: Partial<NonNullable<CalculationView["calculation"]>> = {}): NonNullable<CalculationView["calculation"]> => ({
@@ -98,8 +100,11 @@ test("APPROVAL / SIGNATURE SEPARATION: the approval block has no signing control
   assert.doesNotMatch(approval, /Sign with wallet|SignatureBlock|signingSupported/);
   assert.doesNotMatch(signature, /bApproveb|onApprove|onReject|ApprovalBlock/);
   assert.match(signature, /Not supported/);
-  assert.match(signature, /bg-panel/, "the signature block is a #f0f0f0 card");
+  assert.match(signature, /bg-card/, "the signature block is the same white card surface as the approval block");
   assert.match(approval, /bg-card/, "the approval block is a white card");
+  assert.match(signature, /data-icon="key"/, "told apart by a key icon");
+  assert.match(signature, /Wallet signatures/, "and by its title");
+  assert.doesNotMatch(signature, /bg-panel/, "no separate colour");
 });
 test("APPROVAL / SIGNATURE SEPARATION: they never share a row or a button group on the Approvals tab", () => {
   const src = readFileSync(new URL("../components/approvals/ApprovalsTab.tsx", import.meta.url), "utf8");
@@ -107,4 +112,36 @@ test("APPROVAL / SIGNATURE SEPARATION: they never share a row or a button group 
   assert.ok(a >= 0 && s >= 0);
   const between = src.slice(Math.min(a, s), Math.max(a, s));
   assert.doesNotMatch(between, /<Button|<ButtonLink|flex-row|className="flex[^"]*gap/, "nothing joins them into a row or button group");
+});
+
+test("FAILED STATES: failed, expired and unknown-outcome show the recorded reason, the time and no automatic retry", () => {
+  for (const fx of FAILED_FIXTURES) {
+    const f = failureOf(fx.state, fx.events);
+    assert.ok(f, fx.state);
+    assert.equal(f.detail, fx.events[0]!.detail);
+    assert.equal(f.at, fx.events[0]!.at);
+    assert.ok(f.notes.includes(NO_AUTOMATIC_RETRY), "states that nothing retries by itself");
+    assert.ok(f.notes.some((n) => /separate action by an administrator/.test(n)), "any retry is a separate action");
+  }
+});
+test("FAILED STATES: only a stopped state produces a failure, and the last event is the one shown", () => {
+  for (const s of ["awaiting-signer", "signing", "signed", "submitted", "reconciled"] as const) assert.equal(failureOf(s, [{ detail: "x", at: "t" }]), null, s);
+  assert.equal(failureOf(undefined, []), null);
+  const f = failureOf("failed", [{ detail: "first", at: "t1" }, { detail: "last", at: "t2" }]);
+  assert.equal(f?.detail, "last");
+  assert.equal(failureOf("failed", [])?.detail, "No data", "no invented reason when none is recorded");
+});
+test("FAILED STATES: an unknown outcome is neither a failure nor a success", () => {
+  const f = failureOf("unknown-outcome", FAILED_FIXTURES[2]!.events);
+  assert.match(f!.notes.join(" "), /neither|not treated as a failure and not as a success/);
+});
+test("FAILED STATES: fixtures are labelled FIXTURE and no real screen imports them", () => {
+  assert.ok(FAILED_FIXTURES.every((x) => x.events.every((e) => e.detail.startsWith("FIXTURE"))));
+  for (const dir of ["../app", "../components"]) {
+    const walk = (p: string): string[] => readdirSync(p, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(p + "/" + e.name) : [p + "/" + e.name]));
+    for (const file of walk(new URL(dir, import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")).filter((p) => /\.tsx?$/.test(p))) {
+      if (/app[\\/]dev[\\/]components/.test(file)) continue;
+      assert.doesNotMatch(readFileSync(file, "utf8"), /fixtures\/failed-states/, file);
+    }
+  }
 });

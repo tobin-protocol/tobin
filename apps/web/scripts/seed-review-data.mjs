@@ -1,4 +1,6 @@
 // Seeds a THROWAWAY console backend (default http://127.0.0.1:8787) through its real API with FICTIONAL people (Alice, Bob, Carol) and the documented arithmetic example. For review screenshots only.
+import { createHash, generateKeyPairSync, sign } from 'node:crypto';
+import { encodeAddress } from '../../../packages/mvp1-sdk/src/strkey.ts';
 const B = process.env.TOBIN_API_URL ?? 'http://127.0.0.1:8787';
 const PW = 'Correct-horse-battery-1';
 async function call(cookie, method, path, body) {
@@ -49,5 +51,17 @@ await ob(s2, bob, alice, '15', 'late addition');
 
 // 3: an empty draft
 await newSession('Draft run');
+
+// optional (SEED_WALLET=1): give Alice a REAL verified wallet through the real signature flow (a throwaway ed25519 key made here, SEP-53 message signing)
+if (process.env.SEED_WALLET === '1') {
+  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+  const raw = Buffer.from(publicKey.export({ format: 'jwk' }).x, 'base64url');
+  const address = encodeAddress('account', raw);
+  const sep53 = (message) => sign(null, createHash('sha256').update(Buffer.from('Stellar Signed Message:\n' + message, 'utf8')).digest(), privateKey).toString('base64');
+  const link = (await call(alice.cookie, 'POST', '/api/auth/wallet/link/challenge', { publicKey: address, network: 'testnet' })).json.challenge;
+  await call(alice.cookie, 'POST', '/api/auth/wallet/link/verify', { challengeId: link.id, signature: sep53(link.message), scheme: 'sep-53' });
+  const oc = (await call(alice.cookie, 'POST', `${O}/wallet-challenges`, { publicKey: address, network: 'testnet' })).json.challenge;
+  await call(alice.cookie, 'POST', `${O}/wallet-challenges/${oc.id}/verify`, { signature: sep53(oc.message), scheme: 'sep-53' });
+}
 
 console.log(JSON.stringify({ org: org.id, users: { alice: alice.email, bob: bob.email, carol: carol.email }, password: PW, sessions: [s1, s2] }));

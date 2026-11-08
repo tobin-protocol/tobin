@@ -113,8 +113,11 @@ export interface SignerRow { address: string; weight: number; state: "awaiting" 
  */
 export function SignatureBlock({ signers, threshold, signingSupported = false }: { signers: SignerRow[]; threshold: number; signingSupported?: boolean }) {
   return (
-    <section aria-labelledby="signatures-h" className="rounded-card bg-panel p-4">
-      <h3 id="signatures-h" className="text-entity font-medium">Wallet signatures</h3>
+    <section aria-labelledby="signatures-h" className="rounded-card bg-card p-4">
+      <h3 id="signatures-h" className="flex items-center gap-2 text-entity font-medium">
+        <svg aria-hidden="true" data-icon="key" viewBox="0 0 20 20" className="size-5 shrink-0"><circle cx="6.5" cy="10" r="3.5" stroke="currentColor" strokeWidth="1.6" fill="none" /><path d="M10 10h8M15 10v3M17.5 10v2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" fill="none" /></svg>
+        Wallet signatures
+      </h3>
       {signingSupported ? (
         <>
           <ul className="mt-3 divide-y divide-divider">
@@ -129,7 +132,7 @@ export function SignatureBlock({ signers, threshold, signingSupported = false }:
           <Button variant="primary" className="mt-3">Sign with wallet</Button>
         </>
       ) : (
-        <p className="mt-2 text-body text-muted">Not supported. This app cannot request or collect Stellar signatures. Signing is performed by separate, owner-run tools.</p>
+        <p className="mt-2 text-body"><span className="font-medium text-muted">Not supported.</span> <span className="text-muted">This app cannot request or collect Stellar signatures. Signing is performed by separate, owner-run tools.</span></p>
       )}
     </section>
   );

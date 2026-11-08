@@ -12,11 +12,12 @@ import { Button, ButtonLink } from "../ui/Button.tsx";
 import { Table, type Col, Identifier } from "../ui/Data.tsx";
 import { EmptyState, ErrorState, NotSupported, Skeleton, StatusMark } from "../ui/Feedback.tsx";
 import { Card, DataCard, DerivedNote, Panel, StatGrid } from "../ui/Surfaces.tsx";
+import { useApprovalsPending } from "../approvals/usePending.ts";
 
 const attentionColumns: Col<AttentionItem>[] = [
   { id: "item", header: "Needs attention", cell: (r) => <span><span className="block font-medium">{r.label}</span><span className="block text-muted">{r.detail}</span></span> },
-  { id: "state", header: "Status", cell: (r) => <StatusMark kind="action">{r.kind === "review" ? "Awaiting your review" : r.kind === "stale" ? "Needs recalculation" : "Awaiting response"}</StatusMark>, hideBelow: "md" },
-  { id: "open", header: "", align: "right", cell: (r) => (r.sessionId ? <ButtonLink href={`/sessions/${r.sessionId}`} variant="quiet">Open</ButtonLink> : <Button variant="quiet" disabled title="Organization pages are built in Phase E">Opens in Phase E</Button>) },
+  { id: "state", header: "Status", cell: (r) => <StatusMark kind="action">{r.kind === "review" || r.kind === "approvals" ? "Awaiting your review" : r.kind === "stale" ? "Needs recalculation" : "Awaiting response"}</StatusMark>, hideBelow: "md" },
+  { id: "open", header: "", align: "right", cell: (r) => (r.kind === "approvals" ? <ButtonLink href="/approvals" variant="quiet">Open</ButtonLink> : r.sessionId ? <ButtonLink href={`/sessions/${r.sessionId}`} variant="quiet">Open</ButtonLink> : <ButtonLink href="/organization?tab=invitations" variant="quiet">Open</ButtonLink>) },
 ];
 const recentColumns: Col<RecentItem>[] = [
   { id: "when", header: "When", cell: (r) => <span title={formatDateTime(r.at)} className="text-muted">{relativeTime(r.at)}</span> },
@@ -62,6 +63,8 @@ export function Overview() {
 
   // a count of nothing read is "No data", never 0 (design spec, empty states)
   const cnt = (v: number) => (reading ? "…" : derived && derived.sessionsRead === 0 ? "No data" : v);
+  const approvalsPending = useApprovalsPending();
+  const attentionRows: AttentionItem[] = [...(derived?.attention ?? []), ...(approvalsPending.count ? [{ kind: "approvals", label: "Approvals", detail: `${approvalsPending.count} awaiting your review (derived from the sessions read)` } as AttentionItem] : [])];
   const o = orgQ.data?.organization;
   return (
     <PageFrame title="Overview" breadcrumbs={[{ label: org.name }, { label: "Overview" }]}>
@@ -76,7 +79,7 @@ export function Overview() {
               ) : (
                 <>
                   <div className="grid gap-6 md:grid-cols-[minmax(0,260px)_1fr] md:items-start">
-                    <DataCard label="Needs your attention" value={reading ? "…" : derived.attention.length} note={reading ? "Reading sessions…" : "Derived from the sessions read"} />
+                    <DataCard label="Needs your attention" value={reading ? "…" : attentionRows.length} note={reading ? "Reading sessions…" : "Derived from the sessions read"} />
                     <div className="space-y-4">
                       <StatGrid items={[
                         { label: "Clearing sessions", value: derived.sessionsTotal, hint: "Real: from the session list" },
@@ -98,12 +101,12 @@ export function Overview() {
               <h2 id="attention-h" className="text-entity font-medium">Attention</h2>
               <Table
                 columns={attentionColumns}
-                data={derived?.attention ?? []}
+                data={attentionRows}
                 getRowId={(r) => `${r.kind}-${r.sessionId ?? "org"}`}
                 loading={sessionsQ.isLoading || reading}
                 empty={<EmptyState title="Nothing needs attention" message={`No session among the ${derived?.sessionsRead ?? 0} read is awaiting your review or needs recalculation${pending === 0 ? ", and no invitations are pending" : ""}. Items appear here as they arise.`} />}
               />
-              <p className="text-label text-muted">Approvals and invitations across organizations, notifications and failed settlements are not listed: the backend does not provide them.</p>
+              <p className="text-label text-muted">Items across other organizations, notifications and failed settlements are not listed: the backend does not provide them. Approvals are counted from the sessions read; invitations from this organization.</p>
             </section>
 
             <section aria-labelledby="recent-h" className="space-y-3">
