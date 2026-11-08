@@ -51,11 +51,11 @@ Real-backend review scripts (they assert behaviour, check horizontal overflow an
 # seed fictional people and sessions through the console's real API
 SEED_EXTRA_SESSIONS=8 SEED_WALLET=1 SEED_ASSET_REF=<asset id, for example testnet:USD:G...> node apps/web/scripts/seed-review-data.mjs
 
-node apps/web/scripts/review-screenshots.mjs   docs/screenshots/phase-a   # sign-in, onboarding, Overview
-node apps/web/scripts/review-screenshots-b.mjs docs/screenshots/phase-b   # sessions list, create, workspace
-node apps/web/scripts/review-screenshots-c.mjs docs/screenshots/phase-c   # obligations, netting
-node apps/web/scripts/review-screenshots-d.mjs docs/screenshots/phase-d   # approvals, settlement
-node apps/web/scripts/review-screenshots-e.mjs docs/screenshots/phase-e   # activity, wallets, organization, settings, bottom sheet
+node apps/web/scripts/review-screenshots.mjs   docs/screenshots/stage-a   # sign-in, onboarding, Overview
+node apps/web/scripts/review-screenshots-b.mjs docs/screenshots/stage-b   # sessions list, create, workspace
+node apps/web/scripts/review-screenshots-c.mjs docs/screenshots/stage-c   # obligations, netting
+node apps/web/scripts/review-screenshots-d.mjs docs/screenshots/stage-d   # approvals, settlement
+node apps/web/scripts/review-screenshots-e.mjs docs/screenshots/stage-e   # activity, wallets, organization, settings, bottom sheet
 
 node apps/web/scripts/keyboard-walkthrough.mjs                            # keyboard-only main flows
 AXE_PATH=<path to axe.min.js> node apps/web/scripts/a11y-scan.mjs         # axe scan, tap targets, overflow

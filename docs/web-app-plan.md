@@ -315,7 +315,7 @@ TanStack Query, TanStack Table, react-hook-form, zod, nuqs, Playwright. Anything
 
 ## 10. Phases and review stops
 
-Each phase ends with typecheck, lint, tests, screenshots at 1440, 900 and 390 px in `docs/screenshots/phase-X/`, a real-versus-derived-versus-sample-versus-not-supported list, and a stop for your review. No dependency, backend change or unsupported feature is added without asking.
+Each phase ends with typecheck, lint, tests, screenshots at 1440, 900 and 390 px in `docs/screenshots/stage-X/`, a real-versus-derived-versus-sample-versus-not-supported list, and a stop for your review. No dependency, backend change or unsupported feature is added without asking.
 
 | Phase | Scope | Expected real / not supported |
 |---|---|---|
