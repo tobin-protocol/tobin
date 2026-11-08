@@ -1,10 +1,10 @@
 # Security policy
 
-Tobin is **experimental, Testnet-only software**. It is not production-ready, not approved for Mainnet or real value, and has not been independently audited. Please read the [README](README.md#known-limitations) for what exists and what does not.
+Tobin is pre-production institutional infrastructure that runs on Stellar Testnet. Production deployment has not yet been approved, Mainnet and real-value use are not authorized, and no independent security review or audit has been performed. Please read the [README](README.md#current-scope-and-remaining-engineering-work) for what exists and what remains.
 
 ## Supported development stage
 
-There are no tagged releases and no production deployment. Only the current `main` branch is maintained, and only for the experimental scope in the README. No older version receives fixes. Reports about the contracts, the TypeScript engine and SDK, the web console (authentication, sessions, authorization, persistence, the Stellar tools) and the repository tooling are welcome.
+There are no tagged releases and no production deployment. Only the current `main` branch is maintained, and only for the current implementation scope described in the README. No older version receives fixes. Reports about the contracts, the TypeScript engine and SDK, the web console (authentication, sessions, authorization, persistence, the Stellar tools) and the repository tooling are welcome.
 
 ## Reporting a vulnerability
 

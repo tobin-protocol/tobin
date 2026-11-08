@@ -26,7 +26,7 @@ Thank you for considering a contribution. This guide is the rulebook for humans.
 
 ## Welcome and philosophy
 
-Tobin is open-source clearing and settlement software for financial institutions on Stellar: it records obligations, computes net positions deterministically, requires reviewer approval of the exact result, and settles only the net amounts. Read the [README](README.md) first; it states what exists today and what does not. Tobin is **experimental, Testnet-only software**, and contributions must not make it look more finished than it is.
+Tobin is open-source clearing and settlement software for financial institutions on Stellar: it records obligations, computes net positions deterministically, requires reviewer approval of the exact result, and settles only the net amounts. Read the [README](README.md) first; it states what exists today and what does not. Tobin is pre-production infrastructure that runs on Stellar Testnet, and contributions must neither make it look more finished than the evidence shows nor understate what has been implemented. Follow the [communication and maturity terminology guide](docs/COMMUNICATION-AND-MATURITY-TERMINOLOGY.md) when you write about the project.
 
 Because this is financial and settlement infrastructure, three things are mandatory rather than nice to have:
 
@@ -278,7 +278,7 @@ Open a pull request against `main` from your branch. The [pull request template]
 - tests and the exact validation results you obtained (counts of passed, failed and **skipped**);
 - screenshots for meaningful UI changes, at 1200 px and 420 px;
 - migration notes, if any, and security implications;
-- breaking changes and known limitations, stated plainly;
+- breaking changes and remaining work (what this does not do or has not validated), stated plainly;
 - the documentation updates it requires.
 
 **Disclose every skipped test, check or validation you did not run, and why.** A claim you did not verify is not allowed in a pull request. If hosted CI did not run something that matters (it does not run most browser journeys on pull requests), run it locally and say so.
