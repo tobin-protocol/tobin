@@ -1,0 +1,43 @@
+@import "tailwindcss";
+@import "tobin-ui-tokens/tokens.css";
+
+@layer base {
+  html {
+    background: var(--color-page);
+    color-scheme: light;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    font-family: var(--font-sans);
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.45;
+    color: var(--color-ink);
+    background: var(--color-page);
+  }
+  h1, h2, h3, h4 {
+    font-weight: 500;
+  }
+  /* Keyboard accessibility overrides "no borders" (accepted deviation): a 2px ring on every interactive element. */
+  :focus-visible {
+    outline: 2px solid var(--color-button);
+    outline-offset: 2px;
+  }
+  button:not(:disabled), [role="button"], summary {
+    cursor: pointer;
+  }
+  dialog::backdrop {
+    background: var(--color-scrim);
+  }
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
