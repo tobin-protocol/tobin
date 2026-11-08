@@ -5,28 +5,28 @@ import { Container, Eyebrow, Section } from "./ui";
 const ROWS: { label: string; value: string; detail: string }[] = [
   {
     label: "Exists today",
-    value: "The repository, the experimental MVP-1 source and this landing page.",
+    value: "The repository, the implemented MVP-1.2 to MVP-1.5 workflows and this landing page.",
     detail:
-      "The licence, the README, contribution guidelines and the MVP-1 source, plus the project's landing page in apps/landing.",
+      "The licence, the README, contribution guidelines, the institutional application, the contracts and SDK, and the project's landing page in apps/landing.",
   },
   {
-    label: "Validated by MVP-1",
-    value: "The core clearing lifecycle, within MVP-1's scope of small sessions and one test token.",
+    label: "Demonstrated on Testnet",
+    value: "The settlement path, within a narrow scope.",
     detail:
-      "Automated tests in the Soroban test host and a Stellar public-testnet run with disposable accounts and test assets; its report and raw evidence are unpublished. Experimental; evidence from the implementing author only; no independent audit.",
+      "Automated tests in the Soroban test host, and one owner-run Stellar Testnet execution of eight transactions with multisig co-signing, read back from the network and compared with the approved plan. The Testnet verification record is in the repository. The evidence is from the implementing author only; no independent review has been performed.",
   },
   {
-    label: "Not built",
-    value: "The rest of the broader protocol.",
+    label: "Not yet implemented",
+    value: "The rest of the broader protocol design, and production infrastructure.",
     detail:
-      "Deadlines, abort, default and recovery handling, collateral, Merkle commitments, an institutional adapter, SDK and CLI packages for the broader protocol, wallet or multisig integration, production deployment and a conformance suite.",
+      "Deadlines, abort, default and recovery handling, collateral, Merkle commitments, an institutional adapter and CLI packages for the broader protocol, a conformance suite, application-level reconciliation of on-chain outcomes, hardware-wallet validation and production deployment.",
   },
   {
     label: "Not yet validated",
     value:
       "Whether real Stellar institutional payment flows are interconnected enough for multilateral clearing to reduce gross settlement.",
     detail:
-      "The first planned validation step uses historical Stellar ledger data and ends in an explicit go, modify or stop decision. That analysis has not been done; MVP-1 tested the clearing mechanics, not this question.",
+      "The first planned validation step uses historical Stellar ledger data and ends in an explicit go, modify or stop decision. That analysis has not been done; The implemented milestones tested the clearing mechanics, not this question.",
   },
   {
     label: "Review status",
