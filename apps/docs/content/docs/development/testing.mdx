@@ -99,9 +99,11 @@ Each journey verifies user interactions, state persistence, error boundaries, an
 
 ## Major test suites catalogue
 
+Durations below are approximate, measured on one developer machine; treat them as orders of magnitude. The tables list the main suites and are **not exhaustive**: run `ls` in each test directory for the full set.
+
 ### Web console suites (`apps/web-console/test/`)
 
-The console suite contains 494 tests executed via `node --test`:
+The console suite contains roughly 494 tests (the count at the time of writing; it grows as tests are added) executed via `node --test`:
 
 | File | What it proves | Typical duration | Prerequisites |
 |---|---|:--:|---|
@@ -122,11 +124,17 @@ The console suite contains 494 tests executed via `node --test`:
 | `wallet-ops.test.ts`<br/>`wallet-signin.test.ts` | Client-side wallet challenge signing flow, Freighter error state mapping, and wallet account binding. | ~0.6 s | None |
 | `console.test.ts` | Interactive Console controller driving the SDK against real smart contracts running in the Soroban test host. | ~1.5 s | `TOBIN_BRIDGE_EXE` |
 | `next-server.test.ts` | Live production Next.js HTTP server (`next start`) on `127.0.0.1` testing CSP headers, script nonces, and loopback guards. | ~1.0 s | `TOBIN_BRIDGE_EXE`, `npm run build:console` |
+| `registry.test.ts` | The in-memory registry service: the creator becomes the first administrator, organization isolation (outsiders get not-found), single-use expiring invitations, at least one administrator is always kept, wallet links are claims and not proof, and session provenance rules. | ~0.3 s | None |
+| `sessions.test.ts` | The sessions presentation model and API: provenance wording, listing states, workspaces of fixture, draft and chain-read sessions (no invented data), and the routes that can never confirm a session or alter its provenance. | ~0.5 s | None |
+| `run.test.ts` | The pure logic of the owner-run settlement runner (run plan, steps done, limits). No network: real-chain behaviour is not covered here. | ~0.1 s | None |
+| `console-input.test.ts` | Console input handling: bad numbers are refused with a clear message before anything is prepared or sent, using a fake transport that fails the test if asked to change state. | ~0.1 s | None |
+| `console-view.test.ts` | The sandbox page renderer and plan text on synthetic models, pinning what the page may and may not claim. No bridge, no DOM. | ~0.1 s | None |
+| `w1-adapter-contract.test.ts`<br/>`w1-store-conformance.test.ts` | The reusable adapter contract and store conformance suites, run against the W0 mock adapter and the in-memory stores (the only ones that exist). | ~0.5 s | None |
 | `w0-*.test.ts` (6 files) | Mock-adapter console suite testing mock scenarios, session isolation, and approval flows. | ~1.0 s | None |
 
 ### SDK test suites (`packages/mvp1-sdk/test/`)
 
-The SDK suite contains 64 tests executed via `node --test`:
+The SDK suite contains roughly 64 tests (the count at the time of writing) executed via `node --test`:
 
 | File | What it proves | Typical duration | Prerequisites |
 |---|---|:--:|---|
@@ -151,6 +159,8 @@ Contract tests execute inside the native Soroban host environment using `cargo t
 | `authcosigners.rs` | Multi-party signature collection and weight threshold validation for multisig accounts. | ~0.2 s | Rust toolchain |
 | `property.rs` | Randomized contract property tests verifying value conservation across multi-participant sessions. | ~0.4 s | Rust toolchain |
 | `resources.rs` | Resource consumption metering (CPU instructions and memory bytes) for each contract invocation. | ~0.3 s | Rust toolchain |
+| `authintents.rs` | Parity between the TypeScript-built expected intents and what the real contracts demand, call by call (create, join, submit, finalize, propose, approve, settle, mint), including that the digest TypeScript computed is the one the contract returned. Offline. | ~0.3 s | Rust toolchain |
+| `signed.rs` | Real ed25519 signatures on classic accounts with the custom test token: a join authorized by two signers and a settlement authorized by two debtors, verified by the host. Test keys only. | ~0.3 s | Rust toolchain |
 | `catch.rs` | Verification that host invocation panics roll back contract state without swallowing missing authorizations. | ~0.1 s | Rust toolchain |
 
 ## Skipped tests
@@ -162,6 +172,8 @@ Without `TOBIN_BRIDGE_EXE`, tests that require the Rust development bridge are *
 
 Always report test skip counts alongside passing counts in pull requests.
 
+For setup instructions and the full breakdown, see [Local environment setup](/docs/development/local-environment#interpreting-test-skips-and-results) and [Troubleshooting](/docs/development/troubleshooting).
+
 ## Hosted CI is not local validation
 
 On pull requests, hosted CI executes:
@@ -171,7 +183,7 @@ On pull requests, hosted CI executes:
 - SDK tests and Console unit/security tests with the bridge
 - Dependency baseline and documentation link checks
 - Release gate scanner tests
-- The W0 mock browser journey (`w0-journey.mjs`)
+- The W0 mock browser journey (`w0-journey.mjs`), through the `w0-console.yml` workflow, which runs only when the pull request touches the paths that workflow lists
 
 Most other browser journeys (`journey.mjs`, `sessions-journey.mjs`, `settlement-journey.mjs`, etc.) are **not** run on pull requests. Run the journeys relevant to your changes locally before opening a pull request.
 
