@@ -9,7 +9,8 @@ A nested instruction file applies inside its own directory: `apps/landing/AGENTS
 Tobin is open-source clearing and settlement software for financial institutions on Stellar. Institutions record the payment obligations they owe each other; Tobin computes net positions deterministically, requires a reviewer to approve the exact result, prepares settlement instructions for only the net amounts, and settles them through a Soroban contract.
 
 - **Users:** institutions with recurring obligations to several counterparties (anchors, payment institutions, cross-border payment providers, institutional Stellar applications).
-- **Stage:** experimental, **Stellar Testnet only**, **not production-ready, not Mainnet-ready**. Milestones MVP-1.2 to MVP-1.5 and wallet-first authentication are implemented. The evidence is same-author and the release gates for a versioned or production release are blocked.
+- **Stage:** pre-production institutional infrastructure, **Stellar Testnet only**. Milestones MVP-1.2 to MVP-1.5 and wallet-first authentication are implemented; the settlement path was demonstrated on Testnet in one owner-run execution. Production deployment has not been approved and Mainnet and real-value use are not authorized. The evidence is same-author, no independent security review has been performed, and the release gates for a versioned or production release are blocked.
+- **Wording:** when you write or change any project description, documentation or public-facing text, follow [`docs/COMMUNICATION-AND-MATURITY-TERMINOLOGY.md`](docs/COMMUNICATION-AND-MATURITY-TERMINOLOGY.md): use its maturity vocabulary, never claim more than the evidence supports, and do not rewrite historical records to change their maturity claims.
 - **Not:** an anchor, custodian, payment processor, DEX, lender or bank; not a universal clearing network and not a fully decentralized protocol.
 
 ## 2. Required reading order
