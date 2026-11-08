@@ -1,0 +1,298 @@
+---
+title: Troubleshooting
+description: Symptom, cause, and verified fix guide for common development, build, and test failures.
+---
+
+This guide catalogues common failures encountered when setting up the local environment, building the contracts, running test suites, and starting services.
+
+For initial setup instructions, see [Local environment setup](/docs/development/local-environment).
+
+## Quick reference
+
+| Symptom | Probable cause | Verified fix |
+|---|---|---|
+| `Cannot find package 'tobin-mvp1-sdk'` | Dependencies were not installed from root or workspace links are missing. | Run `npm ci` from the repository root. |
+| `TOBIN_BRIDGE_EXE is not set` | The Rust development bridge has not been compiled or the variable is unset. | Build the bridge (`cargo build -p tobin-clearing-v1 --example bridge`) and set `TOBIN_BRIDGE_EXE`. |
+| `.next is missing: run the production build first` | `apps/web-console/.next` build directory is absent. | Run `npm run build:console` from the repository root. |
+| `no Chrome or Edge found (set TOBIN_BROWSER)` | Browser driver could not find a Chromium binary at default Windows paths. | Export `TOBIN_BROWSER` pointing to your installed browser executable. |
+| `listen EADDRINUSE: address already in use 127.0.0.1:8787` | Another process is already listening on the web console port. | Stop the existing Node process, or start the console on a different port (see the section below). |
+| `db:status` exits with code 2 | Unapplied SQLite migrations exist in the database. | Run `npm run db:migrate --workspace tobin-web-console`. |
+| `TOBIN_DB_PATH is required in production` | `NODE_ENV=production` is set but no database path was configured. | Set `TOBIN_DB_PATH` to a valid disk path before starting the production server. |
+| `No space left on device (os error 28)` | Cargo build cache in `contracts/target/` has exhausted partition storage. | Run `cargo clean` inside `contracts` or set `CARGO_TARGET_DIR` to another partition. |
+| Stale contract ABI or compilation mismatch | Cargo cache holds outdated contract artifacts after source changes. | Run `cd contracts && cargo clean && cargo build --locked -p tobin-clearing-v1 --example bridge`. |
+| `'export' is not recognized` on Windows | Bash variable syntax used in PowerShell. | Use PowerShell variable assignment: `$env:VARIABLE = "value"`. |
+
+## Missing workspace packages (ERR_MODULE_NOT_FOUND)
+
+### Symptom
+
+Running test scripts or importing from another workspace fails:
+
+```text
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'tobin-mvp1-sdk' imported from ...
+```
+
+### Cause
+
+Tobin uses npm workspaces. When a repository is freshly cloned or workspace references are updated, Node cannot resolve sibling workspaces unless npm has linked them into `node_modules`.
+
+### Fix
+
+Run `npm ci` from the repository root:
+
+```bash
+npm ci
+```
+
+Do not run `npm install` inside individual workspace subdirectories; always manage dependencies from the root.
+
+## Bridge executable missing or unset
+
+### Symptom
+
+Running SDK or console tests reports multiple skipped tests:
+
+```text
+﹣ engine plans, TypeScript digests and the real contract agree # TOBIN_BRIDGE_EXE is not set: the real-contract tests need the Rust development bridge
+```
+
+Or calling bridge-dependent routes in the local sandbox console (`/`) returns:
+
+```text
+Error: TOBIN_BRIDGE_EXE is not set: build the Rust development bridge first
+```
+
+### Cause
+
+The TypeScript SDK and web console do not bundle compiled Rust binaries. They communicate with the Soroban test host through a bridge binary whose path must be supplied via `TOBIN_BRIDGE_EXE`.
+
+### Fix
+
+1. Build the bridge executable:
+   ```bash
+   cd contracts
+   cargo build --locked -p tobin-clearing-v1 --example bridge
+   cd ..
+   ```
+2. Export the path in your shell:
+   ```bash
+   export TOBIN_BRIDGE_EXE="$PWD/contracts/target/debug/examples/bridge"
+   ```
+   On Windows PowerShell:
+   ```powershell
+   $env:TOBIN_BRIDGE_EXE = "C:\path\to\tobin\contracts\target\debug\examples\bridge.exe"
+   ```
+
+## Production build missing for server tests
+
+### Symptom
+
+Tests in `apps/web-console/test/next-server.test.ts` are skipped:
+
+```text
+﹣ the page, its scripts and the sandbox API are served locally # .next is missing: run the production build first
+```
+
+Or browser journey scripts fail when spawning Next.js:
+
+```text
+Error: Could not find a production build in the '.next' directory.
+```
+
+### Cause
+
+`next-server.test.ts` and the browser journeys spawn a live production Next.js instance via `next start`, which requires pre-compiled assets in `apps/web-console/.next`.
+
+### Fix
+
+Run the web console production build from the repository root:
+
+```bash
+npm run build:console
+```
+
+## Browser not detected for journey tests
+
+### Symptom
+
+Executing any browser journey script produces:
+
+```text
+Error: no Chrome or Edge found (set TOBIN_BROWSER)
+```
+
+### Cause
+
+The journey driver in `apps/web-console/test/browser/cdp.mjs` inspects standard Windows installation paths (such as `C:/Program Files/Google/Chrome/Application/chrome.exe`). On Linux, macOS, or custom Windows environments, it cannot locate the browser automatically.
+
+### Fix
+
+Set the `TOBIN_BROWSER` environment variable to the path of your installed Chromium-based browser before invoking the journey:
+
+```bash
+export TOBIN_BROWSER=$(which google-chrome || which chromium || which brave-browser)
+TOBIN_WIDTH=1200 node test/browser/w0-journey.mjs
+```
+
+## Port already in use (EADDRINUSE)
+
+### Symptom
+
+Starting the web console dev server or running server tests fails with:
+
+```text
+Error: listen EADDRINUSE: address already in use 127.0.0.1:8787
+```
+
+### Cause
+
+The web console defaults to port `8787` (the docs app defaults to `3000`). If a previous dev server was not cleanly shut down, the port remains bound.
+
+### Fix
+
+1. Identify and terminate the process holding the port:
+   - On Linux/macOS:
+     ```bash
+     lsof -i :8787
+     kill <PID>
+     ```
+     Use `kill -9 <PID>` only if the process does not exit after a plain `kill`.
+   - On Windows PowerShell:
+     ```powershell
+     Get-NetTCPConnection -LocalPort 8787
+     Stop-Process -Id <PID>
+     ```
+2. Alternatively, specify a different port when launching:
+   ```bash
+   cd apps/web-console
+   PORT=8788 npx next dev --hostname 127.0.0.1 --port 8788
+   ```
+   On Windows PowerShell:
+   ```powershell
+   cd apps/web-console
+   $env:PORT = "8788"
+   npx next dev --hostname 127.0.0.1 --port 8788
+   ```
+   Set **both**. The `dev` and `start` scripts in `apps/web-console/package.json` fix Next's listening port at 8787, so `PORT` alone does not move it; and the request guards read `PORT` to decide which `Host` header (`127.0.0.1:<port>`) to accept, so `--port` alone makes every request fail the host check.
+
+## Pending database migrations
+
+### Symptom
+
+`npm run db:status --workspace tobin-web-console` outputs pending migrations and exits with code 2:
+
+```text
+{"current":7,"latest":8,"pending":[8]}
+```
+
+### Cause
+
+New SQLite migrations have been committed under `apps/web-console/lib/db/database.ts` that have not yet run against your local database file (`.data/tobin-dev.sqlite`).
+
+### Fix
+
+Apply all pending migrations idempotently:
+
+```bash
+npm run db:migrate --workspace tobin-web-console
+```
+
+The database schema version will update to the latest migration and the command exits 0.
+
+## Missing TOBIN_DB_PATH in production mode
+
+### Symptom
+
+In production mode (`NODE_ENV=production`), web console requests return HTTP status 503 with:
+
+```text
+BackendUnavailable: TOBIN_DB_PATH is required in production
+```
+
+### Cause
+
+Tobin fails closed by design. When `NODE_ENV=production`, the server refuses to fall back to the default development database (`.data/tobin-dev.sqlite`) or an in-memory database (`:memory:`).
+
+### Fix
+
+Supply an explicit database path via the `TOBIN_DB_PATH` environment variable:
+
+```bash
+TOBIN_DB_PATH="/var/data/tobin-production.sqlite" npm start --workspace tobin-web-console
+```
+
+## Cargo compilation out of disk space
+
+### Symptom
+
+Rust builds fail during Soroban compilation:
+
+```text
+error: failed to write /.../contracts/target/debug/...: No space left on device (os error 28)
+```
+
+### Cause
+
+Soroban host tests, contract Wasm targets, and native dependencies generate large intermediate objects that can rapidly fill smaller disk partitions.
+
+### Fix
+
+1. Clean existing target artifacts:
+   ```bash
+   cd contracts && cargo clean && cd ..
+   ```
+2. Redirect Cargo's build directory to a filesystem with sufficient free space:
+   ```bash
+   export CARGO_TARGET_DIR="/mnt/larger-disk/cargo-target"
+   ```
+
+## Stale Cargo build targets
+
+### Symptom
+
+Rust contract behavior does not match recent code edits, or TypeScript integration tests report unexpected contract ABI or panic message mismatches.
+
+### Cause
+
+Cargo's incremental compilation cache may contain outdated artifacts if branch switches or structural changes occurred across contract crates.
+
+### Fix
+
+Rebuild the bridge from a clean target state:
+
+```bash
+cd contracts
+cargo clean
+cargo build --locked -p tobin-clearing-v1 --example bridge
+cd ..
+```
+
+## Windows PowerShell path and variable syntax
+
+### Symptom
+
+Commands fail in PowerShell with errors such as:
+
+```text
+The term 'export' is not recognized as the name of a cmdlet...
+```
+
+Or `TOBIN_BRIDGE_EXE` fails to resolve due to unquoted or unescaped backslashes.
+
+### Cause
+
+Bash syntax does not work in PowerShell. PowerShell uses `$env:NAME = "value"` for environment variables.
+
+### Fix
+
+Set variables using PowerShell syntax:
+
+```powershell
+$env:TOBIN_BRIDGE_EXE = "C:\path\to\tobin\contracts\target\debug\examples\bridge.exe"
+```
+
+When running project scripts, always use the root npm workspace command so paths resolve relative to the expected working directory:
+
+```powershell
+npm run db:status --workspace tobin-web-console
+```

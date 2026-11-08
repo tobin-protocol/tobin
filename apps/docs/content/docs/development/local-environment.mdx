@@ -1,0 +1,156 @@
+---
+title: Local environment setup
+description: Detailed toolchain requirements, bridge configuration, platform setup, and browser journey configuration.
+---
+
+This page details how to configure a complete local development environment for Tobin, build the Rust development bridge, interpret test results, and avoid common setup pitfalls.
+
+For an overview of repository workspaces and folders, see [Repository layout](/docs/development/repository-layout).
+
+## Toolchains and prerequisites
+
+Tobin combines a TypeScript application and SDK with Soroban smart contracts written in Rust.
+
+| Tool | Version | Purpose |
+|---|---|---|
+| **Node.js** | `>= 24.0.0` (CI uses `24.14.0`) | Executes TypeScript directly with native type stripping, runs `node:test` suites, and provides `node:sqlite`. |
+| **npm** | Bundled with Node 24 (e.g. `11.19.0`) | Manages the root workspace and package dependencies. |
+| **Rust** | `1.96.0` (pinned in CI) | Builds and tests native Soroban contracts and compiles the development bridge. |
+| **Stellar CLI** | `28.0.0` | Compiles contracts to WebAssembly (`stellar contract build`). Required only for Wasm workflows. |
+| **Chrome or Edge** | Current stable release | Executes headless browser journeys over the Chrome DevTools Protocol. |
+
+<Callout type="info" title="Rust toolchain pinning">
+  No `rust-toolchain.toml` is committed to the repository to prevent altering contributor toolchains globally. In CI,
+  Rust is pinned to `1.96.0` using `RUSTUP_TOOLCHAIN`.
+</Callout>
+
+## Installing workspace dependencies
+
+Install dependencies from the repository root using `npm ci`:
+
+```bash
+npm ci
+```
+
+In automated pipelines or minimal environments, use `npm ci --ignore-scripts`.
+
+Tobin uses **npm workspaces** defined in [`package.json`](https://github.com/tobin-protocol/tobin/blob/main/package.json). Installing from the root creates the required workspace symlinks (such as `node_modules/tobin-mvp1-sdk`). Running test files or node scripts before running `npm ci` causes `ERR_MODULE_NOT_FOUND` errors.
+
+## Building the Rust development bridge
+
+The TypeScript test suites and the local sandbox console interact with the real `TobinClearingV1` and `TobinTestToken` smart contracts through a development-only executable called the **bridge** (`contracts/clearing/examples/bridge.rs`).
+
+The bridge runs the contracts inside the Soroban test host and communicates via JSON lines over standard input/output.
+
+Build the bridge from the `contracts` directory:
+
+```bash
+cd contracts
+cargo build --locked -p tobin-clearing-v1 --example bridge
+cd ..
+```
+
+The compiled executable is placed in the Cargo debug target directory:
+
+- **Linux / macOS:** `contracts/target/debug/examples/bridge`
+- **Windows:** `contracts\target\debug\examples\bridge.exe`
+
+## Setting TOBIN_BRIDGE_EXE
+
+To enable bridge-backed tests and the local sandbox console (`/`), configure the `TOBIN_BRIDGE_EXE` environment variable in your shell.
+
+<Tabs items={["Linux / macOS (Bash)", "Windows (PowerShell)"]}>
+  <Tab value="Linux / macOS (Bash)">
+```bash
+export TOBIN_BRIDGE_EXE="$PWD/contracts/target/debug/examples/bridge"
+```
+  </Tab>
+  <Tab value="Windows (PowerShell)">
+```powershell
+$env:TOBIN_BRIDGE_EXE = "C:\path\to\tobin\contracts\target\debug\examples\bridge.exe"
+```
+  </Tab>
+</Tabs>
+
+Without `TOBIN_BRIDGE_EXE`, bridge-backed tests are skipped, and attempting to access the local sandbox console at `/` answers with an error.
+
+## Interpreting test skips and results
+
+Node.js test output reports passes (`✔`), failures (`✖`), and skips (`﹣`). **A skipped test is not a pass.** When submitting contributions, pull requests must accurately report test counts including skips.
+
+### SDK tests (`packages/mvp1-sdk`)
+
+Run the SDK suite from the repository root:
+
+```bash
+npm test --workspace tobin-mvp1-sdk
+```
+
+The SDK suite contains 64 tests:
+
+- **Without `TOBIN_BRIDGE_EXE`:** 55 pass, 9 skipped. Eight tests skip because the bridge is missing; one test (`the known-answer intent fixture is exactly what this code generates`) skips because its attribution-sensitive fixtures are excluded pending review.
+- **With `TOBIN_BRIDGE_EXE`:** 63 pass, 0 fail, 1 skipped (the allowed known-answer fixture test).
+
+### Web console tests (`apps/web-console`)
+
+Run the console unit, integration, and security tests from the repository root:
+
+```bash
+npm test --workspace tobin-web-console
+```
+
+The console suite contains 494 tests:
+
+- **Without `TOBIN_BRIDGE_EXE`:** 486 pass, 8 skipped. The 8 skipped tests live in `apps/web-console/test/console.test.ts` and require the bridge.
+- **With `TOBIN_BRIDGE_EXE` but before building the console:** 492 pass, 2 skipped. The 2 skipped tests live in `apps/web-console/test/next-server.test.ts` and require a Next.js production build (`.next/BUILD_ID`).
+- **With `TOBIN_BRIDGE_EXE` and after `npm run build:console`:** 494 pass, 0 fail, 0 skipped.
+
+## Configuring browser journeys
+
+The browser journeys in `apps/web-console/test/browser/` drive a running Next.js instance over the Chrome DevTools Protocol (CDP) using a custom driver in `apps/web-console/test/browser/cdp.mjs`.
+
+### Prerequisites for browser journeys
+
+1. **Production build:** Browser journeys test the built application. Run the console build first:
+   ```bash
+   npm run build:console
+   ```
+2. **Browser binary detection (`TOBIN_BROWSER`):** The driver looks for Chrome or Edge installations.
+   - On Windows, standard installation paths under `C:\Program Files` and `C:\Program Files (x86)` are checked automatically.
+   - On Linux and macOS, automatic discovery does not check `/usr/bin` or applications folders. You must export `TOBIN_BROWSER`:
+     ```bash
+     export TOBIN_BROWSER=$(which google-chrome || which chromium || which brave-browser)
+     ```
+3. **Bridge requirement:** The main sandbox journey (`journey.mjs`) requires `TOBIN_BRIDGE_EXE`. The W0 mock journey (`w0-journey.mjs`) and institutional journeys do not.
+
+### Running a journey
+
+From `apps/web-console`:
+
+```bash
+TOBIN_WIDTH=1200 node test/browser/w0-journey.mjs output-dir
+TOBIN_WIDTH=420 node test/browser/w0-journey.mjs output-dir
+```
+
+Set `TOBIN_WIDTH` to verify both desktop (1200 px) and narrow mobile (420 px) viewports.
+
+## Managing Cargo disk usage
+
+Compiling `soroban-sdk` and host simulation crates produces significant intermediate artifacts in `contracts/target/` (frequently exceeding 5 to 10 GB).
+
+If your primary drive has limited disk space:
+
+1. **Redirect the target directory:** Set `CARGO_TARGET_DIR` to a directory on a secondary or external partition:
+   ```bash
+   export CARGO_TARGET_DIR="/mnt/build-disk/tobin-target"
+   ```
+2. **Clean intermediate artifacts:** If builds fail with `No space left on device`, reclaim disk space:
+   ```bash
+   cd contracts && cargo clean
+   ```
+
+## Platform and shell notes
+
+- **File line endings:** Repository text files are normalized to LF in [`.gitattributes`](https://github.com/tobin-protocol/tobin/blob/main/.gitattributes). Keep git configured not to convert line endings to CRLF on checkout.
+- **PowerShell syntax:** In Windows PowerShell, environment variables are set with `$env:VARIABLE = "value"`, not `export`.
+- **Workspace execution:** Run database scripts and tools with `npm run ... --workspace tobin-web-console` rather than invoking them from arbitrary directories, ensuring relative database paths (`.data/tobin-dev.sqlite`) resolve consistently.

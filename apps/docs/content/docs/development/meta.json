@@ -1,4 +1,12 @@
 {
   "title": "Development",
-  "pages": ["repository-layout", "workflow", "testing", "contracts", "ci"]
+  "pages": [
+    "repository-layout",
+    "local-environment",
+    "workflow",
+    "testing",
+    "troubleshooting",
+    "contracts",
+    "ci"
+  ]
 }
