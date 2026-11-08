@@ -1,0 +1,67 @@
+/*
+ * Tobin web app design tokens (docs/web-app-design-spec.md). Imported after `@import "tailwindcss"`, so every name below becomes a Tailwind
+ * utility (bg-panel, text-muted, rounded-card, text-title, ...). Components use these names, never hex values.
+ *
+ * The ink and grey values equal the landing page's (apps/landing/src/app/globals.css: ink-soft #1d1d1d, grey-600 #626262, grey-400 #b1b1b1,
+ * grey-100 #f0f0f0). The landing page does not consume this package yet; the values are duplicated on purpose and must stay in step.
+ *
+ * Colour rules: there is no accent colour. The only semantic colour is danger (failure, refusal, rejection, destructive confirmation).
+ * #b1b1b1 is for DISABLED controls only; informative muted text uses #626262.
+ */
+@theme {
+  /* surfaces */
+  --color-page: #ffffff;
+  --color-panel: #f0f0f0;
+  --color-card: #ffffff;
+  --color-data: #e6e6e6; /* the single hero DataCard tint */
+
+  /* ink */
+  --color-ink: #000000;
+  --color-muted: #626262;
+  --color-disabled: #b1b1b1;
+  --color-button: #1d1d1d;
+  --color-on-button: #ffffff;
+
+  /* translucent ink: secondary and quiet buttons, dividers, field lines, progress track */
+  --color-ink-10: rgb(29 29 29 / 0.1);
+  --color-ink-5: rgb(29 29 29 / 0.05);
+  --color-ink-15: rgb(29 29 29 / 0.15);
+  --color-divider: rgb(29 29 29 / 0.1);
+  --color-field: rgb(0 0 0 / 0.2);
+  --color-track: #dedede;
+  --color-scrim: rgb(0 0 0 / 0.3);
+
+  /* the only semantic colour */
+  --color-danger: #b3261e;
+  --color-danger-line: rgb(179 38 30 / 0.3);
+
+  /* radii */
+  --radius-btn: 8px;
+  --radius-card: 16px;
+  --radius-panel: 24px;
+  --radius-data: 32px;
+
+  /* type */
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  --text-hero: 48px;
+  --text-hero--line-height: 1;
+  --text-title: 28px;
+  --text-title--line-height: 1.2;
+  --text-entity: 20px;
+  --text-entity--line-height: 1.3;
+  --text-action: 18px;
+  --text-action--line-height: 1.2;
+  --text-body: 14px;
+  --text-body--line-height: 1.45;
+  --text-label: 12px;
+  --text-label--line-height: 1.4;
+  --text-ident: 13px;
+  --text-ident--line-height: 1.4;
+
+  /* the only shadow: menus and dialogs */
+  --shadow-float: 0 8px 32px rgb(0 0 0 / 0.12);
+
+  /* motion: fades and fills only */
+  --ease-out-ui: cubic-bezier(0.16, 1, 0.3, 1);
+}

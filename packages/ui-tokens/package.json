@@ -1,0 +1,10 @@
+{
+  "name": "tobin-ui-tokens",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "Design tokens (CSS variables and a Tailwind v4 theme) for the Tobin web app.",
+  "exports": {
+    "./tokens.css": { "style": "./tokens.css", "default": "./tokens.css" }
+  }
+}

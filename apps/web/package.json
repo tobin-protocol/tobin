@@ -1,0 +1,40 @@
+{
+  "name": "tobin-web",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "The Tobin web application: a UI over the web console's API through a server-side proxy. Stellar Testnet only; local hosting only.",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1 --port 3000",
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1 --port 3000",
+    "lint": "eslint",
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "node --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@stellar/freighter-api": "6.0.1",
+    "@tanstack/react-query": "^5.107.1",
+    "@tanstack/react-table": "^9.3.1",
+    "next": "16.4.3",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-hook-form": "^7.91.0",
+    "tobin-ui-tokens": "0.1.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.0",
+    "@tailwindcss/turbopack": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.3",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
