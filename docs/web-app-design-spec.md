@@ -1,7 +1,5 @@
 # Tobin web app: design specification (Ondo-led, from the PRD)
 
-Nov 8, 2026 · @Ebubechi Ihediwa
-
 ## Summary
 
 This turns the Tobin web app PRD into a design specification. Look and feel come from the Ondo app teardown. Structure and a few patterns come from the Symbiotic teardown. Every screen is checked against the PRD's non-negotiable constraints.
