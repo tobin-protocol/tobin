@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { cn, formatDateTime } from "../../lib/format.ts";
-import { stageView, STAGE_LABEL, type Stage, type StageInput } from "../../lib/stages.ts";
+import { stageText, stageView, STAGE_LABEL, type Stage, type StageInput } from "../../lib/stages.ts";
 import { Button } from "./Button.tsx";
 import { CrossIcon, StatusMark } from "./Feedback.tsx";
 
@@ -66,7 +66,7 @@ export function StageRail({ input, evidence }: { input: StageInput; evidence?: P
                 {STAGE_LABEL[stage]}
                 {failedHere ? <span className="flex items-center gap-1 text-danger"><CrossIcon className="mt-0" />Stopped</span> : null}
               </span>
-              <span className="mt-1 block text-label text-muted">{reached ? evidence?.[stage] ?? "" : "Not reached"}</span>
+              <span className="mt-1 block text-label text-muted">{reached ? evidence?.[stage] ?? stageText(stage, true) : stageText(stage, false)}</span>
             </li>
           );
         })}
@@ -76,30 +76,32 @@ export function StageRail({ input, evidence }: { input: StageInput; evidence?: P
   );
 }
 
-export interface ApproverRow { name: string; role: string; decision: "approved" | "rejected" | "pending"; at?: string }
-/** Application approval. White card. Never shares a row or a button with the wallet-signature block. */
-export function ApprovalBlock({ approvers, onApprove, onReject, canDecide, reason }: {
-  approvers: ApproverRow[]; onApprove?: () => void; onReject?: () => void; canDecide: boolean; reason?: string | null;
-}) {
-  const decided = approvers.filter((a) => a.decision === "approved").length;
+export interface DecisionRow { id: string; reviewer: string; decision: "approved" | "rejected"; at: string; reason?: string | undefined; statusText?: string | null | undefined }
+/**
+ * Application review: a white card that RECORDS the real decision (reviewer, time, reason). It holds no button: Approve and Reject are separate confirmed
+ * dialogs opened from the action panel, and it never shares a row or a button group with the wallet-signature block.
+ */
+export function ApprovalBlock({ decisions, note }: { decisions: DecisionRow[]; note?: string | null }) {
   return (
     <section aria-labelledby="approvals-h" className="rounded-card bg-card p-4">
-      <h3 id="approvals-h" className="text-entity font-medium">Approvals</h3>
-      <ul className="mt-3 divide-y divide-divider">
-        {approvers.map((a) => (
-          <li key={a.name} className="flex items-center justify-between gap-3 py-2.5">
-            <span><span className="text-body font-medium">{a.name}</span> <span className="text-body text-muted">{a.role}</span></span>
-            {a.decision === "pending" ? <StatusMark kind="progress">Pending</StatusMark> : a.decision === "approved" ? <StatusMark kind="done">Approved{a.at ? ` · ${formatDateTime(a.at)}` : ""}</StatusMark> : <StatusMark kind="failed">Rejected{a.at ? ` · ${formatDateTime(a.at)}` : ""}</StatusMark>}
-          </li>
-        ))}
-      </ul>
-      <p className="mt-3 text-body text-muted">{decided} of {approvers.length} decided</p>
-      <div className="mt-3 flex gap-2">
-        <Button variant="primary" disabled={!canDecide} onClick={onApprove}>Approve</Button>
-        <Button variant="secondary" disabled={!canDecide} onClick={onReject}>Reject</Button>
-      </div>
-      {!canDecide && reason ? <p className="mt-2 text-label text-muted" role="note">{reason}</p> : null}
-      <p className="mt-3 text-label text-muted">Approval is recorded in Tobin. This is not an on-chain signature.</p>
+      <h3 id="approvals-h" className="text-entity font-medium">Review decision</h3>
+      {decisions.length === 0 ? (
+        <p className="mt-2 text-body text-muted">No decision has been recorded yet.</p>
+      ) : (
+        <ul className="mt-3 divide-y divide-divider">
+          {decisions.map((d) => (
+            <li key={d.id} className="py-3">
+              <div className="flex items-start justify-between gap-3">
+                <span><span className="block text-body font-medium">{d.reviewer}</span><span className="block text-label text-muted">Reviewer · {formatDateTime(d.at)}</span></span>
+                {d.decision === "approved" ? <StatusMark kind="done">Approved</StatusMark> : <StatusMark kind="failed">Rejected</StatusMark>}
+              </div>
+              {d.reason ? <p className="mt-2 text-body"><span className="text-muted">Reason: </span>{d.reason}</p> : null}
+              {d.statusText ? <p className="mt-1 text-label text-muted">{d.statusText}</p> : null}
+            </li>
+          ))}
+        </ul>
+      )}
+      {note ? <p className="mt-3 border-t border-divider pt-3 text-label text-muted">{note}</p> : null}
     </section>
   );
 }

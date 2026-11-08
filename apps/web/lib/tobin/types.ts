@@ -88,7 +88,13 @@ export interface AuthorizationView {
   sessionState: WorkflowState;
   calculationId: string | null;
   eligibility: { canDecide: boolean; isReviewer: boolean; reasons: string[] };
-  decisions: { id: string; decision: "approved" | "rejected"; decidedBy: string; decidedAt: string; status: string }[];
+  currency?: Currency;
+  decisions: DecisionView[];
+}
+export interface DecisionView {
+  id: string; calculationId?: string; decision: "approved" | "rejected"; reason?: string; decidedBy: string; decidedAt: string;
+  /** active, superseded or invalidated */
+  status: string; invalidatedAt?: string; invalidationCause?: string;
 }
 
 /** A capability the backend does not provide. The UI renders it as "Not supported"; it is never mocked. */
@@ -120,3 +126,34 @@ export interface CreatedSession { sessionId: string; label: string; provenance: 
 /** An entry of the operator-configured supported-asset list (GET .../settlement `assets`). `id` is the asset identity sent as `assetRef`. */
 export interface SupportedAssetView { id: string; code: string; status: string }
 export interface RecordObligationInput { debtor: string; creditor: string; amount: string; assetRef?: string; asset?: string; reference?: string }
+
+import type { ExecState } from "../stages.ts";
+export type { ExecState };
+
+// ---- Phase D: settlement preparation, batch review, execution record (apps/web-console/lib/registry/http.ts) ----
+export interface PrepCheck { key: string; label: string; ok: boolean; detail: string }
+export type BatchStatus = "awaiting-review" | "approved" | "rejected" | "invalidated" | "superseded";
+export interface BatchSummary {
+  id: string; attempt: number; calculationId: string; status: BatchStatus; asset: { id: string; network: string; kind: string; code: string; issuer?: string };
+  instructionCount: number; totalAmount: string; preparedBy: string; preparedAt: string;
+  decision?: { decision: "approved" | "rejected"; reason: string; decidedBy: string; decidedAt: string };
+  invalidation?: { cause: string; at: string };
+}
+export interface SettlementList { preview: { checks: PrepCheck[]; ready: boolean; calculationId: string | null }; assets: SupportedAssetView[]; batches: BatchSummary[]; note?: string }
+export interface InstructionView { id: string; seq: number; payer: string; payerName: string; payee: string; payeeName: string; assetId: string; amount: string; fingerprint: string | null; network: string | null }
+export interface BatchView {
+  batch: { id: string; attempt: number; calculationId: string; asset: BatchSummary["asset"]; instructionCount: number; totalAmount: string; instructionsHash: string; algorithm: string; preparedBy: string; preparedAt: string };
+  status: BatchStatus; validation: PrepCheck[]; eligibility: { canDecide: boolean; reasons: string[] }; instructions: InstructionView[];
+  review?: { decision: "approved" | "rejected"; reason: string; decidedBy: string; decidedAt: string };
+  invalidation?: { cause: string; at: string };
+}
+export interface ExecutionEvent { from: ExecState | null; to: ExecState; at: string; actor: string; detail: string }
+export interface ExecutionView {
+  network: string; batchStatus: BatchStatus;
+  participants: { userId: string; name: string; verifiedAccount: string | null; verifiedCount: number }[];
+  execution: null | { id: string; state: ExecState; createdAt: string; events: ExecutionEvent[] };
+  /** the backend's own list of what does not exist */
+  unavailable: string[];
+  note?: string;
+}
+export interface AttemptView { attemptNo: number; state: ExecState; network: string; planFingerprint: string; createdAt: string; events: { kind: string; from: string | null; to: string | null; at: string; actor?: string; detail: string }[] }

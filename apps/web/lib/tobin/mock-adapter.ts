@@ -62,5 +62,14 @@ export class MockAdapter implements TobinClient {
   assets: TobinClient["assets"] = { list: async () => [] };
   authorization: TobinClient["authorization"] = {
     get: async (): Promise<AuthorizationView> => ({ state: "no-calculation", sessionState: "configuring", calculationId: null, eligibility: { canDecide: false, isReviewer: false, reasons: [] }, decisions: [] }),
+    decide: async () => {},
+  };
+  settlement: TobinClient["settlement"] = {
+    list: async () => ({ preview: { checks: [], ready: false, calculationId: null }, assets: [], batches: [] }),
+    batch: async () => { throw new Error("No sample batch exists."); },
+    prepare: async () => ({ batchId: "bat_sample" }),
+    decide: async () => {},
+    execution: async () => ({ network: "testnet", batchStatus: "awaiting-review", participants: [], execution: null, unavailable: [] }),
+    attempts: async () => [],
   };
 }

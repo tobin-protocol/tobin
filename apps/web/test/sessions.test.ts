@@ -37,7 +37,7 @@ test("filters, sort and pagination work together, and a page past the end is cla
   assert.equal(applyQuery(rows, { ...DEFAULT_QUERY, sort: "label", dir: "asc" }).rows[0]?.label, "Run 1");
 });
 
-const facts = (o: Partial<LifecycleFacts> = {}): LifecycleFacts => ({ workflow: "configuring", activeParticipants: 3, activeObligations: 3, currency: "current", auth: "approved", ...o });
+const facts = (o: Partial<LifecycleFacts> = {}): LifecycleFacts => ({ workflow: "configuring", activeParticipants: 3, activeObligations: 3, currency: "current", auth: "approved", batch: "none", ...o });
 test("lifecycle: the first incomplete group is current", () => {
   assert.equal(lifecycleOf(facts({ activeParticipants: 1 })).currentIndex, 1);
   assert.equal(lifecycleOf(facts({ activeObligations: 0 })).currentIndex, 2);
@@ -66,14 +66,26 @@ test("next action: a member sees the reason, an admin sees the action", () => {
   assert.equal(m.forYou, false);
   assert.match(m.reason ?? "", /Only administrators/);
 });
-test("next action: Phase C actions are enabled for an admin; later-phase actions are blocked with their phase", () => {
+test("next action: Phase C and D actions are enabled for the right role; a role that lacks it sees the reason", () => {
   const a = nextActionOf(lifecycleOf(facts({ currency: "none" })), "configuring", admin);
   assert.equal(a.primary?.blockedBy, null);
   assert.equal(a.primary?.tab, "netting");
   assert.match(nextActionOf(lifecycleOf(facts({ currency: "none" })), "configuring", member).primary?.blockedBy ?? "", /Only administrators/);
   const r = nextActionOf(lifecycleOf(facts({ auth: "awaiting-review" })), "configuring", { role: "member", reviewer: true });
-  assert.match(r.primary?.blockedBy ?? "", /Phase D/);
+  assert.equal(r.primary?.blockedBy, null);
   assert.equal(r.forYou, true);
+  assert.match(nextActionOf(lifecycleOf(facts({ auth: "awaiting-review" })), "configuring", admin).primary?.blockedBy ?? "", /reviewer capability/);
+});
+test("settlement group: each batch state has its own sub-label and next action", () => {
+  assert.match(lifecycleOf(facts({ batch: "none" })).subLabel, /not yet prepared/);
+  assert.match(lifecycleOf(facts({ batch: "awaiting-review" })).subLabel, /awaiting review/);
+  assert.equal(lifecycleOf(facts({ batch: null })).unread, true);
+  assert.equal(nextActionOf(lifecycleOf(facts({ batch: "none" })), "configuring", admin).primary?.label, "Prepare settlement");
+  assert.equal(nextActionOf(lifecycleOf(facts({ batch: "awaiting-review" })), "configuring", { role: "member", reviewer: true }).primary?.label, "Review the settlement");
+  assert.equal(nextActionOf(lifecycleOf(facts({ batch: "rejected" })), "configuring", admin).primary?.label, "Prepare settlement");
+  const done = nextActionOf(lifecycleOf(facts({ batch: "approved" })), "configuring", admin);
+  assert.equal(done.primary, null);
+  assert.match(done.reason ?? "", /stops at Review/);
 });
 test("next action: a closed session has no action", () => {
   const a = nextActionOf(lifecycleOf(facts({ workflow: "closed" })), "closed", admin);

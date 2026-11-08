@@ -17,7 +17,12 @@ import { ErrorState, Skeleton } from "../ui/Feedback.tsx";
 import { NextAction as NextActionCard, Stepper } from "../ui/Flow.tsx";
 import { Card, Panel } from "../ui/Surfaces.tsx";
 import { CopyButton } from "./shared.tsx";
-import { ActivityTab, ApprovalsTab, OverviewTab, ParticipantsTab, SettlementTab } from "./tabs.tsx";
+import { ActivityTab, OverviewTab, ParticipantsTab } from "./tabs.tsx";
+import { ApprovalsTab } from "../approvals/ApprovalsTab.tsx";
+import { ReviewPanel } from "../approvals/ReviewPanel.tsx";
+import { SettlementPanel } from "../settlement/SettlementPanel.tsx";
+import { SettlementTab } from "../settlement/SettlementTab.tsx";
+import { useSettlement } from "../settlement/useSettlement.ts";
 import { NettingTab, RunNettingPanel } from "../netting/NettingTab.tsx";
 import { ObligationsTab } from "../obligations/ObligationsTab.tsx";
 import { RecordObligationPanel } from "../obligations/RecordObligation.tsx";
@@ -52,6 +57,7 @@ export function Workspace() {
   const readiness = useQuery({ queryKey: key("readiness"), queryFn: () => client.sessions.readiness(org.id, sessionId), retry: false });
   const authorization = useQuery({ queryKey: key("authorization"), queryFn: () => client.authorization.get(org.id, sessionId), retry: false });
 
+  const settle = useSettlement(sessionId);
   const [running, setRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
   const refresh = () => Promise.all([
@@ -74,8 +80,9 @@ export function Workspace() {
       activeObligations: obligations.data ? obligations.data.filter((o) => o.status === "active").length : null,
       currency: readiness.data?.currency ?? null,
       auth: authorization.data?.state ?? null,
+      batch: settle.list.data ? (settle.latest ? settle.latest.status : "none") : null,
     });
-  }, [workflow, participants.data, obligations.data, readiness.data, authorization.data]);
+  }, [workflow, participants.data, obligations.data, readiness.data, authorization.data, settle.list.data, settle.latest]);
   const next = useMemo(() => (view && workflow ? nextActionOf(view, workflow, actor) : null), [view, workflow, actor]);
 
   const crumbs = [{ label: org.name }, { href: "/sessions", label: "Clearing Sessions" }, { label: detail.data?.workspace.overview.label ?? "Session" }];
@@ -90,7 +97,7 @@ export function Workspace() {
     );
   }
   // a query that is still loading is not "unread": wait for every fact, so the Stepper never flashes a false read failure
-  const factsPending = [participants, obligations, readiness, authorization].some((x) => x.isPending);
+  const factsPending = [participants, obligations, readiness, authorization, settle.list].some((x) => x.isPending);
   if (detail.isLoading || !detail.data || !view || !next || factsPending) {
     return (
       <PageFrame title="Session" breadcrumbs={crumbs} sensitive>
@@ -130,12 +137,14 @@ export function Workspace() {
           {tab === "obligations" ? <ObligationsTab sessionId={sessionId} query={obligations} workflow={detail.data.workflow} activity={detail.data.workspace.activity.items} onChanged={refresh} /> : null}
           {tab === "netting" ? <NettingTab sessionId={sessionId} obligations={obligations.data} participants={participants.data} readiness={readiness.data} running={running} runError={runError} /> : null}
           {tab === "approvals" ? <ApprovalsTab query={authorization} /> : null}
-          {tab === "settlement" ? <SettlementTab /> : null}
+          {tab === "settlement" ? <SettlementTab s={settle} /> : null}
           {tab === "activity" ? <ActivityTab detail={detail.data} /> : null}
         </Panel>
         <aside className="order-1 min-w-0 lg:sticky lg:top-24 lg:order-2 lg:self-start" aria-label="Session action">
           {tab === "obligations" ? <RecordObligationPanel sessionId={sessionId} participants={participants.data ?? []} workflow={detail.data.workflow} onRecorded={refresh} />
             : tab === "netting" ? <RunNettingPanel eligibleCount={nettingElig.eligible.length} excludedBlocking={nettingElig.excluded.filter((x) => x.reason === "inactive-participant").length} participantCount={activeIds.size} asset={nettingElig.eligible[0]?.asset ?? null} workflow={detail.data.workflow} running={running} error={runError} onRun={runNetting} />
+            : tab === "approvals" && authorization.data ? <ReviewPanel sessionId={sessionId} auth={authorization.data} onDecided={refresh} />
+            : tab === "settlement" ? <SettlementPanel sessionId={sessionId} s={settle} workflow={detail.data.workflow} onChanged={refresh} />
             : <ActionPanel next={next} href={href} onReload={refresh} actorLabel={roleLabels(actor).join(", ")} />}
         </aside>
       </div>

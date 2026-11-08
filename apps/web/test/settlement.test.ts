@@ -1,0 +1,110 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+import { APPROVAL_NOTE, approvalNote, canSubmitReject, hasActiveApproval, rejectReasonError } from "../lib/approvals/rules.ts";
+import { blocksApproval, diffSettlement, instructionNets } from "../lib/settlement/diff.ts";
+import { BACKEND_RECORDS, isStopped, NO_AUTOMATIC_RETRY, stageText, stageView, STAGES } from "../lib/stages.ts";
+import type { BatchView, CalculationView, DecisionView, InstructionView } from "../lib/tobin/types.ts";
+
+const calc = (positions: [string, string][], over: Partial<NonNullable<CalculationView["calculation"]>> = {}): NonNullable<CalculationView["calculation"]> => ({
+  id: "calc_1", asset: "USD", createdAt: "2026-01-01", createdBy: "Alice", gross: "250", obligationCount: 3,
+  positions: positions.map(([userId, net]) => ({ userId, name: userId.toUpperCase(), net, role: BigInt(net) > 0n ? "debtor" : BigInt(net) < 0n ? "creditor" : "flat" })), ...over,
+});
+const ins = (seq: number, payer: string, payee: string, amount: string): InstructionView => ({ id: `i${seq}`, seq, payer, payerName: payer.toUpperCase(), payee, payeeName: payee.toUpperCase(), assetId: "testnet:USD:G", amount, fingerprint: null, network: "testnet" });
+const batch = (instructions: InstructionView[], over: Partial<BatchView["batch"]> = {}, validation: BatchView["validation"] = []): Pick<BatchView, "batch" | "instructions" | "validation"> => ({
+  batch: { id: "bat_1", attempt: 1, calculationId: "calc_1", asset: { id: "testnet:USD:G", network: "testnet", kind: "issued", code: "USD" }, instructionCount: instructions.length, totalAmount: instructions.reduce((t, i) => t + BigInt(i.amount), 0n).toString(), instructionsHash: "h", algorithm: "a", preparedBy: "Alice", preparedAt: "2026-01-01", ...over },
+  instructions, validation,
+});
+const GOOD = [ins(1, "a", "b", "20"), ins(2, "a", "c", "10")];
+const POS: [string, string][] = [["a", "30"], ["b", "-20"], ["c", "-10"]];
+
+test("instruction nets: payers are positive, payees negative", () => {
+  const n = instructionNets(GOOD);
+  assert.equal(n.get("a"), 30n); assert.equal(n.get("b"), -20n); assert.equal(n.get("c"), -10n);
+});
+
+test("a prepared settlement that matches the approved result has no mismatch and does not block", () => {
+  const d = diffSettlement(calc(POS), batch(GOOD));
+  assert.equal(d.ok, true);
+  assert.equal(blocksApproval(d), false);
+});
+test("MISMATCH BLOCKING: a changed amount blocks approval and names the participant", () => {
+  const bad = [ins(1, "a", "b", "25"), ins(2, "a", "c", "10")];
+  const d = diffSettlement(calc(POS), batch(bad));
+  assert.equal(d.ok, false);
+  assert.equal(blocksApproval(d), true);
+  assert.ok(d.issues.some((i) => i.expected === "30" && i.actual === "35"), "the payer's net differs");
+  assert.ok(d.issues.some((i) => /B:/.test(i.text)), "a participant is named");
+});
+test("MISMATCH BLOCKING: an extra or missing instruction, a different asset and a stale calculation all block", () => {
+  assert.equal(blocksApproval(diffSettlement(calc(POS), batch([ins(1, "a", "b", "20")]))), true, "missing instruction");
+  assert.equal(blocksApproval(diffSettlement(calc(POS), batch([...GOOD, ins(3, "b", "c", "1")]))), true, "extra instruction");
+  assert.equal(blocksApproval(diffSettlement(calc(POS, { asset: "EUR" }), batch(GOOD))), true, "asset differs");
+  assert.equal(blocksApproval(diffSettlement(calc(POS, { id: "calc_2" }), batch(GOOD))), true, "a newer calculation");
+  assert.equal(blocksApproval(diffSettlement(calc(POS), batch(GOOD, { totalAmount: "31" }))), true, "total differs from the instructions");
+  assert.equal(blocksApproval(diffSettlement(null, batch(GOOD))), true, "no calculation to compare with");
+});
+test("MISMATCH BLOCKING: a failing server check blocks, labelled as the server's", () => {
+  const d = diffSettlement(calc(POS), batch(GOOD, {}, [{ key: "current", label: "The calculation is the latest and current", ok: false, detail: "a newer calculation exists" }]));
+  assert.equal(blocksApproval(d), true);
+  assert.equal(d.issues[0]?.source, "server");
+});
+
+test("REJECT REQUIRES A REASON: empty, blank, over 500 characters and markup are refused", () => {
+  assert.match(rejectReasonError("") ?? "", /Give a reason/);
+  assert.match(rejectReasonError("   ") ?? "", /Give a reason/);
+  assert.match(rejectReasonError("x".repeat(501)) ?? "", /at most 500/);
+  assert.notEqual(rejectReasonError("<b>"), null);
+  assert.equal(rejectReasonError("Amounts do not match the invoices."), null);
+  assert.equal(canSubmitReject(""), false);
+  assert.equal(canSubmitReject("Wrong asset"), true);
+});
+
+const dec = (decision: "approved" | "rejected", status = "active"): DecisionView => ({ id: "d", decision, decidedBy: "Bob", decidedAt: "2026-01-01", status });
+test("the approval note follows an approval and says it is not an on-chain signature", () => {
+  assert.equal(approvalNote([]), null);
+  assert.equal(approvalNote([dec("rejected")]), null);
+  assert.equal(approvalNote([dec("approved")]), APPROVAL_NOTE);
+  assert.match(APPROVAL_NOTE, /not an on-chain signature/);
+  assert.equal(hasActiveApproval([dec("approved", "superseded")]), false);
+  assert.equal(hasActiveApproval([dec("approved")]), true);
+});
+
+test("STAGE RAIL: the backend records only Prepared; the other stages are Not supported, never Not reached", () => {
+  assert.deepEqual(STAGES.filter((s) => BACKEND_RECORDS[s]), ["prepared"]);
+  const v = stageView({ state: "awaiting-signer", verifiedReadBack: false });
+  assert.equal(stageText("prepared", v.stages[0]!.reached), "Reached");
+  for (const s of STAGES.slice(1)) assert.equal(stageText(s, false), "Not supported");
+});
+test("STAGE RAIL never reaches the final stage from anything the backend can report", () => {
+  const all = ["awaiting-signer", "signing", "signed", "submission-pending", "submitted", "confirmed", "reconciled", "failed", "expired", "unknown-outcome", "reconciliation-required"] as const;
+  for (const state of all) {
+    const v = stageView({ state, verifiedReadBack: false });
+    assert.equal(v.stages[3]?.reached, false, `${state} without a verified read-back`);
+    assert.notEqual(v.current, STAGES[3]);
+  }
+});
+test("failed states say there is no automatic retry", () => {
+  assert.equal(isStopped("failed"), true);
+  assert.equal(isStopped("unknown-outcome"), true);
+  assert.equal(isStopped("awaiting-signer"), false);
+  assert.equal(NO_AUTOMATIC_RETRY, "No automatic retry.");
+});
+
+test("APPROVAL / SIGNATURE SEPARATION: the approval block has no signing control and the signature block no approval control", () => {
+  const src = readFileSync(new URL("../components/ui/Flow.tsx", import.meta.url), "utf8");
+  const section = (name: string): string => { const i = src.indexOf(`export function ${name}`); assert.ok(i >= 0, name); const j = src.indexOf("\nexport ", i + 10); return src.slice(i, j < 0 ? undefined : j); };
+  const approval = section("ApprovalBlock"); const signature = section("SignatureBlock");
+  assert.doesNotMatch(approval, /Sign with wallet|SignatureBlock|signingSupported/);
+  assert.doesNotMatch(signature, /bApproveb|onApprove|onReject|ApprovalBlock/);
+  assert.match(signature, /Not supported/);
+  assert.match(signature, /bg-panel/, "the signature block is a #f0f0f0 card");
+  assert.match(approval, /bg-card/, "the approval block is a white card");
+});
+test("APPROVAL / SIGNATURE SEPARATION: they never share a row or a button group on the Approvals tab", () => {
+  const src = readFileSync(new URL("../components/approvals/ApprovalsTab.tsx", import.meta.url), "utf8");
+  const a = src.indexOf("<ApprovalBlock"); const s = src.indexOf("<SignatureBlock");
+  assert.ok(a >= 0 && s >= 0);
+  const between = src.slice(Math.min(a, s), Math.max(a, s));
+  assert.doesNotMatch(between, /<Button|<ButtonLink|flex-row|className="flex[^"]*gap/, "nothing joins them into a row or button group");
+});

@@ -1,6 +1,6 @@
 // Maps the backend facts onto the six stepper groups (docs/web-app-plan.md section 5a). Pure: no I/O. Every stage is an Application record
 // (the session is a local draft; nothing is on-chain). A fact that could not be read stops the walk: later groups are never marked done on a failed read.
-import type { AuthState, Currency, WorkflowState } from "../tobin/types.ts";
+import type { AuthState, BatchStatus, Currency, WorkflowState } from "../tobin/types.ts";
 
 export const GROUPS = ["Draft", "Participation", "Obligations", "Netting", "Approval", "Settlement"] as const;
 
@@ -11,6 +11,8 @@ export interface LifecycleFacts {
   activeObligations: number | null;
   currency: Currency | null;
   auth: AuthState | null;
+  /** the latest settlement batch: "none" when none was prepared, null when it could not be read */
+  batch: BatchStatus | "none" | null;
 }
 export interface LifecycleView {
   /** index of the current group; GROUPS.length means every group is done (a closed session) */
@@ -18,6 +20,7 @@ export interface LifecycleView {
   subLabel: string;
   /** true when the walk stopped because a fact could not be read */
   unread: boolean;
+  batch?: BatchStatus | "none";
 }
 
 export function lifecycleOf(f: LifecycleFacts): LifecycleView {
@@ -37,7 +40,11 @@ export function lifecycleOf(f: LifecycleFacts): LifecycleView {
   if (f.auth === "rejected") return stop(4, "The calculation was rejected; change the inputs and recalculate");
   if (f.auth === "stale") return stop(4, "The reviewed calculation is stale");
   if (f.auth === "no-calculation") return stop(4, "No calculation to review");
-  return stop(5, f.workflow === "ready"
-    ? "Approved and marked ready. Settlement preparation is built in Phase D"
-    : "Approved. The session is not yet marked ready");
+  if (f.batch === null) return unreadAt(5);
+  const at = (sub: string): LifecycleView => ({ currentIndex: 5, subLabel: sub, unread: false, batch: f.batch as BatchStatus | "none" });
+  return f.batch === "none" ? at("Approved. Settlement is not yet prepared")
+    : f.batch === "awaiting-review" ? at("Settlement prepared, awaiting review")
+    : f.batch === "approved" ? at("Settlement batch approved. Signing and submission are not supported in this app")
+    : f.batch === "rejected" ? at("Settlement batch rejected; prepare it again")
+    : at("The settlement batch no longer applies; prepare it again");
 }

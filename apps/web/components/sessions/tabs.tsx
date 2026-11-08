@@ -6,7 +6,7 @@ import { can } from "../../lib/permissions/can.ts";
 import { formatDateTime, humanizeKind, relativeTime } from "../../lib/format.ts";
 import type { NextAction } from "../../lib/sessions/next-action.ts";
 import { client } from "../../lib/tobin/index.ts";
-import type { AuthorizationView, Readiness, SessionDetail, SessionParticipantView } from "../../lib/tobin/types.ts";
+import type { Readiness, SessionDetail, SessionParticipantView } from "../../lib/tobin/types.ts";
 import { useWorkspace } from "../shell/session.tsx";
 import { Button } from "../ui/Button.tsx";
 import { Table, type Col } from "../ui/Data.tsx";
@@ -118,59 +118,6 @@ export function ParticipantsTab({ sessionId, query, workflow, onChanged }: { ses
       <NotSupported tone="card" feature="Participants from other organizations" reason="Every participant is a member of this organization. Cross-organization sessions and joining do not exist in the backend." />
 
       <Dialog open={!!removing} onClose={() => setRemoving(null)} title={`Remove ${removing?.name ?? "participant"}?`} description="This invalidates the current calculation and any review of it. A participant with active obligations cannot be removed." destructive primary={{ label: "Remove", onClick: remove, loading: busy }} />
-    </div>
-  );
-}
-
-// ---------------- Approvals ----------------
-const AUTH_LABEL: Record<AuthorizationView["state"], string> = {
-  "no-calculation": "No calculation to review", stale: "The reviewed calculation is stale", "awaiting-review": "Awaiting review", approved: "Approved", rejected: "Rejected",
-};
-export function ApprovalsTab({ query }: { query: UseQueryResult<AuthorizationView> }) {
-  const a = query.data;
-  return (
-    <div className="space-y-4">
-      <Card>
-        <h2 className="text-entity font-medium">Review of the calculation</h2>
-        <p className="mt-1 text-body text-muted">A reviewer approves or rejects one exact calculation. This is a decision recorded in Tobin, not a Stellar signature.</p>
-        <div className="mt-4">
-          {query.isLoading ? <Skeleton lines={3} /> : query.error ? failed(query, "the review state") : a ? (
-            <div className="space-y-4">
-              <StatGrid columns={2} items={[{ label: "State", value: AUTH_LABEL[a.state] }, { label: "You can decide now", value: a.eligibility.canDecide ? "Yes" : "No" }]} />
-              {!a.eligibility.canDecide && a.eligibility.reasons.length > 0 ? <ul className="list-disc space-y-1 pl-5 text-body text-muted">{a.eligibility.reasons.map((r) => <li key={r}>{r}</li>)}</ul> : null}
-              <div>
-                <h3 className="text-body font-medium">Decisions</h3>
-                {a.decisions.length === 0 ? <p className="mt-1 text-body text-muted">No decision has been recorded.</p> : (
-                  <ul className="mt-1 divide-y divide-divider">
-                    {a.decisions.map((d) => (
-                      <li key={d.id} className="flex items-center justify-between gap-3 py-2.5">
-                        <span><span className="block text-body font-medium">{d.decidedBy}</span><span className="block text-label text-muted" title={formatDateTime(d.decidedAt)}>{relativeTime(d.decidedAt)}</span></span>
-                        <StatusMark kind={d.decision === "approved" ? "done" : "failed"}>{d.decision === "approved" ? "Approved" : "Rejected"}{d.status !== "active" ? ` · ${d.status}` : ""}</StatusMark>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
-          ) : null}
-        </div>
-      </Card>
-      <NotSupported tone="card" feature="N-of-M approval" reason="The backend records a reviewer's decision on one calculation. There is no approval threshold or multi-party quorum." />
-      <p className="text-label text-muted">Approving and rejecting are built in Phase D. This tab only reads.</p>
-    </div>
-  );
-}
-
-// ---------------- Settlement ----------------
-export function SettlementTab() {
-  return (
-    <div className="space-y-4">
-      <EmptyState title="Not built yet" message="Settlement preparation and review are built in Phase D. Nothing is shown here, and nothing is simulated." />
-      <div className="grid gap-4 md:grid-cols-3">
-        <NotSupported tone="card" feature="Signing" reason="This app cannot request or collect Stellar signatures." />
-        <NotSupported tone="card" feature="Submission" reason="This app cannot submit a transaction to Stellar." />
-        <NotSupported tone="card" feature="Confirmation" reason="Nothing is confirmed on-chain through this app, so no confirmed state is ever shown." />
-      </div>
     </div>
   );
 }

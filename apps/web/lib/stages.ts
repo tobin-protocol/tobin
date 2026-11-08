@@ -14,7 +14,7 @@ export type ExecState =
   | "awaiting-signer" | "signing" | "signed" | "submission-pending" | "submitted"
   | "confirmed" | "reconciled" | "failed" | "expired" | "unknown-outcome" | "reconciliation-required";
 
-export interface StageInput { state: ExecState | undefined; verifiedReadBack: boolean }
+export interface StageInput { state: ExecState | undefined; verifiedReadBack: boolean; /** a settlement batch is prepared and still applies, even though no execution is recorded */ prepared?: boolean }
 export interface StageView {
   stages: { stage: Stage; reached: boolean }[];
   /** the furthest stage actually reached, or null if none */
@@ -31,6 +31,7 @@ const REACHED: Record<ExecState, Stage | null> = {
 
 export function stageView(input: StageInput): StageView {
   const s = input.state;
+  if (!s && input.prepared) return { stages: STAGES.map((stage) => ({ stage, reached: stage === "prepared" })), current: "prepared", headline: "Prepared, not yet signed", failedAt: null };
   if (!s) return { stages: STAGES.map((stage) => ({ stage, reached: false })), current: null, headline: "Not prepared", failedAt: null };
   const failedStates: ExecState[] = ["failed", "expired", "unknown-outcome"];
   let current: Stage | null = REACHED[s];
@@ -47,3 +48,20 @@ export function stageView(input: StageInput): StageView {
     : "Not prepared";
   return { stages, current, headline, failedAt };
 }
+
+/**
+ * Which stages the backend actually RECORDS. Only Prepared: the console can record an execution awaiting a signer, and nothing over HTTP can move it on
+ * (signing, submission and verification have no route). The other three stages therefore render "Not supported" rather than "Not reached", so an empty
+ * dot is never mistaken for "not yet".
+ */
+export const BACKEND_RECORDS: Record<Stage, boolean> = { prepared: true, signed: false, submitted: false, confirmed: false };
+export type StageText = "Reached" | "Not reached" | "Not supported";
+export function stageText(stage: Stage, reached: boolean): StageText {
+  if (!BACKEND_RECORDS[stage]) return "Not supported";
+  return reached ? "Reached" : "Not reached";
+}
+
+/** States that mean an execution or attempt stopped. The UI then shows the recorded reason and time, and that nothing retries by itself. */
+export const STOPPED_STATES: readonly ExecState[] = ["failed", "expired", "unknown-outcome"];
+export const isStopped = (s: ExecState | undefined): boolean => !!s && STOPPED_STATES.includes(s);
+export const NO_AUTOMATIC_RETRY = "No automatic retry.";

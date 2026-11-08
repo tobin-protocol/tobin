@@ -3,7 +3,7 @@
 // NEXT_PUBLIC_TOBIN_SAMPLE_DATA=1, always bannered). A capability with no backend is a NotSupported constant, never a method that returns invented data.
 import { api } from "../api/http.ts";
 import type {
-  AuthorizationView, CalculationView, RecordObligationInput, SupportedAssetView, CreateOrganizationInput, CreatedSession, Readiness, SessionParticipantView, Invitation, Me, Member, NotSupported, ObligationView, OrgDetail, Organization, SessionDetail, SessionRow,
+  AuthorizationView, AttemptView, BatchView, CalculationView, ExecutionView, SettlementList, RecordObligationInput, SupportedAssetView, CreateOrganizationInput, CreatedSession, Readiness, SessionParticipantView, Invitation, Me, Member, NotSupported, ObligationView, OrgDetail, Organization, SessionDetail, SessionRow,
 } from "./types.ts";
 
 export interface WalletChallenge { challenge: { id: string; message: string; expiresAt: string } }
@@ -50,7 +50,21 @@ export interface TobinClient {
   netting: { run(orgId: string, sessionId: string): Promise<CalculationView> };
   /** The operator-configured supported assets. Empty means none is configured and the backend accepts a plain asset code. */
   assets: { list(orgId: string, sessionId: string): Promise<SupportedAssetView[]> };
-  authorization: { get(orgId: string, sessionId: string): Promise<AuthorizationView> };
+  authorization: {
+    get(orgId: string, sessionId: string): Promise<AuthorizationView>;
+    /** Reviewer grant. One decision per calculation. A rejection needs a reason (1 to 500 characters); the server enforces separation of duties. */
+    decide(orgId: string, sessionId: string, kind: "approve" | "reject", input: { calculationId: string; reason?: string }): Promise<void>;
+  };
+  settlement: {
+    list(orgId: string, sessionId: string): Promise<SettlementList>;
+    batch(orgId: string, sessionId: string, batchId: string): Promise<BatchView>;
+    /** Admin. Prepares instructions from the approved, current calculation. Nothing is signed or submitted. */
+    prepare(orgId: string, sessionId: string, input: { calculationId: string; attempt?: number }): Promise<{ batchId: string }>;
+    /** Reviewer grant, and not the preparer. instructionsHash must be the hash of the batch the reviewer was shown. */
+    decide(orgId: string, sessionId: string, batchId: string, kind: "approve" | "reject", input: { instructionsHash: string; reason?: string }): Promise<void>;
+    execution(orgId: string, sessionId: string, batchId: string): Promise<ExecutionView>;
+    attempts(orgId: string, sessionId: string, batchId: string): Promise<AttemptView[]>;
+  };
   /** No backend (decision D3). */
   notifications: NotSupported;
   search: NotSupported;
@@ -114,5 +128,14 @@ export class HttpAdapter implements TobinClient {
   assets: TobinClient["assets"] = { list: async (orgId, sessionId) => (await api<{ assets: SupportedAssetView[] }>(`${org(orgId)}/sessions/${encodeURIComponent(sessionId)}/settlement`)).assets.filter((a) => a.status === "supported") };
   authorization: TobinClient["authorization"] = {
     get: (orgId, sessionId) => api<AuthorizationView>(`${org(orgId)}/sessions/${encodeURIComponent(sessionId)}/authorization`),
+    decide: async (orgId, sessionId, kind, input) => { await api(`${org(orgId)}/sessions/${encodeURIComponent(sessionId)}/authorization/${kind}`, { method: "POST", body: input }); },
+  };
+  settlement: TobinClient["settlement"] = {
+    list: (orgId, sessionId) => api<SettlementList>(`${org(orgId)}/sessions/${encodeURIComponent(sessionId)}/settlement`),
+    batch: (orgId, sessionId, batchId) => api<BatchView>(`${org(orgId)}/sessions/${encodeURIComponent(sessionId)}/settlement/batches/${encodeURIComponent(batchId)}`),
+    prepare: async (orgId, sessionId, input) => { const r = await api<{ batchId: string }>(`${org(orgId)}/sessions/${encodeURIComponent(sessionId)}/settlement/prepare`, { method: "POST", body: input }); return { batchId: r.batchId }; },
+    decide: async (orgId, sessionId, batchId, kind, input) => { await api(`${org(orgId)}/sessions/${encodeURIComponent(sessionId)}/settlement/batches/${encodeURIComponent(batchId)}/${kind}`, { method: "POST", body: input }); },
+    execution: (orgId, sessionId, batchId) => api<ExecutionView>(`${org(orgId)}/sessions/${encodeURIComponent(sessionId)}/settlement/batches/${encodeURIComponent(batchId)}/execution`),
+    attempts: async (orgId, sessionId, batchId) => (await api<{ attempts: AttemptView[] }>(`${org(orgId)}/sessions/${encodeURIComponent(sessionId)}/settlement/batches/${encodeURIComponent(batchId)}/execution/attempts`)).attempts,
   };
 }

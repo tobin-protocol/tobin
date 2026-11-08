@@ -210,6 +210,31 @@ All writes are **admin only** and only while the session workflow is `configurin
 
 Not built in Phase C, and why: the graph view (it needs a layout library or hand-written graph layout, which is more than a day with the accessibility the rest of the app has; the original-versus-net two-pane covers the same data); editing obligations (owner decision); duplicate detection (no backend support).
 
+## 5c. Phase D: review, settlement and execution operations that exist (read from source 2026-11-08)
+
+Everything below is under `/api/registry/orgs/{org}/sessions/{id}/`. **Nothing outside this table is built in Phase D.** There is no signing, submission, confirmation or verification route: the execution state machine's advance functions (`advanceSettlementExecution`, `advanceExecutionAttempt`) are server-side only and have **no HTTP route** (their own comment: "a browser cannot" call them).
+
+| Operation | Route | Who | Returns / rules |
+|---|---|---|---|
+| Read the review state of the calculation | `GET authorization` | member | `state` (`no-calculation`, `stale`, `awaiting-review`, `approved`, `rejected`), `currency`, `calculationId`, `eligibility {canDecide, isReviewer, reasons[]}`, `decisions[] {id, calculationId, decision, reason, decidedBy (name), decidedAt, status: active/superseded/invalidated, invalidatedAt?, invalidationCause?}` |
+| Approve or reject the calculation | `POST authorization/approve`, `POST authorization/reject` with `{calculationId, reason}` | reviewer grant | **One decision per calculation, by one reviewer**: not N of M. Refused when: no reviewer grant (`FORBIDDEN`); session closed; not the latest or not current calculation (`STALE`); a decision already exists (`EXISTS`); separation of duties (the actor recorded, changed or calculated it: `SEPARATION_OF_DUTIES`). A **reject requires a reason**, 1 to 500 characters. Approve needs no reason. |
+| Read settlement preparation | `GET settlement` | member | `preview {checks[], ready, calculationId}` (what preparing now would require), `assets[]`, `batches[] {id, attempt, calculationId, status, asset, instructionCount, totalAmount, preparedBy, preparedAt, decision?, invalidation?}` |
+| Prepare a settlement batch | `POST settlement/prepare` with `{calculationId, attempt?}` | admin | Builds payer-to-payee instructions from the **approved, current** calculation, bound to one supported asset identity. Needs: calculation current and latest, active approval, every participant and obligation still valid, positions recompute exactly, a **canonical supported asset** (code-only obligations cannot be prepared), no live batch for the calculation, engine accepts the plan, instructions reconcile exactly to the net positions. A rejected batch may be prepared again as attempt 2, 3, ... (the next attempt number must be named). |
+| Read one batch | `GET settlement/batches/{b}` | member | `batch {id, attempt, calculationId, asset {id, network, kind, code, issuer?}, instructionCount, totalAmount, instructionsHash, algorithm, preparedBy, preparedAt}`, `status` (`awaiting-review`, `approved`, `rejected`, `invalidated`, `superseded`; **derived**, never stored), `validation[] {key, label, ok, detail}`, `eligibility {canDecide, reasons[]}`, `instructions[] {seq, payer(name), payee(name), amount, assetId, fingerprint, ...}`, `review? {decision, reason, decidedBy, decidedAt}`, `invalidation? {cause, at}` |
+| Validate a batch | `GET settlement/batches/{b}/validation` | member | the live check list; a failing check is a mismatch between the approved result and the prepared settlement |
+| Approve or reject the batch | `POST .../batches/{b}/approve`, `.../reject` with `{instructionsHash, reason}` | reviewer grant | The `instructionsHash` must equal the batch's (the reviewer approves **exactly what was shown**: otherwise `STALE`). Refused when: not awaiting review, validation fails, or the reviewer prepared the batch (separation of duties). A **reject requires a reason** (1 to 500). Application-level decision: not a signature. |
+| Read the execution record | `GET .../batches/{b}/execution` | member | `network`, `batchStatus`, `participants[] {verifiedAccount, verifiedCount}`, `execution {id, state, accounts, createdAt, events[] {from, to, at, actor, detail}} or null`, and `unavailable[]`: the backend's own list of what does not exist ("Wallet connection", "Transaction construction", "Wallet signing", "Transaction submission", "Independent on-chain verification", "Reconciliation against the chain") |
+| Read execution attempts | `GET .../execution/attempts` | member | per attempt: `attemptNo`, `state`, `network`, `planFingerprint`, `createdAt`, `steps`, `requiredSigners`, `transactions[]`, `events[]` |
+| Record execution preconditions | `POST .../execution/start` | admin | **Exists, not built in Phase D.** Needs exactly one **verified** Stellar account for every payer and payee; wallet verification belongs to Phase E. Result state is `awaiting-signer`; nothing is signed. |
+| Begin an attempt | `POST .../execution/attempts/begin` with `{initiator, reviewedFailure?}` | admin | **Exists, not built in Phase D.** Needs the execution record, a configured clearing contract on the server, and a retry policy that allows it (a failure must be reviewed first; an unknown outcome blocks everything until the network is read). Result state `awaiting-signer`; "no transaction has been constructed, signed or submitted". |
+| Sign, submit, verify, confirm | none | | **Not supported.** No route. Rendered "Not supported". |
+
+**Stage rail honesty.** The backend records, at most, `awaiting-signer` (Prepared). The later states exist in the state machine but nothing can reach them over HTTP, so Signed, Submitted and Confirmed render "Not supported" and Confirmed stays unreachable (`lib/stages.ts`, its test and the source check).
+
+**Failed states.** If an execution or attempt ever reports `failed`, `expired` or `unknown-outcome`, the UI shows the last event's detail and time, and the plain line "No automatic retry." A retry (a new attempt after a reviewed failure) is the `begin` route above, which Phase D does not build.
+
+**Settlement page.** The seven-tab navigation has no separate Settlement destination; the **Settlement tab** of the session workspace is the settlement page. A global **Approvals** page (derived, capped) lists items awaiting review across sessions.
+
 ## 6. Data layer: the typed `TobinClient`
 
 One interface, three adapters, chosen at startup and always visible.
@@ -267,7 +292,7 @@ Each phase ends with typecheck, lint, tests, screenshots at 1440, 900 and 390 px
 | A | sign-in, wallet connection and failure states, onboarding, organization overview | all real except overview metrics (derived) and settled value (Not supported) |
 | B (built; see section 5a) | sessions list, create wizard (Details, Participants, Review, Created), workspace shell, stepper, action panel, read-only tabs | list, create, participants real; list filters by workflow state, cross-organization participants, invitations Not supported |
 | C | obligations (create, correction, void), netting tab | real; global list derived |
-| D | approvals, settlement preparation, review, attempt states | real up to Prepared and reviewed; Signed, Submitted, Confirmed Not supported |
+| D (built; see section 5c) | approvals, settlement preparation, batch review, execution record (read-only) | real up to Prepared and reviewed; Sign, Submit, Verify and Confirmed Not supported; starting an execution and attempts exist in the backend but are not built (they need verified wallets, Phase E) |
 | E | activity, wallets, organization, settings | activity session-real and global-derived; notifications and search Not supported |
 
 ## 11. What I will not do without approval

@@ -44,6 +44,13 @@ const open = async (page, label, tab) => {
 };
 const choose = (page, label, text) => page.getByLabel(label, { exact: false }).selectOption({ label: text });
 const dialog = (page) => page.getByRole("dialog").last();
+// the asset control is a select (supported-asset list configured) or a code field (none configured): drive whichever the UI shows
+async function setAsset(page, code) {
+  const el = page.locator("#ob-asset");
+  const tag = await el.evaluate((n) => n.tagName);
+  if (tag === "SELECT") await el.selectOption({ index: 1 }); else await el.fill(code);
+  return tag;
+}
 
 for (const w of WIDTHS) {
   const ctx = await browser.newContext({ viewport: { width: w, height: w < 500 ? 844 : 900 }, deviceScaleFactor: 1 });
@@ -105,7 +112,12 @@ for (const w of WIDTHS) {
   await page.getByRole("button", { name: "Review obligation" }).click();
   await vis(page.getByText("Choose the debtor."), `${w}: missing debtor is explained under the field`);
   await choose(page, "Debtor (owes)", "Alice"); await choose(page, "Creditor (is owed)", "Alice");
-  await page.locator("#ob-amount").fill("1.5"); await page.locator("#ob-asset").fill("USD");
+  await page.locator("#ob-amount").fill("1.5"); const assetControl = await setAsset(page, "USD");
+  console.log(`info ${w}: asset control is a ${assetControl}`);
+  if (assetControl === "SELECT") {
+    const opts = await page.locator("#ob-asset option").allTextContents();
+    check(opts.length === 2 && /^USD/.test(opts[1] ?? ""), `${w}: the asset select lists only the supported asset (${opts.join(" | ")})`);
+  }
   await page.getByRole("button", { name: "Review obligation" }).click();
   await vis(page.getByText("Enter a positive whole number of base units"), `${w}: a decimal amount is refused with the precision rule`);
   await vis(page.getByText("The debtor and the creditor must be different participants."), `${w}: debtor equal to creditor is refused under the creditor`);
@@ -113,7 +125,7 @@ for (const w of WIDTHS) {
 
   const record = async (debtor, creditor, amount, asset, ref) => {
     await choose(page, "Debtor (owes)", debtor); await choose(page, "Creditor (is owed)", creditor);
-    await page.locator("#ob-amount").fill(amount); await page.locator("#ob-asset").fill(asset); await page.locator("#ob-reference").fill(ref);
+    await page.locator("#ob-amount").fill(amount); await setAsset(page, asset); await page.locator("#ob-reference").fill(ref);
     await page.getByRole("button", { name: "Review obligation" }).click();
   };
   await record("Alice", "Bob", "100", "USD", "invoice A");
@@ -124,11 +136,13 @@ for (const w of WIDTHS) {
   await record("Bob", "Carol", "80", "USD", "invoice B");
   await dialog(page).getByRole("button", { name: "Record obligation" }).click();
   await vis(page.getByRole("table").getByText("80 USD"), `${w}: the second obligation appears in the table`);
-  // a real backend refusal: the session already nets USD
-  await record("Carol", "Alice", "70", "EUR", "invoice C");
-  await dialog(page).getByRole("button", { name: "Record obligation" }).click();
-  await vis(page.getByText(/this session nets USD/), `${w}: the backend's own refusal is shown under the asset field`);
-  await shot(page, "obligation-backend-error", w);
+  // a real backend refusal under the field. Code mode: a second asset code. Select mode: a hand-built request for an asset identity that is not supported.
+  if (assetControl !== "SELECT") {
+    await record("Carol", "Alice", "70", "EUR", "invoice C");
+    await dialog(page).getByRole("button", { name: "Record obligation" }).click();
+    await vis(page.getByText(/this session nets USD/), `${w}: the backend's own refusal is shown under the asset field`);
+    await shot(page, "obligation-backend-error", w);
+  }
 
   // void the second, with its own confirmed action
   await page.getByRole("button", { name: /^View obligation Bob/ }).click();

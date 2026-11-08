@@ -145,7 +145,7 @@ export default function ComponentsPage() {
           <NextAction title="Review the calculation" who="Reviewers of the organization" forYou />
         </Panel>
         <div className="grid items-start gap-4 md:grid-cols-2">
-          <ApprovalBlock canDecide={false} reason="You need the reviewer capability to decide." approvers={[{ name: "Reviewer 1", role: "Reviewer", decision: "approved", at: "2026-01-01T10:00:00Z" }, { name: "Reviewer 2", role: "Reviewer", decision: "pending" }, { name: "Reviewer 3", role: "Reviewer", decision: "rejected", at: "2026-01-01T11:00:00Z" }]} />
+          <ApprovalBlock decisions={[{ id: "d1", reviewer: "Reviewer 1", decision: "approved", at: "2026-01-01T10:00:00Z" }, { id: "d2", reviewer: "Reviewer 2", decision: "rejected", at: "2026-01-01T11:00:00Z", reason: "Amounts do not match the invoices." }]} note="Approval recorded in Tobin. This is not an on-chain signature." />
           <SignatureBlock signers={[]} threshold={2} />
         </div>
         <Card>

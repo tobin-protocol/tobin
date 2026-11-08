@@ -26,7 +26,9 @@ export const NAV: TabItem[] = [
   { href: "/settings", label: "Settings" },
 ];
 
-const activeOf = (path: string) => NAV.find((n) => (n.href === "/" ? path === "/" : path === n.href || path.startsWith(n.href + "/")))?.href ?? "/";
+/** Reached from the bottom bar, the command panel and the attention list. It is not one of the seven destinations of the top navigation. */
+const APPROVALS = { href: "/approvals", label: "Approvals" };
+const activeOf = (path: string) => (path === "/approvals" || path.startsWith("/approvals/") ? "/approvals" : NAV.find((n) => (n.href === "/" ? path === "/" : path === n.href || path.startsWith(n.href + "/")))?.href ?? "/");
 const IconBtn = "flex h-9 min-w-9 items-center justify-center gap-2 rounded-btn bg-ink-5 px-2 text-body font-medium transition-colors duration-150 hover:bg-ink-10";
 
 function OrgSelector() {
@@ -199,7 +201,7 @@ function SearchButton() {
       <CommandPanel
         open={open}
         onClose={() => setOpen(false)}
-        commands={NAV.map((n) => ({ id: n.href, label: n.label, group: "Go to", onSelect: () => router.push(n.href) }))}
+        commands={[...NAV, APPROVALS].map((n) => ({ id: n.href, label: n.label, group: "Go to", onSelect: () => router.push(n.href) }))}
         notice={<><span className="font-medium text-ink">Not supported:</span> searching sessions, organizations, obligations, settlements, transactions and activity. The backend has no search. This panel only jumps between pages.</>}
       />
     </>
@@ -207,7 +209,7 @@ function SearchButton() {
 }
 
 function BottomNav({ active }: { active: string }) {
-  const items = [NAV[0]!, NAV[1]!, NAV[4]!];
+  const items = [NAV[0]!, NAV[1]!, APPROVALS, NAV[4]!];
   const more = [NAV[2]!, NAV[3]!, NAV[5]!, NAV[6]!];
   return (
     <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-20 flex h-16 items-stretch bg-page shadow-[0_-1px_0_var(--color-divider)] md:hidden">
