@@ -137,3 +137,51 @@ samp {
     animation-duration: 0.01ms !important;
   }
 }
+
+/* ---- Homepage and page polish -------------------------------------------------------------------------- */
+
+:root {
+  --ease-ui: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* A hairline grid that fades out toward the bottom, the only decoration on the homepage. It is a pseudo-element
+   so that the mask does not fade the hero content. */
+.hero-grid {
+  position: relative;
+  isolation: isolate;
+}
+.hero-grid::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--color-fd-foreground) 7%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--color-fd-foreground) 7%, transparent) 1px, transparent 1px);
+  background-size: 56px 56px;
+  background-position: center top;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 50%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 50%, transparent 100%);
+}
+
+/* Page titles use the display face, like the landing page headline. */
+#nd-page h1 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  font-size: clamp(2rem, 3.6vw, 2.75rem);
+}
+#nd-page h2,
+#nd-page h3 {
+  letter-spacing: -0.02em;
+}
+
+/* Inline code reads as a chip; tables get the landing card radius. */
+.prose :not(pre) > code {
+  border-radius: 6px;
+}
+.prose table {
+  border-radius: 12px;
+}
