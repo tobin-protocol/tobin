@@ -1,6 +1,6 @@
 # Tobin web app (`apps/web`): build plan
 
-Status: **plan, with the owner's decisions D1 to D6 recorded on 2026-11-08 (section 8). Phase A is the only phase approved.** Written 2026-11-08 after reading `docs/web-app-prd.md`, `docs/web-app-design-spec.md`, the root and app READMEs, `AGENTS.md`, every `package.json`, and the source of the existing application's HTTP surface (`apps/web-console/lib/registry/http.ts`, `lib/auth/http.ts`, `lib/server/guards.ts`, `lib/registry/types.ts`, the `app/api/stellar/*` routes).
+Status: **plan, with the owner's decisions D1 to D6 recorded on 2026-11-08 (section 8). Phase A is the only phase approved, and it is built (see `apps/web/README.md`, section Build status). Phases B to E are not started.** Written 2026-11-08 after reading `docs/web-app-prd.md`, `docs/web-app-design-spec.md`, the root and app READMEs, `AGENTS.md`, every `package.json`, and the source of the existing application's HTTP surface (`apps/web-console/lib/registry/http.ts`, `lib/auth/http.ts`, `lib/server/guards.ts`, `lib/registry/types.ts`, the `app/api/stellar/*` routes).
 
 Terms follow [`COMMUNICATION-AND-MATURITY-TERMINOLOGY.md`](COMMUNICATION-AND-MATURITY-TERMINOLOGY.md). Every statement about the backend below was read from source, not assumed.
 
