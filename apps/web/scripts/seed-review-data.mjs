@@ -31,7 +31,7 @@ await call(alice.cookie, 'POST', `${O}/invitations`, { invitee: 'dave@example.te
 
 const newSession = async (label) => (await call(alice.cookie, 'POST', `${O}/sessions`, { label })).json.session.sessionId;
 const addAll = async (sid) => { for (const u of [alice, bob, carol]) await call(alice.cookie, 'POST', `${O}/sessions/${sid}/participants`, { userId: u.id }); };
-const ob = (sid, d, c, amount, reference) => call(alice.cookie, 'POST', `${O}/sessions/${sid}/obligations`, { debtor: d.id, creditor: c.id, amount, asset: 'USD', reference });
+const ob = (sid, d, c, amount, reference) => call(alice.cookie, 'POST', `${O}/sessions/${sid}/obligations`, { debtor: d.id, creditor: c.id, amount, ...(process.env.SEED_ASSET_REF ? { assetRef: process.env.SEED_ASSET_REF } : { asset: 'USD' }), reference });
 
 // optional filler sessions, created FIRST so the seeded ones stay among the newest 10 the Overview reads (SEED_EXTRA_SESSIONS=8 gives 11 in total: two list pages)
 for (let i = 0; i < Number(process.env.SEED_EXTRA_SESSIONS ?? 0); i++) await newSession(`Weekly netting ${i + 1}`);

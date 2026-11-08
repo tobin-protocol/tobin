@@ -72,7 +72,27 @@ export function GlobalObligations() {
             <div className="mt-3"><SegmentTabs label="Status" value={status} onChange={(v) => { setStatus(v); setPage(1); }} items={[{ value: "all", label: "All" }, { value: "active", label: "Active" }, { value: "voided", label: "Voided" }]} /></div>
           </Card>
 
-          <Table columns={cols} data={shown} getRowId={(r) => r.id} loading={sessions.isLoading || reading} empty={<EmptyState title={items.length === 0 ? "No obligations yet" : "No obligations match"} message={items.length === 0 ? "None are recorded in the sessions read. Open a session and record one." : "Change the search or the filters."} />} />
+          {sessions.isLoading || reading || shown.length === 0 ? (
+            <Table columns={cols} data={shown} getRowId={(r) => r.id} loading={sessions.isLoading || reading} empty={<EmptyState title={items.length === 0 ? "No obligations yet" : "No obligations match"} message={items.length === 0 ? "None are recorded in the sessions read. Open a session and record one." : "Change the search or the filters."} />} />
+          ) : (
+            <>
+              <div className="hidden min-[900px]:block"><Table columns={cols} data={shown} getRowId={(r) => r.id} empty={null} /></div>
+              <ul className="space-y-3 min-[900px]:hidden" aria-label="Obligations">
+                {shown.map((r) => (
+                  <li key={r.id} className="rounded-card bg-card p-4">
+                    <Link href={`/sessions/${r.sessionId}?tab=obligations`} className="block text-entity font-medium">{r.sessionLabel}</Link>
+                    <p className="mt-1 text-body"><span className={r.status === "voided" ? "text-muted line-through" : ""}>{r.debtorName} owes {r.creditorName}</span></p>
+                    <p className="mt-1 text-action font-medium"><Amount value={r.amount} asset={r.asset} /></p>
+                    <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-body">
+                      <div><dt className="text-label text-muted">Status</dt><dd><StatusMark kind={r.status === "active" ? "done" : "unsupported"}>{r.status === "active" ? "Active" : "Voided"}</StatusMark></dd></div>
+                      <div><dt className="text-label text-muted">Recorded</dt><dd>{formatDate(r.createdAt)}</dd></div>
+                      {r.reference ? <div className="col-span-2"><dt className="text-label text-muted">Reference</dt><dd>{r.reference}</dd></div> : null}
+                    </dl>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
 
           {derived && derived.totals.length > 0 ? (
             <Card>
