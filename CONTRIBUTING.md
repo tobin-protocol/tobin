@@ -66,6 +66,31 @@ An issue (or an approved design proposal) is **required before implementation** 
 
 Do not rename established concepts, reorder or expand the milestones, or replace the architecture on your own initiative. The milestone list is in the [README](README.md#project-status-and-roadmap).
 
+## Fork the repository
+
+Contributors work from **their own fork** of the repository and open pull requests from it. Do not ask for, or rely on, write access to `tobin-protocol/tobin` to contribute.
+
+1. Fork `tobin-protocol/tobin` on GitHub (the **Fork** button, or `gh repo fork tobin-protocol/tobin --clone`).
+2. Clone your fork and add the original repository as `upstream`:
+
+```bash
+git clone https://github.com/<your-username>/tobin.git && cd tobin
+git remote add upstream https://github.com/tobin-protocol/tobin.git
+```
+
+3. Keep your fork's `main` in step with upstream before every new branch:
+
+```bash
+git switch main
+git fetch upstream
+git merge --ff-only upstream/main      # fails rather than creating a merge commit; do not force it
+git push origin main
+```
+
+4. Create your branch from that `main` (see [Branching](#branching)), push it to **your fork** (`git push -u origin <branch>`), and open the pull request against `tobin-protocol/tobin` `main` from your fork's branch.
+
+Fork pull requests run the same checks as any other, but GitHub does not give workflows from a fork access to repository secrets, and none are needed: the project's CI uses no secrets. Never put a secret, key or seed phrase in a fork either; forks of a public repository are public.
+
 ## Development environment
 
 Versions come from the repository's pins and CI configuration (`.github/workflows/ci.yml`), not from preference.
@@ -80,7 +105,7 @@ Versions come from the repository's pins and CI configuration (`.github/workflow
 | Database | none to install: SQLite through `node:sqlite` (Node prints an experimental warning) |
 
 ```bash
-git clone https://github.com/tobin-protocol/tobin.git && cd tobin
+# in your fork's clone (see "Fork the repository"); a plain read-only clone of the upstream repository also works for trying the code
 npm ci                                       # CI uses: npm ci --ignore-scripts
 npm run typecheck
 npm test                                     # runs the web-console and SDK suites (the landing app has no tests); bridge-backed tests are skipped, visibly, without TOBIN_BRIDGE_EXE
@@ -94,7 +119,7 @@ The landing page (`apps/landing`) uses a Next.js version that differs from commo
 
 ## Branching
 
-- Start from the latest `main` and work on a dedicated branch. **Never push directly to `main`.**
+- Work in your [fork](#fork-the-repository). Start from the latest `main` (your fork's `main`, updated from `upstream`) and work on a dedicated branch. **Never push directly to `main`**, in your fork or in the upstream repository.
 - Name branches `<type>/<short-description>`, where the type is one of:
 
 | Type | Use for |

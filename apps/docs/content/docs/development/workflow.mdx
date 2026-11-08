@@ -6,6 +6,21 @@ description: Branches, commits, pull requests and review, as practised in this r
 The full rules are in [`CONTRIBUTING.md`](https://github.com/tobin-protocol/tobin/blob/main/CONTRIBUTING.md). This page
 is the short version.
 
+## Fork first
+
+Contributors work from their **own fork** of `tobin-protocol/tobin`:
+
+```bash
+gh repo fork tobin-protocol/tobin --clone        # or use the Fork button, then git clone your fork
+cd tobin
+git remote add upstream https://github.com/tobin-protocol/tobin.git    # skip if gh already added it
+```
+
+Before each new branch, bring your fork's `main` up to date with `git switch main`, `git fetch upstream`,
+`git merge --ff-only upstream/main` and `git push origin main`. Push your branch to your fork and open the pull request
+against `tobin-protocol/tobin` `main`. See the
+[full steps](https://github.com/tobin-protocol/tobin/blob/main/CONTRIBUTING.md#fork-the-repository).
+
 ## Branches
 
 Start from the latest `main` and work on a dedicated branch named `<type>/<short-description>`. **Never push directly
