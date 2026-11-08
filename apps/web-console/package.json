@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Tobin MVP-1 local-sandbox Console on Next.js (App Router). Experimental; local only: binds to 127.0.0.1, talks to no Stellar network, signs nothing.",
+  "description": "Tobin web console on Next.js (App Router): the institutional application, owner-run Stellar Testnet tools, the local sandbox console and the W0 console. Binds to 127.0.0.1; Testnet only; production deployment has not been approved.",
   "engines": {
     "node": ">=24"
   },

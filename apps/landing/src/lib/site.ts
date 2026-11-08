@@ -33,7 +33,7 @@ export const sourceCards: SourceCard[] = [
   {
     path: "contracts/README.md",
     title: "MVP-1 Soroban contracts",
-    body: "Layout, implemented behaviour and test commands for the experimental contracts.",
+    body: "Layout, implemented behaviour and test commands for the contracts.",
     href: `${BLOB}contracts/README.md`,
     kind: "Contracts",
   },
@@ -47,7 +47,7 @@ export const sourceCards: SourceCard[] = [
   {
     path: "docs/spec/MVP-1 Implementation Specification — Draft 0.1.md",
     title: "Draft specification",
-    body: "The draft implementation specification for the experimental MVP-1.",
+    body: "The draft implementation specification for MVP-1.",
     href: `${BLOB}docs/spec/MVP-1%20Implementation%20Specification%20%E2%80%94%20Draft%200.1.md`,
     kind: "Specification (draft)",
   },
@@ -92,10 +92,10 @@ export const navLinks = [
 ] as const;
 
 export const siteDescription =
-  "Tobin is an open clearing protocol that helps financial institutions net payment obligations and settle the resulting balances on Stellar.";
+  "Tobin is institutional clearing and settlement infrastructure built on Stellar. It lets financial institutions record obligations, calculate net positions, apply authorization controls and settle only the net balances through Stellar.";
 
 /** The description for search results and social cards: the mission sentence plus the honest status. */
-export const metaDescription = `${siteDescription} Experimental: MVP-1 runs on the Stellar testnet and is not production-ready.`;
+export const metaDescription = `${siteDescription} Demonstrated on the Stellar testnet; production deployment has not yet been approved.`;
 
 export const statusLine =
-  "Introducing Tobin MVP-1: Experimental clearing infrastructure on the Stellar testnet.";
+  "Institutional clearing and settlement infrastructure on Stellar, demonstrated on Testnet. Production deployment not yet approved.";

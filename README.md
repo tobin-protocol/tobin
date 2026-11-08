@@ -10,7 +10,7 @@
 
 <br>
 
-**Institutional clearing and settlement preparation on Stellar: record obligations, net them deterministically, approve the exact result under separation of duties, and prepare net settlement instructions. Testnet execution is performed by separate, owner-run tools.**
+**Institutional clearing and settlement infrastructure built on Stellar: record obligations, calculate net positions, apply authorization controls, prepare settlement instructions, and settle through Stellar. Testnet execution is currently performed by separate, owner-run tools.**
 
 <br>
 
@@ -24,8 +24,8 @@
 </div>
 
 > [!IMPORTANT]
-> **Experimental software on Stellar Testnet. Not production-ready. Not approved for Mainnet or real value.**
-> Milestones MVP-1.2 to MVP-1.5 and wallet-first authentication are implemented and have been exercised on Stellar **Testnet** with test assets. That is evidence about the mechanics, **not** evidence of production readiness: the evidence is from the implementing author only, nothing has been independently audited, and the release gates for a versioned or production release are still blocked. The institutional application persists clearing and settlement **preparation** records; actual Testnet execution is performed by **separate owner-run tools**, and confirmed outcomes are **not** written back into the application's records. See [Project status](#project-status-and-roadmap) and [Known limitations](#known-limitations).
+> **Pre-production institutional infrastructure.** Tobin's core clearing and settlement workflows have been implemented and demonstrated through controlled Stellar Testnet execution. Production deployment and real-value use have not yet been approved.
+> Milestones MVP-1.2 to MVP-1.5 and wallet-first authentication are implemented. The Testnet demonstration is real but narrow: one owner-run settlement of eight transactions with test assets. The evidence is from the implementing author only, no independent security review has been performed, and the release gates for a versioned or production release remain blocked. The institutional application persists clearing and settlement **preparation** records; actual Testnet execution is performed by **separate owner-run tools**, and confirmed outcomes are **not** written back into the application's records. See [Project status](#project-status-and-roadmap), [Current scope and remaining engineering work](#current-scope-and-remaining-engineering-work) and the [maturity terminology](docs/COMMUNICATION-AND-MATURITY-TERMINOLOGY.md).
 
 ## Table of contents
 
@@ -35,7 +35,7 @@
 - [How Tobin works](#how-tobin-works)
 - [Architecture](#architecture)
 - [Security model](#security-model)
-- [Known limitations](#known-limitations)
+- [Current scope and remaining engineering work](#current-scope-and-remaining-engineering-work)
 - [Project status and roadmap](#project-status-and-roadmap)
 - [Repository layout](#repository-layout)
 - [Getting started](#getting-started)
@@ -46,7 +46,9 @@
 
 ## What is Tobin?
 
-Tobin is an open-source clearing and settlement system for financial institutions that already move money on [Stellar](https://stellar.org). Institutions record the payment obligations they owe each other. Tobin computes each participant's **net position** deterministically, requires a reviewer to approve the exact result, and prepares settlement instructions for only the net amounts. The application persists these clearing and settlement **preparation** records. Executing them on Stellar is a separate step: owner-run Testnet tools collect real signatures and submit the transactions to a Soroban smart contract one step at a time, each after the owner's typed confirmation. Nothing is submitted automatically, the application does not reconcile on-chain results automatically, and confirmed outcomes are not written back into its records. The contract applies its own validation to whatever plan it is given (see [Netting engine and contract validation](#netting-engine-and-contract-validation)).
+Tobin is institutional clearing and settlement infrastructure built on [Stellar](https://stellar.org), open source under Apache-2.0, for financial institutions that already move money on the network. Institutions record the payment obligations they owe each other. Tobin computes each participant's **net position** deterministically, requires a reviewer to approve the exact result, and prepares settlement instructions for only the net amounts. The application persists these clearing and settlement **preparation** records. Executing them on Stellar is a separate step: owner-run Testnet tools collect real signatures and submit the transactions to a Soroban smart contract one step at a time, each after the owner's typed confirmation. Nothing is submitted automatically, the application does not reconcile on-chain results automatically, and confirmed outcomes are not written back into its records. The contract applies its own validation to whatever plan it is given (see [Netting engine and contract validation](#netting-engine-and-contract-validation)).
+
+**Why Stellar is central.** Stellar does four jobs in the design. *Settlement:* a Soroban contract validates the plan and moves the net amounts atomically, all or nothing. *Authorization:* each debtor authorizes its own transfer through Stellar account signing and Soroban authorization, with multisig signer sets verified against the network, so no operator key can move funds. *Execution:* transactions are signed by the required accounts and submitted one step at a time. *Verification:* outcomes are read back from the ledger by transaction hash and compared with the approved plan, never inferred from an API reply.
 
 The repository holds three connected things:
 
@@ -75,7 +77,7 @@ A worked example (arithmetic only, not data): A owes B 100, B owes C 80, C owes 
 
 ## What Tobin provides
 
-Status labels: **Implemented** means the code and tests exist in this repository. **Testnet-verified** means it was exercised against the real Stellar Testnet. Nothing here is production-ready.
+Status labels: **Implemented** means the code and tests exist in this repository. **Testnet-verified** means it was exercised against the real Stellar Testnet. Production deployment has not yet been approved. The terms (implemented, tested, Testnet-verified, independently reviewed, pilot-ready, production-approved) are defined in the [maturity terminology guide](docs/COMMUNICATION-AND-MATURITY-TERMINOLOGY.md) and are not interchangeable.
 
 | Capability | Implemented | Testnet-verified | Notes |
 |---|:--:|:--:|---|
@@ -207,7 +209,9 @@ A session record also carries a **provenance** label: `fixture` (demonstration d
 
 The detailed reviews are in the [documentation map](#documentation-map). They are the author's own reviews, not independent audits.
 
-## Known limitations
+## Current scope and remaining engineering work
+
+These are the validation and engineering requirements that stand between the implemented Testnet integration and a pilot. They are retained because they are true and because each one is planned or tracked, not because the work is hypothetical.
 
 1. A real-Freighter validation of the wallet-first flow in Microsoft Edge is outstanding; automated browser tests use a protocol-compatible stand-in.
 2. Evidence is same-author, from one environment and one browser engine; no independent penetration test or fuzzing has been done.
@@ -218,6 +222,17 @@ The detailed reviews are in the [documentation map](#documentation-map). They ar
 7. A repository ruleset on `main` requires a pull request with one approving review and blocks force pushes and deletion, but it requires **no specific CI check** and repository and organization admins can bypass it. That CI check must pass is project policy in [CONTRIBUTING.md](CONTRIBUTING.md), not something GitHub enforces.
 
 ## Project status and roadmap
+
+**Maturity at a glance** (definitions in the [terminology guide](docs/COMMUNICATION-AND-MATURITY-TERMINOLOGY.md)):
+
+| Level | Status |
+|---|---|
+| Implemented | Yes: MVP-1.2 to MVP-1.5 and wallet-first authentication |
+| Tested | Yes: automated suites, contract tests and browser journeys (same-author) |
+| Testnet-verified | The settlement path, narrowly: one owner-run execution of eight transactions with multisig co-signing, read back from the network |
+| Independently reviewed | No |
+| Pilot-ready | No: depends on MVP-1.6 to MVP-1.8 and an independent security review |
+| Production-approved | No |
 
 | Milestone | Description | Status |
 |---|---|---|

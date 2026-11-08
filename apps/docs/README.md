@@ -2,7 +2,7 @@
 
 The developer documentation site for the Tobin Clearing Protocol repository. Built with [Fumadocs](https://www.fumadocs.dev) (UI, Core and MDX) on Next.js App Router, TypeScript and Tailwind CSS v4. It is an independent npm workspace (`tobin-docs`): it builds and runs without the landing page or the web console.
 
-> Tobin is experimental software on Stellar Testnet. It is not production-ready, and Mainnet and real-value use are not authorised. The site says so on its homepage and in its footer; keep it that way.
+> Tobin is pre-production institutional infrastructure on Stellar Testnet. Production deployment has not yet been approved, and Mainnet and real-value use are not authorised. The site says so on its homepage and in its footer; keep it that way.
 
 ## Run it
 

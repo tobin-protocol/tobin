@@ -1,1 +1,1 @@
-Tobin Clearing Protocol: an open clearing protocol for institutions on Stellar. Experimental, on the Stellar testnet, not production-ready.
+Tobin Clearing Protocol: institutional clearing and settlement infrastructure built on Stellar. Stellar Testnet; production deployment not yet approved.

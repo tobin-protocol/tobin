@@ -24,8 +24,8 @@ const CARDS = [
     body: "That is a technical description of the design, not a legal one. It depends on controls that are decided but not built.",
   },
   {
-    title: "Honest about status",
-    body: "Not independently audited, not production-ready, and tested on the Stellar testnet only. The testnet report is unpublished.",
+    title: "Evidence-led status",
+    body: "Demonstrated on the Stellar testnet with test assets. Not yet independently reviewed, and production deployment has not yet been approved. The Testnet record is in the repository.",
   },
 ];
 

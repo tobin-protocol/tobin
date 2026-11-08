@@ -27,9 +27,9 @@ const loadLayoutFeatures = () => import("motion/react").then((mod) => mod.domMax
 type Status = "built" | "differs" | "not-built";
 
 const STATUS_LABEL: Record<Status, string> = {
-  built: "Built in MVP-1",
-  differs: "Differs in MVP-1",
-  "not-built": "Not built",
+  built: "Implemented",
+  differs: "Implemented, differs from the broader design",
+  "not-built": "Not yet implemented",
 };
 
 type Card = {
@@ -50,7 +50,7 @@ const CARDS: Card[] = [
     id: "sessions",
     title: "Sessions and obligations",
     status: "built",
-    description: "Recorded in small sessions with one test token.",
+    description: "Recorded in sessions in the institutional application and, on chain, in the clearing contract.",
     icon: File01Icon,
     source: "contracts/README.md",
     href: repoLinks.contracts,
@@ -82,7 +82,7 @@ const CARDS: Card[] = [
     title: "Atomic settlement",
     status: "built",
     description:
-      "Net amounts of the test token moved in one settlement on a Soroban contract, in a Stellar public-testnet run with disposable accounts.",
+      "Net amounts moved atomically by a Soroban contract. Demonstrated on Stellar Testnet in one owner-run execution of eight transactions with multisig co-signing, using a governed test token.",
     icon: FlashIcon,
     source: "contracts/README.md",
     href: repoLinks.contracts,
@@ -92,38 +92,38 @@ const CARDS: Card[] = [
     id: "collateral",
     title: "Collateral",
     status: "not-built",
-    description: "Designed to limit the exposure that can enter a session. Not in MVP-1.",
+    description: "Designed to limit the exposure that can enter a session. Part of the broader protocol design; not yet implemented.",
     icon: Shield01Icon,
   },
   {
     id: "merkle",
     title: "Merkle commitments",
     status: "not-built",
-    description: "Designed so the chain holds commitments, not an obligation book. Not in MVP-1.",
+    description: "Designed so the chain holds commitments, not an obligation book. Part of the broader protocol design; not yet implemented.",
     icon: GitBranchIcon,
   },
   {
     id: "deadlines",
     title: "Deadlines, abort, default and recovery",
     status: "not-built",
-    description: "Not in MVP-1.",
+    description: "Part of the broader protocol design; not yet implemented.",
     icon: Clock01Icon,
   },
   {
     id: "adapter",
     title: "Institutional adapter, SDK and CLI for the full protocol",
     status: "not-built",
-    description: "Not built. No packages are published; only the experimental MVP-1 SDK source exists.",
+    description: "Not yet implemented. No packages are published; the MVP-1 SDK exists as source in the repository.",
     icon: ComputerTerminal01Icon,
   },
 ];
 
 type FilterId = "all" | "built" | "not-built";
 
-/** The two groups. "Built in MVP-1" includes the card that differs from the broader design. */
+/** The two groups. "Implemented" includes the card that differs from the broader design. */
 const GROUPS: { id: Exclude<FilterId, "all">; label: string; has: (s: Status) => boolean }[] = [
-  { id: "built", label: "Built in MVP-1", has: (s) => s === "built" || s === "differs" },
-  { id: "not-built", label: "Not built", has: (s) => s === "not-built" },
+  { id: "built", label: "Implemented", has: (s) => s === "built" || s === "differs" },
+  { id: "not-built", label: "Not yet implemented", has: (s) => s === "not-built" },
 ];
 
 const count = (has: (s: Status) => boolean) => CARDS.filter((c) => has(c.status)).length;
@@ -259,11 +259,12 @@ export function BuiltStatus() {
     <Section id="status" labelledBy="status-title" tone="light">
       <Container>
         <Reveal>
-        <Eyebrow>Intended versus built</Eyebrow>
+        <Eyebrow>Implemented versus designed</Eyebrow>
         <p className="t-lead mt-6 max-w-[40rem] text-grey-850">
-          MVP-1 is an experimental validation milestone: small sessions, one test token, a Stellar
-          public-testnet run with disposable accounts. It is not production-ready and not
-          independently audited.
+          The core clearing and settlement workflows are implemented and have been demonstrated
+          through controlled Stellar Testnet execution with test assets. The evidence is from the
+          implementing author, no independent security review has been performed, and production
+          deployment has not yet been approved.
         </p>
         </Reveal>
 

@@ -1,0 +1,48 @@
+---
+title: Maturity and terminology
+description: How Tobin describes itself and its maturity, and the vocabulary to use when writing about the project.
+---
+
+The authoritative text is the
+[communication and maturity terminology guide](https://github.com/tobin-protocol/tobin/blob/main/docs/COMMUNICATION-AND-MATURITY-TERMINOLOGY.md).
+This page is the short version for people writing documentation.
+
+## How Tobin describes itself
+
+**Tobin is institutional clearing and settlement infrastructure built on Stellar.** It provides a framework for
+recording obligations, calculating net positions, applying authorization controls, preparing settlement instructions and
+settling through Stellar, with institutional workflows kept separate from on-chain execution.
+
+Today the application records and prepares, and Testnet execution is performed by separate, owner-run tools. Keep that
+qualifier wherever execution is described. Do not describe Tobin as a generic payment application, a universal clearing
+network, a fully decentralized protocol or a production-proven settlement network, and do not imply customers,
+production deployments or real-value settlement.
+
+## Maturity vocabulary
+
+| Term | Means |
+|---|---|
+| Implemented | The functionality exists in the codebase. |
+| Tested | It passed the relevant tests; state the scope. |
+| Testnet-verified | It was demonstrated against Stellar Testnet with real network interactions, and outcomes were read back from the network. |
+| Independently reviewed | A qualified party independent of the implementation author assessed it. |
+| Pilot-ready | The pilot acceptance criteria, operational controls, security requirements and onboarding requirements are satisfied. |
+| Production-approved | The security, operational, governance, compliance, infrastructure and deployment approvals are complete. |
+
+These are not interchangeable. A passing test is not independent review, and a component demonstrated on Testnet does
+not make the whole project Testnet-verified. Tobin today is implemented, tested (same-author), Testnet-verified for the
+settlement path in one narrow owner-run execution, and not independently reviewed, pilot-ready or production-approved.
+
+## Writing rules
+
+- Classify the text first. **Public-facing** pages are confident and evidence-led. **Technical** pages are precise about
+  what has and has not been demonstrated. **Historical records** are never rewritten to change their maturity claims.
+- Prefer "current scope and remaining engineering work" to "limitations", and "production deployment has not yet been
+  approved" to a bare "not production-ready", where the context is positioning. Keep *experimental* only where it is
+  literally true.
+- Say **same-author** when evidence comes from the implementing author, and say what scope a Testnet run covered.
+- Never write "audited", "secure" or "enterprise-grade" without independent evidence, and never invent customers,
+  partners, volumes or approvals.
+
+See also [Project status](/docs/introduction/project-status), the [roadmap](/docs/resources/roadmap) and
+[Writing documentation](/docs/resources/writing-docs).

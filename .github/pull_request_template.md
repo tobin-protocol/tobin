@@ -79,9 +79,9 @@ Related issue: <!-- Closes #000 / Refs #000 -->
 
 <!-- "None", or describe what breaks and how to migrate. -->
 
-## Known limitations
+## Scope and remaining work
 
-<!-- What this does not do, what is not validated, follow-ups. Do not hide limitations. -->
+<!-- What this does not do, what is not validated, follow-ups. Be specific and do not hide gaps. Use the maturity terms from docs/COMMUNICATION-AND-MATURITY-TERMINOLOGY.md (implemented, tested, Testnet-verified, independently reviewed) and do not claim more than you verified. -->
 
 ## AI assistance disclosure
 
