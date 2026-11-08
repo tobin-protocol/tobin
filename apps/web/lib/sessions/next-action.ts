@@ -28,11 +28,11 @@ export function nextActionOf(view: LifecycleView, workflow: "configuring" | "rea
   };
   switch (GROUPS[view.currentIndex]) {
     case "Participation": return act("participants.manage", "Add participants", "participants", null, "Add at least two participants", "An administrator");
-    case "Obligations": return act("obligations.record", "Record an obligation", "obligations", "C", "Record the obligations", "An administrator");
-    case "Netting": return act("netting.run", "Calculate net positions", "netting", "C", view.subLabel.startsWith("The calculation is stale") ? "Recalculate net positions" : "Calculate net positions", "An administrator");
+    case "Obligations": return act("obligations.record", "Record an obligation", "obligations", null, "Record the obligations", "An administrator");
+    case "Netting": return act("netting.run", "Calculate net positions", "netting", null, view.subLabel.startsWith("The calculation is stale") ? "Recalculate net positions" : "Calculate net positions", "An administrator");
     case "Approval":
       if (view.subLabel.startsWith("Calculation awaiting")) return act("authorization.decide", "Review the calculation", "approvals", "D", "Review the calculation", "A reviewer");
-      return act("netting.run", "Recalculate net positions", "netting", "C", "Recalculate net positions", "An administrator");
+      return act("netting.run", "Recalculate net positions", "netting", null, "Recalculate net positions", "An administrator");
     default:
       return workflow === "ready"
         ? act("settlement.prepare", "Prepare settlement", "settlement", "D", "Prepare settlement", "An administrator")

@@ -1,7 +1,7 @@
-import { PhasePlaceholder } from "../../../components/PhasePlaceholder.tsx";
+import { GlobalObligations } from "../../../components/obligations/GlobalObligations.tsx";
 
 export const metadata = { title: "Obligations" };
 
 export default function Page() {
-  return <PhasePlaceholder title="Obligations" phase="C" scope="the global obligations list (derived from session data), recording, correcting and voiding." />;
+  return <GlobalObligations />;
 }

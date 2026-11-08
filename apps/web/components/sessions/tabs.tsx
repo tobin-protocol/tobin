@@ -3,13 +3,13 @@
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { useState } from "react";
 import { can } from "../../lib/permissions/can.ts";
-import { formatDateTime, groupDigits, humanizeKind, relativeTime } from "../../lib/format.ts";
+import { formatDateTime, humanizeKind, relativeTime } from "../../lib/format.ts";
 import type { NextAction } from "../../lib/sessions/next-action.ts";
 import { client } from "../../lib/tobin/index.ts";
-import type { AuthorizationView, ObligationView, Readiness, SessionDetail, SessionParticipantView } from "../../lib/tobin/types.ts";
+import type { AuthorizationView, Readiness, SessionDetail, SessionParticipantView } from "../../lib/tobin/types.ts";
 import { useWorkspace } from "../shell/session.tsx";
 import { Button } from "../ui/Button.tsx";
-import { Amount, Table, type Col } from "../ui/Data.tsx";
+import { Table, type Col } from "../ui/Data.tsx";
 import { EmptyState, ErrorState, InlineError, NotSupported, Skeleton, StatusMark } from "../ui/Feedback.tsx";
 import { SelectField } from "../ui/Form.tsx";
 import { Dialog } from "../ui/Overlays.tsx";
@@ -118,68 +118,6 @@ export function ParticipantsTab({ sessionId, query, workflow, onChanged }: { ses
       <NotSupported tone="card" feature="Participants from other organizations" reason="Every participant is a member of this organization. Cross-organization sessions and joining do not exist in the backend." />
 
       <Dialog open={!!removing} onClose={() => setRemoving(null)} title={`Remove ${removing?.name ?? "participant"}?`} description="This invalidates the current calculation and any review of it. A participant with active obligations cannot be removed." destructive primary={{ label: "Remove", onClick: remove, loading: busy }} />
-    </div>
-  );
-}
-
-// ---------------- Obligations ----------------
-export function ObligationsTab({ query }: { query: UseQueryResult<ObligationView[]> }) {
-  const cols: Col<ObligationView>[] = [
-    { id: "debtor", header: "Debtor", cell: (r) => <span className={r.status === "voided" ? "text-muted line-through" : ""}>{r.debtorName}</span> },
-    { id: "creditor", header: "Creditor", cell: (r) => <span className={r.status === "voided" ? "text-muted line-through" : ""}>{r.creditorName}</span> },
-    { id: "amount", header: "Amount", align: "right", cell: (r) => <Amount value={r.amount} asset={r.asset} /> },
-    { id: "status", header: "Status", cell: (r) => <StatusMark kind={r.status === "active" ? "done" : "unsupported"}>{r.status === "active" ? "Active" : "Voided"}</StatusMark> },
-    { id: "rev", header: "Revision", align: "right", cell: (r) => r.revision, hideBelow: "md" },
-  ];
-  return (
-    <div className="space-y-4">
-      <Card>
-        <h2 className="text-entity font-medium">Obligations</h2>
-        <p className="mt-1 text-body text-muted">Each obligation names a debtor, a creditor, an amount and an asset. The debtor owes the creditor. Application record only.</p>
-        <div className="mt-4">
-          <Table columns={cols} data={query.data ?? []} getRowId={(r) => r.id} loading={query.isLoading} error={query.error ? (query.error as Error).message : null} onRetry={() => query.refetch()}
-            empty={<EmptyState title="No obligations yet" message="Obligations appear here once they are recorded." />} />
-        </div>
-      </Card>
-      <p className="text-label text-muted">Recording, correcting and voiding obligations are built in Phase C. This tab only reads.</p>
-    </div>
-  );
-}
-
-// ---------------- Netting ----------------
-export function NettingTab({ sessionId }: { sessionId: string }) {
-  const { org } = useWorkspace();
-  const q = useQuery({ queryKey: ["session", org.id, sessionId, "calculation"], queryFn: () => client.sessions.calculation(org.id, sessionId), retry: false });
-  const c = q.data?.calculation;
-  return (
-    <div className="space-y-4">
-      <Card>
-        <h2 className="text-entity font-medium">Net positions</h2>
-        <p className="mt-1 text-body text-muted">Net position = what a participant owes minus what it is owed. Positive means it pays; negative means it receives. An application calculation: not an approval, a signature or a settlement.</p>
-        <div className="mt-4">
-          {q.isLoading ? <Skeleton lines={4} /> : q.error ? failed(q, "the calculation") : !c ? (
-            <EmptyState title="No calculation yet" message="Net positions appear here once a calculation has been run." />
-          ) : (
-            <div className="space-y-4">
-              <StatGrid columns={3} items={[
-                { label: "Status", value: q.data?.currency === "current" ? "Current" : "Stale", hint: q.data?.currency === "stale" ? "Inputs changed after it" : undefined },
-                { label: "Gross total", value: `${groupDigits(c.gross)} ${c.asset}` },
-                { label: "Obligations used", value: c.obligationCount },
-                { label: "Calculated", value: formatDateTime(c.createdAt) },
-                { label: "Calculated by", value: c.createdBy },
-              ]} />
-              <Table
-                columns={[
-                  { id: "name", header: "Participant", cell: (r) => <span className="font-medium">{r.name}</span> },
-                  { id: "role", header: "Position", cell: (r) => (r.role === "debtor" ? "Pays" : r.role === "creditor" ? "Receives" : "Flat") },
-                  { id: "net", header: "Net amount", align: "right", cell: (r) => <Amount value={r.net.replace(/^-/, "")} asset={c.asset} /> },
-                ] satisfies Col<(typeof c.positions)[number]>[]}
-                data={c.positions} getRowId={(r) => r.userId} empty={null} />
-            </div>
-          )}
-        </div>
-      </Card>
-      <p className="text-label text-muted">Running a calculation is built in Phase C. This tab only reads.</p>
     </div>
   );
 }

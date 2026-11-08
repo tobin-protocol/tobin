@@ -99,7 +99,7 @@ export function Table<T extends RowData>({ columns, data, getRowId, loading, err
   return (
     <div>
       <div className="overflow-x-auto rounded-card bg-card">
-        <table className="w-full min-w-[560px] border-collapse text-left text-body">
+        <table className="w-full border-collapse text-left text-body">
           <thead>
             {table.getHeaderGroups().map((g) => (
               <tr key={g.id}>
@@ -107,7 +107,7 @@ export function Table<T extends RowData>({ columns, data, getRowId, loading, err
                   const c = byId.get(h.column.id);
                   const sorted = sort?.id === h.column.id ? sort.dir : null;
                   return (
-                    <th key={h.id} scope="col" aria-sort={sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : undefined} className={cn("sticky top-0 h-12 bg-card px-4 text-label font-medium uppercase tracking-wide text-muted", c?.align === "right" && "text-right", c?.hideBelow === "md" && "hidden md:table-cell")}>
+                    <th key={h.id} scope="col" aria-sort={sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : undefined} className={cn("sticky top-0 h-12 bg-card px-3 text-label sm:px-4 font-medium uppercase tracking-wide text-muted", c?.align === "right" && "text-right", c?.hideBelow === "md" && "hidden md:table-cell")}>
                       {c?.sortable && onSortChange ? (
                         <button type="button" className="inline-flex items-center gap-1 uppercase hover:text-ink" onClick={() => onSortChange({ id: h.column.id, dir: sorted === "asc" ? "desc" : "asc" })}>
                           {c.header}<span aria-hidden="true">{sorted === "asc" ? "↑" : sorted === "desc" ? "↓" : ""}</span>
@@ -125,7 +125,7 @@ export function Table<T extends RowData>({ columns, data, getRowId, loading, err
                 {r.getAllCells().map((cell) => {
                   const c = byId.get(cell.column.id);
                   return (
-                    <td key={cell.id} className={cn("px-4 align-middle", c?.align === "right" && "num text-right", c?.hideBelow === "md" && "hidden md:table-cell")}>
+                    <td key={cell.id} className={cn("px-3 align-middle sm:px-4", c?.align === "right" && "num text-right", c?.hideBelow === "md" && "hidden md:table-cell")}>
                       <table.FlexRender cell={cell} />
                     </td>
                   );

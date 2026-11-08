@@ -57,7 +57,9 @@ export class MockAdapter implements TobinClient {
     }),
   };
   participants: TobinClient["participants"] = { list: async () => [], add: async () => {}, remove: async () => {} };
-  obligations: TobinClient["obligations"] = { listBySession: async () => OBLIGATIONS };
+  obligations: TobinClient["obligations"] = { listBySession: async () => OBLIGATIONS, record: async () => ({ obligationId: "9".repeat(64) }), void: async () => {} };
+  netting: TobinClient["netting"] = { run: async () => ({ currency: "none", asset: null, calculation: null }) };
+  assets: TobinClient["assets"] = { list: async () => [] };
   authorization: TobinClient["authorization"] = {
     get: async (): Promise<AuthorizationView> => ({ state: "no-calculation", sessionState: "configuring", calculationId: null, eligibility: { canDecide: false, isReviewer: false, reasons: [] }, decisions: [] }),
   };

@@ -3,7 +3,7 @@
 // NEXT_PUBLIC_TOBIN_SAMPLE_DATA=1, always bannered). A capability with no backend is a NotSupported constant, never a method that returns invented data.
 import { api } from "../api/http.ts";
 import type {
-  AuthorizationView, CalculationView, CreateOrganizationInput, CreatedSession, Readiness, SessionParticipantView, Invitation, Me, Member, NotSupported, ObligationView, OrgDetail, Organization, SessionDetail, SessionRow,
+  AuthorizationView, CalculationView, RecordObligationInput, SupportedAssetView, CreateOrganizationInput, CreatedSession, Readiness, SessionParticipantView, Invitation, Me, Member, NotSupported, ObligationView, OrgDetail, Organization, SessionDetail, SessionRow,
 } from "./types.ts";
 
 export interface WalletChallenge { challenge: { id: string; message: string; expiresAt: string } }
@@ -40,7 +40,16 @@ export interface TobinClient {
     add(orgId: string, sessionId: string, userId: string): Promise<void>;
     remove(orgId: string, sessionId: string, userId: string): Promise<void>;
   };
-  obligations: { listBySession(orgId: string, sessionId: string): Promise<ObligationView[]> };
+  obligations: {
+    listBySession(orgId: string, sessionId: string): Promise<ObligationView[]>;
+    /** Admin, configuring sessions only. The server validates every field and its message is the reason shown. */
+    record(orgId: string, sessionId: string, input: RecordObligationInput): Promise<{ obligationId: string }>;
+    /** Admin, configuring sessions only. There is no delete and no edit in this app. */
+    void(orgId: string, sessionId: string, obligationId: string, reason?: string): Promise<void>;
+  };
+  netting: { run(orgId: string, sessionId: string): Promise<CalculationView> };
+  /** The operator-configured supported assets. Empty means none is configured and the backend accepts a plain asset code. */
+  assets: { list(orgId: string, sessionId: string): Promise<SupportedAssetView[]> };
   authorization: { get(orgId: string, sessionId: string): Promise<AuthorizationView> };
   /** No backend (decision D3). */
   notifications: NotSupported;
@@ -98,7 +107,11 @@ export class HttpAdapter implements TobinClient {
   };
   obligations: TobinClient["obligations"] = {
     listBySession: async (orgId, sessionId) => (await api<{ obligations: ObligationView[] }>(`${org(orgId)}/sessions/${encodeURIComponent(sessionId)}/obligations`)).obligations,
+    record: async (orgId, sessionId, input) => { const r = await api<{ obligationId: string }>(`${org(orgId)}/sessions/${encodeURIComponent(sessionId)}/obligations`, { method: "POST", body: input }); return { obligationId: r.obligationId }; },
+    void: async (orgId, sessionId, obligationId, reason) => { await api(`${org(orgId)}/sessions/${encodeURIComponent(sessionId)}/obligations/${encodeURIComponent(obligationId)}/void`, { method: "POST", body: reason ? { reason } : {} }); },
   };
+  netting: TobinClient["netting"] = { run: (orgId, sessionId) => api<CalculationView>(`${org(orgId)}/sessions/${encodeURIComponent(sessionId)}/calculate`, { method: "POST" }) };
+  assets: TobinClient["assets"] = { list: async (orgId, sessionId) => (await api<{ assets: SupportedAssetView[] }>(`${org(orgId)}/sessions/${encodeURIComponent(sessionId)}/settlement`)).assets.filter((a) => a.status === "supported") };
   authorization: TobinClient["authorization"] = {
     get: (orgId, sessionId) => api<AuthorizationView>(`${org(orgId)}/sessions/${encodeURIComponent(sessionId)}/authorization`),
   };

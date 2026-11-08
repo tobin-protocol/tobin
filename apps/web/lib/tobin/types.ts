@@ -76,6 +76,12 @@ export interface ObligationView {
   status: "active" | "voided";
   revision: number;
   createdAt: string;
+  reference?: string;
+  assetRef?: string | null;
+  assetIdentity?: "canonical" | "legacy-unresolved";
+  createdBy?: string;
+  updatedAt?: string;
+  updatedBy?: string;
 }
 export interface AuthorizationView {
   state: AuthState;
@@ -109,3 +115,8 @@ export interface CalculationView {
   calculation: null | { id: string; asset: string; createdAt: string; createdBy: string; gross: string; obligationCount: number; positions: CalculationPosition[] };
 }
 export interface CreatedSession { sessionId: string; label: string; provenance: SessionRow["provenance"]; createdAt: string }
+
+// ---- Phase C ----
+/** An entry of the operator-configured supported-asset list (GET .../settlement `assets`). `id` is the asset identity sent as `assetRef`. */
+export interface SupportedAssetView { id: string; code: string; status: string }
+export interface RecordObligationInput { debtor: string; creditor: string; amount: string; assetRef?: string; asset?: string; reference?: string }

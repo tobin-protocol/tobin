@@ -66,9 +66,11 @@ test("next action: a member sees the reason, an admin sees the action", () => {
   assert.equal(m.forYou, false);
   assert.match(m.reason ?? "", /Only administrators/);
 });
-test("next action: later-phase actions are blocked with their phase, never enabled", () => {
+test("next action: Phase C actions are enabled for an admin; later-phase actions are blocked with their phase", () => {
   const a = nextActionOf(lifecycleOf(facts({ currency: "none" })), "configuring", admin);
-  assert.match(a.primary?.blockedBy ?? "", /Phase C/);
+  assert.equal(a.primary?.blockedBy, null);
+  assert.equal(a.primary?.tab, "netting");
+  assert.match(nextActionOf(lifecycleOf(facts({ currency: "none" })), "configuring", member).primary?.blockedBy ?? "", /Only administrators/);
   const r = nextActionOf(lifecycleOf(facts({ auth: "awaiting-review" })), "configuring", { role: "member", reviewer: true });
   assert.match(r.primary?.blockedBy ?? "", /Phase D/);
   assert.equal(r.forYou, true);

@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useSearchParams } from "next/navigation";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ApiError } from "../../lib/api/http.ts";
 import { roleLabels } from "../../lib/permissions/can.ts";
 import { formatDateTime } from "../../lib/format.ts";
@@ -17,7 +17,12 @@ import { ErrorState, Skeleton } from "../ui/Feedback.tsx";
 import { NextAction as NextActionCard, Stepper } from "../ui/Flow.tsx";
 import { Card, Panel } from "../ui/Surfaces.tsx";
 import { CopyButton } from "./shared.tsx";
-import { ActivityTab, ApprovalsTab, NettingTab, ObligationsTab, OverviewTab, ParticipantsTab, SettlementTab } from "./tabs.tsx";
+import { ActivityTab, ApprovalsTab, OverviewTab, ParticipantsTab, SettlementTab } from "./tabs.tsx";
+import { NettingTab, RunNettingPanel } from "../netting/NettingTab.tsx";
+import { ObligationsTab } from "../obligations/ObligationsTab.tsx";
+import { RecordObligationPanel } from "../obligations/RecordObligation.tsx";
+import { eligibility } from "../../lib/netting/group.ts";
+import { reasonOf } from "./shared.tsx";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "overview", label: "Overview" },
@@ -47,12 +52,19 @@ export function Workspace() {
   const readiness = useQuery({ queryKey: key("readiness"), queryFn: () => client.sessions.readiness(org.id, sessionId), retry: false });
   const authorization = useQuery({ queryKey: key("authorization"), queryFn: () => client.authorization.get(org.id, sessionId), retry: false });
 
+  const [running, setRunning] = useState(false);
+  const [runError, setRunError] = useState<string | null>(null);
   const refresh = () => Promise.all([
     qc.invalidateQueries({ queryKey: ["session", org.id, sessionId] }),
     qc.invalidateQueries({ queryKey: ["bundle", org.id, sessionId] }),
     qc.invalidateQueries({ queryKey: ["sessions", org.id] }),
   ]);
 
+  const runNetting = async () => {
+    setRunning(true); setRunError(null);
+    try { await client.netting.run(org.id, sessionId); } catch (e) { setRunError(reasonOf(e)); }
+    await refresh(); setRunning(false);
+  };
   const workflow = detail.data?.workflow;
   const view = useMemo(() => {
     if (!workflow) return null;
@@ -87,6 +99,8 @@ export function Workspace() {
     );
   }
 
+  const activeIds = new Set((participants.data ?? []).filter((p) => p.status === "active").map((p) => p.userId));
+  const nettingElig = eligibility(obligations.data ?? [], activeIds);
   const o = detail.data.workspace.overview;
   const href = (k: TabKey) => (k === "overview" ? `/sessions/${sessionId}` : `/sessions/${sessionId}?tab=${k}`);
   const tabs: TabItem[] = TABS.map((t) => ({ href: href(t.key), label: t.label, count: t.key === "participants" ? participants.data?.filter((p) => p.status === "active").length ?? null : t.key === "obligations" ? obligations.data?.filter((x) => x.status === "active").length ?? null : null }));
@@ -113,14 +127,16 @@ export function Workspace() {
         <Panel className="order-2 min-w-0 space-y-6 lg:order-1" id="tab-content" aria-label="Section content">
           {tab === "overview" ? <OverviewTab detail={detail.data} readiness={readiness} next={next} /> : null}
           {tab === "participants" ? <ParticipantsTab sessionId={sessionId} query={participants} workflow={detail.data.workflow} onChanged={refresh} /> : null}
-          {tab === "obligations" ? <ObligationsTab query={obligations} /> : null}
-          {tab === "netting" ? <NettingTab sessionId={sessionId} /> : null}
+          {tab === "obligations" ? <ObligationsTab sessionId={sessionId} query={obligations} workflow={detail.data.workflow} activity={detail.data.workspace.activity.items} onChanged={refresh} /> : null}
+          {tab === "netting" ? <NettingTab sessionId={sessionId} obligations={obligations.data} participants={participants.data} readiness={readiness.data} running={running} runError={runError} /> : null}
           {tab === "approvals" ? <ApprovalsTab query={authorization} /> : null}
           {tab === "settlement" ? <SettlementTab /> : null}
           {tab === "activity" ? <ActivityTab detail={detail.data} /> : null}
         </Panel>
         <aside className="order-1 min-w-0 lg:sticky lg:top-24 lg:order-2 lg:self-start" aria-label="Session action">
-          <ActionPanel next={next} href={href} onReload={refresh} actorLabel={roleLabels(actor).join(", ")} />
+          {tab === "obligations" ? <RecordObligationPanel sessionId={sessionId} participants={participants.data ?? []} workflow={detail.data.workflow} onRecorded={refresh} />
+            : tab === "netting" ? <RunNettingPanel eligibleCount={nettingElig.eligible.length} excludedBlocking={nettingElig.excluded.filter((x) => x.reason === "inactive-participant").length} participantCount={activeIds.size} asset={nettingElig.eligible[0]?.asset ?? null} workflow={detail.data.workflow} running={running} error={runError} onRun={runNetting} />
+            : <ActionPanel next={next} href={href} onReload={refresh} actorLabel={roleLabels(actor).join(", ")} />}
         </aside>
       </div>
     </PageFrame>
