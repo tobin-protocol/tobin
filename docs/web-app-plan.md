@@ -1,6 +1,6 @@
 # Tobin web app (`apps/web`): build plan
 
-Status: **plan for review. Nothing has been built.** Written 2026-11-08 after reading `docs/web-app-prd.md`, `docs/web-app-design-spec.md`, the root and app READMEs, `AGENTS.md`, every `package.json`, and the source of the existing application's HTTP surface (`apps/web-console/lib/registry/http.ts`, `lib/auth/http.ts`, `lib/server/guards.ts`, `lib/registry/types.ts`, the `app/api/stellar/*` routes).
+Status: **plan, with the owner's decisions D1 to D6 recorded on 2026-11-08 (section 8). Phase A is the only phase approved.** Written 2026-11-08 after reading `docs/web-app-prd.md`, `docs/web-app-design-spec.md`, the root and app READMEs, `AGENTS.md`, every `package.json`, and the source of the existing application's HTTP surface (`apps/web-console/lib/registry/http.ts`, `lib/auth/http.ts`, `lib/server/guards.ts`, `lib/registry/types.ts`, the `app/api/stellar/*` routes).
 
 Terms follow [`COMMUNICATION-AND-MATURITY-TERMINOLOGY.md`](COMMUNICATION-AND-MATURITY-TERMINOLOGY.md). Every statement about the backend below was read from source, not assumed.
 
@@ -59,7 +59,7 @@ Unless a row says otherwise, writes require the **admin** role and decisions req
 | Overview counts (6.1) | Derived | session list rows and members; no aggregate endpoint. Settled value: **Not supported** (nothing is chain-confirmed through this API) |
 | Sessions list, filter, sort, paginate (7.1) | Real, limited | `GET /orgs/:id/sessions` returns rows; filtering, sorting and pagination are **client-side** (the API has none). "Created by / Joined / Awaiting my organization" are **Not supported** (single-organization model, F3) |
 | Create session (7.2) | Real, limited (admin only) | `POST /orgs/:id/sessions` takes only a `label`; the id is generated server-side. Participants step, parameters step: **Not supported** (participants are added after creation; no protocol parameters are settable here) |
-| Session invitation and joining (7.3, Journey 4) | **Not supported** | F3. A sample-data flow is possible only if you approve it (section 8, D3) |
+| Session invitation and joining (7.3, Journey 4) | **Not supported** | F3. Rendered as Not supported (D3) |
 | Session workflow state (7.4) | Real, limited | application `configuring`, `ready`, `closed`; `provenance` `fixture`, `local-draft`, `chain-read`, `chain-confirmed`; optional chain observation `OPEN`, `COMMITTED`, `APPROVED`, `SETTLED`. See the lifecycle mapping in section 5 |
 | Session participants add/remove (8.4) | Real, limited | users of the same organization; wallet is an **unproven claim**, labelled so |
 | Session obligations list (8.5) | Real | `GET .../obligations` |
@@ -87,6 +87,36 @@ Unless a row says otherwise, writes require the **admin** role and decisions req
 | Global search (17) | **Not supported** (client-side search of already loaded records is possible, labelled) | no endpoint |
 | Settings: profile, sessions, notification preferences (16) | Real (display name, revoke all); notification preferences **Not supported** | `profile`, `logout-all` |
 | Mainnet | **Not supported** | no Mainnet path exists; the environment indicator is fixed to Testnet |
+
+## 3a. Every PRD section marked
+
+**Supported**: implemented against real endpoints. **Derived**: computed from per-session requests, labelled. **Not supported**: no backend; rendered as "Not supported".
+
+| PRD section | Mark | Notes |
+|---|---|---|
+| 1 Product overview | Supported | shell, positioning, maturity notice |
+| 2 Personas, permission matrix | Derived | real roles Admin, Member, Reviewer (D5); PRD roles Owner, Operator, Viewer and External participant are Not supported; mapping appears in help text only |
+| 3 Information architecture, header | Supported | seven tabs, organization selector, wallet cell, fixed Testnet indicator. Notifications and global search are **Not supported** |
+| 4 Authentication | Supported | wallet challenge and email sign-in, session expiry, sign-out |
+| 5 Organization onboarding and management | Supported | create, join with a token, profile, members, invitations. Website, logo, contact, ownership transfer: Not supported |
+| 6 Organization overview | Derived | counts from session data; settled value Not supported |
+| 7 Clearing sessions | Supported | list (client-side filter and sort) and create by label. Cross-organization participants, parameters, invitations and joining: Not supported. The 12-state lifecycle is Not supported; six derived stepper groups replace it |
+| 8 Session workspace | Supported | participants are users of the same organization |
+| 9 Obligations | Supported | create, correct (revision), void with reason. Global list Derived. Due date and supporting information: Not supported |
+| 10 Netting | Supported | per asset; excluded-with-reasons limited to voided and legacy assets |
+| 11 Approvals | Supported | single reviewer decision. N-of-M, approval requests, Stellar authorization: Not supported |
+| 12 Settlement | Supported to Prepared and review; execution attempt states read-only | signing, submission, verification, confirmation: **Not supported** |
+| 13 Activity | Supported (session), Derived (global) | |
+| 14 Wallets | Supported | connected and verified separate; signer information limited |
+| 15 Notifications | Not supported | |
+| 16 Settings | Supported (display name, revoke all sessions) | notification preferences Not supported |
+| 17 Global search | Not supported | |
+| 18 Journeys | 1, 2, 5, 6, 7, 10 Supported; 3 limited; 8 to Prepared only; 4 Not supported; 9 partial | |
+| 19 States | Supported | loading, empty, error, permission, confirmation |
+| 20 Financial data | Supported | amount always with asset; assets never netted together |
+| 21 Responsive | Supported | |
+| 22 Design deliverables, 24 Objective | n/a | design process, not product behaviour |
+| 23 Constraints | Supported | enforced; including the Confirmed rule in section 9 |
 
 ## 4. Roles: `can(role, capability)`
 
@@ -126,7 +156,7 @@ One interface, three adapters, chosen at startup and always visible.
 |---|---|---|
 | `HttpAdapter` (default) | backend reachable through the BFF proxy | real calls; maps API errors to typed results; never invents fields |
 | `UnsupportedAdapter` methods | the capability has no endpoint | returns `{ supported: false }`; the UI renders "Not supported" |
-| `MockAdapter` | only if `NEXT_PUBLIC_TOBIN_SAMPLE_DATA=1` | fictional sample data under a persistent "Sample data" banner, never mixed with real records; off by default |
+| `MockAdapter` | only if `NEXT_PUBLIC_TOBIN_SAMPLE_DATA=1` | off by default. Per D3, every PRD feature with no backend renders "Not supported" and is **not** mocked; the adapter and its persistent "Sample data" banner exist only so the flag has a defined, visible behaviour, and nothing in Phase A uses it |
 
 Planned interface groups (each method's adapter status follows section 3): `auth` (me, challenge, verify, logout), `organizations` (list, get, update, members, invitations, reviewers, wallets), `sessions` (list, get, create, participants, readiness), `obligations` (list by session, aggregate list, create, correct, void), `netting` (calculate, get), `approvals` (get, decide), `settlement` (preview, prepare, batches, decide, execution, attempts), `activity` (by session, aggregate), `wallets`, `notifications` (unsupported), `search` (unsupported). Amounts stay decimal strings (`bigint` in memory), always paired with an asset code; assets are never netted together.
 
@@ -143,21 +173,27 @@ Planned interface groups (each method's adapter status follows section 3): `auth
 | Tests | Vitest-style unit tests are not in the repo; the repo uses `node --test`. Unit tests for netting display and state mapping will use `node --test` with Node's TypeScript support, matching `apps/web-console`. Playwright is listed in your prompt and is added for the smoke tests |
 | Each new npm dependency | regenerates `ci/dependency-baseline.csv` (`node scripts/ci/update-npm-baseline.mjs`) and is reported |
 
-## 8. Decisions I need before Phase A
+## 8. Decisions recorded (owner, 2026-11-08)
 
-- **D1. Relationship to `apps/web-console`.** Options: (a) `apps/web` is a new UI over the console's API through a BFF proxy, the console keeps running as the backend (recommended: no backend change); (b) `apps/web` replaces the console's institutional pages over time; (c) something else. I will build (a) unless you say otherwise.
-- **D2. Same-origin proxy or backend change.** The proxy in F2 needs no backend change. Allow-listing a second origin in `guards.ts` would be a security-relevant backend change that I will not make without your approval. I will use the proxy.
-- **D3. PRD features with no backend support (F3, F4, F6, F7).** Confirm, per feature, one of: **Not supported** (default), or **Sample** behind the flag. My recommendation: Not supported for cross-organization sessions and joining, notifications, search, N-of-M approvals, signing, submission and confirmation. Sample data only where it clarifies a screen the real data cannot fill (for example a populated netting view), always bannered.
-- **D4. Wallet library.** Use the pinned `@stellar/freighter-api` (recommended) or add Stellar Wallets Kit.
-- **D5. Roles.** Confirm the mapping in section 4: Owner is Not supported; Operator is not a distinct role (admin-only operations); Viewer is a member without a reviewer grant; Approver is a reviewer grant. The alternative is adding roles to the backend, which I will not do without approval.
-- **D6. Aggregation.** Confirm that global Obligations, Activity and Overview counts may be derived client-side from per-session requests (N+1), labelled "Derived".
+- **D1. Relationship to `apps/web-console`.** `apps/web` is a new UI over the console's API. **Canonical UI:** until `apps/web` reaches parity, `apps/web-console` remains the canonical institutional UI. **Once `apps/web` reaches parity it becomes the canonical institutional UI**, and the console's institutional pages (`app/(institution)`) are retired; the console stays as the backend, the owner-run tools and the local sandbox. Parity means: every row marked Supported in section 3 and every PRD section marked Supported in section 3a is implemented in `apps/web`, with tests, and the owner has reviewed it. Derived and Not supported items do not block parity.
+- **D2. Same-origin proxy.** A server-side proxy in `apps/web`. The guards are **not** changed and no CORS is added. The README states that hosting is local-only until a reachable backend exists.
+- **D3. No backend, no feature.** Cross-organization sessions and joining, notifications, global search, N-of-M approval, signing, submission and confirmation render "Not supported". Sample data stays off by default behind `NEXT_PUBLIC_TOBIN_SAMPLE_DATA=1` and always shows a "Sample data" banner.
+- **D4. Wallet.** The pinned `@stellar/freighter-api`. Stellar Wallets Kit is not added.
+- **D5. Real role names.** The UI shows **Admin**, **Member** and **Reviewer**. It never labels an admin "Operator" or a reviewer "Approver". Owner does not exist. The PRD role mapping appears in help text only. A single `can(role, capability)` helper mirrors the backend rules (section 4) and is presentation only.
+- **D6. Derived data.** Global Obligations, Activity and Overview counts may be derived from per-session requests, labelled "Derived from session data". The number of per-session requests is capped, and "Showing N sessions" is displayed whenever the cap applies, so a total is never read as complete.
 
-## 9. Deviations from the design spec I expect to make, and why
+### Dependencies approved for Phase A
 
-- **Accessible grey text.** `#B1B1B1` on white is about 2:1; the landing page's own comment says it is not for body text. I propose using it for disabled controls only and writing "Not supported" in `#626262` with a dash icon, so the label stays readable.
-- **Focus visibility.** "No borders" cannot remove keyboard focus indication. I will keep a 2px outline focus ring on interactive elements, as the landing page does.
-- **The environment indicator.** Fixed to "Stellar Testnet"; no Mainnet variant is built because no Mainnet path exists.
+TanStack Query, TanStack Table, react-hook-form, zod, nuqs, Playwright. Anything else needs a question first. Phase A installs only what it uses (nuqs is deferred until a screen needs URL state beyond `searchParams`). `@hookform/resolvers` is **not** on the list, so zod validation is wired to react-hook-form with a small local resolver.
+
+## 9. Deviations from the design spec (accepted)
+
+- **Accessible grey text.** "Not supported" text is `#626262`. `#B1B1B1` is for disabled controls only.
+- **Focus visibility.** A 2px focus ring stays on every interactive element. Keyboard accessibility overrides "no borders".
+- **The environment indicator.** Fixed to "Stellar Testnet"; there is no Mainnet state.
 - **Sign-in domain.** Disclosed in the UI help text per F8.
+- **No Confirmed without read-back.** A test and a source check enforce that no screen can render a Confirmed state unless the backend reports a verified read-back. Today the backend never does, so Confirmed is never rendered.
+- **Bottom navigation.** Under 768 px the bottom bar has Overview, Sessions, Activity and More. The spec's "Approvals" item is omitted until Phase D, because no approvals page exists before then.
 
 ## 10. Phases and review stops
 
