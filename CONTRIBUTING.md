@@ -289,6 +289,7 @@ Open a pull request against `main` from your branch. The [pull request template]
 - **Project policy requires** the **Rust, TypeScript and documentation checks** (`ci.yml`) to pass before a pull request is merged. **GitHub does not enforce this:** the `main` ruleset's required-status-checks rule currently lists no checks, so a merge is not technically blocked when that check fails. Do not merge while it fails. Resolve merge conflicts without discarding another contributor's work.
 - The repository permits merge, squash and rebase merges. The maintainer chooses at merge time; accepted milestone history has been preserved as individual commits with merge commits. Do not rewrite history on a branch that is under review without saying so.
 - Do not approve or merge your own change where GitHub does not allow it, and do not use bypass permissions for routine changes.
+- `.github/CODEOWNERS` makes the repository owner (`@ebubechi-ihediwa`) the requested reviewer of every pull request, so GitHub requests that review automatically and you do not need to pick a reviewer. Ask the owner in the pull request if the request did not appear.
 - The `main` ruleset requires one approving review on a pull request (it does not require code-owner review or that review threads are resolved). Beyond that, security-sensitive changes should have a reviewer who is not the author.
 
 ## AI-assisted contributions
