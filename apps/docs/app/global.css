@@ -185,3 +185,21 @@ samp {
 .prose table {
   border-radius: 12px;
 }
+
+/* The framed stage behind the console screenshot: a soft neutral ground, light and dark. */
+.stage {
+  background:
+    radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--color-fd-foreground) 5%, transparent), transparent 70%),
+    var(--color-fd-muted);
+  border: 1px solid var(--color-fd-border);
+}
+
+/* A very large, very quiet wordmark closing the page, cropped by the section like a watermark. */
+.wordmark {
+  font-size: clamp(6rem, 27vw, 23rem);
+  line-height: 0.74;
+  letter-spacing: -0.05em;
+  margin-bottom: -0.2em;
+  padding-top: 0.5rem;
+  color: color-mix(in srgb, var(--color-fd-foreground) 7%, transparent);
+}
