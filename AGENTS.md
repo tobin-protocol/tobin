@@ -33,7 +33,6 @@ When sources disagree: the **code and its tests** show what the system does; an 
 
 Known discrepancies (as of this writing):
 
-- `apps/web-console/README.md` describes only the MVP-1 sandbox Console. It does not cover the institutional app, the database, sign-in or the owner-run Stellar tools.
 - The header comment of `apps/web-console/lib/registry/settlement-state.ts` says no wallet, signing or submission exists in this build. That predates MVP-1.5: the owner-run tools do sign and submit (they do not go through this module).
 - `docs/product/architecture/mvp-1.2` to `mvp-1.5` and the older reports describe state **at their date**. Their "BLOCKED" or "not implemented" sections are history where a later document supersedes them (the MVP-1.5 documents mark which parts).
 - Older documents use the pre-monorepo paths `core/` and `ts/`; map them with `docs/PATH-MAP.md`.
