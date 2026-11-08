@@ -12,7 +12,7 @@ import { client } from "../../lib/tobin/index.ts";
 import { PageFrame } from "../shell/PageFrame.tsx";
 import { useWorkspace } from "../shell/session.tsx";
 import { Button, ButtonLink } from "../ui/Button.tsx";
-import { PageTabs, type TabItem } from "../ui/Data.tsx";
+import { AvatarStack, PageTabs, type TabItem } from "../ui/Data.tsx";
 import { ErrorState, Skeleton } from "../ui/Feedback.tsx";
 import { NextAction as NextActionCard, Stepper } from "../ui/Flow.tsx";
 import { Card, Panel } from "../ui/Surfaces.tsx";
@@ -95,21 +95,22 @@ export function Workspace() {
     <PageFrame title={o.label} breadcrumbs={crumbs} sensitive>
       <Panel className="mb-6 space-y-4" aria-label="Session summary">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-body">
-          <span className="rounded-btn bg-card px-2.5 py-1 font-medium">{WORKFLOW_LABEL[detail.data.workflow]}</span>
+          <span className="font-medium">{WORKFLOW_LABEL[detail.data.workflow]}</span>
           <span className="text-muted">{o.provenance === "local-draft" ? "Local draft · Application record" : detail.data.workspace.banner?.label ?? o.provenance}</span>
           <span className="text-muted">Created {formatDateTime(o.createdAt)}</span>
+          {participants.data ? <AvatarStack names={participants.data.filter((p) => p.status === "active").map((p) => p.name)} /> : null}
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <span className="min-w-0 break-all font-mono text-ident text-muted" data-testid="session-id">{o.sessionId}</span>
           <CopyButton value={o.sessionId} label="Copy id" />
         </div>
-        <Stepper currentIndex={view.currentIndex} subLabel={view.subLabel} applicationOnly />
+        <Card><Stepper currentIndex={view.currentIndex} subLabel={view.subLabel} applicationOnly /></Card>
       </Panel>
 
       <div className="mb-6 border-b border-divider"><PageTabs label="Session sections" items={tabs} activeHref={href(tab)} /></div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
-        <div className="order-2 min-w-0 lg:order-1" id="tab-content">
+        <Panel className="order-2 min-w-0 space-y-6 lg:order-1" id="tab-content" aria-label="Section content">
           {tab === "overview" ? <OverviewTab detail={detail.data} readiness={readiness} next={next} /> : null}
           {tab === "participants" ? <ParticipantsTab sessionId={sessionId} query={participants} workflow={detail.data.workflow} onChanged={refresh} /> : null}
           {tab === "obligations" ? <ObligationsTab query={obligations} /> : null}
@@ -117,7 +118,7 @@ export function Workspace() {
           {tab === "approvals" ? <ApprovalsTab query={authorization} /> : null}
           {tab === "settlement" ? <SettlementTab /> : null}
           {tab === "activity" ? <ActivityTab detail={detail.data} /> : null}
-        </div>
+        </Panel>
         <aside className="order-1 min-w-0 lg:sticky lg:top-24 lg:order-2 lg:self-start" aria-label="Session action">
           <ActionPanel next={next} href={href} onReload={refresh} actorLabel={roleLabels(actor).join(", ")} />
         </aside>

@@ -3,14 +3,16 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { useQueries } from "@tanstack/react-query";
 import { can } from "../../lib/permissions/can.ts";
-import { formatDateTime, relativeTime } from "../../lib/format.ts";
+import { formatDate, formatDateTime, relativeTime } from "../../lib/format.ts";
 import { applyQuery, PAGE_SIZE, type ProvenanceFilter, type SortKey } from "../../lib/sessions/list.ts";
 import { client } from "../../lib/tobin/index.ts";
 import type { SessionRow } from "../../lib/tobin/types.ts";
 import { PageFrame } from "../shell/PageFrame.tsx";
 import { useWorkspace } from "../shell/session.tsx";
 import { Button, ButtonLink } from "../ui/Button.tsx";
+import { Panel } from "../ui/Surfaces.tsx";
 import { Table, type Col } from "../ui/Data.tsx";
 import { EmptyState, ErrorState, Skeleton } from "../ui/Feedback.tsx";
 import { SelectField, TextField } from "../ui/Form.tsx";
@@ -35,11 +37,12 @@ const SORT_CHOICES: { value: string; label: string }[] = [
 /** Quick filters that need the workflow, calculation or approval state. The list endpoint does not carry them (docs/web-app-plan.md section 5a). */
 const UNSUPPORTED_QUICK = ["Awaiting my review", "Calculation stale", "Marked ready"] as const;
 
-const columns = (onOpen: (r: SessionRow) => string): Col<SessionRow>[] => [
+const STATE_LABEL = { configuring: "Being configured", ready: "Marked ready", closed: "Closed" } as const;
+const columns = (onOpen: (r: SessionRow) => string, state: (r: SessionRow) => string): Col<SessionRow>[] => [
   { id: "label", header: "Session", sortable: true, cell: (r) => <Link href={onOpen(r)} className="block"><span className="block font-medium">{r.label}</span><span className="block font-mono text-ident text-muted">{r.shortId}</span></Link> },
-  { id: "provenance", header: "Record", cell: (r) => <span><span className="block">{r.provenanceLabel}</span><span className="block text-label text-muted">Application record</span></span> },
-  { id: "activity", header: "Last activity", sortable: true, cell: (r) => (r.lastActivity ? <span title={formatDateTime(r.lastActivity)} className="text-muted">{relativeTime(r.lastActivity)} · {r.activityCount} event{r.activityCount === 1 ? "" : "s"}</span> : <span className="text-muted">None yet</span>) },
-  { id: "created", header: "Created", sortable: true, cell: (r) => <span className="text-muted">{formatDateTime(r.createdAt)}</span>, hideBelow: "md" },
+  { id: "state", header: "State (derived)", cell: (r) => <span className="whitespace-nowrap">{state(r)}</span> },
+  { id: "activity", header: "Last activity", sortable: true, cell: (r) => (r.lastActivity ? <span title={formatDateTime(r.lastActivity)} className="whitespace-nowrap text-muted">{relativeTime(r.lastActivity)} · {r.activityCount} event{r.activityCount === 1 ? "" : "s"}</span> : <span className="text-muted">No data</span>) },
+  { id: "created", header: "Created", sortable: true, cell: (r) => <span title={formatDateTime(r.createdAt)} className="whitespace-nowrap text-muted">{formatDate(r.createdAt)}</span> },
   { id: "open", header: "", align: "right", cell: (r) => <ButtonLink href={onOpen(r)} variant="quiet">Open</ButtonLink> },
 ];
 
@@ -52,7 +55,11 @@ export function SessionsList() {
   const result = useMemo(() => (q.data ? applyQuery(q.data, query) : null), [q.data, query]);
   const create = can(actor, "sessions.create");
   const open = (r: SessionRow) => `/sessions/${r.sessionId}`;
-  const cols = useMemo(() => columns(open), []);
+  // workflow state is not in the list response: read it for the VISIBLE rows only (cached; shared with the workspace), labelled Derived
+  const visible = result?.rows ?? [];
+  const stateQs = useQueries({ queries: visible.map((r) => ({ queryKey: ["session", org.id, r.sessionId, "detail"], queryFn: () => client.sessions.get(org.id, r.sessionId), staleTime: 60_000, retry: false })) });
+  const stateOf = (r: SessionRow): string => { const i = visible.findIndex((v) => v.sessionId === r.sessionId); const q = stateQs[i]; return q?.data ? STATE_LABEL[q.data.workflow] : q?.isError ? "No data" : "Reading…"; };
+  const cols = columns(open, stateOf);
   const filtering = query.q !== "" || query.provenance !== "all" || query.hasActivity;
 
   const createAction = create.allowed
@@ -89,11 +96,12 @@ export function SessionsList() {
       ) : q.error ? (
         <ErrorState title="Could not load sessions" message={(q.error as Error).message} retry={<Button onClick={() => q.refetch()}>Try again</Button>} />
       ) : result && result.total === 0 ? (
-        <EmptyState title="No sessions yet" message="A clearing session collects the obligations of its participants so they can be netted. Sessions you create are local drafts: they are not on-chain." action={create.allowed ? <ButtonLink href="/sessions/new" variant="primary">Create session</ButtonLink> : undefined} />
+        <EmptyState title="No sessions yet" message="A clearing session collects the obligations of its participants so they can be netted. Sessions you create are local drafts: they are not on-chain." action={create.allowed ? <ButtonLink href="/sessions/new" variant="quiet">Create session</ButtonLink> : undefined} />
       ) : result && result.matched === 0 ? (
         <EmptyState title="No sessions match" message={`None of the ${result.total} sessions match these filters.`} action={filtering ? <Button onClick={() => { setText(""); setQuery({ q: "", provenance: "all", hasActivity: false }); }}>Clear filters</Button> : undefined} />
       ) : result ? (
         <>
+          <Panel className="p-3 sm:p-4">
           <div className="hidden min-[900px]:block">
             <Table columns={cols} data={result.rows} getRowId={(r) => r.sessionId} empty={null}
               sort={{ id: query.sort === "created" ? "created" : query.sort === "label" ? "label" : "activity", dir: query.dir }}
@@ -107,9 +115,10 @@ export function SessionsList() {
                   <span className="mt-0.5 block font-mono text-ident text-muted">{r.shortId}</span>
                 </Link>
                 <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-body">
+                  <div><dt className="text-label text-muted">State (derived)</dt><dd>{stateOf(r)}</dd></div>
                   <div><dt className="text-label text-muted">Record</dt><dd>{r.provenanceLabel}<span className="block text-label text-muted">Application record</span></dd></div>
                   <div><dt className="text-label text-muted">Created</dt><dd>{formatDateTime(r.createdAt)}</dd></div>
-                  <div className="col-span-2"><dt className="text-label text-muted">Last activity</dt><dd>{r.lastActivity ? `${relativeTime(r.lastActivity)} · ${r.activityCount} event${r.activityCount === 1 ? "" : "s"}` : "None yet"}</dd></div>
+                  <div className="col-span-2"><dt className="text-label text-muted">Last activity</dt><dd>{r.lastActivity ? `${relativeTime(r.lastActivity)} · ${r.activityCount} event${r.activityCount === 1 ? "" : "s"}` : "No data"}</dd></div>
                 </dl>
                 <ButtonLink href={open(r)} variant="quiet" className="mt-3 w-full">Open</ButtonLink>
               </li>
@@ -122,6 +131,7 @@ export function SessionsList() {
               <Button disabled={result.page >= result.pages} onClick={() => setQuery({ page: result.page + 1 })}>Next</Button>
             </span>
           </div>
+          </Panel>
         </>
       ) : null}
     </PageFrame>

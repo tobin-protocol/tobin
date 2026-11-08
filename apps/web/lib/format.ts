@@ -47,3 +47,11 @@ export function humanizeKind(kind: string): string {
   const t = kind.replace(/[._-]+/g, " ").trim();
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
+
+/** Date only, UTC: "08 Nov 2026". For tight table columns; the full timestamp stays in the title. */
+export function formatDate(iso: string | null | undefined): string {
+  if (!iso) return "No data";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "No data";
+  return new Intl.DateTimeFormat("en-GB", { year: "numeric", month: "short", day: "2-digit", timeZone: "UTC" }).format(d);
+}

@@ -107,7 +107,7 @@ export function ParticipantsTab({ sessionId, query, workflow, onChanged }: { ses
               <option value="">{candidates.length === 0 ? "Every active member is already a participant" : "Choose a member"}</option>
               {candidates.map((m) => <option key={m.userId} value={m.userId}>{m.name}{m.you ? " (you)" : ""}</option>)}
             </SelectField>
-            <Button variant="primary" disabled={!pick} loading={busy} onClick={add}>Add participant</Button>
+            <Button variant="secondary" disabled={!pick} loading={busy} onClick={add}>Add participant</Button>
           </div>
         ) : (
           <p className="mt-2 text-body text-muted" role="note">{!manage.allowed ? manage.reason : workflow === "ready" ? "The session is marked ready. It can only change while it is being configured." : "A closed session cannot change."}</p>

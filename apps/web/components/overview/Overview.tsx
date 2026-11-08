@@ -60,6 +60,8 @@ export function Overview() {
     [sessionsQ.data, bundleStamp, actor.reviewer, isAdmin, pending],
   );
 
+  // a count of nothing read is "No data", never 0 (design spec, empty states)
+  const cnt = (v: number) => (reading ? "…" : derived && derived.sessionsRead === 0 ? "No data" : v);
   const o = orgQ.data?.organization;
   return (
     <PageFrame title="Overview" breadcrumbs={[{ label: org.name }, { label: "Overview" }]}>
@@ -79,10 +81,10 @@ export function Overview() {
                       <StatGrid items={[
                         { label: "Clearing sessions", value: derived.sessionsTotal, hint: "Real: from the session list" },
                         { label: "Members", value: membersQ.data ? membersQ.data.length : "No data", hint: membersQ.data ? "Real" : undefined },
-                        { label: "Obligations recorded", value: reading ? "…" : derived.obligationsActive, hint: "Derived, active only" },
-                        { label: "Voided", value: reading ? "…" : derived.obligationsVoided, hint: "Derived" },
-                        { label: "Configuring", value: reading ? "…" : derived.byWorkflow.configuring, hint: "Derived" },
-                        { label: "Ready or closed", value: reading ? "…" : derived.byWorkflow.ready + derived.byWorkflow.closed, hint: "Derived" },
+                        { label: "Obligations recorded", value: cnt(derived.obligationsActive), hint: "Derived, active only" },
+                        { label: "Voided", value: cnt(derived.obligationsVoided), hint: "Derived" },
+                        { label: "Configuring", value: cnt(derived.byWorkflow.configuring), hint: "Derived" },
+                        { label: "Ready or closed", value: cnt(derived.byWorkflow.ready + derived.byWorkflow.closed), hint: "Derived" },
                       ]} />
                       <DerivedNote shown={derived.sessionsRead} total={derived.sessionsTotal} capped={derived.capped} />
                       {derived.unreadable > 0 ? <p className="text-label text-danger" role="status">{derived.unreadable} session{derived.unreadable === 1 ? "" : "s"} could not be read and {derived.unreadable === 1 ? "is" : "are"} left out of the derived counts.</p> : null}
