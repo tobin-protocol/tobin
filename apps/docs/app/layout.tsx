@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(DOCS_URL),
   title: { default: "Tobin Developer Documentation", template: "%s · Tobin Docs" },
   description:
-    "Developer documentation for the Tobin Clearing Protocol: an experimental, Stellar Testnet-targeted clearing and settlement-preparation system. Not production-ready.",
+    "Developer documentation for Tobin: institutional clearing and settlement infrastructure built on Stellar. Implemented and demonstrated on Stellar Testnet; production deployment has not yet been approved.",
 };
 
 export default function Layout({ children }: { children: ReactNode }) {

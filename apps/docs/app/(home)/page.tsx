@@ -82,7 +82,7 @@ export default function HomePage() {
         <div className="mx-auto max-w-[1200px] px-4 pb-8 pt-14 text-center md:px-6 md:pt-20">
           <p className="mx-auto inline-flex max-w-full items-center gap-2 rounded-full border border-fd-border bg-fd-background/80 px-3 py-1.5 font-label text-[0.68rem] uppercase tracking-[0.1em] text-fd-muted-foreground backdrop-blur sm:text-xs">
             <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-fd-muted-foreground" />
-            Experimental · Stellar Testnet · Not production-ready
+            Institutional clearing and settlement on Stellar · Testnet-demonstrated
           </p>
           <span className="mx-auto mt-8 flex size-14 items-center justify-center rounded-[12px] bg-[var(--color-ink-soft)] text-white dark:bg-[var(--color-paper)] dark:text-[var(--color-ink)]">
             <BrandMark className="size-8" />
@@ -91,8 +91,9 @@ export default function HomePage() {
             Tobin Developer Documentation
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg leading-snug text-fd-muted-foreground md:text-xl">
-            Record obligations. Net them deterministically. Approve the exact result. Settle only what is left. This
-            is how the system is built, run and changed.
+            Institutional clearing and settlement infrastructure built on Stellar. Record obligations, calculate net
+            positions, apply authorization controls, and settle only what is left. This is how it is built, run and
+            changed.
           </p>
           <div className="mt-9 flex flex-wrap justify-center gap-3">
             <Link href="/docs" className={`${btn} bg-fd-primary text-fd-primary-foreground hover:bg-fd-primary/85`}>
@@ -138,6 +139,27 @@ export default function HomePage() {
               {n}
             </span>
           ))}
+        </div>
+      </section>
+
+      {/* Status */}
+      <section aria-labelledby="status-heading" className="mx-auto max-w-[1200px] px-4 pt-14 md:px-6">
+        <div className="rounded-[16px] border border-fd-border bg-fd-card p-5 md:flex md:items-start md:gap-8 md:p-7">
+          <h2 id="status-heading" className="font-label text-xs uppercase tracking-[0.12em] text-fd-muted-foreground md:w-40 md:shrink-0 md:pt-1">
+            Project status
+          </h2>
+          <p className="mt-2 text-lg leading-snug md:mt-0">
+            Tobin&apos;s core clearing and settlement workflows have been implemented and demonstrated through controlled
+            Stellar Testnet execution. Production deployment and real-value use have not yet been approved. The evidence
+            is from the implementing author, and no independent security review has been performed.{" "}
+            <Link
+              href="/docs/introduction/project-status"
+              className="underline decoration-1 underline-offset-[3px] hover:decoration-2"
+            >
+              Read the full status
+            </Link>
+            .
+          </p>
         </div>
       </section>
 

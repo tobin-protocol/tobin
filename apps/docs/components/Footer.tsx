@@ -16,7 +16,7 @@ export function Footer() {
         <div className="max-w-sm">
           <Brand />
           <p className="mt-3 text-sm text-fd-muted-foreground">
-            Experimental software for Stellar Testnet. Not production-ready; Mainnet and real-value use are not
+            Pre-production institutional infrastructure on Stellar Testnet. Production deployment has not yet been approved; Mainnet and real-value use are not
             authorised. The Tobin name and logo are not covered by the Apache-2.0 licence.
           </p>
         </div>

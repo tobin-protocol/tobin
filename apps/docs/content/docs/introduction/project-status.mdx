@@ -1,22 +1,28 @@
 ---
 title: Project status
-description: What is implemented, what was verified on Testnet, and what is explicitly not authorised.
+description: The maturity of each part of Tobin, what has been demonstrated on Stellar Testnet, and the engineering work that remains.
 ---
 
-<Callout type="error" title="Not production-ready">
-  Experimental software on Stellar Testnet. Not approved for Mainnet or real value. No independent audit has been
-  performed.
+<Callout title="Pre-production institutional infrastructure">
+  Tobin&apos;s core clearing and settlement workflows have been implemented and demonstrated through controlled Stellar
+  Testnet execution. Production deployment and real-value use have not yet been approved.
 </Callout>
 
-## Summary
+## Maturity at a glance
 
-Milestones MVP-1.2 to MVP-1.5 and wallet-first authentication are implemented and have been exercised on Stellar
-**Testnet** with test assets. That is evidence about the mechanics, **not** evidence of production readiness:
+These terms are not interchangeable; each is earned by specific evidence. The full definitions are in the
+[communication and maturity terminology guide](https://github.com/tobin-protocol/tobin/blob/main/docs/COMMUNICATION-AND-MATURITY-TERMINOLOGY.md).
 
-- the evidence comes from the implementing author only and was not independently verified;
-- nothing has been independently audited;
-- the release gates for a versioned or production release are still blocked
-  ([`release/RELEASE-GATES.json`](https://github.com/tobin-protocol/tobin/blob/main/release/RELEASE-GATES.json)).
+| Level | Status |
+|---|---|
+| Implemented | Yes: MVP-1.2 to MVP-1.5 and wallet-first authentication. |
+| Tested | Yes: automated suites, contract tests and real-browser journeys. Same-author tests. |
+| Testnet-verified | The settlement path, narrowly: one owner-run execution of eight transactions with multisig co-signing, read back from the network and compared with the approved plan. Not the whole project; wallet-first sign-in is not Testnet-verified. |
+| Independently reviewed | No. All reviews and evidence are by the implementing author. |
+| Pilot-ready | No. It depends on MVP-1.6 to MVP-1.8 and an independent security review. |
+| Production-approved | No. The release gates for versioned and production releases are blocked ([`release/RELEASE-GATES.json`](https://github.com/tobin-protocol/tobin/blob/main/release/RELEASE-GATES.json)). |
+
+A Testnet demonstration is evidence about the mechanics in a stated scope. It is not evidence of production behaviour.
 
 ## Capabilities
 
@@ -33,35 +39,41 @@ the real Stellar Testnet.
 | Settlement preparation (instructions, batch review) | Yes | n/a |
 | Soroban clearing contract and capped test token | Yes | Yes |
 | Wallet ownership verification and multisig co-signing | Yes | Yes |
-| Testnet settlement execution (owner-run tool) | Yes | Yes, one run |
-| Independent chain read and reconciliation (owner-run tool) | Foundations | Yes, one run |
-
-The wallet-first flow is tested with a protocol-compatible stand-in; a real-Freighter run in Microsoft Edge is
-outstanding.
+| Testnet settlement execution (owner-run tool) | Yes | Yes, one execution |
+| Independent chain read and reconciliation (owner-run tool) | Foundations | Yes, one execution |
 
 ## What is and is not connected
 
 The persisted application records stop at *execution preconditions*. The settlement and execution records never read
 from or submit to the network. Real on-chain execution is performed by separate, owner-run tools that keep their own
-run log, and confirmed outcomes are **not** written back into the application's records.
+run log, and confirmed outcomes are **not** written back into the application&apos;s records.
 
 ## Not implemented
 
 Account recovery for wallet-only users; deadlines, abort, default and recovery handling, collateral and Merkle
-commitments (the broader protocol design); hardware-wallet or second-wallet validation; any Mainnet capability;
-independent audit.
+commitments (the broader protocol design, not part of the approved roadmap); hardware-wallet or second-wallet
+validation; any Mainnet capability; independent security review.
 
-## Known limitations
+## Current scope and remaining engineering work
 
-1. A real-Freighter validation in Edge is outstanding.
-2. Evidence is same-author, from one environment and one browser engine; no independent penetration test or fuzzing.
-3. Migration 8 was tested on fresh databases and a populated version-7 test database, not on a real operator database.
-4. Account recovery is deferred; there is no administrator or support override.
-5. Confirmed on-chain outcomes are not written back to the application's records.
-6. The Testnet settlement was a single one-base-unit run; maximum-size sessions, fee breakdown and measured resources
-   have not been validated.
-7. The repository ruleset on `main` requires a pull request with one approving review but **no specific CI check**,
-   and administrators can bypass it. That CI must pass is project policy, not something GitHub enforces.
+These remain visible because they are true, and because they are the validation requirements between a working Testnet
+integration and a pilot.
+
+1. **Wallet validation.** Freighter in Microsoft Edge produced authorization-entry signatures in the MVP-1.5 owner
+   validation. The wallet-first sign-in flow itself has not yet been validated with the real extension; automated browser
+   tests use a protocol-compatible stand-in. No second wallet or hardware wallet has been validated.
+2. **Independent review.** No independent security review or fuzzing has been done. Evidence is same-author, from one
+   environment and one browser engine.
+3. **Migration 8** was tested on fresh databases and a populated version-7 test database, not on a real operator
+   database.
+4. **Account recovery** is deferred. A user must keep access to at least one verified wallet; there is no administrator
+   or support override.
+5. **Application-level reconciliation.** Confirmed on-chain outcomes are not yet written back to the application&apos;s
+   records.
+6. **Measured behaviour.** The Testnet settlement was a single one-base-unit execution. Maximum-size sessions, fee
+   breakdown and measured resource use have not been validated.
+7. **Repository controls.** The ruleset on `main` requires a pull request with one approving review but **no specific CI
+   check**, and administrators can bypass it. That CI must pass is project policy, not something GitHub enforces.
 
 The authoritative records are the milestone closure documents under
 [`docs/product/architecture`](https://github.com/tobin-protocol/tobin/tree/main/docs/product/architecture). See also the
