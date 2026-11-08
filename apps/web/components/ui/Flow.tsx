@@ -1,0 +1,139 @@
+import type { ReactNode } from "react";
+import { cn, formatDateTime } from "../../lib/format.ts";
+import { stageText, stageView, STAGE_LABEL, type Stage, type StageInput } from "../../lib/stages.ts";
+import { Button } from "./Button.tsx";
+import { CrossIcon, StatusMark } from "./Feedback.tsx";
+
+export const LIFECYCLE_GROUPS = ["Draft", "Participation", "Obligations", "Netting", "Approval", "Settlement"] as const;
+
+/**
+ * Session lifecycle stepper: six groups, driven by real fields only (docs/web-app-plan.md section 5). Completed = filled dot and check; current = filled
+ * ring with an exact sub-label; future = outlined dot, #b1b1b1 (decorative, not text-only information: the label stays #626262 for readability).
+ */
+export function Stepper({ currentIndex, subLabel, stoppedAt, stoppedLabel, applicationOnly }: {
+  currentIndex: number; subLabel?: string; stoppedAt?: number; stoppedLabel?: string; applicationOnly?: boolean;
+}) {
+  return (
+    <div>
+      <ol className="flex flex-wrap gap-x-6 gap-y-3" aria-label="Session progress">
+        {LIFECYCLE_GROUPS.map((g, i) => {
+          const done = i < currentIndex;
+          const current = i === currentIndex;
+          const stopped = stoppedAt === i;
+          return (
+            <li key={g} aria-current={current ? "step" : undefined} className="flex items-center gap-2">
+              <span aria-hidden="true" className={cn("flex size-4 items-center justify-center rounded-full", done ? "bg-button text-on-button" : current ? "border-[5px] border-button" : "border border-disabled")}>
+                {done ? <svg viewBox="0 0 12 12" className="size-2.5"><path d="M2.5 6.2l2.4 2.3 4.6-4.9" stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg> : null}
+              </span>
+              <span className={cn("text-body", done || current ? "text-ink" : "text-muted", current && "font-medium")}>{g}</span>
+              {stopped ? <span className="flex items-center gap-1 text-body text-danger"><CrossIcon className="mt-0" />{stoppedLabel ?? "Stopped"}</span> : null}
+            </li>
+          );
+        })}
+      </ol>
+      {subLabel ? <p className="mt-2 text-body text-muted">{subLabel}{applicationOnly ? " · Application record" : ""}</p> : null}
+    </div>
+  );
+}
+
+/** Who must do what next, and whether it is the current user. */
+export function NextAction({ title, who, forYou, children }: { title: string; who: string; forYou: boolean; children?: ReactNode }) {
+  return (
+    <div className="rounded-card bg-card p-4">
+      <p className="text-label uppercase tracking-wide text-muted">Next action</p>
+      <p className="mt-1 text-entity font-medium">{title}</p>
+      <p className="mt-1 text-body text-muted">{who}{forYou ? " · This is you" : ""}</p>
+      {children ? <div className="mt-3">{children}</div> : null}
+    </div>
+  );
+}
+
+/**
+ * Four fixed stages, always all visible. Only stages actually reached are filled. The final-stage rule lives in lib/stages.ts: the last stage fills only
+ * with a verified read-back, which no endpoint reports today, so with real data this rail never fills it. Stages are rendered through STAGE_LABEL.
+ */
+export function StageRail({ input, evidence }: { input: StageInput; evidence?: Partial<Record<Stage, ReactNode>> }) {
+  const v = stageView(input);
+  return (
+    <div>
+      <ol className="grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label="Transaction stages">
+        {v.stages.map(({ stage, reached }) => {
+          const failedHere = v.failedAt === stage;
+          return (
+            <li key={stage} className="border-t border-divider pt-2">
+              <span className={cn("flex items-center gap-2 text-body", reached ? "font-medium text-ink" : "text-muted")}>
+                <span aria-hidden="true" className={cn("size-2 rounded-full", reached ? "bg-button" : "border border-muted")} />
+                {STAGE_LABEL[stage]}
+                {failedHere ? <span className="flex items-center gap-1 text-danger"><CrossIcon className="mt-0" />Stopped</span> : null}
+              </span>
+              <span className="mt-1 block text-label text-muted">{reached ? evidence?.[stage] ?? stageText(stage, true) : stageText(stage, false)}</span>
+            </li>
+          );
+        })}
+      </ol>
+      <p className="mt-3 text-body text-muted">{v.headline}</p>
+    </div>
+  );
+}
+
+export interface DecisionRow { id: string; reviewer: string; decision: "approved" | "rejected"; at: string; reason?: string | undefined; statusText?: string | null | undefined }
+/**
+ * Application review: a white card that RECORDS the real decision (reviewer, time, reason). It holds no button: Approve and Reject are separate confirmed
+ * dialogs opened from the action panel, and it never shares a row or a button group with the wallet-signature block.
+ */
+export function ApprovalBlock({ decisions, note }: { decisions: DecisionRow[]; note?: string | null }) {
+  return (
+    <section aria-labelledby="approvals-h" className="rounded-card bg-card p-4">
+      <h3 id="approvals-h" className="text-entity font-medium">Review decision</h3>
+      {decisions.length === 0 ? (
+        <p className="mt-2 text-body text-muted">No decision has been recorded yet.</p>
+      ) : (
+        <ul className="mt-3 divide-y divide-divider">
+          {decisions.map((d) => (
+            <li key={d.id} className="py-3">
+              <div className="flex items-start justify-between gap-3">
+                <span><span className="block text-body font-medium">{d.reviewer}</span><span className="block text-label text-muted">Reviewer · {formatDateTime(d.at)}</span></span>
+                {d.decision === "approved" ? <StatusMark kind="done">Approved</StatusMark> : <StatusMark kind="failed">Rejected</StatusMark>}
+              </div>
+              {d.reason ? <p className="mt-2 text-body"><span className="text-muted">Reason: </span>{d.reason}</p> : null}
+              {d.statusText ? <p className="mt-1 text-label text-muted">{d.statusText}</p> : null}
+            </li>
+          ))}
+        </ul>
+      )}
+      {note ? <p className="mt-3 border-t border-divider pt-3 text-label text-muted">{note}</p> : null}
+    </section>
+  );
+}
+
+export interface SignerRow { address: string; weight: number; state: "awaiting" | "signed" | "rejected" }
+/**
+ * Stellar authorization. A #f0f0f0 card, visually different from the approval block. Signing is NOT supported by this app (decision D3): with
+ * `signingSupported` false (the default and the only value used today) there is no sign button and the block says so.
+ */
+export function SignatureBlock({ signers, threshold, signingSupported = false }: { signers: SignerRow[]; threshold: number; signingSupported?: boolean }) {
+  return (
+    <section aria-labelledby="signatures-h" className="rounded-card bg-card p-4">
+      <h3 id="signatures-h" className="flex items-center gap-2 text-entity font-medium">
+        <svg aria-hidden="true" data-icon="key" viewBox="0 0 20 20" className="size-5 shrink-0"><circle cx="6.5" cy="10" r="3.5" stroke="currentColor" strokeWidth="1.6" fill="none" /><path d="M10 10h8M15 10v3M17.5 10v2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" fill="none" /></svg>
+        Wallet signatures
+      </h3>
+      {signingSupported ? (
+        <>
+          <ul className="mt-3 divide-y divide-divider">
+            {signers.map((s) => (
+              <li key={s.address} className="flex items-center justify-between gap-3 py-2.5">
+                <span className="font-mono text-ident text-muted">{s.address}</span>
+                <span className="text-body">weight {s.weight} · {s.state === "signed" ? "Signed" : s.state === "rejected" ? "Rejected" : "Awaiting signature"}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-body text-muted">Threshold {threshold}</p>
+          <Button variant="primary" className="mt-3">Sign with wallet</Button>
+        </>
+      ) : (
+        <p className="mt-2 text-body"><span className="font-medium text-muted">Not supported.</span> <span className="text-muted">This app cannot request or collect Stellar signatures. Signing is performed by separate, owner-run tools.</span></p>
+      )}
+    </section>
+  );
+}
