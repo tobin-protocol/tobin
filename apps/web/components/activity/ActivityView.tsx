@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { applyActivityFilter, eventKinds, NO_FILTER, type ActivityEntry, type ActivityFilter, type Outcome } from "../../lib/activity/derive.ts";
 import { formatDateTime, humanizeKind, relativeTime } from "../../lib/format.ts";
-import { Button } from "../ui/Button.tsx";
+import { entityOf } from "../../lib/activity/entity.ts";
+import { Button, ButtonLink } from "../ui/Button.tsx";
 import { EmptyState, StatusMark } from "../ui/Feedback.tsx";
 import { SelectField, TextField } from "../ui/Form.tsx";
 import { SidePanel } from "../ui/Overlays.tsx";
@@ -63,7 +64,7 @@ export function ActivityView({ entries, sessions, showSession }: { entries: Acti
               <button type="button" onClick={() => setOpen(e)} className="grid w-full min-h-14 grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 px-4 py-3 text-left hover:bg-ink-5 md:grid-cols-[110px_minmax(0,1fr)_minmax(0,180px)_130px]" aria-label={`${humanizeKind(e.kind)}, ${e.actor}, ${relativeTime(e.at)}. Open the full record.`}>
                 <span className="order-2 text-right text-label text-muted md:order-none md:text-left" title={formatDateTime(e.at)}>{relativeTime(e.at)}</span>
                 <span className="order-1 min-w-0 md:order-none"><span className="block text-body font-medium">{humanizeKind(e.kind)}</span><span className="block truncate text-body text-muted">{e.actor} · {e.detail}</span></span>
-                <span className="order-3 truncate text-body text-muted md:order-none">{showSession ? e.sessionLabel : ""}</span>
+                <span className="order-3 truncate text-body text-muted md:order-none">{showSession ? `${e.sessionLabel} · ` : ""}{entityOf(e.kind, e.sessionId).label}</span>
                 <span className="order-4 md:order-none"><StatusMark kind={markOf(e.outcome)}>{e.outcome}</StatusMark></span>
               </button>
             </li>
@@ -96,7 +97,8 @@ export function ActivityView({ entries, sessions, showSession }: { entries: Acti
             </div>
             <div className="rounded-card bg-card p-4">
               <h3 className="text-body font-medium">Session</h3>
-              <p className="mt-1 text-body"><Link href={`/sessions/${open.sessionId}?tab=activity`} className="underline underline-offset-2">{open.sessionLabel}</Link></p>
+              <p className="mt-1 text-body"><Link href={`/sessions/${open.sessionId}`} className="underline underline-offset-2">{open.sessionLabel}</Link></p>
+              <div className="mt-3"><ButtonLink href={entityOf(open.kind, open.sessionId).href} variant="quiet">Open {entityOf(open.kind, open.sessionId).label.toLowerCase()}</ButtonLink></div>
             </div>
             <p className="text-label text-muted">Records are read-only. The backend keeps no transaction evidence or reference for an event, so none is shown.</p>
           </div>

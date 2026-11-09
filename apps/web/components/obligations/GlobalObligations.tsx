@@ -10,7 +10,7 @@ import { client } from "../../lib/tobin/index.ts";
 import { PageFrame } from "../shell/PageFrame.tsx";
 import { useWorkspace } from "../shell/session.tsx";
 import { Button } from "../ui/Button.tsx";
-import { Amount, SegmentTabs, Table, type Col } from "../ui/Data.tsx";
+import { Amount, Identifier, SegmentTabs, Table, type Col } from "../ui/Data.tsx";
 import { EmptyState, ErrorState, StatusMark } from "../ui/Feedback.tsx";
 import { SelectField, TextField } from "../ui/Form.tsx";
 import { Card, DerivedNote, Panel } from "../ui/Surfaces.tsx";
@@ -44,7 +44,8 @@ export function GlobalObligations() {
   const shown = filtered.slice((Math.min(page, pages) - 1) * PAGE, Math.min(page, pages) * PAGE);
 
   const cols: Col<GlobalObligation>[] = [
-    { id: "session", header: "Session", cell: (r) => <Link href={`/sessions/${r.sessionId}?tab=obligations`} className="inline-flex font-medium underline-offset-2 hover:underline max-md:min-h-11 max-md:items-center">{r.sessionLabel}</Link> },
+    { id: "session", header: "Session", cell: (r) => <Link href={`/sessions/${r.sessionId}?tab=obligations&ob=${r.id}`} className="inline-flex font-medium underline-offset-2 hover:underline max-md:min-h-11 max-md:items-center">{r.sessionLabel}</Link> },
+    { id: "oid", header: "Obligation", cell: (r) => <Identifier value={r.id} head={6} tail={4} />, hideBelow: "md" },
     { id: "debtor", header: "Debtor", cell: (r) => <span className={r.status === "voided" ? "text-muted line-through" : ""}>{r.debtorName}</span> },
     { id: "creditor", header: "Creditor", cell: (r) => <span className={r.status === "voided" ? "text-muted line-through" : ""}>{r.creditorName}</span> },
     { id: "amount", header: "Amount", align: "right", cell: (r) => <Amount value={r.amount} asset={r.asset} /> },
@@ -80,7 +81,7 @@ export function GlobalObligations() {
               <ul className="space-y-3 min-[900px]:hidden" aria-label="Obligations">
                 {shown.map((r) => (
                   <li key={r.id} className="rounded-card bg-card p-4">
-                    <Link href={`/sessions/${r.sessionId}?tab=obligations`} className="inline-flex min-h-11 items-center text-entity font-medium">{r.sessionLabel}</Link>
+                    <Link href={`/sessions/${r.sessionId}?tab=obligations&ob=${r.id}`} className="inline-flex min-h-11 items-center text-entity font-medium">{r.sessionLabel}</Link>
                     <p className="mt-1 text-body"><span className={r.status === "voided" ? "text-muted line-through" : ""}>{r.debtorName} owes {r.creditorName}</span></p>
                     <p className="mt-1 text-action font-medium"><Amount value={r.amount} asset={r.asset} /></p>
                     <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-body">

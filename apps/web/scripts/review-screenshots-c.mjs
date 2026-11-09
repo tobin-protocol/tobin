@@ -164,6 +164,8 @@ for (const w of WIDTHS) {
   await vis(page.getByText("Will include 1 active obligation among 3 participants in USD."), `${w}: the panel summarises what will be included`);
   await shot(page, "netting-inputs", w);
   await page.getByRole("button", { name: "Run netting", exact: true }).click();
+  await vis(dialog(page).getByText("Obligations included"), `${w}: running netting asks for confirmation and summarises what is included`);
+  await dialog(page).getByRole("button", { name: "Run netting" }).click();
   await vis(page.getByRole("heading", { name: "Zero positions" }), `${w}: a participant with no obligations is grouped as zero`);
   await vis(page.getByLabel("Netting steps").getByText("3. Result"), `${w}: running netting moves the strip to Result`);
   await shot(page, "netting-after-run", w);

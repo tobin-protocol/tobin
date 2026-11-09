@@ -3,14 +3,16 @@
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { useState } from "react";
 import { can } from "../../lib/permissions/can.ts";
-import { formatDateTime } from "../../lib/format.ts";
+import { formatAmount, formatDateTime, humanizeKind, relativeTime } from "../../lib/format.ts";
+import { grossVsNet } from "../../lib/netting/group.ts";
+import { stateLayers } from "../../lib/sessions/layers.ts";
 import type { NextAction } from "../../lib/sessions/next-action.ts";
 import { client } from "../../lib/tobin/index.ts";
-import type { Readiness, SessionDetail, SessionParticipantView } from "../../lib/tobin/types.ts";
+import type { AuthorizationView, BatchStatus, CalculationView, ObligationView, Readiness, SessionDetail, SessionParticipantView } from "../../lib/tobin/types.ts";
 import { useWorkspace } from "../shell/session.tsx";
 import { ActivityView } from "../activity/ActivityView.tsx";
 import { outcomeOf, type ActivityEntry } from "../../lib/activity/derive.ts";
-import { Button } from "../ui/Button.tsx";
+import { Button, ButtonLink } from "../ui/Button.tsx";
 import { Table, type Col } from "../ui/Data.tsx";
 import { EmptyState, ErrorState, InlineError, NotSupported, Skeleton, StatusMark } from "../ui/Feedback.tsx";
 import { SelectField } from "../ui/Form.tsx";
@@ -21,8 +23,27 @@ import { reasonOf } from "./shared.tsx";
 const failed = (q: UseQueryResult, what: string) => <ErrorState title={`Could not load ${what}`} message={(q.error as Error).message} retry={<Button onClick={() => q.refetch()}>Try again</Button>} />;
 
 // ---------------- Overview ----------------
-export function OverviewTab({ detail, readiness, next }: { detail: SessionDetail; readiness: UseQueryResult<Readiness>; next: NextAction }) {
+export function OverviewTab({ detail, readiness, next, sessionId, participants, obligations, authorization, calc, batch }: {
+  detail: SessionDetail; readiness: UseQueryResult<Readiness>; next: NextAction; sessionId: string;
+  participants: SessionParticipantView[] | undefined; obligations: ObligationView[] | undefined; authorization: AuthorizationView | undefined;
+  calc: CalculationView | undefined; batch: BatchStatus | "none" | null;
+}) {
   const o = detail.workspace.overview;
+  const active = (participants ?? []).filter((p) => p.status === "active");
+  const activeObs = (obligations ?? []).filter((x) => x.status === "active");
+  const voided = (obligations ?? []).length - activeObs.length;
+  const layers = stateLayers({ workflow: detail.workflow, provenance: o.provenance, currency: readiness.data?.currency ?? null, auth: authorization?.state ?? null, batch });
+  const c = calc?.calculation ?? null;
+  const gn = c ? grossVsNet(c.gross, c.positions, calc?.currency === "current") : null;
+  const tab = (t: string) => `/sessions/${sessionId}?tab=${t}`;
+  const recent = [...detail.workspace.activity.items].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 5);
+  const areas: { key: string; label: string; summary: string; tab: string }[] = [
+    { key: "participants", label: "Participants", tab: "participants", summary: participants ? `${active.length} active${active.length > 0 ? `: ${active.map((p) => p.name).join(", ")}` : ""}` : "No data" },
+    { key: "obligations", label: "Obligations", tab: "obligations", summary: obligations ? `${activeObs.length} active${voided > 0 ? `, ${voided} voided` : ""}` : "No data" },
+    { key: "netting", label: "Netting", tab: "netting", summary: c && gn ? `Gross ${formatAmount(c.gross, c.asset)}, net that moves ${formatAmount(gn.net, c.asset)}${calc?.currency === "current" ? "" : " (stale)"}` : "No calculation yet" },
+    { key: "approvals", label: "Review", tab: "approvals", summary: layers[2]?.value ?? "No data" },
+    { key: "settlement", label: "Settlement", tab: "settlement", summary: layers[3]?.value ?? "No data" },
+  ];
   return (
     <div className="space-y-6">
       <Card>
@@ -36,6 +57,46 @@ export function OverviewTab({ detail, readiness, next }: { detail: SessionDetail
           ]} />
         </div>
         {detail.workspace.banner ? <p className="mt-4 border-t border-divider pt-3 text-body text-muted">{detail.workspace.banner.meaning}</p> : null}
+      </Card>
+
+      <Card>
+        <h2 className="text-entity font-medium">State, layer by layer</h2>
+        <p className="mt-1 text-body text-muted">A session has several kinds of state, each from a different source. They are kept apart so that none is mistaken for another.</p>
+        <ol className="mt-3 divide-y divide-divider" aria-label="State layers">
+          {layers.map((l) => (
+            <li key={l.key} className="py-3">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <span className="text-body font-medium">{l.label}</span>
+                {l.recorded ? <span className="text-body">{l.value}</span> : <StatusMark kind="unsupported">{l.value}</StatusMark>}
+              </div>
+              <p className="mt-0.5 text-label text-muted">{l.detail}</p>
+            </li>
+          ))}
+        </ol>
+      </Card>
+
+      <Card>
+        <h2 className="text-entity font-medium">At a glance</h2>
+        <ul className="mt-3 divide-y divide-divider" aria-label="Session sections">
+          {areas.map((a) => (
+            <li key={a.key} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3">
+              <span className="min-w-0 flex-1"><span className="block text-label uppercase tracking-wide text-muted">{a.label}</span><span className="block break-words text-body">{a.summary}</span></span>
+              <ButtonLink href={tab(a.tab)} variant="quiet" aria-label={`Open ${a.label}`}>Open</ButtonLink>
+            </li>
+          ))}
+        </ul>
+      </Card>
+
+      <Card>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-entity font-medium">Recent events</h2>
+          <ButtonLink href={tab("activity")} variant="quiet">All activity</ButtonLink>
+        </div>
+        {recent.length === 0 ? <p className="mt-2 text-body text-muted">Nothing has been recorded for this session yet.</p> : (
+          <ul className="mt-2 divide-y divide-divider">
+            {recent.map((e) => <li key={`${e.at}-${e.kind}-${e.detail}`} className="py-2.5"><span className="block text-body font-medium">{humanizeKind(e.kind)}</span><span className="block break-words text-body text-muted">{e.actor} · {e.detail}</span><span className="block text-label text-muted" title={formatDateTime(e.at)}>{relativeTime(e.at)}</span></li>)}
+          </ul>
+        )}
       </Card>
 
       <Card>

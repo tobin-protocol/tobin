@@ -38,9 +38,10 @@ const SORT_CHOICES: { value: string; label: string }[] = [
 const UNSUPPORTED_QUICK = ["Awaiting my review", "Calculation stale", "Marked ready"] as const;
 
 const STATE_LABEL = { configuring: "Being configured", ready: "Marked ready", closed: "Closed" } as const;
-const columns = (onOpen: (r: SessionRow) => string, state: (r: SessionRow) => string): Col<SessionRow>[] => [
+const columns = (onOpen: (r: SessionRow) => string, state: (r: SessionRow) => string, counts: (r: SessionRow) => { participants: string; obligations: string }): Col<SessionRow>[] => [
   { id: "label", header: "Session", sortable: true, cell: (r) => <Link href={onOpen(r)} className="block max-md:py-2"><span className="block font-medium">{r.label}</span><span className="block font-mono text-ident text-muted">{r.shortId}</span></Link> },
   { id: "state", header: "State (derived)", cell: (r) => <span className="whitespace-nowrap">{state(r)}</span> },
+  { id: "contents", header: "Contents (derived)", cell: (r) => { const c = counts(r); return <span><span className="block whitespace-nowrap">{c.participants}</span><span className="block whitespace-nowrap text-muted">{c.obligations}</span></span>; } },
   { id: "activity", header: "Last activity", sortable: true, cell: (r) => (r.lastActivity ? <span title={formatDateTime(r.lastActivity)} className="whitespace-nowrap text-muted">{relativeTime(r.lastActivity)} · {r.activityCount} event{r.activityCount === 1 ? "" : "s"}</span> : <span className="text-muted">No data</span>) },
   { id: "created", header: "Created", sortable: true, cell: (r) => <span title={formatDateTime(r.createdAt)} className="whitespace-nowrap text-muted">{formatDate(r.createdAt)}</span> },
   { id: "open", header: "", align: "right", cell: (r) => <ButtonLink href={onOpen(r)} variant="quiet">Open</ButtonLink> },
@@ -59,7 +60,19 @@ export function SessionsList() {
   const visible = result?.rows ?? [];
   const stateQs = useQueries({ queries: visible.map((r) => ({ queryKey: ["session", org.id, r.sessionId, "detail"], queryFn: () => client.sessions.get(org.id, r.sessionId), staleTime: 60_000, retry: false })) });
   const stateOf = (r: SessionRow): string => { const i = visible.findIndex((v) => v.sessionId === r.sessionId); const q = stateQs[i]; return q?.data ? STATE_LABEL[q.data.workflow] : q?.isError ? "No data" : "Reading…"; };
-  const cols = columns(open, stateOf);
+  // what is inside each visible session: two more cached reads per visible row, shared with the workspace, never for off-screen rows
+  const pQs = useQueries({ queries: visible.map((r) => ({ queryKey: ["session", org.id, r.sessionId, "participants"], queryFn: () => client.participants.list(org.id, r.sessionId), staleTime: 60_000, retry: false })) });
+  const oQs = useQueries({ queries: visible.map((r) => ({ queryKey: ["session", org.id, r.sessionId, "obligations"], queryFn: () => client.obligations.listBySession(org.id, r.sessionId), staleTime: 60_000, retry: false })) });
+  const countsOf = (r: SessionRow): { participants: string; obligations: string } => {
+    const i = visible.findIndex((v) => v.sessionId === r.sessionId);
+    const p = pQs[i]; const o = oQs[i];
+    const n = (x: number, one: string, many: string) => `${x} ${x === 1 ? one : many}`;
+    return {
+      participants: p?.data ? n(p.data.filter((x) => x.status === "active").length, "participant", "participants") : p?.isError ? "No data" : "Reading…",
+      obligations: o?.data ? n(o.data.filter((x) => x.status === "active").length, "obligation", "obligations") : o?.isError ? "No data" : "Reading…",
+    };
+  };
+  const cols = columns(open, stateOf, countsOf);
   const filtering = query.q !== "" || query.provenance !== "all" || query.hasActivity;
 
   const createAction = create.allowed
@@ -116,6 +129,7 @@ export function SessionsList() {
                 </Link>
                 <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-body">
                   <div><dt className="text-label text-muted">State (derived)</dt><dd>{stateOf(r)}</dd></div>
+                  <div><dt className="text-label text-muted">Contents (derived)</dt><dd>{countsOf(r).participants}<span className="block text-muted">{countsOf(r).obligations}</span></dd></div>
                   <div><dt className="text-label text-muted">Record</dt><dd>{r.provenanceLabel}<span className="block text-label text-muted">Application record</span></dd></div>
                   <div><dt className="text-label text-muted">Created</dt><dd>{formatDateTime(r.createdAt)}</dd></div>
                   <div className="col-span-2"><dt className="text-label text-muted">Last activity</dt><dd>{r.lastActivity ? `${relativeTime(r.lastActivity)} · ${r.activityCount} event${r.activityCount === 1 ? "" : "s"}` : "No data"}</dd></div>

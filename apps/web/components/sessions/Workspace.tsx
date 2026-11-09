@@ -126,24 +126,24 @@ export function Workspace() {
           <span className="min-w-0 break-all font-mono text-ident text-muted" data-testid="session-id">{o.sessionId}</span>
           <CopyButton value={o.sessionId} label="Copy id" />
         </div>
-        <Card><Stepper currentIndex={view.currentIndex} subLabel={view.subLabel} applicationOnly /></Card>
+        <Card><Stepper currentIndex={view.currentIndex} subLabel={view.subLabel} applicationOnly hrefs={[href("overview"), href("participants"), href("obligations"), href("netting"), href("approvals"), href("settlement")]} /></Card>
       </Panel>
 
       <div className="mb-6 border-b border-divider"><PageTabs label="Session sections" items={tabs} activeHref={href(tab)} /></div>
 
       <div className="grid gap-6 max-md:pb-16 lg:grid-cols-[minmax(0,1fr)_420px]">
         <Panel className="min-w-0 space-y-6 lg:order-1" id="tab-content" aria-label="Section content">
-          {tab === "overview" ? <OverviewTab detail={detail.data} readiness={readiness} next={next} /> : null}
+          {tab === "overview" ? <OverviewTab detail={detail.data} readiness={readiness} next={next} sessionId={sessionId} participants={participants.data} obligations={obligations.data} authorization={authorization.data} calc={settle.calc.data} batch={settle.list.data ? (settle.latest ? settle.latest.status : "none") : null} /> : null}
           {tab === "participants" ? <ParticipantsTab sessionId={sessionId} query={participants} workflow={detail.data.workflow} onChanged={refresh} /> : null}
           {tab === "obligations" ? <ObligationsTab sessionId={sessionId} query={obligations} workflow={detail.data.workflow} activity={detail.data.workspace.activity.items} onChanged={refresh} /> : null}
           {tab === "netting" ? <NettingTab sessionId={sessionId} obligations={obligations.data} participants={participants.data} readiness={readiness.data} running={running} runError={runError} /> : null}
-          {tab === "approvals" ? <ApprovalsTab query={authorization} /> : null}
+          {tab === "approvals" ? <ApprovalsTab query={authorization} sessionId={sessionId} obligations={obligations.data} calc={settle.calc.data} /> : null}
           {tab === "settlement" ? <SettlementTab s={settle} /> : null}
           {tab === "activity" ? <ActivityTab detail={detail.data} sessionId={sessionId} /> : null}
         </Panel>
         <ActionSheet summary={tab === "obligations" ? "Record an obligation" : tab === "netting" ? "Run netting" : tab === "approvals" ? "Review the calculation" : tab === "settlement" ? "Settlement steps" : next.primary?.label ?? next.title}>
           {tab === "obligations" ? <RecordObligationPanel sessionId={sessionId} participants={participants.data ?? []} workflow={detail.data.workflow} onRecorded={refresh} />
-            : tab === "netting" ? <RunNettingPanel eligibleCount={nettingElig.eligible.length} excludedBlocking={nettingElig.excluded.filter((x) => x.reason === "inactive-participant").length} participantCount={activeIds.size} asset={nettingElig.eligible[0]?.asset ?? null} workflow={detail.data.workflow} running={running} error={runError} onRun={runNetting} />
+            : tab === "netting" ? <RunNettingPanel excludedCount={nettingElig.excluded.length} eligibleCount={nettingElig.eligible.length} excludedBlocking={nettingElig.excluded.filter((x) => x.reason === "inactive-participant").length} participantCount={activeIds.size} asset={nettingElig.eligible[0]?.asset ?? null} workflow={detail.data.workflow} running={running} error={runError} onRun={runNetting} />
             : tab === "approvals" && authorization.data ? <ReviewPanel sessionId={sessionId} auth={authorization.data} onDecided={refresh} />
             : tab === "settlement" ? <SettlementPanel sessionId={sessionId} s={settle} workflow={detail.data.workflow} onChanged={refresh} />
             : <ActionPanel next={next} href={href} onReload={refresh} actorLabel={roleLabels(actor).join(", ")} />}

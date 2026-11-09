@@ -380,3 +380,15 @@ Grey "Not supported" text is #626262; focus ring is 2px on everything; Testnet i
 ### 12.4 Verification record
 
 Typecheck, lint, unit tests and local Playwright smoke tests; real-backend runs of the Phase A to E scripts (`apps/web/scripts/review-screenshots*.mjs`) with admin, member and reviewer; an axe scan of every key screen at 1440 and 390 px; a tap-target audit at 390 px; a horizontal-overflow check at 1440, 900 and 390 px; and a keyboard-only walkthrough. Same-author evidence, one browser (Chrome), no real Freighter test, no hosted CI run of this app.
+
+## 13. Redesign pass (PRD: Web App UI/UX Redesign, Unified; 2026-11-09)
+
+Documents: `docs/web-redesign/`. Decisions:
+
+- Discover is a Not-supported page at `/discover`, outside the top nav (PRD 2.3, 20.2); it has no search box and no sample data. The command panel lists it as "Discover (not available)".
+- The seven top destinations stay; Approvals stays outside them.
+- Roles stay Admin, Member, Reviewer (D5), not the PRD names.
+- The blockchain layer is always "Not recorded" (PRD 7.5); only `lib/stages.ts` may name the final stage.
+- Netting now asks for confirmation; other consequential actions already did.
+- Not done: invitation Rejected state (the backend has none), global obligations sort, wireframes, flow diagrams and a prototype (the implemented app is the high-fidelity result).
+- Derived data is still capped at 10 sessions and says so.

@@ -71,6 +71,7 @@ for (const w of WIDTHS) {
   await rec("Alice", "Bob", "100", "inv 1"); await rec("Bob", "Carol", "80", "inv 2"); await rec("Carol", "Alice", "70", "inv 3");
   await go(page, base, "netting");
   await page.getByRole("button", { name: "Run netting", exact: true }).click();
+  await dialog(page).getByRole("button", { name: "Run netting" }).click();
   await vis(page.getByText("Netting removes 220 USD of gross payments."), `${w}: netting ran (gross 250, net 30)`);
 
   // Approvals before any decision: Alice recorded and calculated everything, so she cannot decide
