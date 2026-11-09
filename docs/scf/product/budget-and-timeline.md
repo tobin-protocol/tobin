@@ -11,12 +11,12 @@
 | Eligible | Development costs |
 | Ineligible | Audit costs (covered separately by the Audit Bank for eligible projects), marketing, legal fees, reimbursement of past work |
 | Deliverables | Specific, verifiable, each with a cost |
-| Tranches | T0 10% on acceptance (no deliverable); T1 20% MVP; T2 30% Testnet or equivalent; T3 40% Mainnet launch or equivalent. The three-tranche structure is recommended and adjustable; the final tranche should be the Mainnet launch |
+| Tranches | OFFICIAL handbook structure: T0 10% on acceptance (no deliverable); T1 20% MVP; T2 30% Testnet or equivalent; T3 40% normally a Mainnet launch or equivalent. OUR PROPOSAL for this submission: T3 is the controlled institutional usage Testnet milestone (MVP-1.8, see the roadmap); Mainnet is not a deliverable. The handbook says the final tranche is normally a Mainnet launch and that jurisdiction-specific restrictions may modify this, for example a Testnet-only final tranche |
 | Timing | Each tranche submitted within 90 calendar days of the previous payment or the balance is forfeited |
 
-Audit costs are outside this budget. Independent review is **planned** to be requested through the Audit Bank route; it has not been requested and no review has happened (roadmap D1.7-9).
+Scope (TEAM'S SCOPE): this submission is Stellar Testnet only; a Testnet-only final tranche relies on the handbook allowance above and is not an SCF decision. Mainnet is not a deliverable. Audit costs are outside this budget. Independent review is **planned** to be requested through the Audit Bank route; it has not been requested and no review has happened (roadmap D1.7-9).
 
-## 2. Tranche table
+## 2. Tranche table (the milestone column is OUR PROPOSAL)
 
 Total requested: `[OWNER INPUT NEEDED: total requested in USD, not above 150,000]`
 
@@ -25,7 +25,7 @@ Total requested: `[OWNER INPUT NEEDED: total requested in USD, not above 150,000
 | T0 | 10% | `[OWNER INPUT NEEDED: 10% of total]` | none (official) |
 | T1 | 20% | `[OWNER INPUT NEEDED: 20% of total]` | MVP-1.6 |
 | T2 | 30% | `[OWNER INPUT NEEDED: 30% of total]` | MVP-1.7 |
-| T3 | 40% | `[OWNER INPUT NEEDED: 40% of total]` | MVP-1.8 and gated Mainnet |
+| T3 | 40% | `[OWNER INPUT NEEDED: 40% of total]` | MVP-1.8 controlled institutional usage (Testnet milestone) |
 
 ## 3. Deliverable cost table
 
@@ -52,7 +52,6 @@ Amounts cover development only. Past work (MVP-1.2 to MVP-1.5, wallet-first auth
 | D1.7-9 Audit Bank request (effort only; audit cost excluded) | T2 | | |
 | D1.7-10 Smart-contract open-source plan | T2 | | |
 | D1.8-1 to D1.8-7 Controlled institutional pilot | T3 | | |
-| Mainnet gated objective (only if gates pass) | T3 | | |
 
 Cost cells: `[OWNER INPUT NEEDED: cost per deliverable; each tranche column must sum to the tranche amount]`
 
@@ -67,4 +66,4 @@ Cost cells: `[OWNER INPUT NEEDED: cost per deliverable; each tranche column must
 | Per-milestone duration | `[OWNER INPUT NEEDED: weeks per milestone]` |
 | Infrastructure costs | `[OWNER INPUT NEEDED: hosting, RPC, database, if funded]` |
 
-Timing rule (OFFICIAL): submit each tranche within 90 calendar days of the previous payment. The timeline must fit this; the owner should state how milestone durations meet it. Open risk from the roadmap: the Mainnet objective depends on gates outside this budget (independent review, legal review), so T3 timing is uncertain.
+Timing rule (OFFICIAL): submit each tranche within 90 calendar days of the previous payment. The timeline must fit this; the owner should state how milestone durations meet it. Open risk from the roadmap: MVP-1.8 depends on conditions outside this budget (named participating institutions, independent security review), so T3 timing is uncertain.

@@ -45,3 +45,21 @@ Link check: `node scripts/ci/check-links.mjs` reports 0 broken links. No build, 
 | `docs/backend-implementation/RAILWAY-TESTNET-PILOT.md:3` "for a demonstration and an SCF submission" and "pilot" naming | Internal record in the lead's tree; the milestone mapping decision says a Railway deployment alone is not an institutional pilot. Suggest "Testnet demonstration deployment" there (R-H05). |
 | `docs/SCF-PROJECT-POSITIONING.md`, README "Product requirements not published" line | Owner decisions tied to the PRD (A4, A25). |
 | Source-comment change and Wasm | A comment change cannot alter bytecode, but the deployed-artifact hash equality was not re-checked by a rebuild (no build run). Rebuild before relying on it in evidence. |
+
+## 2026-11-09: accuracy pass on branch `chore/scf-demo-readiness` (from `origin/main` `8b2030d`)
+
+Wording only, in `docs/scf/`; nothing committed. Each item was re-checked against the source named in [implementation-truth-matrix.md](implementation/implementation-truth-matrix.md).
+
+| File | Change and reason |
+|---|---|
+| `product/roadmap.md`, `product/budget-and-timeline.md`, `criteria-mapping.md`, `README.md`, `product/prd.md`, `product/onchain-growth-and-metrics.md`, `security/monitoring-plan.md`, `product/ai-disclosure.md`, `implementation/implementation-status.md`, `implementation/deployment-and-operations.md` | Owner decision of 2026-11-09: Mainnet is no longer a promised or gated deliverable; the scope is Stellar Testnet only. The official handbook rule is quoted accurately (final tranche normally a Mainnet launch; jurisdiction restrictions may modify it, for example a Testnet-only final tranche) and labelled OFFICIAL; "Testnet-only final tranche" is labelled the TEAM'S SCOPE; Tranche 3 is re-mapped to MVP-1.8 controlled institutional usage on Testnet and labelled OUR PROPOSAL. MVP-1.2 to MVP-1.8 names, order and statuses are unchanged. The "Mainnet gated objective" budget row was removed. |
+| `product/prd.md`, `technical/api-reference.md`, `technical/ui-and-console.md`, `implementation/implementation-status.md`, `implementation/evidence-register.md` | "Web Discover screen not wired" was stale: #52 wired it and it was live-verified on 2026-11-09. Corrected, with the empty-state wording issue recorded. |
+| `product/roadmap.md`, `implementation/implementation-status.md` | P2 shown as merged (#50); #51 and #52 recorded as merged; the open `[OWNER INPUT NEEDED: title and scope of PR #51]` removed because the subject is now known (public Discover API and Dockerfiles). |
+| `implementation/implementation-status.md`, `implementation/deployment-and-operations.md` | Added the Vercel and Railway identities, the live-verified Discover facts, and the fixed provenance limitation (the Vercel deployment was uploaded with the CLI and records no Git SHA; the Railway deployment records no commit hash). |
+| `implementation/deployment-and-operations.md` | Added section 3a: `asset-add` configures only native or classic assets and `Dockerfile.console` seeds a USD classic asset, while the execution-plan builder requires a Soroban token contract identity. |
+| `implementation/evidence-register.md` (rows 12, 24, 25) | "End-to-end Testnet settlement" reworded to an owner-run execution of a hard-coded one-unit scenario; the Horizon re-read of 2026-11-09 added with its limits; deployment row no longer "Unverified" for the Discover page. |
+| `implementation/testing-and-validation.md` | Added the local run of 2026-11-09 (labelled "local, not CI") and adjusted the evidence-basis sentence. |
+| `technical/stellar-integration.md` | "verified Testnet build artifact" replaced by the build artifact deployed on Testnet, with the unrecorded reproducible-build comparison stated (gate E04). |
+| new: `implementation/implementation-truth-matrix.md`, `implementation/testnet-engineering-evidence.md`, `implementation/demo-recording-guide.md` | The matrix, the Testnet evidence record with its verification split, and the DRAFT demo guide. |
+
+Not changed (out of this change's ownership): `README.md` (repository root), `technical/architecture.md` and `technical/technical-specification.md`; any claim needing correction there is reported to the lead instead. `docs/backend-implementation/RAILWAY-TESTNET-PILOT.md` keeps its historical "pilot" name (a record, not a claim of an institutional pilot).

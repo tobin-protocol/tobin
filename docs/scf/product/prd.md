@@ -36,7 +36,7 @@ In scope: organization workspaces, clearing sessions, obligations, deterministic
 | a protocol token or a replacement for SEP-24, SEP-31 or SEP-38 | `README.md` |
 | a decider of any institution's KYC or regulatory obligations | `README.md` |
 | collateral, deadlines, abort, default or recovery handling, Merkle commitments | broader protocol ideas, not on the roadmap (`docs/COMMUNICATION-AND-MATURITY-TERMINOLOGY.md` section 4) |
-| Mainnet or real-value use | not authorized (`AGENTS.md` section 12) |
+| Mainnet or real-value use | not authorized, not built and not part of this submission (`AGENTS.md` section 12) |
 
 ## 3. Trust model in plain terms
 
@@ -77,7 +77,7 @@ IDs are stable so other documents can cite them. "Status" uses the vocabulary ab
 | PRD-REC-002 | Reconciliation | Write confirmed on-chain outcomes back to application records (`confirmed`, `reconciled`, `chain-confirmed`) | planned (MVP-1.6) | `README.md`, "What is and is not connected" |
 | PRD-AUD-001 | Audit trail | Decisions, batches, attempts, signer-set snapshots, events immutable or append-only, enforced by database triggers | implemented | `apps/web-console/lib/db/database.ts` |
 | PRD-AUD-002 | Audit trail | Structured, redacted logging of authentication events and refusals | implemented (local checks) | `docs/backend-implementation/IMPLEMENTATION-STATUS.md` P1 |
-| PRD-DIS-001 | Discovery | Unauthenticated read-only public endpoints listing only organizations that opted in (name, type, jurisdiction); settlement and statistics fields are null because no read-back transaction is recorded | implemented; the web Discover screen is not wired | `apps/web-console/lib/public/discover.ts`; `docs/backend-implementation/RAILWAY-TESTNET-PILOT.md` |
+| PRD-DIS-001 | Discovery | Unauthenticated read-only public endpoints listing only organizations that opted in (name, type, jurisdiction); settlement and statistics fields are null because no read-back transaction is recorded | implemented; the web Discover page calls it (merged in #52) and was live-verified on 2026-11-09; the lists are empty because no organization has opted in | `apps/web-console/lib/public/discover.ts`; `docs/backend-implementation/RAILWAY-TESTNET-PILOT.md` |
 | PRD-UI-001 | Application | `apps/web` as the canonical user-facing application; `apps/web-console` retained for its backend, API and owner-run tools | owner decision; consolidation plan is in the roadmap | [roadmap](roadmap.md) section 3 |
 
 ## 5. Non-functional requirements
@@ -95,7 +95,7 @@ IDs are stable so other documents can cite them. "Status" uses the vocabulary ab
 
 ## 6. Constraints
 
-- Stellar Testnet only. No Mainnet transaction, RPC, signer or settlement path exists. Mainnet is a gated final objective (roadmap section 5).
+- Stellar Testnet only. No Mainnet transaction, RPC, signer or settlement path exists. Mainnet is not authorized, not built and not part of this submission (owner decision, 2026-11-09; roadmap section 5).
 - No changes to settlement contracts, deployed artifacts, signing authority, network configuration or database contents are part of this documentation work.
 - Evidence is same-author; one owner-run Testnet settlement of 1 base unit; confirmed outcomes are not written back to application records; the hosted app does not execute settlement.
 

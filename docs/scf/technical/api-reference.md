@@ -114,7 +114,7 @@ No route accepts a signed transaction, submits, confirms or reconciles anything,
 | `institutions` | `items` of `{id, displayName, institutionType?, jurisdiction?}` for organizations whose admins chose `public` visibility; `nextCursor` |
 | `settlements`, `assets` | empty `items`; nothing is published because the backend records no independently read-back transaction |
 
-It exposes only opted-in organization name, type and jurisdiction (and the organization id); never sessions, members, wallets or amounts. Through the web app the same paths are forwarded for GET only (`/api/public/v1/*`). The web Discover page does not call them yet.
+It exposes only opted-in organization name, type and jurisdiction (and the organization id); never sessions, members, wallets or amounts. Through the web app the same paths are forwarded for GET only (`/api/public/v1/*`). The web Discover page calls them (merged in #52; live-verified on 2026-11-09).
 
 ## 7. Probes
 

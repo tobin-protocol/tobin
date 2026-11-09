@@ -11,7 +11,7 @@
 | Settlements executed | 1 (owner-run, 2026-11-07), two accounts, 1 base unit of the governed test token | `evidence/settlement-reconciliation-2026-11-07.json`: state `Settled`, `totalMoved` 1, `instructionCount` 1, settlement ledger 5607448, comparison `ok: true`, no mismatches |
 | Transactions in that run | 8, ledgers 5606084 to 5607448; final transaction hash `002fff31c93233d4d9529f8447699870bb9c5ff056b5ad0eec2a9943e183daee` | same file; `settlement-run-2026-11-07.jsonl` |
 | Institutions onboarded | 0 external institutions | the repository records none |
-| Mainnet activity | none | not authorized |
+| Mainnet activity | none | not authorized, not built, not part of this submission |
 | Contracts | clearing `CCV3E…Y4DT`; governed test token `CD5OK…OKYO` | `contracts/deployments/testnet.json` (the evidence files shorten contract ids, so the manifest is the source; which exact instance the run used is not restated here) |
 
 The run is same-author evidence. It shows the mechanics work in that scope, not usage.
@@ -43,7 +43,7 @@ Level: **chain** means anyone can recompute it from ledger data (RPC, Horizon, c
 | M10 | Failed or unknown outcomes | Attempts in state `failed`, `expired` or `unknown-outcome` | Application attempt records | application | Each hash re-read |
 | M11 | Fees paid | Sum of fee charged for the session transactions | Horizon `fee_charged` | chain | Re-read by hash (existing evidence records fees per transaction but not decomposed) |
 
-Rules: a metric counts only what a chain read confirms; an application state is never counted as settled; Testnet and Mainnet figures are reported separately and Testnet is never presented as adoption.
+Rules: a metric counts only what a chain read confirms; an application state is never counted as settled; every figure in this submission is Stellar Testnet and Testnet is never presented as adoption.
 
 ## 4. Measurement window and reporting
 
@@ -53,7 +53,7 @@ Rules: a metric counts only what a chain read confirms; an application state is 
 
 ## 5. Independent verification procedure
 
-1. Take the contract ids from `contracts/deployments/testnet.json` (or a Mainnet manifest, if one is ever authorized).
+1. Take the contract ids from `contracts/deployments/testnet.json`.
 2. Enumerate `Settled` events and transactions from RPC and Horizon for those ids.
 3. For each session, read storage through the contract getters and recompute M4, M5 and M7.
 4. Compare with the reported figures; report any difference as a discrepancy.
