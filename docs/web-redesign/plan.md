@@ -6,8 +6,8 @@ Inputs: `spec.md` (design), `audit/`, `verified.md`. Branch `feat/web-redesign-v
 
 | Route | Access | Enforced by | Replaces |
 |---|---|---|---|
-| `/discover` | public | none | `/discover` Not-supported page (rewritten) |
-| `/sign-in` | public | none; reads `?next=` (same-origin paths only) | `(auth)/sign-in` |
+| `/discover` | public | none | a real explorer that is empty until a public API exists (stats row, three sub-tabs, sort bar, tile lists; see section 13) |
+| `/sign-in` | public | none; reads `?next=` (same-origin paths only) | `(auth)/sign-in`: split page (art panel, email, Continue with wallet) |
 | `/onboarding` | signed in, no organization | server layout | `(auth)/onboarding` |
 | `/` | signed in | server layout | Overview |
 | `/sessions`, `/sessions/new`, `/sessions/[id]` | signed in | server layout | same |
@@ -101,3 +101,24 @@ Each phase: typecheck, lint, unit tests (existing plus new for access redirects,
 Owner answers: the landing page's four fonts; greyscale like the landing page (no green; the primary action is black); Launch app defaults to `http://127.0.0.1:3000` in development and is disabled in a production build until a domain is given; branch `feat/web-redesign-v2` from `main`; `@hugeicons/core-free-icons` is in scope.
 
 **R1 status.** Built on `feat/web-redesign-v2`, not pushed. Deviations from this plan: (1) the `/dev/components` gallery is gated by `TOBIN_DEV_GALLERY=1` rather than development-only, because the smoke tests run against a production build; (2) the shadcn `shadcn` package is a dev dependency (it supplies `shadcn/tailwind.css`) and the generated components live in `components/kit/` because `components/ui/Button.tsx` and the CLI's `button.tsx` collide on a case-insensitive file system; (3) the sidebar's Reviews item still opens `/approvals` until R4; (4) the card tone is the 4% ink value flattened to #f5f5f5 so nested cards keep their contrast; (5) the shadcn `cn` helper package was replaced by `clsx` plus `tailwind-merge`, as the dependency rule lists. The old `Popover` and `CommandPanel` in `components/ui/Overlays.tsx` are no longer used by the shell and are deleted once the component gallery stops showing them (R5).
+
+## 13. Changes after the R1 review (2026-11-09)
+
+Owner decision: the greyscale palette stays. Wherever the spec or earlier messages say green or accent (a selected filter value, the active state, tags), use black text with an underline or weight, a #f5f5f5 fill, or the black 2px edge.
+
+**Discover replaces the "three Not supported cards" design.** It is a real explorer, built like Symbiotic's Discover, that is empty until a public API exists:
+
+- A what-Tobin-is panel with the maturity line.
+- A protocol stats row: settlements recorded, institutions opted in, assets in use, last settlement. All "No data".
+- Sub-tabs SETTLEMENTS, INSTITUTIONS, ASSETS (URL-driven, `?tab=`), a URL-driven sort bar (`?sort=`, selected value in bold with an underline), and tile lists.
+- Settlement tile: identifier, asset and amount, parties only if both institutions opted in, time, a link to the transaction on Stellar Expert with the network label, and the verified mark only when the record carries a verified read-back (through `verifiedMark` in `lib/stages.ts`, the only file allowed to name that stage). Institution tile: opted-in fields only.
+- Each tab shows one tile-sized "No data" with "Public settlement data is not available yet." No sample rows, no backend endpoint, no request at all.
+- A typed `DiscoverClient` (`lib/discover/types.ts`) whose only implementation, `unavailableClient`, reports "unavailable". `docs/web-redesign/discover-contract.md` is the public data contract a backend would need.
+- A collapsed "How clearing works" card labelled "Illustrative example. Not live data." It is the only place the 250 and 30 appear.
+
+**Two entry points when signed out** (top bar and sidebar footer): SIGN UP / LOG IN (primary, goes to `/sign-in`) and CONNECT WALLET (secondary, opens the connect dialog).
+
+- Connect dialog: shadcn Dialog; wallets from a registry in code (`lib/wallet/registry.ts`; today only Freighter through the pinned library), installed ones first, labelled INSTALLED, NOT INSTALLED and LAST USED, an install link for a wallet that is not installed, a desktop-extension note, a search field only above six wallets, then the existing connect and signature flow (Connect wallet, then Verify ownership) with named failure states inline.
+- `/sign-in`: split layout, an original illustration on the left (hidden under 900px), logo top-left, a close icon back to Discover, "Sign up or sign in", an Email address field, a Continue button disabled until the address is valid, an "Or" divider, Continue with wallet (opens the same dialog) and small testnet and help text. The backend supports an email and a password, not an email alone, so Continue leads to a second step (log in, or create an account with a name and password).
+
+**Dependencies.** The `shadcn` package is not a dependency: its small stylesheet is vendored as `apps/web/app/shadcn.css` and the generator is run with `npx shadcn@latest` (apps/web/README.md).

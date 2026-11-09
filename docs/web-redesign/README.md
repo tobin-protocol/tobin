@@ -17,5 +17,6 @@ The implemented app is the high-fidelity result. Wireframes, flow diagrams and a
 | [spec.md](spec.md) | The design specification for the rewrite (access model, light design system, screens) |
 | [plan.md](plan.md) | Route map, modules, what is kept and deleted, phases R1 to R5, risks |
 | [verified.md](verified.md) | The audit's claims checked against the source, and where the audit or spec was wrong |
+| [discover-contract.md](discover-contract.md) | The public data contract a backend would need for Discover |
 | [contrast.md](contrast.md) | Computed contrast of every text and background pair (generated) |
 | [audit/](audit/) | The read-only audit of the app before the rewrite |

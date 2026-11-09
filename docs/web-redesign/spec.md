@@ -53,6 +53,8 @@ Signed out: logo, a single active item DISCOVER, then the other items shown **lo
 
 Signed in: logo, organization selector, then NAVIGATION: Discover, Overview, Sessions, Obligations, Reviews (pending count on this item only), Activity, Organization, Settings. Then EXTERNAL: Documentation, Repository, Share feedback. Discover stays reachable at all times, which fixes the audit's finding that it was reachable only by typed URL.
 
+> **Superseded (2026-11-09, owner decision):** the Discover design below (three Not supported cards) is replaced by an empty explorer with a stats row, sub-tabs, a sort bar and tile lists; see plan.md section 13 and discover-contract.md. The signed-out entry points and the sign-in page also changed there; green and accent colours in this document are replaced by the greyscale rules in the same section.
+
 **Discover page (public), honest content only**
 
 1. A short panel: what Tobin is, in one paragraph, with the maturity line "Specification and testnet validation stage. Experimental. Test assets only. Not audited."
