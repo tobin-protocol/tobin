@@ -66,10 +66,32 @@ for (const w of WIDTHS) {
   await settled(page);
   await vis(page.getByRole("heading", { name: "Discover", level: 1 }), `${w}: signed-out visitor lands on Discover`);
   check((await page.title()).startsWith("Discover"), `${w}: page title is specific (${await page.title()})`);
-  await vis(page.getByText("Illustrative example. Not live data."), `${w}: the example is labelled`);
   await vis(page.getByText("Specification and testnet validation stage. Experimental. Test assets only. Not audited."), `${w}: maturity line`);
-  check((await page.getByText("Not supported", { exact: true }).count()) === 3, `${w}: three Not supported cards`);
-  for (const t of ["Public sessions", "Institutions", "Supported assets"]) await vis(page.getByRole("heading", { name: t }), `${w}: Not supported card "${t}"`);
+  const stats = page.getByRole("region", { name: "Protocol statistics" }).or(page.locator("section[aria-labelledby=stats-h]"));
+  const statText = (await stats.innerText()).toUpperCase();
+  for (const l of ["SETTLEMENTS RECORDED", "INSTITUTIONS OPTED IN", "ASSETS IN USE", "LAST SETTLEMENT"]) check(statText.includes(l), `${w}: stats row has ${l}`);
+  check((statText.match(/NO DATA/g) ?? []).length === 4, `${w}: all four stats read No data (${(statText.match(/NO DATA/g) ?? []).length})`);
+  check(!/\b0\b/.test(statText.replace(/\d+ of \d+/g, "")), `${w}: no stat reads 0`);
+  for (const t of ["Settlements", "Institutions", "Assets"]) await vis(page.getByRole("navigation", { name: "Discover sections" }).getByRole("link", { name: t }), `${w}: sub-tab ${t}`);
+  for (const t of ["institutions", "assets", "settlements"]) {
+    await page.goto(BASE + `/discover?tab=${t}`); await settled(page);
+    await vis(page.getByText("Public settlement data is not available yet."), `${w}: ${t} tab shows the empty tile`);
+    check((await page.locator("main li").filter({ hasText: "Public settlement data is not available yet." }).count()) === 1, `${w}: ${t} tab shows exactly one tile and no rows`);
+  }
+  await page.goto(BASE + "/discover?tab=institutions&sort=most-settlements"); await settled(page);
+  check((await page.locator("select").inputValue()) === "most-settlements", `${w}: the sort bar reads its value from the URL`);
+  await page.locator("select").selectOption("newest"); await page.waitForURL(/sort=newest/);
+  check(page.url().includes("tab=institutions"), `${w}: changing the sort keeps the tab and updates the URL`);
+  await page.goto(BASE + "/discover?tab=settlements&sort=bogus"); await settled(page);
+  check((await page.locator("select").inputValue()) === "newest", `${w}: an unknown sort falls back to the default`);
+  const details = page.locator("details", { hasText: "How clearing works" });
+  check((await details.getAttribute("open")) === null, `${w}: the clearing example is collapsed by default`);
+  check(!(await page.locator("main").innerText()).includes("250"), `${w}: 250 does not appear until the example is opened`);
+  await page.goto(BASE + "/discover"); await settled(page);
+  await details.locator("summary").click();
+  await vis(page.getByText("Illustrative example. Not live data."), `${w}: the example is labelled`);
+  check((await page.locator("main").innerText()).includes("250"), `${w}: the example shows 250 once opened`);
+  await details.locator("summary").click();
   check((await page.getByText(/SESSIONS: /).count()) === 0, `${w}: no banner on Discover`);
   const body = await page.locator("main").innerText();
   check(!/\b(Confirmed|Settled)\b/.test(body) && !/Alpha Bank|Alice|Bob|Carol/.test(body), `${w}: no confirmed state and no real names on the public page`);
@@ -79,26 +101,66 @@ for (const w of WIDTHS) {
   const locked = await navScope().getByText("Locked: sign in first").count();
   check(locked === 7, `${w}: seven destinations are locked (${locked})`);
   check((await navScope().getByRole("link", { name: /Discover/i }).getAttribute("aria-current")) === "page", `${w}: Discover is the active item`);
-  await vis(page.getByRole("link", { name: "Connect wallet" }).last(), `${w}: a Connect wallet button is present`);
+  const foot = desktop ? page.locator("aside") : page.getByRole("dialog");
+  await vis(foot.getByRole("link", { name: "Sign up / Log in" }), `${w}: sidebar footer has SIGN UP / LOG IN`);
+  await vis(foot.getByRole("button", { name: "Connect wallet" }), `${w}: sidebar footer has CONNECT WALLET`);
   if (!desktop) { await page.waitForTimeout(500); await page.screenshot({ path: `${out}/drawer-signed-out-${w}.png` }); }
   await closeDrawer();
+  await vis(page.locator("header").getByRole("link", { name: "Sign up / Log in" }), `${w}: top bar has SIGN UP / LOG IN (primary)`);
+  await vis(page.locator("header").getByRole("button", { name: "Connect wallet" }), `${w}: top bar has CONNECT WALLET (secondary)`);
+  const v = (n) => page.locator("header").getByRole(n === "l" ? "link" : "button", { name: n === "l" ? "Sign up / Log in" : "Connect wallet" }).evaluate((e) => getComputedStyle(e).backgroundColor);
+  check((await v("l")) === "rgb(0, 0, 0)" && (await v("b")) !== "rgb(0, 0, 0)", `${w}: SIGN UP / LOG IN is the filled primary, CONNECT WALLET the secondary`);
   await shot(page, "discover-signed-out", w);
+
+  // 2b. The connect-wallet dialog
+  await page.locator("header").getByRole("button", { name: "Connect wallet" }).click();
+  const dlg = page.getByRole("dialog");
+  await vis(dlg.getByRole("heading", { name: "Connect wallet" }), `${w}: CONNECT WALLET opens the dialog`);
+  await vis(dlg.getByText("Freighter", { exact: true }), `${w}: Freighter is listed`);
+  await vis(dlg.getByText("NOT INSTALLED"), `${w}: it is labelled NOT INSTALLED (no extension in this browser)`);
+  check((await dlg.getByText("INSTALLED", { exact: true }).count()) === 0, `${w}: it is not labelled INSTALLED`);
+  check((await dlg.getByRole("link", { name: /Install Freighter/ }).getAttribute("href")) === "https://www.freighter.app", `${w}: install link`);
+  await vis(dlg.getByText(/desktop browser extension/), `${w}: desktop-extension note`);
+  check((await dlg.getByRole("textbox").count()) === 0, `${w}: no search field for one wallet`);
+  check((await dlg.getByText(/seed phrase/).count()) >= 1 && !(await dlg.innerText()).toLowerCase().includes("enter your seed"), `${w}: it never asks for a seed phrase`);
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${out}/connect-wallet-dialog-${w}.png` });
+  await page.keyboard.press("Escape");
+  await dlg.waitFor({ state: "hidden" });
+  check(await page.evaluate(() => document.activeElement?.textContent?.trim() === "Connect wallet"), `${w}: closing the dialog returns focus to the button that opened it`);
 
   // 3. A locked item goes to a separate sign-in page that returns here
   await openDrawer();
   await navScope().getByRole("link", { name: /Obligations/i }).click();
   await page.waitForURL(/\/sign-in\?next=%2Fobligations/);
-  await vis(page.getByRole("heading", { name: "Sign in to Tobin" }), `${w}: locked item opens the sign-in page`);
+  await vis(page.getByRole("heading", { name: "Sign up or sign in" }), `${w}: locked item opens the sign-in page`);
   check((await page.locator("aside").count()) === 0 && (await page.getByRole("navigation", { name: "Primary" }).count()) === 0, `${w}: sign-in is a full page with no sidebar`);
-  await vis(page.getByRole("list", { name: "Sign-in steps" }), `${w}: two-step indicator`);
-  await vis(page.getByRole("link", { name: "Back to Discover" }), `${w}: link back to Discover`);
+  const artVisible = await page.locator("svg[viewBox='0 0 600 800']").evaluate((e) => e.getBoundingClientRect().width > 0 && getComputedStyle(e.closest("div[aria-hidden]") ?? e).display !== "none");
+  check(artVisible === (w >= 900), `${w}: the art panel is ${w >= 900 ? "shown" : "hidden under 900px"} (${artVisible})`);
+  await vis(page.getByRole("link", { name: "Close and return to Discover" }), `${w}: close icon back to Discover`);
+  await vis(page.getByLabel("Email address"), `${w}: an Email address field`);
+  const cont = page.getByRole("button", { name: "Continue", exact: true });
+  check(await cont.isDisabled(), `${w}: Continue is disabled while the address is empty`);
+  await page.locator("#auth-email").fill("not-an-email");
+  check(await cont.isDisabled(), `${w}: and while it is invalid`);
+  await page.locator("#auth-email").fill("alice@example.test");
+  check(await cont.isEnabled(), `${w}: and enabled once valid`);
+  await vis(page.getByRole("separator", { name: "Or" }), `${w}: an Or divider`);
+  await vis(page.getByRole("button", { name: "Continue with wallet" }), `${w}: Continue with wallet`);
+  await vis(page.getByText(/Experimental Stellar Testnet application/), `${w}: small testnet text`);
+  await page.locator("#auth-email").fill("");
   await shot(page, "sign-in", w);
+  await page.getByRole("button", { name: "Continue with wallet" }).click();
+  await vis(page.getByRole("dialog").getByRole("heading", { name: "Connect wallet" }), `${w}: Continue with wallet opens the same dialog`);
+  await page.keyboard.press("Escape");
 
   // 4. Email sign-in returns to the page that was asked for
-  await page.getByRole("button", { name: "Email", exact: true }).click();
-  await page.locator("#login-email").fill("alice@example.test");
+  await page.locator("#auth-email").fill("alice@example.test");
+  await cont.click();
+  await vis(page.getByRole("button", { name: "Create account" }).first(), `${w}: step 2 offers log in or create account (the backend needs a password)`);
+  await shot(page, "sign-in-step-2", w);
   await page.locator("#login-password").fill(PW);
-  await page.getByRole("button", { name: "Sign in", exact: true }).last().click();
+  await page.getByRole("button", { name: "Log in", exact: true }).click();
   await page.waitForURL(BASE + "/obligations");
   await settled(page);
   check(true, `${w}: sign-in returned to /obligations`);

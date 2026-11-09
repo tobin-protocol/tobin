@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { Menu01Icon } from "@hugeicons/core-free-icons";
-import { Button } from "@/components/kit/button";
+import { SignedOutActions } from "../auth/SignedOutActions.tsx";
 import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/kit/sheet";
 import { Icon } from "../tobin/Icon.tsx";
 import { SidebarContent } from "./Sidebar.tsx";
@@ -47,8 +46,8 @@ export function TopBar({ signedIn, pending }: { signedIn: boolean; pending?: num
           </>
         ) : (
           <>
-            <EnvironmentButton />
-            <Button asChild><Link href="/sign-in">Connect wallet</Link></Button>
+            <span className="max-md:hidden"><EnvironmentButton /></span>
+            <SignedOutActions />
           </>
         )}
       </div>

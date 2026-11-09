@@ -1,0 +1,21 @@
+import type { ReactNode } from "react";
+import { Wordmark } from "../shell/BrandMark.tsx";
+import { SampleDataBanner } from "../ui/Surfaces.tsx";
+import { SAMPLE_DATA } from "../../lib/tobin/index.ts";
+
+/** The centred frame for onboarding: header with the network, a bordered panel, and the testnet notice. Sign-in has its own split layout. */
+export function AuthFrame({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex min-h-dvh flex-col">
+      {SAMPLE_DATA ? <SampleDataBanner /> : null}
+      <header className="border-b border-divider">
+        <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-4 sm:px-6">
+          <Wordmark />
+          <span className="flex h-9 items-center gap-2 bg-tile px-3 text-body font-medium"><span aria-hidden="true" className="size-2 bg-ink" />Stellar Testnet</span>
+        </div>
+      </header>
+      <main id="main" tabIndex={-1} className="flex flex-1 items-start justify-center px-4 py-10 outline-none sm:py-16">{children}</main>
+      <footer className="px-4 pb-8 text-center text-label text-muted">Testnet. Test assets only. Nothing here moves real funds. Production deployment has not been approved.</footer>
+    </div>
+  );
+}

@@ -1,19 +1,23 @@
 import { headers } from "next/headers";
 import Link from "next/link";
+import { Suspense } from "react";
 import { ClearingExample } from "../../../components/discover/ClearingExample.tsx";
+import { Explorer } from "../../../components/discover/Explorer.tsx";
 import { PageFrame } from "../../../components/shell/PageFrame.tsx";
-import { NotSupportedCard } from "../../../components/tobin/NotSupportedCard.tsx";
 import { Button } from "@/components/kit/button";
 
 export const metadata = { title: "Discover" };
 
-/** The only page a signed-out visitor can use. Honest content only: an explanation, a labelled illustration, the network, and three capabilities that do not exist yet. */
+/**
+ * The public explorer. It reads a typed DiscoverClient (lib/discover). No public API exists, so the only client says "unavailable" and every figure and list
+ * is empty ("No data"). No sample rows, no fake numbers, no request to the backend. The one place illustrative numbers appear is the collapsed example below.
+ */
 export default async function DiscoverPage() {
   const signedIn = (await headers()).get("x-tobin-auth") === "in";
   return (
     <PageFrame
       title="Discover"
-      actions={signedIn ? <Button asChild><Link href="/">Go to Overview</Link></Button> : <Button asChild><Link href="/sign-in">Connect wallet</Link></Button>}
+      actions={signedIn ? <Button asChild><Link href="/">Go to Overview</Link></Button> : undefined}
     >
       <div className="max-w-5xl space-y-8">
         <section aria-labelledby="what-h" className="border border-divider p-5">
@@ -22,32 +26,18 @@ export default async function DiscoverPage() {
           <p className="mt-3 inline-block bg-tile px-3 py-1.5 font-label text-label uppercase tracking-wider">Specification and testnet validation stage. Experimental. Test assets only. Not audited.</p>
         </section>
 
-        <section aria-labelledby="how-h" className="space-y-3">
-          <h2 id="how-h" className="text-entity font-medium">How clearing works</h2>
-          <ClearingExample />
-        </section>
+        <Suspense fallback={<div aria-busy="true" className="h-40 bg-tile" />}>
+          <Explorer />
+        </Suspense>
 
-        <section aria-labelledby="net-h" className="border border-divider p-5">
-          <h2 id="net-h" className="text-entity font-medium">Network</h2>
-          <p className="mt-2 text-body"><span className="font-label uppercase tracking-wider">Stellar Testnet.</span> <span className="text-muted">Nothing here moves real funds, and there is no Mainnet state. No live status is shown because there is no public status endpoint.</span></p>
-        </section>
-
-        <div className="grid gap-4 md:grid-cols-3">
-          <NotSupportedCard id="ns-sessions" title="Public sessions">A list of clearing sessions anyone could browse. There is no public read API, so no session can be shown.</NotSupportedCard>
-          <NotSupportedCard id="ns-institutions" title="Institutions">A directory of participating institutions. Organization records are private to their members and the backend has no public directory.</NotSupportedCard>
-          <NotSupportedCard id="ns-assets" title="Supported assets">The assets that sessions can name. The list the console keeps is private to signed-in accounts and says nothing about availability on the network.</NotSupportedCard>
-        </div>
-
-        <section aria-labelledby="cta-h" className="flex flex-wrap items-center justify-between gap-4 border border-divider p-5">
-          <div>
-            <h2 id="cta-h" className="text-entity font-medium">Take part</h2>
-            <p className="mt-1 text-body text-muted">Connect a wallet to open the workspace, or read how the protocol works first.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button asChild variant="outline"><a href="https://docs.tobinprotocol.xyz" target="_blank" rel="noreferrer noopener">Documentation<span className="sr-only"> (opens in a new tab)</span></a></Button>
-            {signedIn ? null : <Button asChild><Link href="/sign-in">Connect wallet</Link></Button>}
-          </div>
-        </section>
+        <details className="group border border-divider">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-5 py-3 text-entity font-medium">
+            <span>How clearing works</span>
+            <span className="font-label text-label uppercase tracking-wider text-muted group-open:hidden">Show</span>
+            <span className="hidden font-label text-label uppercase tracking-wider text-muted group-open:inline">Hide</span>
+          </summary>
+          <div className="border-t border-divider p-4"><ClearingExample /></div>
+        </details>
       </div>
     </PageFrame>
   );

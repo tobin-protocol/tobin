@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { SquareLock01Icon } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/utils";
 import { Icon } from "../tobin/Icon.tsx";
-import { Button } from "@/components/kit/button";
+import { SignedOutActions } from "../auth/SignedOutActions.tsx";
 import { Wordmark } from "./BrandMark.tsx";
 import { EXTERNAL, NAV, activeNav } from "./nav.ts";
 import { OrgSelector } from "./OrgSelector.tsx";
@@ -68,9 +68,7 @@ export function SidebarContent({ signedIn, pending, onNavigate }: { signedIn: bo
         ) : null}
       </nav>
       {!signedIn ? (
-        <div className="shrink-0 border-t border-divider p-4">
-          <Button asChild size="lg" className="w-full"><Link href="/sign-in" onClick={onNavigate}>Connect wallet</Link></Button>
-        </div>
+        <div className="shrink-0 border-t border-divider p-4"><SignedOutActions stacked onNavigate={onNavigate} /></div>
       ) : null}
     </div>
   );

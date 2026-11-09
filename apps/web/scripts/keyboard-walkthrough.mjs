@@ -35,9 +35,9 @@ await page.goto(BASE + "/sign-in");
 let f = await tabTo(/Skip to content/); check(!!f, "the first Tab stop is the skip link");
 await press("Enter"); await page.waitForTimeout(200);
 check(await page.evaluate(() => document.activeElement?.id === "main" || !!document.activeElement?.closest("main")), "Enter on the skip link moves focus into the main content");
-await tabTo(/^Email$/); await press("Enter");
-await tabTo(/Email address|login-email/); await page.keyboard.type("alice@example.test");
-await press("Tab"); await page.keyboard.type(PW);
+await tabTo(/Email address|auth-email/); await page.keyboard.type("alice@example.test");
+await press("Enter");
+await tabTo(/Password|login-password/); await page.keyboard.type(PW);
 await press("Enter"); await page.waitForURL(BASE + "/", { timeout: 20000 });
 check(true, "signed in with the keyboard alone");
 

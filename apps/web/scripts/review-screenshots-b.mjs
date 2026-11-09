@@ -19,10 +19,10 @@ const browser = await chromium.launch({ channel: "chrome" });
 
 async function signIn(page, email) {
   await page.goto(BASE + "/sign-in");
-  await page.getByRole("button", { name: "Email", exact: true }).click();
-  await page.locator("#login-email").fill(email);
+  await page.locator("#auth-email").fill(email);
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page.locator("#login-password").fill(PW);
-  await page.getByRole("button", { name: "Sign in", exact: true }).last().click();
+  await page.getByRole("button", { name: "Log in", exact: true }).click();
   await page.waitForURL(BASE + "/");
 }
 async function settled(page) {

@@ -24,9 +24,9 @@ export function DataCard({ label, value, note, className }: { label: string; val
 
 export interface StatItem { label: string; value: ReactNode; hint?: ReactNode }
 /** Three columns: 12px muted uppercase label over a 16/500 value, a hairline above each cell. */
-export function StatGrid({ items, columns = 3, className }: { items: StatItem[]; columns?: 2 | 3; className?: string }) {
+export function StatGrid({ items, columns = 3, className }: { items: StatItem[]; columns?: 2 | 3 | 4; className?: string }) {
   return (
-    <dl className={cn("grid gap-x-6 gap-y-5", columns === 3 ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2", className)}>
+    <dl className={cn("grid gap-x-6 gap-y-5", columns === 4 ? "grid-cols-2 lg:grid-cols-4" : columns === 3 ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2", className)}>
       {items.map((it) => (
         <div key={it.label} className="border-t border-divider pt-3">
           <dt className="text-label uppercase tracking-wide text-muted">{it.label}</dt>

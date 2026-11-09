@@ -20,10 +20,10 @@ const browser = await chromium.launch({ channel: "chrome" });
 async function signIn(page, email) {
   await page.context().clearCookies();
   await page.goto(BASE + "/sign-in");
-  await page.getByRole("button", { name: "Email", exact: true }).click();
-  await page.locator("#login-email").fill(email);
+  await page.locator("#auth-email").fill(email);
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page.locator("#login-password").fill(PW);
-  await page.getByRole("button", { name: "Sign in", exact: true }).last().click();
+  await page.getByRole("button", { name: "Log in", exact: true }).click();
   await page.waitForURL(BASE + "/");
 }
 async function settled(page) {
@@ -143,7 +143,7 @@ for (const w of WIDTHS) {
   // discover (signed in: the public page inside the full app frame)
   await go(page, "/discover");
   await vis(page.getByRole("link", { name: "Go to Overview" }), `${w}: signed-in Discover offers Go to Overview`);
-  check((await page.getByText("Not supported", { exact: true }).count()) === 3, `${w}: Discover shows three Not supported cards`);
+  check((await page.getByText("No data", { exact: true }).count()) >= 5, `${w}: Discover reads No data (stats and the empty tile)`);
   check(await page.locator("main input[type=search], main input[type=text]").count() === 0, `${w}: Discover has no search box and no sample records`);
   await shot(page, "discover", w);
   await page.keyboard.press("Control+k");

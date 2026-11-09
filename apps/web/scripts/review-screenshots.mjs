@@ -16,10 +16,10 @@ const note = (m) => console.log(m);
 
 async function signIn(page, email) {
   await page.goto(BASE + "/sign-in");
-  await page.getByRole("button", { name: "Email", exact: true }).click();
-  await page.locator("#login-email").fill(email);
+  await page.locator("#auth-email").fill(email);
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page.locator("#login-password").fill(PW);
-  await page.getByRole("button", { name: "Sign in", exact: true }).last().click();
+  await page.getByRole("button", { name: "Log in", exact: true }).click();
 }
 async function settled(page) {
   await page.waitForLoadState("networkidle");
@@ -48,9 +48,10 @@ for (const w of WIDTHS) {
 
   // sign-in: initial, wallet failure (no Freighter in this browser), email
   await page.goto(BASE + "/sign-in"); await settled(page); await shot(page, "sign-in", w);
-  await page.getByRole("button", { name: "Sign in with wallet" }).click();
-  await page.getByText("Freighter not found").waitFor(); await shot(page, "sign-in-wallet-unavailable", w);
-  await page.getByRole("button", { name: "Email", exact: true }).click(); await shot(page, "sign-in-email", w);
+  await page.getByRole("button", { name: "Continue with wallet" }).click();
+  await page.getByText("NOT INSTALLED").waitFor(); await shot(page, "sign-in-wallet-unavailable", w);
+  await page.keyboard.press("Escape");
+  await page.locator("#auth-email").fill("someone@example.test"); await page.getByRole("button", { name: "Continue", exact: true }).click(); await shot(page, "sign-in-email", w);
 
   // Alice: administrator
   await signIn(page, "alice@example.test");
@@ -75,10 +76,10 @@ for (const w of WIDTHS) {
   // first-time onboarding: a brand-new account
   const email = `erin${w}-${Date.now()}@example.test`;
   await page.goto(BASE + "/sign-in");
-  await page.getByRole("button", { name: "Email", exact: true }).click();
+  await page.locator("#auth-email").fill(email);
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page.getByRole("button", { name: "Create account" }).first().click();
   await page.locator("#reg-name").fill("Erin");
-  await page.locator("#reg-email").fill(email);
   await page.locator("#reg-password").fill(PW);
   await page.getByRole("button", { name: "Create account" }).last().click();
   await page.waitForURL(/\/onboarding/); await settled(page); await shot(page, "onboarding-choose", w);
