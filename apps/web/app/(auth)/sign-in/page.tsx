@@ -81,6 +81,7 @@ function SignInInner() {
             <h1 className="text-title font-medium">Sign up or sign in</h1>
             <p className="mt-2 text-body text-muted">Use an email address and password, or connect a Stellar wallet. Tobin never asks for a seed phrase or a private key.</p>
             {params.get("expired") ? <p role="status" className="mt-4 bg-tile p-3 text-body">Your session expired. Sign in again to continue.</p> : null}
+            {params.get("wallet-disconnected") ? <p role="status" className="mt-4 bg-tile p-3 text-body">You disconnected the wallet you signed in with, so you were signed out of Tobin. Sign in again with another method, or reconnect that wallet to sign in.</p> : null}
 
             <div className="mt-6 space-y-4">
               {step === "email" ? (

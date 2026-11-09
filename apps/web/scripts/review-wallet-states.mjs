@@ -123,7 +123,7 @@ for (const w of [390, 1440]) {
   await dlg.waitFor();
   await page.waitForTimeout(600);
   const t = await dlg.innerText();
-  check(/Disconnect this wallet\?/.test(t) && /removes the verified record/.test(t) && /signs out every Tobin session that used it/.test(t) && /a website cannot revoke it/.test(t) && /Freighter's connected sites/.test(t), `${w} Disconnect dialog: states what Tobin does and that Freighter's permission must be removed in Freighter`);
+  check(/Disconnect this wallet\?/.test(t) && /removes the verified record/.test(t) && /signs out every Tobin session that used it/.test(t) && /you will be signed out now/.test(t) && /a website cannot revoke it/.test(t) && /Freighter's connected sites/.test(t), `${w} Disconnect dialog: states what Tobin does and that Freighter's permission must be removed in Freighter`);
   check((await dlg.getByRole("button", { name: "Disconnect wallet" }).count()) === 1 && (await dlg.getByRole("button", { name: "Cancel" }).count()) === 1, `${w} Disconnect dialog: one confirm and one cancel`);
   copy.push(`--- ${w}px Disconnect confirmation (from the popover)\n${t.replace(/\n+/g, "\n")}\n`);
   await page.screenshot({ path: `${out}/disconnect-dialog-${w}.png` });

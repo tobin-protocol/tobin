@@ -3,6 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DISCONNECT_DESCRIPTION, DISCONNECT_LAST_METHOD_NOTE, DISCONNECT_TITLE, FREIGHTER_REVOKE_NOTE } from "../../lib/wallet/popover.ts";
+import { ApiError } from "../../lib/api/http.ts";
 import { client } from "../../lib/tobin/index.ts";
 import { reasonOf } from "../sessions/shared.tsx";
 import { InlineError } from "../ui/Feedback.tsx";
@@ -21,6 +22,10 @@ export function DisconnectWalletDialog({ wallet, onClose, onDone }: { wallet: { 
     setBusy(true); setError(null);
     try {
       await client.auth.removeWallet(wallet.id);
+      // Disconnecting the wallet you signed in with is signing out of it: the server has just revoked this session, so leave at once instead of showing a page that can no longer load.
+      const stillSignedIn = await client.auth.me().then(() => true, (e) => !(e instanceof ApiError && e.status === 401));
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- full navigation to the sign-in page, as in onboarding
+      if (!stillSignedIn) { qc.clear(); window.location.href = "/sign-in?wallet-disconnected=1"; return; }
       await qc.invalidateQueries({ queryKey: ["me"] });
       await qc.invalidateQueries({ queryKey: ["org-verifications", org.id] });
       onDone?.(); close();

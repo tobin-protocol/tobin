@@ -7,7 +7,7 @@ import type { WalletView } from "./freighter.ts";
 export const WRONG_NETWORK_MESSAGE = "Tobin supports Stellar Testnet only in this build. Switch Freighter to Testnet.";
 
 export const DISCONNECT_TITLE = "Disconnect this wallet?";
-export const DISCONNECT_DESCRIPTION = "This removes the verified record of this wallet from your Tobin account and signs out every Tobin session that used it. It does not delete or change the Stellar account, and nothing on Stellar is affected.";
+export const DISCONNECT_DESCRIPTION = "This removes the verified record of this wallet from your Tobin account and signs out every Tobin session that used it. If you signed in or created your account with this wallet, that includes this one: you will be signed out now. It does not delete or change the Stellar account, and nothing on Stellar is affected.";
 export const FREIGHTER_REVOKE_NOTE = "Tobin cannot remove its own access inside Freighter, because a website cannot revoke it. To revoke that permission as well, open Freighter's connected sites and remove Tobin there.";
 export const DISCONNECT_LAST_METHOD_NOTE = "If it is the only way your account can sign in, the server refuses and says so.";
 

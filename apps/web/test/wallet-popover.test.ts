@@ -60,6 +60,7 @@ test("the Wallets tab treats only READY as a connection (a wrong network is not 
 test("Disconnect wording says what Tobin does and that Freighter's site permission must be removed there", () => {
   assert.match(DISCONNECT_DESCRIPTION, /removes the verified record/);
   assert.match(DISCONNECT_DESCRIPTION, /signs out every Tobin session that used it/);
+  assert.match(DISCONNECT_DESCRIPTION, /signed in or created your account with this wallet.*you will be signed out now/);
   assert.match(DISCONNECT_DESCRIPTION, /does not delete or change the Stellar account/);
   assert.match(FREIGHTER_REVOKE_NOTE, /a website cannot revoke it/);
   assert.match(FREIGHTER_REVOKE_NOTE, /Freighter's connected sites/);
