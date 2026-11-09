@@ -15,8 +15,8 @@ import { fetchLiveSignerSet } from './live.ts';
 import { verifyEnvelope } from './signer-set.ts';
 import { readPolicy } from './cosign.ts';
 
-/** POLICY CHOICE (engineering, flagged to the owner): the founder's 10-ledger maximum was set for the offline signer. A human signing an entry and then two envelope signatures needs longer; this interactive flow uses 30 ledgers (about 2.5 minutes). */
-export const ENTRY_LIFETIME_LEDGERS = 30;
+/** POLICY: the owner-approved maximum authorization-entry lifetime is 10 ledgers (ADR-0001, BD-07; about 50 seconds). It was 30 for the interactive flow, an engineering exception flagged to the owner; the owner has since approved 10. Not yet exercised against a real owner-attended interactive session: a human signing an entry and then two envelope signatures has little margin, so the first such session must confirm it is workable. A failed or expired attempt is re-prepared, never retried automatically. */
+export const ENTRY_LIFETIME_LEDGERS = 10;
 export const MAX_UNITS = 1n;
 
 export interface RunConfig { clearing: string; token: string; admin: string; second: string; batchId: string }

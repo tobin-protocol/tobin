@@ -5,6 +5,7 @@
 // Usage: AXE_PATH=<axe.min.js> node scripts/review-r5.mjs <output dir>
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium } from "@playwright/test";
+import { csrf } from "./csrf-headers.mjs";
 
 const out = process.argv[2];
 if (!out || !process.env.AXE_PATH) throw new Error("usage: AXE_PATH=<axe.min.js> node scripts/review-r5.mjs <output dir>");
@@ -20,7 +21,7 @@ const check = (ok, msg) => { if (!ok) problems.push(msg); console.log(`${ok ? "o
 const browser = await chromium.launch({ channel: "chrome" });
 
 async function apiUser(name) {
-  const ctx = await browser.newContext();
+  const ctx = await browser.newContext({ extraHTTPHeaders: csrf(BASE) });
   const r = await ctx.request.post(`${BASE}/api/auth/login`, { data: { email: `${name}@example.test`, password: PW } });
   if (!r.ok()) throw new Error(`login ${name} ${r.status()}`);
   const me = await (await ctx.request.get(`${BASE}/api/auth/me`)).json();
@@ -111,7 +112,7 @@ const btn = (page, name) => page.getByRole("button", { name, exact: true }).loca
 // ============ (1) axe + (2) overflow ============
 for (const role of ["signed-out", "member", "admin"]) {
   for (const w of [1440, 390, 360]) {
-    const ctx = await browser.newContext({ viewport: { width: w, height: w < 500 ? 844 : 900 } });
+    const ctx = await browser.newContext({ extraHTTPHeaders: csrf(BASE), viewport: { width: w, height: w < 500 ? 844 : 900 } });
     await ctx.addInitScript(() => { try { sessionStorage.setItem("tobin-sheet", "open"); } catch { /* */ } });
     const page = await ctx.newPage();
     page.on("pageerror", (e) => problems.push(`${role}@${w}: page error ${e}`));
@@ -132,7 +133,7 @@ for (const role of ["signed-out", "member", "admin"]) {
 
 // ============ (3) every dialog and sheet, once ============
 {
-  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const ctx = await browser.newContext({ extraHTTPHeaders: csrf(BASE), viewport: { width: 1440, height: 900 } });
   const page = await ctx.newPage();
   page.on("pageerror", (e) => problems.push(`dialogs: page error ${e}`));
   // signed out

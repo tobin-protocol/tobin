@@ -5,6 +5,7 @@
 // Usage: node scripts/review-r2.mjs <output dir>
 import { mkdirSync } from "node:fs";
 import { chromium } from "@playwright/test";
+import { csrf } from "./csrf-headers.mjs";
 
 const out = process.argv[2];
 if (!out) throw new Error("usage: review-r2.mjs <output dir>");
@@ -20,7 +21,7 @@ const stamp = Date.now().toString(36);
 
 // ---------- API helpers (a signed-in request context per person) ----------
 async function apiUser(name) {
-  const ctx = await browser.newContext();
+  const ctx = await browser.newContext({ extraHTTPHeaders: csrf(BASE) });
   const r = await ctx.request.post(`${BASE}/api/auth/login`, { data: { email: `${name}@example.test`, password: PW } });
   if (!r.ok()) throw new Error(`login ${name} ${r.status()}`);
   const me = await (await ctx.request.get(`${BASE}/api/auth/me`)).json();
@@ -94,7 +95,7 @@ const go = async (page, path) => { await page.goto(BASE + path); await settled(p
 const apiCount = (page) => { const seen = []; page.on("request", (r) => { const u = new URL(r.url()); if (u.pathname.startsWith("/api/")) seen.push(u.pathname); }); return seen; };
 
 for (const w of WIDTHS) {
-  const ctx = await browser.newContext({ viewport: { width: w, height: w < 500 ? 844 : 900 } });
+  const ctx = await browser.newContext({ extraHTTPHeaders: csrf(BASE), viewport: { width: w, height: w < 500 ? 844 : 900 } });
   await ctx.addInitScript(() => { try { sessionStorage.setItem("tobin-sheet", "open"); } catch { /* */ } });
   const page = await ctx.newPage();
   page.on("pageerror", (e) => problems.push(`${w}: page error ${e}`));

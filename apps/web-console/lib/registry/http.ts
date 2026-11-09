@@ -2,6 +2,7 @@
 // wallet, no transaction, and no route that can set chain provenance. The acting user comes ONLY from deps.authenticate (a server-side session lookup);
 // no header or body field is ever treated as an identity. Every non-GET request must carry the x-tobin-request header (it cannot be added cross-origin
 // without a CORS preflight, which this server never grants), on top of SameSite=Strict cookies and the foreign-Origin refusal in proxy.ts.
+import { log } from '../server/log.ts';
 import { randomBytes } from 'node:crypto';
 import type { ActingUser } from './identity.ts';
 import { Registry } from './service.ts';
@@ -300,6 +301,7 @@ export async function handleRegistry(request: Request, deps: RegistryDeps): Prom
   } catch (e) {
     if (e instanceof RegistryError) return json(STATUS[e.code] ?? 400, { error: e.code, message: e.message });
     if (e instanceof Error && e.name === 'BackendUnavailable') return json(503, { error: 'BACKEND_UNAVAILABLE', message: 'The service is not available.' });
+    log('error', 'http.internal', { error: e });
     return json(500, { error: 'INTERNAL', message: 'internal error' });
   }
 }

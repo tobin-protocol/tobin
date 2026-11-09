@@ -3,6 +3,7 @@
 // Usage: node scripts/review-screenshots-b.mjs <output dir>      (run scripts/seed-review-data.mjs first; both servers must be running)
 import { mkdirSync } from "node:fs";
 import { chromium } from "@playwright/test";
+import { csrf } from "./csrf-headers.mjs";
 
 const out = process.argv[2];
 if (!out) throw new Error("usage: review-screenshots-b.mjs <output dir>");
@@ -57,7 +58,7 @@ async function ownSession(page, label, kind) {
 const open = async (page, label) => { await page.goto(`${BASE}/sessions?q=${encodeURIComponent(label)}`); await settled(page); await page.getByRole("link", { name: /^Open \S/ }).locator("visible=true").first().click(); await page.waitForURL(/\/sessions\/[0-9a-f]{64}/); await settled(page); };
 
 for (const w of WIDTHS) {
-  const ctx = await browser.newContext({ viewport: { width: w, height: w < 500 ? 844 : 900 }, deviceScaleFactor: 1 });
+  const ctx = await browser.newContext({ extraHTTPHeaders: csrf(BASE), viewport: { width: w, height: w < 500 ? 844 : 900 }, deviceScaleFactor: 1 });
   // the action panel is a bottom sheet under 768px: open it for the whole run so flows can reach its controls
   await ctx.addInitScript(() => { try { sessionStorage.setItem("tobin-sheet", "open"); } catch {} });
   const page = await ctx.newPage();

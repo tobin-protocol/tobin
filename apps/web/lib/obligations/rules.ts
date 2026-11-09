@@ -1,5 +1,6 @@
 // Obligation form rules. The client pre-checks what it can mirror (apps/web-console/lib/registry/clearing.ts parseObligationAmount, service.ts text()), but the
 // server is the authority: its message is what the user sees, placed under the field it is about.
+import "../zod-setup.ts";
 import { z } from "zod";
 import type { ActivityItem } from "../tobin/types.ts";
 

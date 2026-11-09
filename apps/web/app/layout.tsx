@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import { Instrument_Sans, Outfit, Space_Grotesk, Urbanist } from "next/font/google";
 import type { ReactNode } from "react";
+import { NonceBridge } from "../components/NonceBridge.tsx";
 import { Providers } from "../components/Providers.tsx";
 import "./globals.css";
 
@@ -16,13 +18,17 @@ export const metadata: Metadata = {
   description: "The Tobin web application. Stellar Testnet only; local hosting only.",
   robots: { index: false, follow: false },
 };
+// Every page is rendered per request: the nonce-based Content-Security-Policy set in proxy.ts needs the server to attach a fresh nonce to each page's scripts.
+export const dynamic = "force-dynamic";
 export const viewport: Viewport = { width: "device-width", initialScale: 1 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const nonce = (await headers()).get("x-nonce");
   return (
     <html lang="en" className={`${urbanist.variable} ${outfit.variable} ${instrumentSans.variable} ${spaceGrotesk.variable}`}>
       <body>
         <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:bg-button focus:px-3 focus:py-2 focus:text-on-button">Skip to content</a>
+        <NonceBridge nonce={nonce} />
         <Providers>{children}</Providers>
       </body>
     </html>

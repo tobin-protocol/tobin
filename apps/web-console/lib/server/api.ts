@@ -1,6 +1,7 @@
 // The Console's two API endpoints as plain functions of (Request, dependencies) so that they can be tested without Next.js or a bridge.
 // `app/api/*/route.ts` binds them to the real sandbox. Behaviour, status codes and bodies are those of the earlier server.
 import type { InvokeOptions, PreparedCall, Transport } from 'tobin-mvp1-sdk/sdk';
+import { isHosted } from './config.ts';
 import { checkRequest, readJsonBody } from './guards.ts';
 import type { GuardRefusal } from './guards.ts';
 import type { BootInfo } from './sandbox.ts';
@@ -18,6 +19,8 @@ export const refusalResponse = (r: GuardRefusal): Response => new Response(r.bod
 const serverError = (e: unknown): Response => json(500, { ok: false, errorType: 'Server', code: null, detail: String(e) });
 
 function guard(request: Request, deps: ApiDeps): Response | null {
+  // The sandbox routes are development tools: a hosted console refuses them outright, whatever the Host guard would say.
+  if (isHosted(process.env)) return new Response('not found', { status: 404, headers: { 'content-type': 'text/plain', 'cache-control': 'no-store' } });
   const refusal = checkRequest({
     method: request.method,
     pathname: new URL(request.url).pathname,

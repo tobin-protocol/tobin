@@ -17,7 +17,8 @@ export async function api<T>(path: string, init: { method?: "GET" | "POST"; body
       method: init.method ?? "GET",
       credentials: "same-origin",
       cache: "no-store",
-      headers: init.body !== undefined ? { "content-type": "application/json" } : undefined,
+      // POST carries the CSRF header the API proxy checks (lib/server/csrf.ts)
+      headers: init.body !== undefined || init.method === "POST" ? { "content-type": "application/json", "x-tobin-request": "1" } : undefined,
       body: init.body !== undefined ? JSON.stringify(init.body) : init.method === "POST" ? "{}" : undefined,
     });
   } catch {
