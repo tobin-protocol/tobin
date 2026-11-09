@@ -30,7 +30,7 @@ Stellar Testnet only. No contract holds real value. Components:
 | Legacy `TobinTestToken` | `CD7HO…UC4O` |
 | Administrative multisig account (token minter) | `GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ` |
 
-The deployed Wasm hashes are recorded in the manifest; their equality with a build of the current source is not verified by a recorded hosted run (gate E04 NOT VERIFIED). Mainnet identifiers: none.
+The deployed Wasm hashes are recorded in the manifest; their equality with a build of the current source is not verified by a recorded hosted run (gate E04 NOT VERIFIED). This plan covers Stellar Testnet only; no Mainnet identifier exists and none is planned in this submission.
 
 ## 3. Threats carried over (template section 2)
 

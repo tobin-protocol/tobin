@@ -15,7 +15,7 @@ Source of the ids: `contracts/deployments/testnet.json` (network `testnet`, pass
 | `tobin_test_token_governed` | `CD5OK…OKYO` | `ef483732...241f` | The token the recorded settlement used. Minter is the administrative multisig account. Deploy tx `b9496cc9...9314`, ledger 5530094 |
 | `tobin_test_token` (legacy) | `CD7HO…UC4O` | same as governed | Earlier demonstration token; minter is the legacy deployer; no longer the intended token |
 
-The two token entries share one Wasm build artifact and differ in constructor input (the minter). The Wasm is a verified Testnet build artifact (the deployed hashes are recorded in the manifest and compared in `ci/wasm-hashes-*.txt` by a CI job that was not run for this document). No independent security audit of any contract is claimed. The manifest wording about an "audited" build is being corrected separately.
+The two token entries share one Wasm build artifact and differ in constructor input (the minter). The Wasm is the build artifact deployed on Testnet (its hash is recorded in the manifest; the MVP-1.5 closure records a read-only check that the deployed hashes equal the manifest, and a reproducible-build comparison across hosted runners, `ci/wasm-hashes-*.txt`, has not been recorded: gate E04 not verified). No independent security audit of any contract is claimed. The manifest wording about an "audited" build is being corrected separately.
 
 Clearing contract: Soroban SDK 29.0.0, Rust 1.96.0 (see `AGENTS.md` section 4). Its behaviour is specified in [technical-specification.md](technical-specification.md) section 8. Ceilings 4 participants, 16 obligations, 16 instructions; read back from the network through `config()` in the MVP-1.5 preflight.
 

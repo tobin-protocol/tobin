@@ -3,7 +3,7 @@
 Status: reviewer-facing documentation package for the SCF Build Award, Open Track. Prepared 2026-11-09.
 Evidence basis: the repository at the commit that contains this package, its recorded evidence files, and the public sources cited in each document.
 
-**Maturity notice.** Tobin is institutional clearing and settlement software for Stellar. It runs on **Stellar Testnet only**. It is in the specification and validation stage: the milestones MVP-1.2 to MVP-1.5 are complete with limitations (`AGENTS.md`, section 13), MVP-1.6 to MVP-1.8 are planned, and Mainnet deployment is the final, gated objective. The evidence is same-author. One owner-run Testnet settlement of 1 base unit has been recorded. No independent security review has taken place and none is claimed. The hosted web application does not execute settlement. Production deployment and real-value use are not approved.
+**Maturity notice.** Tobin is institutional clearing and settlement software for Stellar. It runs on **Stellar Testnet only**. It is in the specification and validation stage: the milestones MVP-1.2 to MVP-1.5 are complete with limitations (`AGENTS.md`, section 13), MVP-1.6 to MVP-1.8 are planned, and the scope of this submission is Stellar Testnet only (Mainnet is not authorized, not built and not part of this submission). The evidence is same-author. One owner-run Testnet settlement of 1 base unit has been recorded. No independent security review has taken place and none is claimed. The hosted web application does not execute settlement. Production deployment and real-value use are not approved.
 
 ## Start here
 
@@ -21,7 +21,7 @@ Evidence basis: the repository at the commit that contains this package, its rec
 |---|---|---|
 | Mapping | [criteria-mapping.md](criteria-mapping.md) | the SCF Build Award rules (official), the Open Track guidance (11 points) and this package, side by side |
 | Product | [prd.md](product/prd.md) | requirements, scope, non-goals, with current status per requirement |
-| | [roadmap.md](product/roadmap.md) | completed work, MVP-1.6 to MVP-1.8, the SCF tranche mapping, the Mainnet gates |
+| | [roadmap.md](product/roadmap.md) | completed work, MVP-1.6 to MVP-1.8, the SCF tranche mapping (our proposal), the release gates, Mainnet stated as out of scope |
 | | [market-analysis.md](product/market-analysis.md) | comparable approaches, differentiation, what is unproven |
 | | [onchain-growth-and-metrics.md](product/onchain-growth-and-metrics.md) | how on-chain growth would be measured |
 | | [budget-and-timeline.md](product/budget-and-timeline.md) | budget framework by official tranche |
@@ -39,6 +39,9 @@ Evidence basis: the repository at the commit that contains this package, its rec
 | | [testing-and-validation.md](implementation/testing-and-validation.md) | tests, recorded runs, gates, test plan |
 | | [deployment-and-operations.md](implementation/deployment-and-operations.md) | local and hosted deployment, verified versus not verified |
 | | [evidence-register.md](implementation/evidence-register.md) | each claim mapped to its evidence |
+| | [implementation-truth-matrix.md](implementation/implementation-truth-matrix.md) | documented claim versus actual implementation, per capability, re-read against the source |
+| | [testnet-engineering-evidence.md](implementation/testnet-engineering-evidence.md) | the eight recorded Testnet transactions of the fixed scenario, with what is and is not independently verified |
+| | [demo-recording-guide.md](implementation/demo-recording-guide.md) | DRAFT guide for the reviewer demonstration recording |
 | Diagrams | [diagrams/](diagrams/README.md) | 12 Mermaid diagrams (13 files), current and planned drawn separately |
 | Corrections | [corrections-log.md](corrections-log.md) | changes made to existing files for this package, and decisions still open |
 
