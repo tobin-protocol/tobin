@@ -23,7 +23,7 @@ export type EmailSignIn = z.infer<typeof emailSignIn>;
 export const emailRegister = z.object({
   displayName: z.string().trim().min(1, "Enter a name.").max(80, "Use at most 80 characters."),
   email: z.string().trim().min(3, "Enter your email address.").includes("@", "Enter a valid email address."),
-  password: z.string().min(8, "Use at least 8 characters."),
+  password: z.string().min(12, "Use at least 12 characters.").max(128, "Use at most 128 characters."),
 });
 export type EmailRegister = z.infer<typeof emailRegister>;
 
@@ -31,7 +31,7 @@ export const profileForm = z.object({ displayName: z.string().trim().min(1, "Ent
 export type ProfileForm = z.infer<typeof profileForm>;
 
 export const organizationForm = z.object({
-  name: z.string().trim().min(2, "Enter the organization name (at least 2 characters).").max(120, "Use at most 120 characters."),
+  name: z.string().trim().min(2, "Enter the organization name (at least 2 characters).").max(80, "Use at most 80 characters."),
   description: z.string().trim().max(500, "Use at most 500 characters."),
   institutionType: z.enum(INSTITUTION_TYPES),
   jurisdiction: z.string().trim().toUpperCase().regex(/^([A-Z]{2})?$/, "Use a two-letter country code such as GB, or leave it empty."),
@@ -51,7 +51,7 @@ export type SessionForm = z.infer<typeof sessionForm>;
 
 /** The only organization fields the backend lets an administrator change. */
 export const orgProfileForm = z.object({
-  name: z.string().trim().min(2, "Enter the organization name (at least 2 characters).").max(120, "Use at most 120 characters."),
+  name: z.string().trim().min(2, "Enter the organization name (at least 2 characters).").max(80, "Use at most 80 characters."),
   description: z.string().trim().max(500, "Use at most 500 characters."),
   visibility: z.enum(["private", "public"]),
 });

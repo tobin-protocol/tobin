@@ -43,7 +43,7 @@ function Credentials({ email, onBack, onDone }: { email: string; onBack: () => v
         <form className="space-y-3" noValidate onSubmit={register.handleSubmit(async (v) => { setError(null); try { await client.auth.register(v.email, v.password, v.displayName); onDone(); } catch (e) { fail(e); } })}>
           <input type="hidden" {...register.register("email")} />
           <TextField id="reg-name" label="Your name" autoComplete="name" error={register.formState.errors.displayName?.message} {...register.register("displayName")} />
-          <TextField id="reg-password" label="Password" type="password" autoComplete="new-password" hint="At least 8 characters." error={register.formState.errors.password?.message} {...register.register("password")} />
+          <TextField id="reg-password" label="Password" type="password" autoComplete="new-password" hint="At least 12 characters." error={register.formState.errors.password?.message} {...register.register("password")} />
           {error ? <InlineError>{error}</InlineError> : null}
           <Button type="submit" size="lg" className="w-full" disabled={register.formState.isSubmitting}>Create account</Button>
         </form>

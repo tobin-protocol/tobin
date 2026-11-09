@@ -1,5 +1,5 @@
 // Settlement execution state machine and chain-outcome reconciliation (pure). This module defines the LEGAL states and transitions of settlement execution and the
-// rule that decides what an observed chain result means. It performs no I/O: no wallet, no signing, no submission and no network read exists in this build.
+// rule that decides what an observed chain result means. It performs no I/O itself. The owner-run Stellar tools (lib/stellar/run.ts) do sign and submit on Testnet, but they do not go through this module, and no HTTP route advances execution state.
 // The observed-transaction inputs used in tests are MOCKS and are labelled as such: a mock is not evidence of any Stellar behaviour.
 //
 // Stages that must never be collapsed into one generic "settled": prepared -> approved (batch) -> awaiting-signer -> signing -> signed -> submission-pending ->

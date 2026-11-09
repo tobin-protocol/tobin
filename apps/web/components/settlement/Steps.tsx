@@ -128,7 +128,7 @@ export function ExecutionStep({ s }: { s: SettlementData }) {
   return (
     <Card>
       <h2 className="text-entity font-medium">Execution record</h2>
-      <p className="mt-1 text-body text-muted">Read-only. The backend can record an execution awaiting a signer and nothing later: no route can start, sign, submit or verify one.</p>
+      <p className="mt-1 text-body text-muted">Read-only. The backend can record an execution awaiting a signer and nothing later. It has routes to start an execution and to begin an attempt, which this app does not call, and no route that records signing, submission or confirmation.</p>
       {execution.isLoading ? <div className="mt-3"><Skeleton lines={2} /></div> : execution.error ? <div className="mt-3"><ErrorState title="Could not load the execution record" message={(execution.error as Error).message} retry={<Button onClick={() => execution.refetch()}>Try again</Button>} /></div> : e ? (
         <div className="mt-4 space-y-3 border-t border-divider pt-3">
           <p className="text-body"><span className="text-muted">Execution state: </span><span className="font-medium">{e.state}</span> · {formatDateTime(e.createdAt)}</p>

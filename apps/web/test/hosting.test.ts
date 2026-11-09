@@ -106,3 +106,20 @@ test("the trusted client address is the last forwarded entry and only with one h
   assert.equal(clientIpFromForwarded("bad value", 1), null);
   assert.equal(clientIpFromForwarded(null, 1), null);
 });
+
+test("the forms mirror the server limits: password 12 to 128, organization name 2 to 80", async () => {
+  const { emailRegister, organizationForm } = await import("../lib/schemas.ts");
+  const base = { displayName: "A", email: "a@example.test" };
+  assert.equal(emailRegister.safeParse({ ...base, password: "x".repeat(11) }).success, false);
+  assert.equal(emailRegister.safeParse({ ...base, password: "x".repeat(12) }).success, true);
+  assert.equal(emailRegister.safeParse({ ...base, password: "x".repeat(129) }).success, false);
+  const org = { description: "", institutionType: "bank", jurisdiction: "", visibility: "private" };
+  assert.equal(organizationForm.safeParse({ ...org, name: "n".repeat(80) }).success, true);
+  assert.equal(organizationForm.safeParse({ ...org, name: "n".repeat(81) }).success, false);
+});
+
+test("the Execution step no longer claims that no route can start an execution", () => {
+  const src = readFileSync(new URL("../components/settlement/Steps.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(src, /no route can start/);
+  assert.match(src, /routes to start an execution and to begin an attempt, which this app does not call/);
+});
