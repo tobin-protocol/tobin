@@ -161,8 +161,10 @@ jobs:
         run: npm run build:console
 
       - name: Hosted-mode configuration check (real production servers on loopback with a throwaway secret; no network, no deployment)
+        timeout-minutes: 5
         run: node apps/web/scripts/check-hosted-config.mjs
 
       - name: Web app browser smoke tests (system Chrome; they do not need the backend)
+        timeout-minutes: 10
         run: npx playwright test
         working-directory: apps/web

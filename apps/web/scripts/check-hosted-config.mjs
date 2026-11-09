@@ -19,7 +19,8 @@ const problems = [];
 const check = (ok, msg) => { if (!ok) problems.push(msg); console.log(`${ok ? "ok  " : "FAIL"} ${msg}`); };
 const dir = mkdtempSync(join(tmpdir(), "tobin-hosted-"));
 const procs = [];
-const killTree = (p) => { try { if (process.platform === "win32") spawnSync("taskkill", ["/pid", String(p.pid), "/T", "/F"]); else p.kill("SIGKILL"); } catch { /* already gone */ } };
+// the launcher starts `next start` as its child: kill the whole tree (a process group on Linux, taskkill /T on Windows), or the grandchild keeps the pipes open
+const killTree = (p) => { try { if (process.platform === "win32") spawnSync("taskkill", ["/pid", String(p.pid), "/T", "/F"]); else process.kill(-p.pid, "SIGKILL"); } catch { /* already gone */ } };
 const cleanup = () => { for (const p of procs) killTree(p); try { rmSync(dir, { recursive: true, force: true }); } catch { /* best effort */ } };
 process.on("exit", cleanup);
 
@@ -29,7 +30,7 @@ const webEnv = (extra = {}) => hostedEnv({ PORT: String(WPORT), TOBIN_PUBLIC_ORI
 for (const k of ["NEXT_PUBLIC_TOBIN_SAMPLE_DATA", "TOBIN_DEV_GALLERY"]) delete process.env[k];
 
 function start(cwd, env) {
-  const p = spawn(process.execPath, ["scripts/start.mjs"], { cwd, env, stdio: ["ignore", "pipe", "pipe"] });
+  const p = spawn(process.execPath, ["scripts/start.mjs"], { cwd, env, stdio: ["ignore", "pipe", "pipe"], detached: process.platform !== "win32" });
   p.out = ""; p.stdout.on("data", (d) => { p.out += d; }); p.stderr.on("data", (d) => { p.out += d; });
   procs.push(p);
   return p;
@@ -122,3 +123,4 @@ check(cfg2.status === 3 && /DEV_GALLERY/.test(cfg2.stderr), "a hosted build refu
 killTree(c); killTree(w);
 if (problems.length) { console.log(`\n${problems.length} problem(s):`); for (const p of problems) console.log(" - " + p); process.exit(1); }
 console.log("\nall checks passed");
+process.exit(0);
