@@ -1,4 +1,5 @@
 // Form schemas (zod) and a small react-hook-form resolver. `@hookform/resolvers` is not an approved dependency, so zod is wired in locally.
+import "./zod-setup.ts";
 import { z } from "zod";
 import type { FieldErrors, FieldValues, Resolver } from "react-hook-form";
 import { INSTITUTION_TYPES } from "./tobin/types.ts";

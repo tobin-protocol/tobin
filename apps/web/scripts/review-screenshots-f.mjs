@@ -5,6 +5,7 @@
 // Usage: node scripts/review-screenshots-f.mjs <output dir>
 import { mkdirSync } from "node:fs";
 import { chromium } from "@playwright/test";
+import { csrf } from "./csrf-headers.mjs";
 
 const out = process.argv[2];
 if (!out) throw new Error("usage: review-screenshots-f.mjs <output dir>");
@@ -54,7 +55,7 @@ const openSession = async (page, q, tab) => {
 };
 
 for (const w of WIDTHS) {
-  const ctx = await browser.newContext({ viewport: { width: w, height: w < 500 ? 844 : 900 }, deviceScaleFactor: 1 });
+  const ctx = await browser.newContext({ extraHTTPHeaders: csrf(BASE), viewport: { width: w, height: w < 500 ? 844 : 900 }, deviceScaleFactor: 1 });
   const page = await ctx.newPage();
   page.on("pageerror", (e) => problems.push(`${w}: page error ${e}`));
   page.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource/.test(m.text())) problems.push(`${w}: console error ${m.text().slice(0, 160)}`); });

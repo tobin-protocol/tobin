@@ -5,6 +5,7 @@
 // Usage: AXE_PATH=<axe.min.js> node scripts/review-wallet-states.mjs <output dir>      (needs the seeded servers on :3100 / :8787; run scripts/seed-review-data.mjs with SEED_WALLET=1)
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium } from "@playwright/test";
+import { csrf } from "./csrf-headers.mjs";
 
 const out = process.argv[2];
 if (!out || !process.env.AXE_PATH) throw new Error("usage: AXE_PATH=<axe.min.js> node scripts/review-wallet-states.mjs <output dir>");
@@ -19,7 +20,7 @@ const check = (ok, msg) => { if (!ok) problems.push(msg); console.log(`${ok ? "o
 const copy = [];
 const browser = await chromium.launch({ channel: "chrome" });
 
-const ctx0 = await browser.newContext();
+const ctx0 = await browser.newContext({ extraHTTPHeaders: csrf(BASE) });
 await ctx0.request.post(`${BASE}/api/auth/login`, { data: { email: "alice@example.test", password: PW } });
 const me = await (await ctx0.request.get(`${BASE}/api/auth/me`)).json();
 const walletKey = me.wallets?.[0]?.publicKey;
@@ -53,7 +54,7 @@ const STATES = [
 ];
 
 async function signedInPage(w, mode) {
-  const ctx = await browser.newContext({ viewport: { width: w, height: 900 } });
+  const ctx = await browser.newContext({ extraHTTPHeaders: csrf(BASE), viewport: { width: w, height: 900 } });
   await ctx.addInitScript(mockScript(mode));
   const r = await ctx.request.post(`${BASE}/api/auth/login`, { data: { email: "alice@example.test", password: PW } });
   if (!r.ok()) throw new Error("login " + r.status());

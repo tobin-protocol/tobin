@@ -4,6 +4,7 @@
 // Usage: node scripts/review-r3.mjs <output dir>
 import { mkdirSync } from "node:fs";
 import { chromium } from "@playwright/test";
+import { csrf } from "./csrf-headers.mjs";
 
 const out = process.argv[2];
 if (!out) throw new Error("usage: review-r3.mjs <output dir>");
@@ -18,7 +19,7 @@ const browser = await chromium.launch({ channel: "chrome" });
 const stamp = Date.now().toString(36);
 
 async function apiUser(name) {
-  const ctx = await browser.newContext();
+  const ctx = await browser.newContext({ extraHTTPHeaders: csrf(BASE) });
   const r = await ctx.request.post(`${BASE}/api/auth/login`, { data: { email: `${name}@example.test`, password: PW } });
   if (!r.ok()) throw new Error(`login ${name} ${r.status()}`);
   const me = await (await ctx.request.get(`${BASE}/api/auth/me`)).json();
@@ -86,7 +87,7 @@ const P = async (page) => { if ((page.viewportSize()?.width ?? 1000) < 768) awai
 const dlg = (page) => page.getByRole("dialog").last();
 
 for (const w of WIDTHS) {
-  const ctx = await browser.newContext({ viewport: { width: w, height: w < 500 ? 844 : 900 } });
+  const ctx = await browser.newContext({ extraHTTPHeaders: csrf(BASE), viewport: { width: w, height: w < 500 ? 844 : 900 } });
   const page = await ctx.newPage();
   page.on("pageerror", (e) => problems.push(`${w}: page error ${e}`));
   page.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource/.test(m.text())) problems.push(`${w}: console error ${m.text().slice(0, 160)}`); });
