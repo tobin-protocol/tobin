@@ -25,7 +25,7 @@
 Tobin is open-source software that helps financial institutions coordinate the payment obligations they owe each other on Stellar. Institutions record obligations; a deterministic engine computes each participant's net position; a reviewer approves the exact result; settlement instructions are prepared for the net amounts only; and a Soroban contract validates and executes a plan that every participant has approved and every debtor has authorized.
 
 > [!IMPORTANT]
-> **Status: Stellar Testnet only, specification and validation stage.** The core clearing and settlement preparation workflow is implemented and tested. One owner-run Testnet settlement (eight transactions, one base unit of a test token) has been executed and read back. The evidence is from the implementing author only; **no independent security review has taken place**; the hosted web application stops at settlement preparation and does not sign or submit transactions; the hosted deployment is a Testnet demonstration, not an institutional pilot. Mainnet and real-value use are not authorized. See [Status](#status).
+> **Status: Stellar Testnet only, specification and validation stage.** The core clearing and settlement preparation workflow is implemented and tested. One owner-run Testnet settlement (eight transactions, one base unit of a test token) has been executed and read back. The evidence is from the implementing author only; **no independent security review has taken place**; the hosted web application stops at settlement preparation and does not sign or submit transactions; the hosted deployment is a Testnet demonstration, not an institutional pilot. Mainnet and real-value use are not authorized and are not part of this submission. See [Status](#status).
 
 ## The problem
 
@@ -56,34 +56,75 @@ This is **not** one automated end-to-end production workflow. Stages 1 to 6 run 
 
 ## How it works
 
+**1. System architecture.** Dashed means planned and not built.
+
 ```mermaid
 flowchart LR
-  subgraph BROWSER["Browser"]
+  USER["Institutional users (browser)"]
+  subgraph VERCEL["Vercel project tobin-app"]
     UI["apps/web: institutional application"]
+    PROXY["Server-side proxy, allow-listed paths"]
+  end
+  subgraph RAILWAY["Railway service console, single replica"]
+    API["apps/web-console API: authentication, organization and role controls"]
+    SDK["packages/mvp1-sdk: clearing and netting"]
+    PREP["Settlement preparation"]
+    DB[("SQLite on a volume")]
+  end
+  PG[("PostgreSQL, planned")]:::planned
+  subgraph OWNER["Separate owner tools, run locally"]
+    TOOLS["Owner-run tools: sign, submit, read back"]
     FW["Freighter wallet"]
   end
-  subgraph HOST["Hosted today: Testnet demonstration"]
-    PROXY["apps/web server-side proxy"]
-    API["apps/web-console: API, authorization, settlement preparation"]
-    DB[("SQLite file on a volume")]
-  end
-  subgraph OWNER["Run locally by the owner"]
-    TOOLS["owner-run Stellar tools: sign, submit, read back"]
-  end
   subgraph STELLAR["Stellar Testnet"]
-    CON["TobinClearingV1 and test token (Soroban)"]
+    CON["Soroban contracts: clearing and test token"]
     RPC["Soroban RPC and Horizon"]
   end
-  PG[("PostgreSQL")]:::planned
-  UI --> PROXY --> API --> DB
-  UI <--> FW
+  USER --> UI --> PROXY --> API
+  API --> SDK
+  API --> PREP
+  API --> DB
+  API -.->|planned| PG
   TOOLS <--> FW
   TOOLS --> RPC --> CON
-  API -.-> PG
   classDef planned stroke-dasharray: 4 3,color:#555
 ```
 
-Dashed means planned and not built. The pieces:
+The hosted application is the browser interface on Vercel, a proxy that forwards only authentication, registry and public paths, and the Railway console that holds authentication, organization and role controls, the netting engine from `packages/mvp1-sdk`, settlement preparation and the SQLite database. There is deliberately no line from the hosted application to Stellar: the owner tools that sign with Freighter, submit and read back are a separate path run locally by the owner. PostgreSQL is planned, not built.
+
+**2. Clearing workflow.** Where the hosted workflow stops.
+
+```mermaid
+flowchart TD
+  A["Organization and clearing session"] --> B["Participants"]
+  B --> C["Obligations"]
+  C --> D["Netting: immutable calculation"]
+  D --> E["Calculation review"]
+  E --> F["Batch preparation"]
+  F --> G["Batch review"]
+  G --> STOP(["Hosted workflow stops here"])
+  STOP -. "no connection" .-> OT
+  OT["Separate owner tool, fixed one-unit scenario, not connected to the approved batch"]:::separate --> TN["Stellar Testnet"]
+  classDef separate stroke-dasharray: 4 3,color:#555
+```
+
+An organization creates a session, adds participants and records obligations. The engine nets them into an immutable calculation, a reviewer decides on that exact calculation, an administrator prepares a batch of instructions and a reviewer decides on the batch. Approving a batch does not execute it. The owner tool that produced the recorded Testnet settlement used a plan hard-coded in `apps/web-console/lib/stellar/run.ts`, not an approved batch.
+
+**3. Trust and settlement boundary.**
+
+```mermaid
+flowchart LR
+  R["Application records: Implemented"] --> B["Approved application batch: Implemented"]
+  B -. "Not connected" .-> S["Owner-controlled signing: Partial, separate tool, fixed scenario"]
+  S --> T["Transaction submission: Partial, separate tool"]
+  T --> V["Independent chain read-back: Partial, in the tool only"]
+  V --> C["Reconciliation: Partial, not written back to records"]
+  C -. "Not connected: no write-back" .-> R
+```
+
+Application records and the approved batch are implemented and are database decisions only. Signing, submission, read-back and comparison exist in the owner-run tool for one fixed scenario. No code connects a database batch to that tool, and no outcome is written back to application records.
+
+The pieces:
 
 - **Application layer (`apps/web`).** The canonical user-facing application. It has no database and reaches the backend only through a server-side proxy.
 - **Backend and API (`apps/web-console`).** Authentication, organizations, sessions, obligations, calculations, institutional approvals, settlement preparation and a read-only public Discover API, over SQLite with immutable history tables enforced by triggers. It also hosts the owner-run Stellar tools and a local sandbox.
@@ -121,7 +162,7 @@ Terms follow the [maturity guide](docs/COMMUNICATION-AND-MATURITY-TERMINOLOGY.md
 | Settlement preparation | immutable batches, batch review, closure | implemented; moves no funds |
 | Stellar Testnet integration | deployed contracts, Freighter signing, multisig, owner-run execution | implemented as local tools; one run, one base unit; the plan used in that run was fixed in the tool, not derived from a database batch |
 | Transaction verification | read-back by hash and comparison with the plan | in the owner-run tool only; not stored |
-| Public Discover API | read-only list of organizations that chose public visibility | implemented; settlements and statistics are empty or null because no read-back outcome is recorded |
+| Public Discover API | read-only list of organizations that chose public visibility; not an indexer | live-verified on the deployed page (2026-11-09); the lists are empty because no organization is public yet, and settlement and asset statistics are null because no read-back outcome is recorded |
 | Operations and reconciliation | reconciliation and exception handling in the application | planned (MVP-1.6) |
 | Security and infrastructure | hosted guards, CSP, CSRF checks at the proxy, structured logs, tenant-isolation and store-conformance suites | implemented; PostgreSQL, backups, independent review and monitoring planned (MVP-1.7) |
 
@@ -165,6 +206,9 @@ The public site is [docs.tobinprotocol.xyz](https://docs.tobinprotocol.xyz). The
 |---|---|
 | [SCF documentation index](docs/scf/README.md) | main reviewer entry point |
 | [Technical overview](TECHNICAL.md) | one-page summary |
+| [Implementation truth matrix](docs/scf/implementation/implementation-truth-matrix.md) | each capability with its evidence level |
+| [Testnet engineering evidence](docs/scf/implementation/testnet-engineering-evidence.md) | the recorded Testnet run and its read-back |
+| [Demo recording guide](docs/scf/implementation/demo-recording-guide.md) | how to record an accurate demonstration |
 | [Product requirements](docs/scf/product/prd.md) | scope and requirements |
 | [Roadmap](docs/scf/product/roadmap.md) | milestones and the SCF tranche mapping |
 | [Architecture](docs/scf/technical/architecture.md) | components, trust boundaries, current and planned topology |
