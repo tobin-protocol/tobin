@@ -7,7 +7,7 @@ Related: [architecture.md](architecture.md), [stellar-integration.md](stellar-in
 
 ## 1. Scope
 
-Stellar Testnet only. The application records and prepares; the contract validates and executes; separate owner-run tools sign, submit and read back (see architecture section 4). Nothing here describes Mainnet behaviour.
+Stellar Testnet only. The application records and prepares; the contract validates and executes; separate owner-run tools sign, submit and read back (see architecture section 4). Nothing here describes Mainnet behaviour; Mainnet is not authorized, not built and not part of this submission.
 
 ## 2. Obligations and amounts
 
@@ -48,6 +48,27 @@ A calculation is an immutable snapshot (`calculations`, update and delete blocke
 
 A calculation is `current` only while the hash of the session's present input equals its stored `inputHash` (`clearing.ts:66-70`). Any change to participants or obligations calls `#invalidate` in the same transaction (`service.ts:496`), which records an invalidation for every decision and batch of the session. A newer calculation supersedes the older one. Statuses are derived, not stored (`authorization.ts:10`, `settlement.ts:97`): defence in depth makes a decision or batch `invalidated` when the data changed even if no invalidation row exists.
 
+### Obligation-to-netting data flow (diagram)
+
+```mermaid
+flowchart TD
+  IN["Obligation write: admin, session configuring"] --> V{"Validation: amount, distinct active parties, asset identity"}
+  V -->|rejected| ERR["Refused with an error code"]
+  V -->|accepted| REV["New row or revision"]
+  REV --> INV["Invalidate decisions and batches in the same transaction"]
+  VOID["Void: one-way, new revision"] --> INV
+  REV --> CALC["Calculate on request: server reads persisted rows"]
+  CALC --> NET["Engine nets: outgoing minus incoming per participant"]
+  NET --> CONS{"Conservation: net positions sum to zero"}
+  CONS -->|fails| ERR
+  CONS -->|holds| SNAP[("Immutable calculation snapshot with inputHash")]
+  SNAP --> STALE{"Current input hash equals stored inputHash?"}
+  STALE -->|yes| CUR["Calculation is current"]
+  STALE -->|no| OLD["Calculation is stale"]
+```
+
+An obligation write is validated, stored as a revision and invalidates earlier decisions and batches in the same transaction; a void is one-way. A calculation is computed by the server from persisted rows, netted by the SDK engine, checked for conservation and stored as an immutable snapshot with its `inputHash`; it is current only while the present input hashes to the same value. Status: Implemented, Locally tested. Sources: `apps/web-console/lib/registry/clearing.ts:19-70`, `service.ts:339-357,413,496`, `packages/mvp1-sdk/src/engine/net.ts`, `database.ts:172-173`. The conservation check location was not separately traced to a single line; the sum-to-zero property is the definition in section 3.
+
 ## 6. Institutional authorization (who may do what)
 
 Roles: `admin` or `member`, `active` or `suspended`; a separate reviewer grant (`org_reviewers`) that only an admin can give or revoke and that `admin` does not imply. Non-members get the same `NOT_FOUND` as for a missing organization (`service.ts:58`).
@@ -62,6 +83,37 @@ Roles: `admin` or `member`, `active` or `suspended`; a separate reviewer grant (
 | Start execution record, begin attempt, record signer set | `admin` | `service.ts:800,855,941` |
 
 Not enforced today: that the batch reviewer differs from the person who approved the calculation (only the preparer is barred; the stricter rule is ADR-0001 BD-08, planned). An `admin` can grant themselves the reviewer capability; no rule prevents one person holding admin, reviewer and preparer roles except the per-snapshot separation above. A decision binds to one calculation id; a batch decision binds to one `instructionsHash`. An approval is a database record, not a signature.
+
+### Institutional authorization sequence (diagram)
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant A as Authentication
+  participant R as Registry service
+  participant D as SQLite
+  U->>A: Sign in (password or wallet challenge)
+  A-->>U: Session cookie
+  U->>R: Calculation approval request
+  R->>D: Check active membership and reviewer grant
+  R->>D: Check separation of duties on the calculation
+  alt ran the calculation or edited its obligations
+    R-->>U: SEPARATION_OF_DUTIES
+  else allowed
+    R->>D: Store decision bound to the calculation
+  end
+  U->>R: Prepare batch (admin)
+  R->>D: Store immutable batch with instructionsHash
+  U->>R: Batch decision quoting instructionsHash
+  alt user prepared the batch
+    R-->>U: SEPARATION_OF_DUTIES
+  else calculation approver is not barred
+    R->>D: Store batch decision
+  end
+  Note over R: Planned, not enforced: batch reviewer differs from the calculation approver
+```
+
+Every call is authenticated and checked for active membership. A calculation decision needs the reviewer grant and is refused for anyone who ran the calculation or touched its obligations. A batch decision is refused only for the person who prepared the batch; the person who approved the calculation is not blocked, and a test asserts that. The different-reviewer rule (ADR-0001 BD-08) is planned. Both decisions are database records, not signatures, and approving a batch does not execute it. Status: Implemented, with the planned rule marked. Sources: `service.ts:566-587,646-674,732-753` (preparer rule at line 746), `authorization.ts:32-47`, `test/settlement-ops.test.ts`.
 
 ## 7. Settlement batch and instructions
 
@@ -115,7 +167,7 @@ Policy: an authorization entry should live at most 10 ledgers (ADR-0001 BD-07).
 
 | Place | Enforcement |
 |---|---|
-| Contract and token | None |
+| Contract and token | None: the contract does not enforce the 10-ledger lifetime |
 | Offline Rust signer (`contracts/clearing/signer/mod.rs:41,58-78`) | Requires `current < expiration <= current + 10`, with the current ledger supplied by the caller (so unverifiable); only legacy `Address` credentials are signed |
 | Owner-run web tool (`lib/stellar/run.ts:19,117`) | `ENTRY_LIFETIME_LEDGERS = 10` sets the `entryValidUntil` value the server returns and the page passes to `authorizeEntry` (`components/settle-run.tsx`). The server's `attachEntry` (`run.ts:121`) checks that the signed entry authorizes the prepared invocation and that simulation accepts it; it does not check the entry's expiration ledger. A test asserts the constant (`test/entry-lifetime-policy.test.ts`) |
 | The recorded Testnet run | Used 30 ledgers for the second account's entry by an interactive owner decision (MVP-1.5 verification, Stage 5 log); the 10-ledger value was set in code afterwards and has not been exercised in an attended interactive session (`run.ts:18` comment) |
@@ -140,6 +192,31 @@ States (`lib/registry/settlement-state.ts:8`): `awaiting-signer`, `signing`, `si
 Evidence gates in `advanceExecutionAttempt` (`service.ts:894-923`): `submission-pending` requires a transaction hash and step, recorded before sending, unique per hash and per attempt step; `confirmed` requires an independent network read of a recorded hash reporting SUCCESS; a failure after signing requires a network read reporting FAILED or evidence of rejection before inclusion; `expired` from `unknown-outcome` requires a read finding nothing and a passed validity window; `reconciled` from `confirmed` requires a matching comparison. `verifyChainOutcome` (`settlement-state.ts:43`): NOT_FOUND or UNAVAILABLE is `unknown-outcome` (never failed, never confirmed), PENDING stays pending, FAILED is failed, SUCCESS is reconciled only if the multiset of transfers equals the approved batch exactly. Retry rules (`retry-policy.ts:85`): one live attempt; an unknown outcome blocks any new attempt; a confirmed or reconciled execution is never retried; `failed` needs an explicit review flag; `expired` allows a new attempt after revalidation.
 
 Which routes can reach which states: `POST .../execution/start` creates the execution record in `awaiting-signer`; `POST .../execution/attempts/begin` creates an attempt in `awaiting-signer`. No other route moves state. `advanceSettlementExecution` and `advanceExecutionAttempt` are called only from tests. The owner-run tool keeps its own in-memory map of attempts (`run.ts:58`) and does not use this module or the database; its outcomes are appended to a local JSON-lines file (`run.ts:62-63`). So in the database, execution state exists only up to `awaiting-signer`; the later states are defined and tested rules without a production caller.
+
+### Settlement preparation and execution sequence (diagram)
+
+```mermaid
+sequenceDiagram
+  participant H as Hosted application
+  participant D as SQLite
+  participant O as Owner tool (separate)
+  participant F as Freighter
+  participant S as Stellar Testnet
+  H->>D: Approved batch and execution record awaiting-signer
+  Note over H,O: Not connected. No code passes a database batch to the owner tool
+  O->>O: Plan from fixed one-unit scenario in run.ts
+  O->>F: Request authorization entry signature, 10-ledger value
+  F-->>O: Signed entry
+  Note over O,S: Contract does not enforce the 10-ledger lifetime. attachEntry does not check expiry
+  O->>F: Request envelope signature
+  F-->>O: Signed envelope
+  O->>S: Submit transaction after typed confirmation
+  O->>S: Read back by hash from Horizon and RPC
+  O->>O: Compare with the plan, local JSON-lines log
+  Note over O,D: Not connected. No outcome is written back to the database
+```
+
+The hosted path ends with an approved batch and, optionally, an execution record in `awaiting-signer`. The owner tool builds its own plan from a hard-coded scenario, has Freighter sign the authorization entry and the envelope, submits only after the typed confirmation, reads the transaction back by hash and compares it with the plan. The ten-ledger value only sets the `entryValidUntil` handed to the signing request. The two Not connected notes are the current state: no database batch reaches the tool and no outcome returns. Status: Separate owner tool; Testnet-verified for one run only. Sources: `apps/web-console/lib/stellar/run.ts:19,32-39,117-121,138`, `rpc.ts`, `compare.ts`, `service.ts:800`; `confirmSession` has no non-test caller.
 
 ## 11. Data model summary
 
