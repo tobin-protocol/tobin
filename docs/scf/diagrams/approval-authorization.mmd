@@ -1,0 +1,18 @@
+%% status: current (solid = implemented, dashed = proposed)
+%% title: Approval and authorization, distinct authorities
+sequenceDiagram
+  participant U as Authenticated user
+  participant R as Registry on server
+  participant W as Freighter wallet
+  participant K as Clearing contract
+  U->>R: sign in with email or a verified wallet challenge
+  Note over R: Authentication grants no role
+  R->>R: check membership, role and reviewer grant
+  U->>R: reviewer decision on one calculation
+  Note over R: Separation of duties, not the user who ran or changed the inputs
+  R-->>U: approval stored and bound to that calculation
+  Note over R: An application approval is a database record, not a signature
+  U->>W: approve_settlement for the current digest (owner-run tools, local)
+  W-->>K: signed approval
+  K->>K: every admitted participant must approve the current digest
+  Note over K: Each debtor separately authorizes settle with session, digest and its own total

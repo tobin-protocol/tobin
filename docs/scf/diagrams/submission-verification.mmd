@@ -1,0 +1,17 @@
+%% status: current (solid = implemented, dashed = proposed)
+%% title: Submission, read-back and unknown outcome handling
+stateDiagram-v2
+  [*] --> Prepared
+  Prepared --> Signed: wallet signature exists
+  Signed --> Submitted: network accepted for inclusion
+  Submitted --> Confirmed: read back by hash and successful
+  Confirmed --> Reconciled: matches the approved batch
+  Confirmed --> ReconciliationRequired: any mismatch
+  Submitted --> UnknownOutcome: NOT_FOUND or timeout
+  UnknownOutcome --> Confirmed: original hash read later
+  UnknownOutcome --> Failed: original hash read, failed
+  Signed --> Expired: entry lifetime passed
+  Reconciled --> [*]
+  ReconciliationRequired --> [*]
+  Failed --> [*]
+  Expired --> [*]

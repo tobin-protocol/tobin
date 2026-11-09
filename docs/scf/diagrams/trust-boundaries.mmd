@@ -1,0 +1,31 @@
+%% status: mixed (solid = implemented, dashed = proposed)
+%% title: Trust boundaries and security controls
+flowchart LR
+  classDef planned stroke-dasharray: 5 5,fill:#f4f4f4,stroke:#888
+  subgraph Z1["Zone 1: untrusted internet and browser"]
+    USER["User browser"]
+    EXT["Wallet extension holds the keys"]
+  end
+  subgraph Z2["Zone 2: Vercel, apps/web"]
+    PROXY["Proxy: JSON, request header, exact Origin, Fetch Metadata, 8 KiB limit, allow-listed paths"]
+    HDR["Nonce CSP, HSTS, frame denial"]
+  end
+  subgraph Z3["Zone 3: Railway, apps/web-console"]
+    GUARDS["Host allow-list, shared secret, hosted path allow-list, rate limits"]
+    APP["Auth and registry logic, tenant scoping"]
+    DB[("SQLite on one volume, immutability triggers")]
+  end
+  subgraph Z4["Zone 4: owner machine, local only"]
+    TOOLS["Owner-run Stellar tools"]
+  end
+  subgraph Z5["Zone 5: Stellar Testnet"]
+    NET["RPC, Horizon, contracts"]
+  end
+  MON["Monitoring and alerting"]:::planned
+  USER --> PROXY
+  USER <--> EXT
+  PROXY -->|"shared secret over public hostname"| GUARDS
+  GUARDS --> APP --> DB
+  EXT <--> TOOLS
+  TOOLS --> NET
+  APP -.->|"planned MVP-1.7"| MON

@@ -18,7 +18,7 @@ P0, P1, P2, P3, P4, P5, P7, P6. P8 (settlement execution) is not approved and no
 |---|---|---|---|---|
 | P0 | Record decisions, baseline, dependency and risk matrix; no source change | `docs/backend-p0-decisions` | **Merged** (PR #47) | accepted by merge |
 | P1 | Hosting readiness and security hardening on SQLite | `feat/backend-hosting-hardening` | **Merged** (PR #48; CI green on the PR) | accepted by merge |
-| P2 | Registry store conformance, tenant isolation, concurrency, immutability, JSON key order | `test/registry-conformance-suite` | **In review** (pull request open) | pending owner review; CI result recorded on the PR |
+| P2 | Registry store conformance, tenant isolation, concurrency, immutability, JSON key order | `test/registry-conformance-suite` | **Merged** (PR #50) | accepted by merge |
 | P3 | Asynchronous store refactor on SQLite | `refactor/async-registry-store` (planned) | Not started | not accepted |
 | P4 | PostgreSQL implementation | `feat/postgres-persistence` (planned) | Not started | not accepted |
 | P5 | SQLite backup, inspection, migration utility and rehearsals | `feat/sqlite-postgres-migration` (planned) | Not started | not accepted |
@@ -59,7 +59,7 @@ The skipped tests are expected to be bridge-dependent (`TOBIN_BRIDGE_EXE` unset)
 
 **Working tree.** Pre-existing untracked files (the redesign brief, `docs/audits/`, `docs/design-system/`, loose files under `docs/product/architecture/`) are untouched and not part of any commit here.
 
-**Acceptance.** Exit criteria of P0: decisions recorded (done), unknowns visible (done), no source modified (done), sequence documented (done). Owner acceptance pending.
+**Acceptance.** Exit criteria of P0: decisions recorded (done), unknowns visible (done), no source modified (done), sequence documented (done). Accepted by merge (PR #50).
 
 **Commit and PR.** Commits `898ea5d` (audit baseline) and the P0 decision commit on `docs/backend-p0-decisions`; pull request: see the repository (not merged).
 

@@ -1,0 +1,22 @@
+%% status: mixed (solid = implemented, dashed = proposed)
+%% title: On-chain versus off-chain responsibilities
+flowchart LR
+  classDef planned stroke-dasharray: 5 5,fill:#f4f4f4,stroke:#888
+  subgraph OFF["Off-chain: Tobin application and database"]
+    A1["Users, organizations, roles, reviewers"]
+    A2["Obligations, calculations, approvals"]
+    A3["Prepared batches and reviews"]
+    A4["Execution attempts and audit events"]
+  end
+  subgraph ON["On-chain: Soroban contracts on Testnet"]
+    C1["Session state: Open, Committed, Approved, Settled"]
+    C2["Obligations, commitment, proposal digest"]
+    C3["Per participant approvals"]
+    C4["Settlement result and token transfers"]
+  end
+  A3 -->|"owner-run tools build the calls"| C1
+  C4 -->|"read back by hash"| A4
+  WB["Confirmed outcome stored in the application"]:::planned
+  A4 -.->|"planned"| WB
+  X["A prepared batch is not a contract object. Sessions made in the app stay local-draft until a creating transaction is confirmed"]
+  OFF --- X

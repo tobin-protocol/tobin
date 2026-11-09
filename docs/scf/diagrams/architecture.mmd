@@ -1,0 +1,32 @@
+%% status: mixed (solid = implemented, dashed = proposed)
+%% title: Tobin architecture, components and packages
+flowchart TB
+  classDef planned stroke-dasharray: 5 5,fill:#f4f4f4,stroke:#888
+  subgraph CLIENT["Browser"]
+    UI["apps/web Next.js UI"]
+    FW["Freighter extension"]
+  end
+  subgraph WEBSRV["apps/web server side"]
+    PROXY["API proxy: validates request, forwards auth, registry and public/v1 only"]
+  end
+  subgraph BACKEND["apps/web-console server"]
+    GUARD["Hosted guards: Host, path, shared secret"]
+    AUTH["AuthService: sessions, wallet challenges"]
+    REG["Registry: orgs, sessions, authorization, settlement preparation"]
+    STL["lib/stellar: owner-run tools, local only"]
+  end
+  SDK["packages/mvp1-sdk: engine, digests, prepared calls"]
+  DB[("SQLite file")]
+  PG[("PostgreSQL")]:::planned
+  CHAIN["Stellar Testnet: RPC, Horizon, contracts"]
+  UI --> PROXY
+  UI <--> FW
+  PROXY --> GUARD
+  GUARD --> AUTH
+  GUARD --> REG
+  AUTH --> DB
+  REG --> DB
+  REG --> SDK
+  STL --> SDK
+  STL --> CHAIN
+  REG -.->|"planned P3 to P5"| PG

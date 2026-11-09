@@ -1,0 +1,26 @@
+%% status: mixed (solid = implemented, dashed = proposed)
+%% title: Failure handling and reconciliation
+flowchart TB
+  classDef planned stroke-dasharray: 5 5,fill:#f4f4f4,stroke:#888
+  STEP["Owner submits one step after typed confirmation"]
+  RES{"Outcome read from the network"}
+  OKR["Success: read back by hash, compare with approved plan"]
+  FAIL["Failed: the whole invocation reverted"]
+  UNK["NOT_FOUND or timeout: unknown outcome"]
+  EXP["Authorization entry expired"]
+  MIS["Mismatch with approved plan"]
+  FRESH["Prepare fresh authorization, never reuse signed entries of a failed transaction"]
+  READ["Read the ORIGINAL hash, never resend"]
+  HALT["Stop: reconciliation required, operator resolves"]
+  DONE["Reconciled"]
+  AUTO["Automatic recovery or retry"]:::planned
+  STEP --> RES
+  RES -->|success| OKR
+  RES -->|failure| FAIL
+  RES -->|unknown| UNK
+  OKR -->|match| DONE
+  OKR -->|differs| MIS --> HALT
+  FAIL --> FRESH
+  EXP --> FRESH
+  UNK --> READ --> RES
+  FRESH -.->|"not on the roadmap"| AUTO

@@ -1,6 +1,6 @@
 # Tobin web console
 
-The Next.js (App Router) application at the centre of the repository. It contains four surfaces; read which one you are touching before you change it.
+The Next.js (App Router) application that hosts the repository's backend: the institutional API, the owner-run Testnet tools and the local sandbox. `apps/web` is the canonical user-facing application and a client of this API; the older institutional UI in this app overlaps with it. It contains four surfaces; read which one you are touching before you change it.
 
 | Surface | Where | What it does | Network and keys |
 |---|---|---|---|
@@ -9,7 +9,7 @@ The Next.js (App Router) application at the centre of the repository. It contain
 | **Local sandbox console** | page `/`, routes `/api/bootstrap`, `/api/rpc`, code in `lib/console` | The MVP-1 sandbox: the real `TobinClearingV1` and `TobinTestToken` contracts running in the Soroban test host behind the Rust development bridge. Needs `TOBIN_BRIDGE_EXE`. | No Stellar network, no keys, nothing signed; authorizations are simulated grants that the real contract still checks. Its state lives only in the memory of the server process. |
 | **W0 console** | `/w0`, `/api/w0/*` | A non-executing foundation with a mock signer adapter (see the W0 section below). | Mock only. |
 
-Everything binds to the loopback interface (`127.0.0.1`) and refuses other Host names. This is an implemented pre-production application: it runs on Stellar Testnet only, production deployment has not been approved, and no independent security review has been performed. See the [root README](../../README.md) for the milestone status and the [maturity terminology guide](../../docs/COMMUNICATION-AND-MATURITY-TERMINOLOGY.md) for how to describe it.
+Locally, everything binds to the loopback interface (`127.0.0.1`) and refuses other Host names. With `TOBIN_DEPLOYMENT_MODE=hosted` (the Railway Testnet demonstration) the process instead requires configured allowed hosts and a shared proxy secret, serves only `/api/auth`, `/api/registry`, `/api/public` and the health probes, and does not serve the sandbox, W0 or `/api/stellar` routes; see [`docs/backend-implementation/RAILWAY-TESTNET-PILOT.md`](../../docs/backend-implementation/RAILWAY-TESTNET-PILOT.md). This is an implemented pre-production application: it runs on Stellar Testnet only, production deployment has not been approved, and no independent security review has been performed. See the [root README](../../README.md) for the milestone status and the [maturity terminology guide](../../docs/COMMUNICATION-AND-MATURITY-TERMINOLOGY.md) for how to describe it.
 
 ## Layout
 | Path | Role |

@@ -48,7 +48,7 @@ flowchart LR
     UI["Next.js pages and components"]
     FW["Freighter extension"]
   end
-  subgraph SERVER["Next.js server (Node 24): apps/web-console"]
+  subgraph SERVER["Next.js server (Node 24): apps/web-console (API host); the browser UI is apps/web"]
     API["Route handlers: /api/auth, /api/registry, /api/stellar"]
     AUTH["AuthService: sessions, wallet challenges"]
     REG["Registry: organizations, sessions, authorization, settlement preparation"]
@@ -71,8 +71,8 @@ flowchart LR
 
 | Part | Reality |
 |---|---|
-| Frontend | Next.js 16 App Router, React 19. Institutional pages under `apps/web-console/app/(institution)`; client components in `components/`. `/` is the MVP-1 local sandbox Console (needs the Rust bridge); `/w0` is a mock-adapter console |
-| Backend and API | Route handlers (Node runtime) in `app/api`. `proxy.ts` enforces loopback Host/Origin guards, JSON-only POST and a per-request CSP nonce |
+| Frontend | `apps/web` is the canonical user-facing application (Next.js 16, React 19; client of the console API). `apps/web-console` also contains an older institutional UI under `app/(institution)`, `/` (the MVP-1 local sandbox Console, needs the Rust bridge) and `/w0` (a mock-adapter console); these overlap with `apps/web` |
+| Backend and API | `apps/web-console` hosts the API: route handlers (Node runtime) in `app/api`. `proxy.ts` enforces Host/Origin guards (loopback locally; in hosted mode an allow-list and a shared proxy secret), JSON-only POST and a per-request CSP nonce |
 | Database | SQLite file through `node:sqlite`, one app instance. Migrations 1 to 8 in `lib/db/database.ts`; triggers make many tables immutable or append-only |
 | Authentication | `lib/auth`: opaque HttpOnly session cookie, hash at rest; email accounts and wallet sign-in (challenge, verify, rotate) |
 | Authorization | `Registry` (`lib/registry/service.ts`): membership, role, reviewer and organization checks on the server. `lib/stellar/owner-access.ts` gates the owner tools |
