@@ -5,13 +5,14 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, test } from 'node:test';
+import { encodeAddress } from 'tobin-mvp1-sdk/strkey';
 import { setLogWriter } from '../lib/server/log.ts';
 import { signedIn } from './backend-helpers.ts';
 import type { StoreHandle, StoreHarness } from './store-harness.ts';
 
 type C = Awaited<ReturnType<typeof signedIn>>;
 const R = '/api/registry';
-const CLEARING = 'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+const CLEARING = encodeAddress('contract', new Uint8Array(32).fill(200));
 
 interface Ids { org: string; sid: string; bid: string; ob: string; uid: string; inv: string; ch: string; acct: string; att: string }
 interface Route { method: 'GET' | 'POST'; path: (i: Ids) => string; body?: unknown | ((i: Ids) => unknown) }
