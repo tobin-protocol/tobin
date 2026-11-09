@@ -25,9 +25,9 @@ Stellar Testnet only. No contract holds real value. Components:
 
 | Component | Identifier (from `contracts/deployments/testnet.json`, recorded 2026-10-29 and 2026-11-03) |
 |---|---|
-| `TobinClearingV1` | `CCV3EFECV2T2UT5YW6GBPGKN6PAP75SUTQOL3QYXQW7QWMESD5PPY4DT` |
-| Governed `TobinTestToken` (intended MVP token) | `CD5OK4ZSFLAQIEVQZ44D3MFKESLBRYJLCGO2MEH6UKWWCV63LVQNOKYO` |
-| Legacy `TobinTestToken` | `CD7HOXZPEWOP52LNQKZH7ZN7HLKJGZ5WAJ7I5HHUAJP7SEJ6FJY7UC4O` |
+| `TobinClearingV1` | `CCV3E…Y4DT` |
+| Governed `TobinTestToken` (intended MVP token) | `CD5OK…OKYO` |
+| Legacy `TobinTestToken` | `CD7HO…UC4O` |
 | Administrative multisig account (token minter) | `GCZD5U7GKWMJHX52J2XF65ZULTBGXNMAATYDWMONXPTUD4WB57HMU5MJ` |
 
 The deployed Wasm hashes are recorded in the manifest; their equality with a build of the current source is not verified by a recorded hosted run (gate E04 NOT VERIFIED). Mainnet identifiers: none.

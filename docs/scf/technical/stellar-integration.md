@@ -11,9 +11,9 @@ Source of the ids: `contracts/deployments/testnet.json` (network `testnet`, pass
 
 | Contract | Id | Wasm hash | Role |
 |---|---|---|---|
-| `tobin_clearing_v1` | `CCV3EFECV2T2UT5YW6GBPGKN6PAP75SUTQOL3QYXQW7QWMESD5PPY4DT` | `80bea964...e5e4` | Clearing sessions. No constructor, administrator or upgrade path. Deploy tx `0b620e91...5c112` |
-| `tobin_test_token_governed` | `CD5OK4ZSFLAQIEVQZ44D3MFKESLBRYJLCGO2MEH6UKWWCV63LVQNOKYO` | `ef483732...241f` | The token the recorded settlement used. Minter is the administrative multisig account. Deploy tx `b9496cc9...9314`, ledger 5530094 |
-| `tobin_test_token` (legacy) | `CD7HOXZPEWOP52LNQKZH7ZN7HLKJGZ5WAJ7I5HHUAJP7SEJ6FJY7UC4O` | same as governed | Earlier demonstration token; minter is the legacy deployer; no longer the intended token |
+| `tobin_clearing_v1` | `CCV3E…Y4DT` | `80bea964...e5e4` | Clearing sessions. No constructor, administrator or upgrade path. Deploy tx `0b620e91...5c112` |
+| `tobin_test_token_governed` | `CD5OK…OKYO` | `ef483732...241f` | The token the recorded settlement used. Minter is the administrative multisig account. Deploy tx `b9496cc9...9314`, ledger 5530094 |
+| `tobin_test_token` (legacy) | `CD7HO…UC4O` | same as governed | Earlier demonstration token; minter is the legacy deployer; no longer the intended token |
 
 The two token entries share one Wasm build artifact and differ in constructor input (the minter). The Wasm is a verified Testnet build artifact (the deployed hashes are recorded in the manifest and compared in `ci/wasm-hashes-*.txt` by a CI job that was not run for this document). No independent security audit of any contract is claimed. The manifest wording about an "audited" build is being corrected separately.
 

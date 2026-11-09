@@ -12,7 +12,7 @@
 | Transactions in that run | 8, ledgers 5606084 to 5607448; final transaction hash `002fff31c93233d4d9529f8447699870bb9c5ff056b5ad0eec2a9943e183daee` | same file; `settlement-run-2026-11-07.jsonl` |
 | Institutions onboarded | 0 external institutions | the repository records none |
 | Mainnet activity | none | not authorized |
-| Contracts | clearing `CCV3EFECV2T2UT5YW6GBPGKN6PAP75SUTQOL3QYXQW7QWMESD5PPY4DT`; governed test token `CD5OK4ZSFLAQIEVQZ44D3MFKESLBRYJLCGO2MEH6UKWWCV63LVQNOKYO` | `contracts/deployments/testnet.json` (the evidence files shorten contract ids, so the manifest is the source; which exact instance the run used is not restated here) |
+| Contracts | clearing `CCV3E…Y4DT`; governed test token `CD5OK…OKYO` | `contracts/deployments/testnet.json` (the evidence files shorten contract ids, so the manifest is the source; which exact instance the run used is not restated here) |
 
 The run is same-author evidence. It shows the mechanics work in that scope, not usage.
 
