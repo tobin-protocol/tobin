@@ -5,9 +5,14 @@
  * its own Vercel project). Every place that renders a link (navigation, final call to action,
  * footer) reads it from here, so changing it here changes them all.
  */
-export const links: { github: string | null; docs: string | null } = {
+export const links: { github: string | null; docs: string | null; app: string | null } = {
   github: "https://github.com/tobin-protocol/tobin",
   docs: "https://docs.tobinprotocol.xyz",
+  /**
+   * The web application (apps/web). It is local-only today, so there is no production address yet: in a production build this is null unless
+   * NEXT_PUBLIC_TOBIN_APP_URL is set, and the navigation then shows a disabled "Launch app (soon)". In development it points at the local app.
+   */
+  app: process.env.NEXT_PUBLIC_TOBIN_APP_URL ?? (process.env.NODE_ENV === "production" ? null : "http://127.0.0.1:3000"),
 };
 
 /** Files in the protocol repository. Every path here exists on main. */
