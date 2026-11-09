@@ -296,7 +296,8 @@ for (const w of WIDTHS) {
   }
   await page.waitForFunction(() => /Based on/.test(document.querySelector("[data-testid=coverage]")?.textContent ?? ""), null, { timeout: 25000 });
   await vis(page.getByText("Awaiting your review", { exact: true }).last(), `${w}: the stat for calculations awaiting review is shown to a reviewer`);
-  check(seen.length <= 27, `${w}: the reviewer Overview made ${seen.length} requests (guard: at most 27, was about 54)`);
+  // R4 moved Overview onto the per-part cross-session hook: 34 for a reviewer (10 sessions x 3 parts + 4 shell), measured and recorded in docs/web-redesign/plan.md section 18. The guard is that figure, not the pre-R4 27.
+  check(seen.length <= 34, `${w}: the reviewer Overview made ${seen.length} requests (guard: at most 34, was about 54)`);
   await shot(page, "overview-reviewer", w);
   const badge = page.locator("aside nav").getByText(/calculations awaiting your review/);
   check((await badge.count()) <= 1, `${w}: the Reviews count comes from the loaded data (${await badge.count()})`);

@@ -153,7 +153,7 @@ export function ExecutionStep({ s }: { s: SettlementData }) {
 export function SignStep() {
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,17rem),1fr))] gap-4 [&>*]:min-w-0">
         <NotSupported tone="card" feature="Sign" reason="This app cannot request or collect Stellar signatures. No route exists." />
         <NotSupported tone="card" feature="Submit" reason="This app cannot submit a transaction to Stellar. No route exists." />
         <NotSupported tone="card" feature="Verify" reason="No route can read a transaction back from the network, so nothing is ever shown as verified." />
