@@ -5,6 +5,9 @@
 // drive the sandbox: only this server's own names are accepted as Host (DNS rebinding), a foreign Origin is refused on the API (cross-site requests),
 // and writes must be JSON (a text/plain POST needs no CORS preflight, so the server itself has to refuse it). No CORS header is ever sent.
 
+import { HOSTED_PATHS, PROBE_PATHS, proxySecretMatches } from './config.ts';
+import type { SecurityPolicy } from './config.ts';
+
 export const DEFAULT_PORT = 8787;
 export const MAX_BODY_BYTES = 1_000_000;
 
@@ -23,6 +26,10 @@ export interface GuardInput {
   origin: string | null;
   contentType: string | null;
   port: number;
+  /** hosted mode: the configured policy. Absent means the local loopback policy derived from `port` (the original behaviour). */
+  policy?: SecurityPolicy;
+  /** hosted mode: the value of the x-tobin-proxy-auth header */
+  proxyAuth?: string | null;
 }
 
 export interface GuardRefusal {
@@ -32,9 +39,23 @@ export interface GuardRefusal {
 
 /** Returns a refusal, or null when the request may proceed. Order and messages are those of the earlier server. */
 export function checkRequest(i: GuardInput): GuardRefusal | null {
-  if (!allowedHosts(i.port).has(String(i.host))) return { status: 403, body: 'forbidden host' };
-  if (i.origin !== null && !allowedOrigins(i.port).has(i.origin) && i.pathname.startsWith('/api/')) return { status: 403, body: 'forbidden origin' };
+  const pol = i.policy;
+  if (!pol || !pol.hosted) {
+    const hosts = pol ? pol.hosts : allowedHosts(i.port);
+    const origins = pol ? pol.origins : allowedOrigins(i.port);
+    if (!hosts.has(String(i.host))) return { status: 403, body: 'forbidden host' };
+    if (i.origin !== null && !origins.has(i.origin) && i.pathname.startsWith('/api/')) return { status: 403, body: 'forbidden origin' };
+    if (i.method === 'POST' && !String(i.contentType ?? '').toLowerCase().startsWith('application/json')) return { status: 415, body: 'application/json required' };
+    return null;
+  }
+  // Hosted: fail closed. Order: Host (a probe Host is accepted for the probe paths only), served paths, Origin, content type, proxy secret.
+  const host = String(i.host ?? '').toLowerCase();
+  const probe = PROBE_PATHS.test(i.pathname);
+  if (!(pol.hosts.has(host) || (probe && pol.healthHosts.has(host)))) return { status: 403, body: 'forbidden host' };
+  if (!HOSTED_PATHS.test(i.pathname)) return { status: 404, body: 'not found' };
+  if (i.origin !== null && !pol.origins.has(i.origin)) return { status: 403, body: 'forbidden origin' };
   if (i.method === 'POST' && !String(i.contentType ?? '').toLowerCase().startsWith('application/json')) return { status: 415, body: 'application/json required' };
+  if (!probe && !proxySecretMatches(i.proxyAuth ?? null, pol.proxySecret)) return { status: 403, body: 'forbidden' };
   return null;
 }
 

@@ -3,6 +3,7 @@
 // the bundled Next.js guide "Content Security Policy". Pages that carry the nonce are rendered dynamically (see app/page.tsx).
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { PROXY_AUTH_HEADER, securityPolicy } from './lib/server/config.ts';
 import { buildCsp, checkRequest, configuredPort, SECURITY_HEADERS } from './lib/server/guards.ts';
 
 export function proxy(request: NextRequest): NextResponse {
@@ -13,6 +14,8 @@ export function proxy(request: NextRequest): NextResponse {
     origin: request.headers.get('origin'),
     contentType: request.headers.get('content-type'),
     port: configuredPort(process.env),
+    policy: securityPolicy(process.env, configuredPort(process.env)),
+    proxyAuth: request.headers.get(PROXY_AUTH_HEADER),
   });
   if (refusal) {
     const res = new NextResponse(refusal.body, { status: refusal.status, headers: { 'content-type': 'text/plain', 'cache-control': 'no-store' } });

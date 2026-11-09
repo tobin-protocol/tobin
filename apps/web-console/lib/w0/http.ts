@@ -1,6 +1,7 @@
 // HTTP layer for the W0 console API. A CLOSED route table: nothing else is reachable, and there is deliberately no route for execute, init,
 // keys, state, deployment configuration, baseline approval, signing, submission, files, or commands (contract section 8).
 // Every route except the identity bootstrap requires an authenticated session; every non-GET requires the session's CSRF token.
+import { isHosted } from '../server/config.ts';
 import { checkRequest, readJsonBody } from '../server/guards.ts';
 import { ServiceError } from './service.ts';
 import type { ConsoleService } from './service.ts';
@@ -80,6 +81,8 @@ const ROUTES: Readonly<Record<string, Partial<Record<'GET' | 'POST', Handler>>>>
 
 export async function handleW0(request: Request, deps: HttpDeps): Promise<Response> {
   const url = new URL(request.url);
+  // The W0 mock API is a development tool: a hosted console refuses it outright.
+  if (isHosted(process.env)) return new Response('not found', { status: 404, headers: { 'content-type': 'text/plain', 'cache-control': 'no-store' } });
   const refusal = checkRequest({
     method: request.method, pathname: url.pathname, host: request.headers.get('host'), origin: request.headers.get('origin'),
     contentType: request.headers.get('content-type'), port: deps.port,
