@@ -1,0 +1,236 @@
+---
+title: Sign-in, sessions and authorized routes
+description: How wallet sign-in becomes a server-side session, where membership, role and reviewer checks happen, and a checklist for adding a route.
+---
+
+This page is for engineers who add or review routes in the web console, and for security reviewers. It describes what
+the code does today. The principles are on [Authentication and authorization](/docs/architecture/authentication-and-authorization).
+
+<Callout type="warn" title="Testnet only, not independently reviewed">
+  Wallet sign-in accepts Stellar Testnet only. The Freighter flow is tested with a protocol-compatible stand-in; a
+  real-Freighter run in Edge is outstanding. The security reviews linked at the end are the implementing author's own,
+  not independent audits. Account recovery is not implemented.
+</Callout>
+
+Three facts hold throughout:
+
+- **Signing in proves control of a key and nothing else.** It creates or finds an internal user. It never creates a
+  membership, a role, a reviewer grant or Stellar signing authority.
+- **The route handler is the security boundary, not the page.** Institutional pages render client components that
+  call `/api/...`; every check below runs on the server for every request.
+- **The acting user comes only from the session cookie.** No header, query parameter or body field is ever treated as
+  an identity.
+
+## Where the code lives
+
+| Concern | File |
+|---|---|
+| Host, Origin and content-type guards, per-request CSP | [`proxy.ts`](https://github.com/tobin-protocol/tobin/blob/main/apps/web-console/proxy.ts), [`lib/server/guards.ts`](https://github.com/tobin-protocol/tobin/blob/main/apps/web-console/lib/server/guards.ts) |
+| `/api/auth/*` handler, session cookie, `authenticateRequest` | [`lib/auth/http.ts`](https://github.com/tobin-protocol/tobin/blob/main/apps/web-console/lib/auth/http.ts) |
+| Challenges, sessions, rotation, rate limits (`AuthService`) | [`lib/auth/service.ts`](https://github.com/tobin-protocol/tobin/blob/main/apps/web-console/lib/auth/service.ts) |
+| The text a wallet signs at sign-in | [`lib/auth/wallet-challenge.ts`](https://github.com/tobin-protocol/tobin/blob/main/apps/web-console/lib/auth/wallet-challenge.ts) |
+| Signature verification, organization ownership-proof text | [`lib/registry/wallet-proof.ts`](https://github.com/tobin-protocol/tobin/blob/main/apps/web-console/lib/registry/wallet-proof.ts) |
+| The `ActingUser` shape | [`lib/registry/identity.ts`](https://github.com/tobin-protocol/tobin/blob/main/apps/web-console/lib/registry/identity.ts) |
+| `/api/registry/*` handler, request header, error mapping | [`lib/registry/http.ts`](https://github.com/tobin-protocol/tobin/blob/main/apps/web-console/lib/registry/http.ts) |
+| Membership, role and reviewer checks (`Registry`) | [`lib/registry/service.ts`](https://github.com/tobin-protocol/tobin/blob/main/apps/web-console/lib/registry/service.ts) |
+| Separation of duties for calculation decisions | [`lib/registry/authorization.ts`](https://github.com/tobin-protocol/tobin/blob/main/apps/web-console/lib/registry/authorization.ts) |
+| Owner-tool access gate | [`lib/stellar/owner-access.ts`](https://github.com/tobin-protocol/tobin/blob/main/apps/web-console/lib/stellar/owner-access.ts) |
+| Browser side of sign-in (Freighter) | [`lib/stellar/wallet-signin.ts`](https://github.com/tobin-protocol/tobin/blob/main/apps/web-console/lib/stellar/wallet-signin.ts) |
+
+## Wallet sign-in sequence
+
+<Steps>
+<Step>
+### The browser connects to Freighter
+
+`runWalletSignIn` in `lib/stellar/wallet-signin.ts` checks that Freighter is present, unlocked and on Testnet, and
+reads the active account. Nothing is sent to the server until this succeeds.
+</Step>
+<Step>
+### The browser asks for a challenge
+
+`POST /api/auth/wallet/challenge` with `publicKey` and `network: "testnet"`. `AuthService.issueSignInChallenge`:
+
+- rejects anything that is not a valid Stellar account address, and any network other than `testnet`;
+- applies rate limits: 10 challenges per key and 300 in total per 10 minutes (`429 RATE_LIMITED`);
+- takes the site from the request's `Host` header, which `proxy.ts` has already restricted;
+- stores a row in `auth_challenges` with a random 128-bit id and nonce, purpose `sign-in`, the network, key, site,
+  and issue and expiry times (**five minutes**);
+- returns `201` with the challenge id, the exact text to sign and the expiry.
+
+The text names the purpose, site, network, key, nonce and validity window, and says that it signs no transaction and
+grants no role.
+</Step>
+<Step>
+### The user signs the text in Freighter
+
+The browser passes the server's text to Freighter's `signMessage` unchanged; it never composes the text itself. The
+client refuses to continue if Freighter signs with a different account, or if the challenge expired before signing.
+</Step>
+<Step>
+### The browser sends the signature
+
+`POST /api/auth/wallet/verify` with `challengeId`, the base64 `signature` and `scheme: "sep-53"`.
+</Step>
+<Step>
+### The server verifies and consumes the challenge
+
+`AuthService.verifySignIn` runs in one `BEGIN IMMEDIATE` transaction:
+
+1. Load the challenge row by id. Refuse with `429 RATE_LIMITED` once 10 answers for this key have failed within 15
+   minutes.
+2. Refuse if the purpose is wrong, the challenge is consumed, expired, or already has five wrong answers.
+3. **Rebuild the text from the stored row** and verify the ed25519 signature over the SEP-53 digest of that text.
+   Only `sep-53` is accepted for sign-in. A wrong signature is counted against the key and the challenge.
+4. Consume the challenge with one guarded `UPDATE ... WHERE consumed_at IS NULL AND expires_at > now`. If no row
+   changed (a replay or a concurrent answer), fail.
+
+Apart from the rate limit, every failure in these steps returns the same `401 AUTH_FAILED`, so a caller cannot tell
+which check failed. The failure counts are committed even though the request fails.
+</Step>
+<Step>
+### The server finds or creates the user, then creates the session
+
+In the same transaction:
+
+- An existing active wallet resolves to its user (a disabled user fails with `AUTH_FAILED`).
+- An unknown wallet creates a new wallet-only user with a placeholder address, an active `user_wallets` row and an
+  `onboarding` row. **No membership or role is created.**
+- A new session is created. If the browser already presented a session cookie, that session is revoked in the same
+  step (rotation, no session fixation).
+- `user.created` (first use only) and `session.created` are written to `auth_audit`. Signatures and tokens are never
+  recorded.
+
+The response is `200` with the user, `isNew` and the onboarding view, and a `Set-Cookie` header.
+</Step>
+</Steps>
+
+## Sessions
+
+| Property | Behaviour in code |
+|---|---|
+| Cookie | `tobin_session`, holding an opaque 32-byte random token (base64url) |
+| Flags | `HttpOnly; SameSite=Strict; Path=/`, plus `Secure` when `NODE_ENV=production`. No `Domain`. `Max-Age` follows the server-side expiry |
+| Storage | `auth_sessions` stores only the SHA-256 of the token. A database read does not yield a usable session |
+| Lifetime | 8 hours from creation |
+| Idle limit | Wallet sessions only: invalid after 2 hours without a request. `last_seen_at` is updated at most once a minute |
+| Wallet link | A wallet session stops resolving as soon as the wallet it was created with is no longer active |
+| Renewal | `POST /api/auth/renew` issues a new token and revokes the old one. A renewed session never lives past 24 hours from the original sign-in |
+| Rotation | Every sign-in and every renewal issues a new token and revokes the presented one |
+| Revocation | `POST /api/auth/logout` (this session), `POST /api/auth/logout-all` (every session of the user), and removing a wallet (every session created with it). Revocation sets `revoked_at`; rows are not deleted |
+
+`AuthService.resolve` is the only way a request becomes an acting user. It returns `null` unless the token has a
+plausible length, its hash matches a row, the row is not revoked or expired, the user is not disabled and, for wallet
+sessions, the idle limit and wallet checks pass. The result is an `ActingUser` with the user id, `kind: "verified"`,
+the email for password accounts, the user's active verified wallets and the sign-in method.
+
+Email and password accounts use the same session table and cookie, without the idle limit and wallet checks.
+
+## How a request is checked
+
+An authorized registry call passes through these layers in order:
+
+| Layer | Check | Failure |
+|---|---|---|
+| `proxy.ts` (every request) | `Host` is `127.0.0.1:PORT` or `localhost:PORT`; on `/api/...` a present `Origin` must be one of those; a `POST` must be `application/json` | `403` or `415`, plain text |
+| Route handler | A non-`GET` request carries `x-tobin-request: 1` | `403 FORBIDDEN` |
+| Route handler | `authenticateRequest(auth)` resolves the cookie to an `ActingUser` | `401 UNAUTHENTICATED` |
+| `readBody` | The body is a JSON object of at most 4096 characters | `400 INVALID` |
+| `Registry` method | `#need(orgId, user)`: an **active** membership of an existing organization | `404 NOT_FOUND`, identical to a missing organization |
+| `Registry` method | `#need(orgId, user, true)`: the membership role is `admin` | `403 FORBIDDEN` |
+| `Registry` method | `#isReviewer(orgId, userId)` for decisions on calculations and batches | `403 FORBIDDEN` |
+| `Registry` method | Separation of duties: `conflictedActors` for a calculation, `preparedBy` for a batch | `403 SEPARATION_OF_DUTIES` |
+| `Registry` method | State checks (stale or superseded snapshot, closed session, existing decision) | `409` |
+
+`RegistryError` codes map to HTTP status through the `STATUS` table in `lib/registry/http.ts`; an unmapped code is
+`400`. Unexpected errors return a generic `500` without detail.
+
+Key points about the `Registry` checks:
+
+- `#role` only counts memberships with status `active`, so a suspended member has no access through any method that
+  calls `#need`.
+- `admin` and reviewer are separate. An administrator cannot decide on a calculation or batch without a reviewer
+  grant, and a reviewer grant gives no administrative rights.
+- The checks and the write run inside one `this.#s.transaction(...)` (`BEGIN IMMEDIATE`), so a concurrent change
+  cannot slip between the check and the write.
+- The organization and session ids come from the URL path. They are lookup keys checked against the acting user's
+  membership, never a source of authority.
+
+The owner-run Testnet tools under `/api/stellar/run` and `/api/stellar/cosign` add one more check after
+authentication: `ownerToolsAllowed(user)` requires one of the user's **active sign-in wallets** to be the
+administrative account, one of its configured signers, or the account in `TOBIN_SECOND_ACCOUNT`. Being signed in is
+not enough (`403 FORBIDDEN`). This gates access to tooling only; the transactions still need real signatures.
+`/api/stellar/validation` checks the request header and the session but not `ownerToolsAllowed`; it performs
+read-only Testnet reads and submits nothing.
+
+### Trace: deciding on a calculation
+
+`POST /api/registry/orgs/<orgId>/sessions/<sessionId>/authorization/approve` with a body naming `calculationId`:
+
+1. `proxy.ts` accepts the Host, Origin and JSON content type.
+2. `app/api/registry/[...path]/route.ts` calls `handleRegistry` with `authenticate: authenticateRequest(b.auth)`.
+3. `handleRegistry` requires `x-tobin-request: 1`, resolves the user from `tobin_session`, and routes on the path.
+4. `Registry.decide` opens a transaction and calls `#need(orgId, u)` (membership), `#opSession` (the session belongs
+   to the organization and is not a fixture) and `#isReviewer`.
+5. It refuses a closed session, a calculation that is not the latest or no longer current, and a calculation that
+   already has a decision.
+6. `conflictedActors` refuses a reviewer who ran the calculation, or recorded or changed any of its obligations.
+7. The decision and an activity record are written, and the handler returns `201` with the authorization view.
+
+## Two different wallet proofs
+
+The application has two separate wallet proofs. Do not use one where the other is required.
+
+| | Wallet sign-in | Organization ownership proof |
+|---|---|---|
+| Purpose | Prove control of a key to sign in, or to add a wallet to an account | Prove that a member controls a key, so a participant can be mapped to a Stellar account for execution |
+| Routes | `/api/auth/wallet/challenge`, `/verify`; `/api/auth/wallet/link/challenge`, `/link/verify` | `POST /api/registry/orgs/<orgId>/wallet-challenges`, `.../wallet-challenges/<id>/verify` |
+| Requires | Nothing for sign-in; a session to add a wallet | A session and an active membership of the organization |
+| Text binds | Purpose, site, network, key, nonce, validity; the user when adding a wallet | Organization, user, network, key, nonce, validity |
+| Schemes | `sep-53` only | `raw` or `sep-53` |
+| Lifetime | Five minutes, single use | Five minutes, single use |
+| Failure limits | Rate limits per key and globally; a challenge is burned after five wrong answers | None beyond the general guards |
+| Failure response | `401 AUTH_FAILED` | `400 INVALID_CHALLENGE` |
+| Stored in | `auth_challenges`, `user_wallets` | `wallet_challenges`, `wallet_verifications` |
+| Used by | Session creation; `ActingUser.wallets`; invitations addressed to a wallet; `ownerToolsAllowed` | Execution preconditions (one verified account per payer and payee) |
+
+Neither proof grants a role, a reviewer grant or Stellar signing authority. A key can be active for only one user at a
+time for sign-in, and verified for only one member of an organization for the ownership proof. Removing a member
+removes their ownership verifications.
+
+## Checklist for a new route
+
+Each item is enforced in code or covered by a test. Add a test for the new route in the same style.
+
+| Check | Enforced by | Tested in |
+|---|---|---|
+| Put institutional operations under `handleRegistry` where possible. A standalone handler must set `runtime = 'nodejs'`, map `BackendUnavailable` to `503` and never return internal error detail | `lib/registry/http.ts`; `app/api/*/route.ts` | `backend-security.test.ts` S13b (production fails closed). The `503` mapping in each route file has no dedicated test |
+| Do not exclude the route from `proxy.ts`; it runs on every path | `proxy.ts`, `checkRequest` | `guards.test.ts` |
+| Require `x-tobin-request: 1` on every non-`GET` request | `handleRegistry`, `handleAuth`, the `/api/stellar/*` handlers | `backend-security.test.ts` (request header), `wallet-ops.test.ts` (input and access rules) |
+| Resolve the user only with `authenticateRequest`, and return `401` when it returns `null` | `lib/auth/http.ts`, `AuthService.resolve` | `backend-security.test.ts` S1, S2 |
+| Never read a user id, role or organization membership from headers, query or body | `handleRegistry` passes only the resolved user | `backend-security.test.ts` S3, S4, S12 |
+| Read bodies with `readBody`, and pick the fields you need explicitly | `readBody` in `lib/registry/http.ts` | `backend-security.test.ts` S12 |
+| Start the `Registry` method with `#need(orgId, u)` inside `this.#s.transaction(...)`, and answer `NOT_FOUND` for outsiders | `Registry.#need` | `backend-security.test.ts` S5, `registry.test.ts` (isolation), `wallet-auth.test.ts` (cross-organization) |
+| Use `#need(orgId, u, true)` for administrative writes | `Registry.#need` | `backend-security.test.ts` S6 |
+| Require `#isReviewer` for decisions, and keep the separation-of-duties check | `Registry.decide`, `Registry.decideSettlementBatch`, `conflictedActors` | `authorization-ops.test.ts` (authority, separation of duties), `authorization.test.ts` |
+| Do not treat a verified wallet as a role | `Registry` checks memberships and grants only | `wallet-ops.test.ts` (ownership confers no permission) |
+| Gate owner-run tooling with `ownerToolsAllowed` after authentication | `lib/stellar/owner-access.ts` | `wallet-auth.test.ts` (owner tooling) |
+| Throw `RegistryError` with an existing code so the `STATUS` table sets the status; add a code there only when needed | `STATUS` in `lib/registry/http.ts` and `lib/auth/http.ts` | covered by the status assertions above |
+| Never use the development identity outside tests | `DevelopmentIdentityProvider` throws in production | `backend-security.test.ts` S13 |
+
+At minimum, a new route's tests should show: `401` without a session, `403` without the request header, `404` for a
+signed-in non-member, `403` for a member without the required role or grant, and success for the right user. The
+helpers in `apps/web-console/test/backend-helpers.ts` (`makeBackend`, `signedIn`, `client`) drive the real handlers
+against a real SQLite database. Run them with:
+
+```bash
+npm test --workspace tobin-web-console
+```
+
+## Canonical records
+
+- [Wallet-first architecture](https://github.com/tobin-protocol/tobin/blob/main/docs/product/architecture/wallet-first-auth/WALLET-FIRST-AUTH-ARCHITECTURE.md)
+- [Wallet-first security review](https://github.com/tobin-protocol/tobin/blob/main/docs/product/architecture/wallet-first-auth/WALLET-FIRST-AUTH-SECURITY-REVIEW.md)
+- [MVP-1.3 authorization security](https://github.com/tobin-protocol/tobin/blob/main/docs/product/architecture/mvp-1.3/MVP-1.3-AUTHORIZATION-SECURITY.md)
+
+These are the implementing author's own reviews, not independent audits.
