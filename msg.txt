@@ -1,0 +1,32 @@
+docs(development): document wallet sign-in, sessions and authorized routes
+
+Add a developer guide to wallet sign-in, sessions and authorization
+checks, for engineers adding or reviewing routes and for security
+reviewers (DOC-07).
+
+The new page, development/adding-an-authorized-route.mdx, describes
+what the code on main does:
+
+- the wallet sign-in sequence, from challenge to session
+- session behaviour: cookie flags, 8-hour lifetime, 2-hour idle limit
+  for wallet sessions, renewal capped at 24 hours, rotation and
+  revocation
+- the order of request checks (proxy guards, request header, session,
+  membership, role, reviewer, separation of duties) and where each
+  one lives
+- a trace of an authorized registry call (approving a calculation)
+- how wallet sign-in differs from the organization-scoped wallet
+  ownership proof
+- a checklist for new routes; each item names the code that enforces
+  it and the test that covers it
+
+The page states one gap instead of hiding it: no test covers the 503
+mapping for an unavailable backend in the route files.
+
+Also list the page in development/meta.json and link to it from
+architecture/authentication-and-authorization.mdx.
+
+No application, SDK, contract, accepted record or evidence file was
+changed.
+
+Closes #24
