@@ -18,7 +18,7 @@ P0, P1, P2, P3, P4, P5, P7, P6. P8 (settlement execution) is not approved and no
 |---|---|---|---|---|
 | P0 | Record decisions, baseline, dependency and risk matrix; no source change | `docs/backend-p0-decisions` | **Merged** (PR #47) | accepted by merge |
 | P1 | Hosting readiness and security hardening on SQLite | `feat/backend-hosting-hardening` | **Merged** (PR #48; CI green on the PR) | accepted by merge |
-| P2 | Registry store conformance, tenant isolation, concurrency, immutability, JSON key order | `test/registry-store-conformance` | **In review** (pull request open) | pending owner review; CI result recorded on the PR |
+| P2 | Registry store conformance, tenant isolation, concurrency, immutability, JSON key order | `test/registry-conformance-suite` | **In review** (pull request open) | pending owner review; CI result recorded on the PR |
 | P3 | Asynchronous store refactor on SQLite | `refactor/async-registry-store` (planned) | Not started | not accepted |
 | P4 | PostgreSQL implementation | `feat/postgres-persistence` (planned) | Not started | not accepted |
 | P5 | SQLite backup, inspection, migration utility and rehearsals | `feat/sqlite-postgres-migration` (planned) | Not started | not accepted |
