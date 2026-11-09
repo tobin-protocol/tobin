@@ -11,7 +11,7 @@ export const TABS: { id: DiscoverTab; label: string }[] = [
 
 export const SORTS = {
   settlements: [{ value: "newest", label: "Newest first" }, { value: "oldest", label: "Oldest first" }, { value: "amount-high", label: "Amount: high to low" }, { value: "amount-low", label: "Amount: low to high" }],
-  institutions: [{ value: "name", label: "Name: A to Z" }, { value: "newest", label: "Newest first" }, { value: "most-settlements", label: "Most settlements" }],
+  institutions: [{ value: "name", label: "Name: A to Z" }, { value: "newest", label: "Newest first" }],
   assets: [{ value: "code", label: "Code: A to Z" }, { value: "most-settlements", label: "Most settlements" }, { value: "latest", label: "Latest settlement" }],
 } as const satisfies Record<DiscoverTab, readonly { value: string; label: string }[]>;
 

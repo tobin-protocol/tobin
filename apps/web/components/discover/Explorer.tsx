@@ -1,22 +1,24 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { discover } from "../../lib/discover/client.ts";
 import { EMPTY_TILE, SORTS, TABS, institutionView, parseSort, parseTab, settlementView, statsView } from "../../lib/discover/view.ts";
 import type { DiscoverTab, PublicAssetUse, PublicInstitution, PublicSettlement } from "../../lib/discover/types.ts";
 import { PageTabs } from "../ui/Data.tsx";
 import { StatGrid } from "../ui/Surfaces.tsx";
-import { Skeleton } from "../ui/Feedback.tsx";
+import { ErrorState, Skeleton } from "../ui/Feedback.tsx";
+import { Button } from "@/components/kit/button";
+import type { DiscoverResult, Page } from "../../lib/discover/types.ts";
 import { formatAmount, formatDateTime } from "../../lib/format.ts";
 
 const TILE = "flex min-h-[86px] flex-col justify-center gap-1 bg-tile px-4 py-3";
 
-function EmptyTile() {
+function EmptyTile({ note }: { note?: string }) {
   return (
     <li className={TILE}>
       <p className="font-label text-label uppercase tracking-wider">{EMPTY_TILE.title}</p>
-      <p className="text-body text-muted">{EMPTY_TILE.body}</p>
+      <p className="text-body text-muted">{note ?? EMPTY_TILE.body}</p>
     </li>
   );
 }
@@ -55,7 +57,7 @@ function AssetTile({ a }: { a: PublicAssetUse }) {
   );
 }
 
-/** Protocol stats, sub-tabs, a URL-driven sort bar and a tile list. With the only client that exists (no public API) every figure reads "No data" and every list holds one empty tile. */
+/** Protocol stats, sub-tabs, a URL-driven sort bar and a cursor-paged tile list over the public API. A null figure reads "No data"; an empty list shows the API note. */
 export function Explorer() {
   const params = useSearchParams();
   const path = usePathname();
@@ -63,22 +65,30 @@ export function Explorer() {
   const tab: DiscoverTab = parseTab(params.get("tab"));
   const sort = parseSort(tab, params.get("sort"));
   const stats = useQuery({ queryKey: ["discover", "stats"], queryFn: () => discover.stats() });
-  const list = useQuery({
+  const list = useInfiniteQuery({
     queryKey: ["discover", tab, sort],
-    queryFn: async () => {
-      if (tab === "settlements") return discover.settlements({ sort: sort as never });
-      if (tab === "institutions") return discover.institutions({ sort: sort as never });
-      return discover.assets({ sort: sort as never });
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }): Promise<DiscoverResult<Page<PublicSettlement | PublicInstitution | PublicAssetUse>>> => {
+      const q = { sort: sort as never, cursor: pageParam };
+      if (tab === "settlements") return discover.settlements(q);
+      if (tab === "institutions") return discover.institutions(q);
+      return discover.assets(q);
     },
+    getNextPageParam: (last) => (last.kind === "ok" ? (last.data.nextCursor ?? undefined) : undefined),
   });
   const setSort = (next: string) => { const q = new URLSearchParams(params.toString()); q.set("tab", tab); q.set("sort", next); router.replace(`${path}?${q.toString()}`, { scroll: false }); };
   const tabs = TABS.map((t) => ({ href: `${path}?tab=${t.id}`, label: t.label }));
-  const items = list.data?.kind === "ok" ? list.data.data.items : [];
+  const pages = list.data?.pages ?? [];
+  const failed = pages.find((p) => p.kind === "error") ?? null;
+  const items = pages.flatMap((p) => (p.kind === "ok" ? p.data.items : []));
+  const note = pages[0]?.kind === "ok" ? pages[0].data.note : undefined;
+  const statsNote = stats.data?.kind === "ok" ? stats.data.data.note : undefined;
   return (
     <div className="space-y-6">
       <section aria-labelledby="stats-h">
         <h2 id="stats-h" className="sr-only">Protocol statistics</h2>
         <StatGrid columns={4} items={statsView(stats.data).map((s) => ({ label: s.label, value: s.value }))} />
+        {stats.data?.kind === "error" ? <p role="alert" className="mt-2 text-body text-danger">{stats.data.message}</p> : statsNote ? <p className="mt-2 text-body text-muted">{statsNote}</p> : null}
       </section>
 
       <section aria-labelledby="explore-h">
@@ -94,10 +104,16 @@ export function Explorer() {
         </div>
         {list.isPending ? (
           <ul aria-busy="true" aria-label="Loading" className="mt-4 space-y-2"><li><Skeleton className="h-[86px] w-full" /></li></ul>
+        ) : list.isError || (failed && items.length === 0) ? (
+          <div className="mt-4"><ErrorState title="Could not load this list" message={failed?.kind === "error" ? failed.message : "Tobin could not load this list."} retry={<Button variant="outline" onClick={() => void list.refetch()}>Try again</Button>} /></div>
         ) : (
-          <ul aria-label={`${TABS.find((t) => t.id === tab)?.label}`} className="mt-4 space-y-2">
-            {items.length === 0 ? <EmptyTile /> : tab === "settlements" ? (items as PublicSettlement[]).map((s) => <SettlementTile key={s.id} s={s} />) : tab === "institutions" ? (items as PublicInstitution[]).map((i) => <InstitutionTile key={i.id} i={i} />) : (items as PublicAssetUse[]).map((a) => <AssetTile key={a.asset.code + (a.asset.issuer ?? "")} a={a} />)}
-          </ul>
+          <>
+            <ul aria-label={`${TABS.find((t) => t.id === tab)?.label}`} className="mt-4 space-y-2">
+              {items.length === 0 ? <EmptyTile note={note} /> : tab === "settlements" ? (items as PublicSettlement[]).map((s) => <SettlementTile key={s.id} s={s} />) : tab === "institutions" ? (items as PublicInstitution[]).map((i) => <InstitutionTile key={i.id} i={i} />) : (items as PublicAssetUse[]).map((a) => <AssetTile key={a.asset.code + (a.asset.issuer ?? "")} a={a} />)}
+            </ul>
+            {failed ? <p role="alert" className="mt-2 text-body text-danger">{failed.kind === "error" ? failed.message : ""}</p> : null}
+            {list.hasNextPage ? <div className="mt-4"><Button variant="outline" disabled={list.isFetchingNextPage} onClick={() => void list.fetchNextPage()}>{list.isFetchingNextPage ? "Loading" : "Load more"}</Button></div> : null}
+          </>
         )}
       </section>
     </div>

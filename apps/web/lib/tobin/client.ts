@@ -3,7 +3,7 @@
 // NEXT_PUBLIC_TOBIN_SAMPLE_DATA=1, always bannered). A capability with no backend is a NotSupported constant, never a method that returns invented data.
 import { api } from "../api/http.ts";
 import type {
-  AuditEvent, AuthorizationView, AttemptView, CreatedInvitation, OrgVerification, OrgWalletClaim, UpdateOrganizationInput, BatchView, CalculationView, ExecutionView, SettlementList, RecordObligationInput, SupportedAssetView, CreateOrganizationInput, CreatedSession, Readiness, SessionParticipantView, Invitation, Me, Member, Role, NotSupported, ObligationView, OrgDetail, Organization, SessionDetail, SessionRow,
+  AuditEvent, AuthorizationView, AttemptView, CreatedInvitation, OrgVerification, OrgWalletClaim, UpdateOrganizationInput, BatchView, CalculationView, ExecutionView, SettlementList, RecordObligationInput, SupportedAssetView, CreateOrganizationInput, CreatedSession, Readiness, SessionParticipantView, Invitation, Me, Member, Role, NotSupported, ObligationView, OrgDetail, Organization, SessionDetail, SessionRow, SignerSetHistory,
 } from "./types.ts";
 
 export interface WalletChallenge { challenge: { id: string; message: string; expiresAt: string } }
@@ -35,6 +35,8 @@ export interface TobinClient {
     update(orgId: string, input: UpdateOrganizationInput): Promise<Organization>;
     verifications(orgId: string): Promise<OrgVerification[]>;
     claims(orgId: string): Promise<OrgWalletClaim[]>;
+    /** Member read of the signer-set snapshots recorded for one account (GET signer-sets/:account). Empty when none was recorded. */
+    signerSetHistory(orgId: string, account: string): Promise<SignerSetHistory>;
     /** Admin. A role is Admin or Member; Reviewer is a separate grant. */
     setRole(orgId: string, userId: string, role: Role): Promise<void>;
     setStatus(orgId: string, userId: string, status: "active" | "suspended"): Promise<void>;
@@ -134,6 +136,7 @@ export class HttpAdapter implements TobinClient {
     update: async (orgId, input) => (await api<{ organization: Organization }>(`${org(orgId)}/update`, { method: "POST", body: input })).organization,
     verifications: async (orgId) => (await api<{ verifications: OrgVerification[] }>(`${org(orgId)}/wallet-verifications`)).verifications,
     claims: async (orgId) => (await api<{ wallets: OrgWalletClaim[] }>(`${org(orgId)}/wallets`)).wallets,
+    signerSetHistory: (orgId, account) => api<SignerSetHistory>(`${org(orgId)}/signer-sets/${encodeURIComponent(account)}`),
     setRole: async (orgId, userId, role) => { await api(`${org(orgId)}/members/${encodeURIComponent(userId)}/role`, { method: "POST", body: { role } }); },
     setStatus: async (orgId, userId, status) => { await api(`${org(orgId)}/members/${encodeURIComponent(userId)}/status`, { method: "POST", body: { status } }); },
     removeMember: async (orgId, userId) => { await api(`${org(orgId)}/members/${encodeURIComponent(userId)}/remove`, { method: "POST" }); },

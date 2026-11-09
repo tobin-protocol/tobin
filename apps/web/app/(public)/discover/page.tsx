@@ -8,10 +8,7 @@ import { Button } from "@/components/kit/button";
 
 export const metadata = { title: "Discover" };
 
-/**
- * The public explorer. It reads a typed DiscoverClient (lib/discover). No public API exists, so the only client says "unavailable" and every figure and list
- * is empty ("No data"). No sample rows, no fake numbers, no request to the backend. The one place illustrative numbers appear is the collapsed example below.
- */
+/** The public explorer. It reads the public Discover API (GET /api/public/v1/*) through a typed client (lib/discover). Nothing is sample data; the one place illustrative numbers appear is the collapsed example below. */
 export default async function DiscoverPage() {
   const signedIn = (await headers()).get("x-tobin-auth") === "in";
   return (

@@ -162,6 +162,9 @@ export interface AttemptView { attemptNo: number; state: ExecState; network: str
 
 // ---- Phase E: wallets, members, invitations, account (apps/web-console/lib/registry/http.ts, lib/auth/http.ts) ----
 export interface OrgVerification { userId: string; name: string; network: string; publicKey: string; verifiedAt: string }
+/** A signer set of a Stellar account as recorded by Tobin from the chain. Information only: it grants no role and authorizes nothing. */
+export interface SignerSetSnapshot { fingerprint: string; recordedAt: string; thresholds?: { low: number; medium: number; high: number }; signers?: { key: string; weight: number }[] }
+export interface SignerSetHistory { current: SignerSetSnapshot | null; history: SignerSetSnapshot[] }
 export interface OrgWalletClaim { orgId: string; address: string; proof: "none" | "signature-verified" }
 export interface AuditEvent { at: string; kind: string; subject: string; detail: string }
 export interface UpdateOrganizationInput { name: string; description: string; visibility: "private" | "public" }

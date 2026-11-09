@@ -19,6 +19,25 @@ import { Card, StatGrid } from "../ui/Surfaces.tsx";
 
 export const NO_AUTHORITY = "Application roles never grant signing authority, and a verified wallet confers no role, no reviewer capability and no signing authority in Tobin.";
 
+/** Recorded signer-set snapshots of one account, read on request. Information only: it grants no role and authorizes nothing. */
+function SignerHistory({ orgId, account }: { orgId: string; account: string }) {
+  const [open, setOpen] = useState(false);
+  const q = useQuery({ queryKey: ["org-signer-sets", orgId, account], queryFn: () => client.organizations.signerSetHistory(orgId, account), enabled: open });
+  return (
+    <div className="w-full">
+      <Button variant="secondary" onClick={() => setOpen((o) => !o)} aria-expanded={open}>{open ? "Hide signer-set history" : "Signer-set history"}</Button>
+      {open ? (
+        <div className="mt-2 text-body">
+          {q.isLoading ? <Skeleton lines={2} /> : q.error ? <InlineError>{(q.error as Error).message}</InlineError> : q.data!.history.length === 0 ? <p className="text-muted">No signer set has been recorded for this account.</p> : (
+            <ul className="divide-y divide-divider">{q.data!.history.map((h) => <li key={h.fingerprint + h.recordedAt} className="flex flex-wrap justify-between gap-2 py-1.5"><Identifier value={h.fingerprint} head={10} tail={6} /><span className="text-muted">Recorded {formatDateTime(h.recordedAt)}</span></li>)}</ul>
+          )}
+          <p className="mt-1 text-muted">Read from the chain and recorded by Tobin. Information only: it grants no role and authorizes no transaction.</p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 /** Verified accounts of the organization and its (unproven) wallet claims: read-only, reused by the Organization page's Wallets tab. */
 export function OrgWallets() {
   const { org } = useWorkspace();
@@ -45,7 +64,7 @@ export function OrgWallets() {
         <p className="mt-1 text-body text-muted">Addresses recorded for the organization. A claim is not proof of control.</p>
         <div className="mt-3">
           {claims.isLoading ? <Skeleton lines={2} /> : claims.error ? <InlineError>{(claims.error as Error).message}</InlineError> : (claims.data ?? []).length === 0 ? <p className="text-body text-muted">No claims are recorded.</p> : (
-            <ul className="divide-y divide-divider">{claims.data!.map((c) => <li key={c.address} className="flex flex-wrap items-center justify-between gap-2 py-2.5"><Identifier value={c.address} head={10} tail={6} /><span className="text-body text-muted">{c.proof === "signature-verified" ? "Signature verified" : "Unproven claim"}</span></li>)}</ul>
+            <ul className="divide-y divide-divider">{claims.data!.map((c) => <li key={c.address} className="flex flex-wrap items-center justify-between gap-2 py-2.5"><Identifier value={c.address} head={10} tail={6} /><span className="text-body text-muted">{c.proof === "signature-verified" ? "Signature verified" : "Unproven claim"}</span><SignerHistory orgId={org.id} account={c.address} /></li>)}</ul>
           )}
         </div>
       </Card>
