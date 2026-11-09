@@ -1,7 +1,7 @@
 # Testing and validation
 
 **Status:** inventory of tests, recorded executions and release gates, with a forward test plan; 2026-11-09.
-**Evidence basis:** static counts by `grep` over the repository (no suite was run for this document and none is claimed to pass), `docs/backend-implementation/IMPLEMENTATION-STATUS.md`, `CI-VALIDATION-POLICY.md`, `MVP-1.5-CLOSURE.md`, `MVP-1.5-ACCEPTANCE.md`, `.github/workflows/*.yml`, `ci/README.md`, `release/RELEASE-GATES.json`.
+**Evidence basis:** static counts by `grep` over the repository (the only execution included is the local, non-CI run of 2026-11-09 in section 2), `docs/backend-implementation/IMPLEMENTATION-STATUS.md`, `CI-VALIDATION-POLICY.md`, `MVP-1.5-CLOSURE.md`, `MVP-1.5-ACCEPTANCE.md`, `.github/workflows/*.yml`, `ci/README.md`, `release/RELEASE-GATES.json`.
 
 Label: **Open Track guidance point 8** asks for a test plan in the unified source; section 8 is **our recommendation**. The SCF handbook does not prescribe a test-plan format.
 
@@ -27,7 +27,7 @@ Bridge-dependent tests are skipped without the Rust bridge; the P1 and P2 local 
 
 ## 2. Recorded executions
 
-Only results written in repository documents. No result below was reproduced for this document.
+Results written in repository documents, plus the local run of 2026-11-09 (labelled). Apart from that run, no result below was reproduced for this document.
 
 | Record | Date | Commit / branch | Result as recorded |
 |---|---|---|---|
@@ -38,6 +38,7 @@ Only results written in repository documents. No result below was reproduced for
 | MVP-1.5 acceptance, `MVP-1.5-ACCEPTANCE.md` | 2026-11-07 | | 19 criteria; final status: all PASS with limitations stated (criterion 16 PASS for logic with mocks only) |
 | Testnet run | 2026-11-07 | | eight transactions, `evidence/settlement-run-2026-11-07.jsonl`, `settlement-reconciliation-2026-11-07.json` (`comparison.ok: true`, state `Settled`, ledger 5607448) |
 | Mutation checks | P2: hand-run once and reverted (trigger removal, rollback commit, sorted position keys, membership and admin checks); contract mutation runs are in earlier milestone documents | | recorded in `IMPLEMENTATION-STATUS.md` P2 record. One check (last-administrator guard) was not caught by the first test and the test was rewritten |
+| **Local run, not CI**, `origin/main` `8b2030d` tree | 2026-11-09 | local working tree, no CI | typecheck exit 0; web lint exit 0; web tests 170/170; console tests 541 (533 pass, 0 fail, 8 skipped); SDK tests 64 (55 pass, 0 fail, 9 skipped). Not run in that session: Rust contract tests, browser journeys, Playwright. Same-author tests; the skipped tests need the Rust bridge |
 | Hosted CI | none recorded | | `IMPLEMENTATION-STATUS.md` states "CI green on the PR" for #48 and "pending first CI run" for the web job; there is no log or link in the repository. This package makes no CI claim |
 
 One intermittent failure is recorded: two 420 px journey runs failed once each (blank document after navigation) and then passed on re-run (`MVP-1.5-CLOSURE.md`). The accepted authorization journey was left unchanged.

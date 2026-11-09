@@ -16,14 +16,14 @@ SCF does not reimburse past work. The table is traction and evidence of capabili
 | MVP-1.4 | Settlement Preparation Engine | Completed | `docs/product/architecture/mvp-1.4/MVP-1.4-CLOSURE.md` |
 | MVP-1.5 | Stellar Settlement Integration | Completed with limitations | [`MVP-1.5-CLOSURE.md`](../../product/architecture/mvp-1.5/MVP-1.5-CLOSURE.md); [`MVP-1.5-TESTNET-VERIFICATION.md`](../../product/architecture/mvp-1.5/MVP-1.5-TESTNET-VERIFICATION.md); `evidence/settlement-reconciliation-2026-11-07.json` |
 | Wallet-first authentication | delivered after MVP-1.5, separate work | Complete with limitations (real-Freighter validation of sign-in outstanding) | `docs/product/architecture/wallet-first-auth/` |
-| Backend hardening P0 to P2 | ADR, hosting hardening, store and tenant-isolation tests | P0 and P1 merged; P2 in review (per the status file) | `docs/backend-implementation/IMPLEMENTATION-STATUS.md` |
-| Hosted Testnet pilot (interim) | Vercel web, Railway console on SQLite volume; does not execute settlement | deployed per owner record; registration open | `docs/backend-implementation/RAILWAY-TESTNET-PILOT.md` |
+| Backend hardening P0 to P2 | ADR, hosting hardening, store and tenant-isolation tests | P0, P1 and P2 merged (PRs #47, #48, #50). Also merged: #51 (public Discover API, Dockerfiles) and #52 (Discover wired in `apps/web`) | `docs/backend-implementation/IMPLEMENTATION-STATUS.md` |
+| Hosted Testnet demonstration deployment (interim) | Vercel web, Railway console on SQLite volume; does not execute settlement | deployed; checked by the owner and, for the Discover page, live-verified on 2026-11-09 ([implementation status](../implementation/implementation-status.md)); registration open | `docs/backend-implementation/RAILWAY-TESTNET-PILOT.md` |
 
 MVP-1.5 limitations that stand: same-author evidence; one owner-run execution of eight transactions, 1 base unit; no independent security review; no fuzzing; Freighter in Edge only, no second or hardware wallet; fees recorded per transaction but not broken down; confirmed outcomes not written back to application records.
 
 ## 2. Planned milestones
 
-Owner mapping (binding): broader institutional operations and reconciliation to MVP-1.6; PostgreSQL, Railway, security and infrastructure hardening to MVP-1.7; controlled institutional usage to MVP-1.8; Mainnet deployment is the final gated objective. `docs/backend-implementation/ADR-0001-approved-backend-decisions.md` (U-12) left this mapping for owner confirmation; this document records it.
+Owner mapping (binding): broader institutional operations and reconciliation to MVP-1.6; PostgreSQL, Railway, security and infrastructure hardening to MVP-1.7; controlled institutional usage to MVP-1.8. Mainnet deployment is not authorized, not built and not part of this submission (owner decision, 2026-11-09): the current scope is Stellar Testnet only. `docs/backend-implementation/ADR-0001-approved-backend-decisions.md` (U-12) left this mapping for owner confirmation; this document records it.
 
 Phase labels P0 to P8 are the backend phases in the repository. Costs: `[OWNER INPUT NEEDED: cost per deliverable]` (see [budget](budget-and-timeline.md)).
 
@@ -57,13 +57,13 @@ Phase labels P0 to P8 are the backend phases in the repository. Costs: `[OWNER I
 
 ### MVP-1.8 Controlled Institutional Pilot
 
-A Railway or Vercel deployment alone is **not** an institutional pilot. Conditions MVP-1.8 must meet to qualify (derived from `docs/COMMUNICATION-AND-MATURITY-TERMINOLOGY.md`, "Pilot-ready", and the gates):
+MVP-1.8 is planned, not started, and in this submission runs on Stellar Testnet only. A Railway or Vercel deployment alone is **not** an institutional pilot. Conditions MVP-1.8 must meet to qualify (derived from `docs/COMMUNICATION-AND-MATURITY-TERMINOLOGY.md`, "Pilot-ready", and the gates):
 
 | ID | Pilot condition | Verification method |
 |---|---|---|
 | D1.8-1 | Named participating institutions with their own Stellar accounts and signers: `[OWNER INPUT NEEDED: participating institutions, number, jurisdictions, whether they have agreed in writing]` | Written participation record; verified wallet ownership and signer sets read from the network |
 | D1.8-2 | Controlled scope in writing: assets, maximum amounts, session sizes within contract ceilings, duration, network | Pilot charter; settlement caps enforced and tested |
-| D1.8-3 | Real Stellar flows (Testnet, or Mainnet only if the Mainnet gates in section 6 have passed) executed through the hosted application with reconciliation of every settlement | Each settlement read back by hash and reconciled; `chain-confirmed` records |
+| D1.8-3 | Real Stellar flows (Stellar Testnet only) executed through the hosted application with reconciliation of every settlement | Each settlement read back by hash and reconciled; `chain-confirmed` records |
 | D1.8-4 | Pilot acceptance criteria defined before the pilot: `[OWNER INPUT NEEDED: acceptance criteria and exit thresholds]` | Criteria recorded and evaluated |
 | D1.8-5 | Independent security review completed (or findings accepted in writing) before real value | Review report from an independent party (gate P01) |
 | D1.8-6 | Measurement of whether the participants' flows reduce gross settlement | Netting-benefit report using ledger and pilot data; method in the metrics document |
@@ -82,7 +82,9 @@ Owner decision: `apps/web` is the canonical user-facing application; `apps/web-c
 
 ## 4. Mapping to SCF tranches
 
-**OFFICIAL (SCF handbook, verified 2026-11-09):** awards up to USD 150,000 in XLM, typically 3 to 6 months and not over 6; four installments: Tranche 0 10% on award acceptance, not tied to a deliverable; Tranche 1 20% (MVP); Tranche 2 30% (Testnet or equivalent); Tranche 3 40% (Mainnet launch or equivalent). The three-tranche structure is recommended and may be adjusted. The final tranche should be the Mainnet launch. Each tranche is submitted within 90 calendar days of the previous payment or the balance is forfeited. Deliverables must be specific, verifiable and carry a cost. A threat model and an on-chain monitoring plan are required in Tranche 2.
+**OFFICIAL (SCF handbook, verified 2026-11-09):** awards up to USD 150,000 in XLM, typically 3 to 6 months and not over 6; four installments: Tranche 0 10% on award acceptance, not tied to a deliverable; Tranche 1 20% (MVP); Tranche 2 30% (Testnet or equivalent); Tranche 3 40% (Mainnet launch or equivalent). The three-tranche structure is recommended and may be adjusted. The handbook says the final tranche is normally a Mainnet launch, and that jurisdiction-specific restrictions may modify this, for example a Testnet-only final tranche. Each tranche is submitted within 90 calendar days of the previous payment or the balance is forfeited. Deliverables must be specific, verifiable and carry a cost. A threat model and an on-chain monitoring plan are required in Tranche 2.
+
+**TEAM'S SCOPE:** this submission is Testnet only. A Testnet-only final tranche is the team's scope, relying on the handbook's allowance above; it is not an SCF decision and SCF may decide otherwise.
 
 **OUR PROPOSAL (the structure may be adjusted):**
 
@@ -91,18 +93,18 @@ Owner decision: `apps/web` is the canonical user-facing application; `apps/web-c
 | Tranche 0 | 10% | No deliverable. Use: start of MVP-1.6 and the Audit Bank request preparation | Official rule |
 | Tranche 1 (MVP) | 20% | MVP-1.6: D1.6-1 to D1.6-8 | The product already exceeds a bare MVP on Testnet (past work, not reimbursed). The reviewable new step is closing the loop between chain and application record, plus measured behaviour |
 | Tranche 2 (Testnet or equivalent) | 30% | MVP-1.7: D1.7-1 to D1.7-10, including the threat model and monitoring plan the handbook requires here | Hardening of the Testnet system to the point where it can support a pilot; the independent review request is filed here |
-| Tranche 3 (Mainnet launch or equivalent) | 40% | MVP-1.8 pilot, then the gated Mainnet objective (section 6) | Handbook says the final tranche should be the Mainnet launch. Risk we state openly: Mainnet depends on gates outside the budget (independent review, legal review). If they are not met within the award period, the structure should be adjusted with SCF rather than the gates relaxed |
+| Tranche 3 (controlled institutional usage, Testnet milestone) | 40% | MVP-1.8 controlled institutional usage on Stellar Testnet | The team's Testnet-only scope. Risk we state openly: MVP-1.8 depends on conditions outside the development budget (named participating institutions, independent security review). If they are not met within the award period, the structure should be adjusted with SCF rather than the conditions relaxed |
 
 Timing: each tranche within 90 calendar days of the previous payment. `[OWNER INPUT NEEDED: planned calendar start date and duration per milestone]`.
 
-## 5. Mainnet launch: final gated objective
+## 5. Mainnet: not authorized and not part of this submission
 
-Nothing in the repository authorizes Mainnet today (`AGENTS.md` section 12). Gate status read from `release/RELEASE-GATES.json` on 2026-11-09:
+Nothing in the repository authorizes Mainnet (`AGENTS.md` section 12), no Mainnet path is built, and Mainnet is not a deliverable or a gated objective of this submission. Any future Mainnet work would be a separate decision and a separate application. For context, release gate status read from `release/RELEASE-GATES.json` on 2026-11-09:
 
-| Gate | Status | Meaning for Mainnet |
+| Gate | Status | Meaning |
 |---|---|---|
 | G01, G02, G03, G05, G06, G07, G08, G09, G11, G12 | PASS | Source-only publication gates (founder attestations; not legal review) |
-| G04 Dependency and attribution review | BLOCKED | Required for versioned release and production |
+| G04 Dependency and attribution review | BLOCKED | Required for a versioned release and for production |
 | G10 Release artifacts and provenance | BLOCKED | No hosted build; Wasm reproducibility across Linux runs not established |
 | E01 to E05 Hosted CI, browser journeys, Wasm hash reproducibility, branch protection | NOT VERIFIED | No hosted CI run recorded |
 | P01 Independent security review | BLOCKED | None exists |
@@ -111,4 +113,4 @@ Nothing in the repository authorizes Mainnet today (`AGENTS.md` section 12). Gat
 | P04 Fuzzing | NOT VERIFIED | Only seeded property tests and author-run mutation checks |
 | P05 Legal and compliance review for real-value use | BLOCKED | Not performed |
 
-Additional requirements before any Mainnet step: owner approval recorded for the specific action, a new contract deployment decision (the Testnet contracts are immutable and Testnet-specific), a Mainnet asset policy, and completion of the MVP-1.8 pilot conditions. Not authorized today: Mainnet deployment, real-value settlement, token minting or supply change, signer changes, production approval.
+Not authorized today and not planned in this submission: Mainnet deployment, real-value settlement, token minting or supply change, signer changes, production approval.

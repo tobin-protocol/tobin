@@ -13,7 +13,7 @@
 | Authors: ebubechi-ihediwa (199 commits), Kaycee276 (3), Richard Udeh (2). 35 commits have the committer GitHub (web-interface merges). | `git log --format='%an' \| sort \| uniq -c` |
 | The pull request template has a field "AI assistance disclosure" asking for the tool and what it did, or "None". Past pull request descriptions are on GitHub and were not examined for this document. | `.github/pull_request_template.md` |
 | `CONTRIBUTING.md` states that AI-generated code is held to the same standard as human code and that contributors must understand every line, verify what an agent says ("agents invent APIs, flags, packages and test results"), and run the tests themselves. | `CONTRIBUTING.md`, "AI-assisted contributions" |
-| `AGENTS.md` and `CLAUDE.md` define restricted actions an agent may not take without explicit owner approval (Mainnet, minting, contract or signer changes, secrets, weakening controls, editing accepted evidence, network submissions) and forbid committing, pushing or merging unless asked. | `AGENTS.md` sections 11 and 12 |
+| `AGENTS.md` and `CLAUDE.md` define restricted actions an agent may not take without explicit owner approval (any Mainnet action, minting, contract or signer changes, secrets, weakening controls, editing accepted evidence, network submissions) and forbid committing, pushing or merging unless asked. | `AGENTS.md` sections 11 and 12 |
 
 The repository does not state which artifacts were AI-generated. The owner must say so below.
 
