@@ -53,7 +53,7 @@ export function Reviews() {
                       <p className="mt-1 text-body">Prepared by: {r.preparedBy ?? "Not shown for calculations"}{r.preparedAt ? ` · ${relativeTime(r.preparedAt)}` : ""}</p>
                       <p className="text-body">Who may review: {r.mine ? "you" : r.reason}</p>
                     </div>
-                    <StatusMark kind={r.mine ? "action" : "unsupported"}>{r.mine ? "You can review" : "Awaiting another reviewer"}</StatusMark>
+                    <StatusMark kind={r.mine ? "action" : "unsupported"}>{r.mine ? "You can review" : actor.reviewer ? "Awaiting another reviewer" : "Needs the Reviewer grant"}</StatusMark>
                   </div>
                   <div className="mt-3"><ButtonLink href={r.href} variant="quiet" className="w-full sm:w-auto">Open the Settlement step</ButtonLink></div>
                 </li>

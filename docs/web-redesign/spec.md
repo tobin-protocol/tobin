@@ -1,4 +1,5 @@
 # Tobin web app redesign: access model, light Symbiotic x ProofBridge design, and Claude Code rewrite prompt
+> **Status (R5, 2026-11):** specification and validation stage; experimental; Stellar testnet with test assets only; not production-ready; unaudited. Phases R1 to R5 are built and checked as recorded in `plan.md`; nothing is pushed or merged. What only the owner can verify is in `open-items.md`.
 
 Nov 9, 2026 · @Ebubechi Ihediwa
 

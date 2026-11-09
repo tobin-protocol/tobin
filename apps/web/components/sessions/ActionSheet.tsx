@@ -31,7 +31,7 @@ export function ActionSheet({ summary, children }: { summary: string; children: 
         <span className="min-w-0 truncate"><span className="text-label uppercase tracking-wide text-muted">Next step</span><span className="block truncate">{summary}</span></span>
         <span aria-hidden="true" className="shrink-0 text-muted">{open ? "Close" : "Open"}</span>
       </button>
-      <div id={id} className={open ? "max-md:max-h-[62dvh] max-md:overflow-y-auto max-md:px-2 max-md:pb-3" : "max-md:hidden"}>{children}</div>
+      <div id={id} tabIndex={open ? 0 : undefined} className={open ? "max-md:max-h-[62dvh] max-md:overflow-y-auto max-md:px-2 max-md:pb-3" : "max-md:hidden"}>{children}</div>
     </aside>
   );
 }

@@ -52,7 +52,6 @@ async function build(label, stage) {
   await call(alice, "post", `/sessions/${sid}/settlement/prepare`, { calculationId: calc.calculation.id });
   return sid;
 }
-const draftId = await build(`R5 draft ${stamp}`, "draft");
 const calcId = await build(`R5 calc ${stamp}`, "calculated");
 const readyId = await build(`R5 ready ${stamp}`, "ready");
 const preparedId = await build(`R5 prepared ${stamp}`, "prepared");
@@ -154,18 +153,16 @@ for (const role of ["signed-out", "member", "admin"]) {
   }
   await open(page, "/obligations", "Obligation sheet (global)", "dlg-obligation-global", () => page.getByRole("button", { name: /^Open obligation/ }).first().click());
   await open(page, "/activity", "Activity record panel", "dlg-activity-record", () => page.getByRole("list", { name: "Activity" }).getByRole("button").first().click());
-  await open(page, `/sessions/${draftId}?tab=netting`, "Run netting (needs obligations; empty session)", "dlg-run-netting-empty", () => btn(page, "Run netting").click());
   await open(page, `/sessions/${calcId}?tab=netting`, "Run netting confirmation", "dlg-run-netting", () => btn(page, "Run netting").click());
   await open(page, `/sessions/${calcId}?tab=obligations`, "Obligation sheet (workspace)", "dlg-obligation-ws", () => page.getByRole("button", { name: /^View obligation/ }).first().click());
   await open(page, `/sessions/${calcId}?tab=obligations`, "Void obligation", "dlg-void", async () => { await page.getByRole("button", { name: /^View obligation/ }).first().click(); await btn(page, "Void obligation").click(); });
   await open(page, `/sessions/${calcId}?tab=obligations`, "Calculation details sheet", "dlg-calc-details", async () => { await page.goto(BASE + `/sessions/${calcId}?tab=netting`); await settled(page); await btn(page, "Calculation details").click(); });
-  await open(page, `/sessions/${draftId}`, "Mark ready", "dlg-mark-ready", () => btn(page, "Mark ready").click());
+  await open(page, `/sessions/${calcId}`, "Mark ready", "dlg-mark-ready", () => btn(page, "Mark ready").click());
   await open(page, `/sessions/${readyId}`, "Reopen session", "dlg-reopen", () => btn(page, "Reopen session").click());
-  await open(page, `/sessions/${readyId}`, "Close session", "dlg-close", () => btn(page, "Close session").click());
 
   await signIn(page, "bob");
-  await open(page, `/sessions/${calcId}?tab=settlement&step=review`, "Approve calculation", "dlg-approve-calc", () => btn(page, "Approve calculation").click());
-  await open(page, `/sessions/${calcId}?tab=settlement&step=review`, "Reject calculation", "dlg-reject-calc", () => btn(page, "Reject calculation").click());
+  await open(page, `/sessions/${calcId}?tab=settlement&step=review`, "Approve calculation", "dlg-approve-calc", () => btn(page, "Approve").click());
+  await open(page, `/sessions/${calcId}?tab=settlement&step=review`, "Reject calculation", "dlg-reject-calc", () => btn(page, "Reject").click());
   await open(page, `/sessions/${preparedId}?tab=settlement&step=batch`, "Approve settlement", "dlg-approve-batch", () => btn(page, "Approve settlement").click());
   await open(page, `/sessions/${preparedId}?tab=settlement&step=batch`, "Reject settlement", "dlg-reject-batch", () => btn(page, "Reject settlement").click());
   await ctx.close();

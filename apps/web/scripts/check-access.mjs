@@ -47,7 +47,9 @@ for (const p of API) {
   for (const method of ["GET", "POST"]) {
     const r = await get(p, method === "POST" ? { method, headers: { "content-type": "application/json" }, body: "{}" } : { method });
     const text = await r.text();
-    const refused = OK_STATUS.has(r.status) || (r.status >= 300 && r.status < 400);
+    // logging out with no session is idempotent and answers {"ok":true}: it returns no data and changes nothing
+    const idempotentLogout = p === "/api/auth/logout" && method === "POST" && r.status === 200 && text.trim() === "{\"ok\":true}";
+    const refused = OK_STATUS.has(r.status) || (r.status >= 300 && r.status < 400) || idempotentLogout;
     // 400 is accepted for the credential endpoints only when the body carries no data (an empty login is a bad request, not a leak)
     const emptyBad = r.status === 400 && /^\/api\/auth\/(login|register|wallet)/.test(p) && !/"(user|organizations|members|sessions)"/.test(text);
     check(refused || emptyBad, `${method} ${p.replace(ID, ":id")}: ${r.status}${refused || emptyBad ? "" : " " + text.slice(0, 80)}`);

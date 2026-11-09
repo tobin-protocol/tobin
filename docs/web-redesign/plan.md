@@ -266,3 +266,26 @@ Page parts share the query keys `["xs", org, session, part]`, so navigating Revi
 **Measured requests per first load (R4 run, admin with 10 sessions read of 40+; `scripts/measure-requests.mjs`).** The totals include 3 to 4 shell requests (me, organizations, sessions list) on top of the per-session reads. Reviews 24 (20 per-session + 4), Obligations 24 (20 + 4), Activity 14 (10 + 4), Organization 3, Members and roles 4 (admin; 3 for others), Wallets 5, Settings 4, Notifications 3. Overview is 25 for an admin, 34 for a reviewer, 14 for a member. A member's Reviews and Obligations pages cost the same as an admin's. The estimates above (21, 21, 11) differ by the shell requests.
 
 **R4 verification (final build).** Typecheck and lint clean; unit tests 140 plus the r4 file; `review-r4.mjs` all checks pass at 1440/1024/768/390; Stages A, D (fresh DB, combined order), E, F pass; keyboard walkthrough 90 stops; axe 78 page-width combinations clean. Skipped on purpose: R1 to R3 scripts and Stages B and C (the shell and data layer changed only in the cross-session hook, and C's coverage text was updated but not re-run), Playwright smoke, full regression (waits for R5). 20 screenshots viewed; the 1440px ones are in `docs/screenshots/stage-r4/`.
+
+## 19. R5: closing pass, and what was NOT re-verified (2026-11-09)
+
+R5 ran, once each on the final build: typecheck, lint, unit tests, `scripts/check-access.mjs` (new), and `scripts/review-r5.mjs` (new: axe at 1440 and 390 as signed-out, member and admin on every route; overflow at 390 and 360; every dialog and sheet's copy; screenshots). Fixes made because those checks exposed them: the Wallets button and note now say exactly that nothing is linked or verified ("Connect a wallet"); the signature block's ad-hoc "Not supported" paragraph now uses the shared component; scrollable tables and the open mobile action sheet are keyboard-focusable (axe `scrollable-region-focusable`); the role-change rules moved into a tested pure function (`roleChangePlan`) that the dialog uses; the access script accepts only an idempotent signed-out logout (`{"ok":true}`, no data).
+
+**Not re-verified.** The brief forbade re-running these. Each is named with the last phase that touched its screens and why it is stale:
+
+| Script | Last run | Touched since | Why it matters |
+|---|---|---|---|
+| `review-r1.mjs` (shell, access, Discover, sign-in) | R1 | R4 nav href and topbar command panel, shared Overlays; R5 `Data.tsx`, `ActionSheet.tsx` | the shell and shared table changed under it; `check-access.mjs` and the R5 axe pass cover only part of it |
+| `review-r2.mjs` (Overview, Sessions, wizard, workspace shell) | R2 | R4 rewrote the cross-session hook and Overview; R5 `ActionSheet.tsx` | highest risk: the data layer under Overview changed; its coverage-line checks were never re-run |
+| `review-r3.mjs` (workspace tabs, Settlement steps, Reopen) | R3 | R4 extracted `ObligationDetail`; R5 `Flow.tsx`, `ActionSheet.tsx`, `Data.tsx` | the Settlement step 5 block and the action panel changed |
+| `review-r4.mjs` (global pages) | R4 | R5 Wallets wording, `Data.tsx`, `ActionSheet.tsx`; the script's own wording checks were updated but not run | its "Connect a wallet" assertions are unrun |
+| Stages A, D, E, F (`review-screenshots{,-d,-e,-f}.mjs`) | R4 | R5 `Flow.tsx`, `Data.tsx`, `ActionSheet.tsx`, Wallets wording | E asserts the old Wallets copy in places |
+| Stages B and C | R3 (B), earlier (C) | R4 global Obligations rewrite; C's coverage-text check was edited but never run | C's global obligations checks are unverified |
+| `keyboard-walkthrough.mjs` | R4 | R5 gave the open mobile action sheet and scrollable tables a tab stop | tab-order counts may differ |
+| `a11y-scan.mjs` | R4 | superseded for these routes by the R5 pass, which also covers member and signed-out | 900 px and the 44px tap-target audit were not repeated |
+| `measure-requests.mjs` | R4 | no data-layer change in R5 | none expected |
+| `npx playwright test` smoke | R3 | R4, R5 | local only; never run since R3 |
+| `contrast.mjs` | R1 | no colour changed in R4 or R5 | none |
+| Full regression | never run on this branch end to end | | the brief reserved it for a later decision |
+
+**R5 results (final build).** `check-access.mjs`: 19 page routes and 124 API requests from a cookie-less client all refused or redirected with no data (the only 200 is an idempotent signed-out logout answering `{"ok":true}`). `review-r5.mjs`: axe zero violations on every route at 1440 and 390 as signed-out, member and admin (two earlier runs found `scrollable-region-focusable`, then `landmark-unique`, both fixed); no horizontal overflow on any route at 390 and 360; 22 dialogs and sheets opened and their copy read (`docs/screenshots/stage-r5/dialog-copy.txt`). **Not opened:** Close session (disabled in every state the script built; it needs an approved settlement for the current calculation) and Disconnect wallet (no linked wallet in the seed). Dialog screenshots were captured mid-fade, so only page screenshots are committed. One wording fix was made after the browser pass (Reviews shows "Needs the Reviewer grant" instead of "Awaiting another reviewer" for someone without the grant); it is covered by typecheck and lint only. Known cosmetic: in Settlement step 5 the three Not supported cards are cramped at 1440.

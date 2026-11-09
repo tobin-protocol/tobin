@@ -1,18 +1,16 @@
 # Tobin web app (`apps/web`)
 
-A new UI for Tobin's institutional workflows. It is a client of the web console's API (`apps/web-console`), reached through a server-side proxy. **All five phases of the build (A to E) are complete**; see [What is real, derived and not supported](#what-is-real-derived-and-not-supported).
+The institutional web app for Tobin: a client of the web console's API (`apps/web-console`), reached through a server-side proxy. Institutions record the payment obligations of a session, run a deterministic netting calculation, have a reviewer approve the calculation and the settlement batch, and see the record of what happened.
 
-Built to [`docs/web-app-plan.md`](../../docs/web-app-plan.md), which records the owner's decisions D1 to D6, exactly which backend operations exist for each screen (sections 5a to 5d), and the final list of what remains Not supported (section 12). Maturity: pre-production, Stellar Testnet only, same-author evidence. See the [terminology guide](../../docs/COMMUNICATION-AND-MATURITY-TERMINOLOGY.md).
+## Status
 
-## Hosting: local only
+**Specification and validation stage. Experimental. Stellar testnet with test assets only. Not production-ready. Not audited.** Nothing here moves real funds. It was reviewed by the people who wrote it; no independent review of any part of it has happened. The economic thesis is an untested hypothesis. See [`docs/web-redesign/open-items.md`](../../docs/web-redesign/open-items.md) for what only the owner can verify and [`docs/web-redesign/plan.md`](../../docs/web-redesign/plan.md) for how the rewrite was built and checked.
 
-**Hosting is local-only until a reachable backend exists.** The backend this app depends on is the web console: Next.js route handlers plus one SQLite file, bound to `127.0.0.1`, with request guards that refuse any foreign `Origin` and send no CORS headers. This app does not change those guards and adds no CORS (decision D2). It calls the console from its own server through the proxy in `app/api/[...path]/route.ts`. Deploying `apps/web` somewhere that cannot reach a console on loopback would give a UI with no backend. Do not deploy it to a public host.
+What the app **cannot** do, by design of the current backend: sign, submit or verify a Stellar transaction; link or verify a wallet; send notifications; list other institutions. A Tobin approval is a recorded decision, not a Stellar signature. "Confirmed" is never shown, because no endpoint reports an independently read-back transaction (only `lib/stages.ts` may name it).
 
-## Which UI is canonical
+Hosting is **local only** until a reachable backend exists: the console is Next.js route handlers plus one SQLite file bound to `127.0.0.1`. `apps/web-console` remains the canonical institutional UI until this app reaches parity and the owner says so.
 
-Until `apps/web` reaches parity, **`apps/web-console` remains the canonical institutional UI**. Once every row marked Supported in the plan is implemented here, with tests and the owner's review, **`apps/web` becomes the canonical institutional UI** and the console's institutional pages are retired. The console stays as the backend, the owner-run Testnet tools and the local sandbox (decision D1).
-
-## Set up and run
+## Run it
 
 Needs Node 24 and, for the browser scripts, an installed Chrome. From the repository root, after `npm ci`, both servers must run:
 
@@ -24,125 +22,86 @@ cd apps/web-console && npm run build && TOBIN_DB_PATH=/tmp/tobin-web.sqlite npx 
 npm run dev --workspace tobin-web          # or: npm run build --workspace tobin-web && npm run start --workspace tobin-web
 ```
 
-Open `http://127.0.0.1:3000`. `TOBIN_API_URL` (default `http://127.0.0.1:8787`) points the proxy at a different console. No other environment variable is needed, and nothing secret is read.
-
-Settlement can only be prepared when the operator has configured a supported asset (there is no API for it). For a throwaway database:
+Open `http://127.0.0.1:3000`. Settlement can only be prepared when the operator has configured a supported asset (there is no API for it):
 
 ```bash
 cd apps/web-console
 TOBIN_DB_PATH=/tmp/tobin-web.sqlite node scripts/db.ts asset-add testnet USD <a Stellar account address as issuer>
 ```
 
-`NEXT_PUBLIC_TOBIN_SAMPLE_DATA=1` switches the data layer to a fictional `MockAdapter` and shows a persistent "Sample data" banner. It is **off by default**, and per decision D3 no feature that lacks a backend is mocked.
+### Environment variables
 
-## Scripts
-
-```bash
-npm run typecheck --workspace tobin-web
-npm run lint      --workspace tobin-web
-npm test          --workspace tobin-web          # node --test: permissions, derivation and cap, proxy policy, stage rule, wallet sequence, lifecycle, netting,
-                                                 # settlement diff, failed states, activity, roles, source checks
-cd apps/web && npx playwright test               # smoke tests, system Chrome, no backend needed. LOCAL ONLY: not in CI
-```
-
-Real-backend review scripts (they assert behaviour, check horizontal overflow at 1440, 900 and 390 px, and save screenshots at all three widths; run each on a fresh, seeded throwaway database). Only the 1440 px images are committed under `docs/screenshots/stage-*`; the 900 px and 390 px images are regenerated by these scripts and git-ignored (see `docs/screenshots/README.md`):
-
-```bash
-# seed fictional people and sessions through the console's real API
-SEED_EXTRA_SESSIONS=8 SEED_WALLET=1 SEED_ASSET_REF=<asset id, for example testnet:USD:G...> node apps/web/scripts/seed-review-data.mjs
-
-node apps/web/scripts/review-screenshots.mjs   docs/screenshots/stage-a   # sign-in, onboarding, Overview
-node apps/web/scripts/review-screenshots-b.mjs docs/screenshots/stage-b   # sessions list, create, workspace
-node apps/web/scripts/review-screenshots-c.mjs docs/screenshots/stage-c   # obligations, netting
-node apps/web/scripts/review-screenshots-d.mjs docs/screenshots/stage-d   # approvals, settlement
-node apps/web/scripts/review-screenshots-e.mjs docs/screenshots/stage-e   # activity, wallets, organization, settings, bottom sheet
-
-node apps/web/scripts/keyboard-walkthrough.mjs                            # keyboard-only main flows
-AXE_PATH=<path to axe.min.js> node apps/web/scripts/a11y-scan.mjs         # axe scan, tap targets, overflow
-```
-
-`axe-core` is not a dependency of the repository: install it anywhere (for example `npm i axe-core` in a scratch folder) and point `AXE_PATH` at its `axe.min.js`.
-
-## How it works
-
-- **Proxy** (`app/api/[...path]/route.ts`, policy in `lib/proxy-policy.ts`). Forwards only `GET` and `POST` to `/api/auth/*` and `/api/registry/*`, forwards the session cookie, drops the browser `Origin`, and adds the `x-tobin-request` header the console requires. The owner-run Stellar routes, the sandbox routes and the W0 mock API are not reachable through it.
-- **Data layer** (`lib/tobin/`). A typed `TobinClient` with two adapters: `HttpAdapter` (real, default) and `MockAdapter` (sample, off). Features with no backend are `NotSupported` constants.
-- **Wallet** (`lib/wallet/`). The pinned `@stellar/freighter-api` (decision D4). The text that is signed comes from the server, the signature is verified by the server, and no key or seed phrase is ever seen.
-- **Permissions** (`lib/permissions/can.ts`). One `can(role, capability)` helper mirrors the backend's rules and is presentation only; the server always decides. The UI shows the real role names (Admin, Member) and the separate Reviewer capability (decision D5).
-- **Derived data** (`lib/derived/`, `lib/activity/`). Counts and lists the API cannot provide are computed from per-session requests, capped at 10 sessions, labelled "Derived from session data" with "Showing N of M sessions" whenever the cap applies (decision D6).
-- **Confirmed rule** (`lib/stages.ts`). A stage rail never shows Confirmed without a verified read-back, which no endpoint reports. A unit test and a source check enforce it. Only Prepared is a stage the backend records; Signed, Submitted and Confirmed read "Not supported".
-- **Design tokens** (`packages/ui-tokens`). CSS variables and a Tailwind v4 theme.
-- **Responsive.** Tables become cards under 900 px; under 768 px the session action panel is a sticky bottom sheet above the bottom bar; tap targets are at least 44 px there.
-
-## What is real, derived and not supported
-
-| | |
-|---|---|
-| **Real** | Sign-in (wallet and email), onboarding, organization profile, members (role, reviewer grant, suspend, remove), invitations, wallets (own, verified accounts, claims, disconnect), sessions (list, create, participants), obligations (record, void, history), netting, calculation review, settlement preparation and batch review, execution record (read-only), account settings |
-| **Derived** | Overview counts and attention, global Obligations, Activity and Approvals, the pending-approvals badge, list workflow state for visible rows, excluded items, activity outcome, invitation Expired |
-| **Sample** | None shown. Failed execution states exist only as labelled fixtures in `/dev/components` |
-| **Not supported** | Notifications, global search, cross-organization sessions, N-of-M approval, signing, submission, verification and confirmation, session list and revoke, extra roles. Each is rendered as such, never mocked. The full list with the backend work each needs is section 12 of the plan |
-
-## Build status
-
-| Phase | Scope | Status |
+| Variable | Default | What it does |
 |---|---|---|
-| A | Tokens, shell, shared components, sign-in, wallet connection, onboarding, Overview | Done |
-| B | Sessions list, create wizard, session workspace (Stepper, next action, action panel, tabs) | Done |
-| C | Obligations (record, void, history), netting, global Obligations | Done |
-| D | Approvals, settlement preparation and review, stage rail, global Approvals | Done |
-| E | Activity, wallets, organization, members, invitations, settings, notifications page, command panel, bottom sheet, accessibility pass | Done |
+| `TOBIN_API_URL` | `http://127.0.0.1:8787` | where the server-side proxy and `proxy.ts` reach the console |
+| `NEXT_PUBLIC_TOBIN_SAMPLE_DATA` | off | `1` switches the data layer to a fictional `MockAdapter`, shows a persistent "Sample data" banner and turns server-side access control off. For previews only |
+| `TOBIN_DEV_GALLERY` | off | `1` enables `/dev/components`, the component gallery with fictional values (also on in `next dev`) |
+| `NODE_ENV` | set by Next | selects dev or production behaviour |
 
-## Accessibility
+Nothing secret is configured here and nothing may be committed. The landing page's `Launch app` link is a separate setting (`NEXT_PUBLIC_TOBIN_APP_URL` in `apps/landing`): it points at `http://127.0.0.1:3000` in development and is disabled in production until a domain is chosen.
 
-Keyboard-only walkthrough of sign-in, navigation, the create wizard, recording an obligation, dialogs, the command panel and a drawer; a 2px focus ring everywhere; a skip link; axe-core with no violations on the key screens at 1440 and 390 px; tap targets of at least 44 px under 768 px. Not done: a screen-reader pass, cross-browser testing, or a test with the real Freighter extension.
+## Route map
 
-## Licence
+Access is enforced on the server in `proxy.ts` (it asks the console who owns the cookie, then applies `lib/access/decide.ts`); the console's own guards are unchanged.
 
-Apache-2.0, like the rest of the repository. The Tobin name and logo are not covered by it (see `apps/landing/NOTICE`).
+| Route | Access | Notes |
+|---|---|---|
+| `/discover` | public | explorer; empty until a public API exists |
+| `/sign-in` | public | email and password, or the Connect wallet window |
+| `/onboarding` | signed in, no organization | |
+| `/` | signed in | Overview: derived attention items |
+| `/sessions`, `/sessions/new` | signed in | list; create wizard |
+| `/sessions/:id` | signed in | tabs Overview, Participants, Obligations, Netting, Settlement (five steps, `?step=review\|prepare\|batch\|execution\|sign`), Activity |
+| `/obligations` | signed in | across sessions; opens the same detail sheet as the workspace |
+| `/reviews` | signed in | calculations and settlement batches awaiting review; My reviews needs the Reviewer grant |
+| `/activity` | signed in | across sessions; read-only |
+| `/organization` | signed in | tabs Overview, Members and roles (invitations inside), Institutions, Wallets |
+| `/settings`, `/notifications` | signed in | supported settings only; notifications is Not supported |
+| `/approvals`, `/wallets` | redirects | to `/reviews` and `/organization?tab=wallets` |
 
-## Redesign pass additions
+## Role model
 
-- `node apps/web/scripts/review-screenshots-f.mjs docs/screenshots/stage-f` runs 149 checks on the redesign (Overview relevant sessions, state layers, netting confirmation, deep links, Discover). Only 1440px images are committed.
-- New behaviour: `/discover` (Not supported), state layers on the session Overview, "Sessions that matter now" on the Overview. See `docs/web-redesign/`.
+Real roles only: **Admin** and **Member**, plus a separate **Reviewer** grant that lets a person approve or reject. Nobody reviews a result they recorded, changed, calculated or prepared; the server enforces it and the UI states it. Role changes are administrator-only, take one confirmation that lists what the person gains and loses, and never remove the last active administrator.
 
-## Rewrite, phase R1 (2026-11): shell, access control, public pages
+## Real, derived, not supported
 
-The UI is being rewritten to `docs/web-redesign/spec.md` (plan: `docs/web-redesign/plan.md`). R1 delivered:
+- **Real** (read from the console as it answers): sessions, obligations, calculations, authorizations, settlement batches, members, invitations, wallet records, account audit.
+- **Derived** (computed here from per-session reads of the newest sessions, because the API has no aggregate endpoint): Overview, Reviews, global Obligations, global Activity and the sidebar Reviews count. Every one says how much it covers ("Based on N of M sessions") and "Load next 10 sessions" widens it. No figure is summed across assets.
+- **Not supported** (shown with the shared component and a reason, never mocked): Notifications; Sign, Submit and Verify; collecting Stellar signatures; N-of-M approval; participants from other organizations; assets, deadlines and settlement parameters at session creation; institution directory; roles beyond Admin and Member; password change; list of active sessions. Wallet linking and verification are not available: the Connect a wallet button only opens a window that looks for a wallet in this browser.
+- **Sample**: only with `NEXT_PUBLIC_TOBIN_SAMPLE_DATA=1`, labelled. The Discover "how clearing works" figures are an illustrative example and say so.
 
-- **Server-side access control.** `proxy.ts` (Next 16's renamed middleware) asks the console who the session cookie belongs to, then applies `lib/access/decide.ts`. Public routes: `/discover` and `/sign-in`. Everything else redirects a signed-out request to `/sign-in?next=<route>` before any markup is rendered; an account without an organization goes to `/onboarding`; `/` for a signed-out visitor goes to `/discover`. `?next=` accepts same-origin paths only. With `NEXT_PUBLIC_TOBIN_SAMPLE_DATA=1` nothing is enforced.
-- **Frame.** 256px sidebar (a drawer under 1024px) with locked items when signed out, 58px top bar (environment, wallet cell with connected and verified apart, notifications, account), a help tile, and a full-page sign-in with no sidebar.
-- **Design system.** Light and greyscale like the landing page (primary action is black, the only colour is the failure red), square corners, no shadows. Tokens: `packages/ui-tokens/tokens.css`; every text/background pair is measured in `docs/web-redesign/contrast.md` (`node apps/web/scripts/contrast.mjs`). Fonts are the landing page's four families. Components are shadcn/ui primitives in `components/kit/` (restyled; nothing of shadcn's default look remains), icons are Hugeicons through `components/tobin/Icon.tsx`. The older components in `components/ui/` stay until the screens that use them are rewritten (R2 to R4).
-- **Component gallery.** `/dev/components` answers only in development, or when `TOBIN_DEV_GALLERY=1` is set at start-up (the Playwright config sets it).
-- Review script: `node apps/web/scripts/review-r1.mjs <dir>` (access control, Discover, sign-in, frame at 1440, 1024, 768 and 390 px, keyboard behaviour of the command panel and menus, sign-out).
+## Checks
 
-### Discover, sign-in and the shadcn components (after the R1 review)
+```bash
+npm run typecheck --workspace tobin-web   # ~30 s
+npm run lint      --workspace tobin-web   # ~1 min
+npm test          --workspace tobin-web   # ~10 s: node --test, 143 tests (permissions, derivation, proxy policy, Confirmed rule, source scans, roles, review queue)
+```
 
-- `/discover` is an explorer that is empty until a public API exists: stats, three sub-tabs, a URL-driven sort bar and tile lists, all reading `lib/discover`'s typed `DiscoverClient`. Its only implementation reports "unavailable" and makes no request. Contract: `docs/web-redesign/discover-contract.md`.
-- Signed-out visitors get SIGN UP / LOG IN (the `/sign-in` page) and CONNECT WALLET (a dialog listing wallets from `lib/wallet/registry.ts`). A wallet-only visitor can create an account: a new verified key creates one, and onboarding then asks for a name.
-- **Adding or updating a shadcn component.** The `shadcn` package is not installed. `components.json` points the generator at `components/kit/`; run `npx shadcn@latest add <component> -c apps/web`, then restyle the result to the tokens (square corners, no shadows, `bg-tile` and `text-muted` instead of `bg-muted` and `text-muted-foreground`, `cn` from `@/lib/utils`) and re-copy `node_modules/shadcn/dist/tailwind.css` into `app/shadcn.css` if the variants changed (`npx` fetches the package; the file is MIT licensed). The primitives are MIT-licensed source from shadcn/ui.
+Browser scripts need both servers running and a **fresh, seeded, throwaway** console database (`SEED_EXTRA_SESSIONS=12 SEED_WALLET=1 SEED_ASSET_REF=testnet:USD:G... node scripts/seed-review-data.mjs`). They drive the real UI and real API as Alice (admin), Bob (reviewer) and Carol (member); times are rough, on a laptop:
 
-## Rewrite, phase R2 (2026-11): Overview, Sessions, create wizard, workspace shell
+| Script | Covers | About |
+|---|---|---|
+| `node scripts/check-access.mjs` | signed-out client, every page and API route refused or redirected | 15 s |
+| `node scripts/review-r1.mjs <dir>` | shell, access, Discover, sign-in | 3 min |
+| `node scripts/review-r2.mjs <dir>` | Overview, Sessions, wizard, workspace shell | 6 min |
+| `node scripts/review-r3.mjs <dir>` | workspace tabs, Settlement steps, Reopen | 10 min |
+| `node scripts/review-r4.mjs <dir>` | global pages, Organization, Settings | 8 min |
+| `node scripts/review-r5.mjs <dir>` | axe on every route (signed-out, member, admin), overflow at 390 and 360, every dialog and sheet's copy; needs `AXE_PATH` | 10 min |
+| `node scripts/review-screenshots{,-b,-c,-d,-e,-f}.mjs <dir>` | Stages A to F, the earlier acceptance runs | 3 to 10 min each |
+| `node scripts/keyboard-walkthrough.mjs` | keyboard-only main flows | 2 min |
+| `AXE_PATH=... node scripts/a11y-scan.mjs` | axe, 44px tap targets, overflow (admin) | 5 min |
+| `node scripts/measure-requests.mjs <label>` | API requests per first load, per role | 2 min |
+| `node scripts/contrast.mjs` | computed contrast pairs | seconds |
+| `npx playwright test` | smoke tests, system Chrome, no backend; local only | 1 min |
 
-Plan and the console facts R2 was built against: `docs/web-redesign/plan.md` section 14.
+axe-core is not a dependency: install it in a scratch folder and point `AXE_PATH` at `axe.min.js`.
 
-- **One cross-session hook.** `components/data/useCrossSession.tsx` (pure parts in `lib/cross-session/`). The API has no aggregate endpoint, so figures across sessions are built from per-session reads of the newest sessions. The hook owns the window (10 sessions, "Load next 10 sessions" adds 10 and stops at the total), the reads, and the sentence every figure carries ("Based on N of M sessions"). A session that fails to read is left out and reported, never counted as zero. `passive: true` reads only the cache; the sidebar's Reviews count uses it, so the shell makes no requests of its own.
-- **Overview and Sessions** have the grey-grain banner (`components/shell/GrainBanner.tsx`, a real count or NO DATA). Overview: Needs your attention (tiles whose action shows on hover and on keyboard focus), real and derived counts with the coverage line, five recent events. Sessions: search, a Status filter (applies to the rows on the page, because the list does not carry the state), URL-driven sort, a table from 900px and tiles below.
-- **Create wizard** (`lib/sessions/wizard.ts`): Details, Participants, Review, Created. Adding participants is not atomic in the backend, so a failure shows one recovery panel and Retry adds only the participants that failed.
-- **Workspace**: header (identifier with copy, one status mark, created time, participants), one summary card (where it stands, the four-square stage rail, the next action), a 420px action panel with exactly one primary button or the reason there is none, and six tabs. The calculation review is a view inside the Settlement tab (`?tab=approvals` still opens it) until R3.
-- **Mark ready and Close session** (`lib/sessions/workflow-actions.ts`, `components/sessions/SessionActions.tsx`): administrator only, one confirmation each, the console's reason shown when unavailable. Mark ready needs a current calculation; Close needs a ready session and an approved settlement. This app cannot reopen a session.
-- Route-level `loading.tsx`, `error.tsx` and `not-found.tsx`; switching organization on a session URL redirects to `/sessions?notice=org-changed` (`lib/access/org-switch.ts`).
-- Scripts: `node apps/web/scripts/review-r2.mjs <dir>` (needs more than one page of sessions; run `seed-review-data.mjs` with `SEED_EXTRA_SESSIONS=12`) and `node apps/web/scripts/measure-requests.mjs <label>` (API requests per first load, per role).
+## Known limits
 
-## Rewrite, phase R3 (2026-11): the workspace tabs and Reopen
-
-Plan, the console facts and every route the tabs call: `docs/web-redesign/plan.md` sections 15 to 17.
-
-- **Reopen session** (`lib/sessions/reopen.ts`, `components/sessions/SessionActions.tsx`): shown only while a session is ready, administrator only, one confirmation that lists what changes, what is kept and what stops applying later. A test checks that wording against the console's service code.
-- **Obligations**: table with search and a status filter, the record form in the action panel (only the backend's fields), a detail sheet with history, Void as its own confirmed action, one total per asset.
-- **Netting**: Inputs, Calculation, Result strip; eligible and excluded tables; Gross and Net cards; positions per asset grouped debtors, creditors, zero; original-versus-net panes with a linked highlight; calculation details; a stale label. No graph.
-- **Settlement** is one linear close-out (`lib/settlement/closeout.ts`, `components/settlement/CloseOut.tsx`): five numbered steps (review the calculation, prepare, review the settlement, the read-only execution record, sign/submit/verify which is not supported). Actions are in the action panel with one confirmation each. `?tab=approvals` redirects to `?tab=settlement&step=review`; `?step=review|prepare|batch|execution|sign` opens a step.
-- **Activity**: `components/activity/ActivityView.tsx` is the one shared list (event type, date range and result filters, a side panel, read-only); the organization page uses the same component.
-- **Layout**: the two-column workspace (content and the 420px action panel) starts at 1280px; from 768px to 1279px the panel sits above the content, so the content keeps the width it needs.
-- **Overlays** in these tabs are shadcn Dialog and Sheet (`components/tobin/Overlays.tsx`); they return focus to the element that opened them.
-- Script: `node apps/web/scripts/review-r3.mjs <dir>` (admin, reviewer and member; makes its own sessions through the real API; one labelled fault injection: a doctored batch response to prove the red diff blocks approval).
+- Same-author evidence. Chrome only (Edge, Firefox, Safari untested); no screen-reader pass; no hosted CI run of the browser scripts.
+- Cross-session pages read at most the newest sessions you have loaded (10 at first); they are slow for large organizations and say so. An aggregate endpoint would replace the hook in `components/data/useCrossSession.tsx` only.
+- The command panel lists up to the newest 300 loaded sessions and says when it is capped.
+- A calculation's author is not exposed by the API, so Reviews cannot show it.
+- Public Discover data does not exist; the page is an honest empty explorer.
+- Light theme only, no theme switcher.
