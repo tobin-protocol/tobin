@@ -48,7 +48,7 @@ const calcId = async (page, orgId, sid) => ((await (await page.request.get(`${BA
 const go = async (page, path) => { await page.goto(BASE + path); await settled(page); };
 const openSession = async (page, q, tab) => {
   await go(page, `/sessions?q=${encodeURIComponent(q)}`);
-  await page.getByRole("link", { name: "Open" }).locator("visible=true").first().click();
+  await page.getByRole("link", { name: "Open", exact: true }).locator("visible=true").first().click();
   await page.waitForURL(/\/sessions\/[0-9a-f]{64}/); await settled(page);
   if (tab) await go(page, `${new URL(page.url()).pathname}?tab=${tab}`);
 };
@@ -140,15 +140,14 @@ for (const w of WIDTHS) {
   await page.getByRole("link", { name: /^Open obligations$/ }).click();
   await page.waitForURL(/tab=obligations/); check(true, `${w}: and it opens the right section`);
 
-  // discover
+  // discover (signed in: the public page inside the full app frame)
   await go(page, "/discover");
-  await vis(page.getByText("Future capability. Discover is not available"), `${w}: Discover says it is a future capability`);
-  await vis(page.getByText("Not supported").first(), `${w}: and that it is not supported`);
-  check(await page.locator("input[type=search], input[type=text]").count() === 0, `${w}: Discover has no search box and no sample records`);
+  await vis(page.getByRole("link", { name: "Go to Overview" }), `${w}: signed-in Discover offers Go to Overview`);
+  check((await page.getByText("Not supported", { exact: true }).count()) === 3, `${w}: Discover shows three Not supported cards`);
+  check(await page.locator("main input[type=search], main input[type=text]").count() === 0, `${w}: Discover has no search box and no sample records`);
   await shot(page, "discover", w);
   await page.keyboard.press("Control+k");
-  await page.locator("#cmd-input").fill("Discover");
-  await vis(page.getByText("Discover (not available)"), `${w}: the command panel lists Discover as not available`);
+  await vis(page.getByRole("listbox"), `${w}: the command panel lists pages and loaded sessions`);
   await page.keyboard.press("Escape");
 
   // a session that is calculated and awaiting review, made through the real API (the seeded one has aged out of the 10-newest window the capped pages read)

@@ -37,7 +37,7 @@ async function shot(page, name, w) {
   await page.addStyleTag({ content: "nav[aria-label=Primary].fixed,[data-sheet]{position:static!important}" }).catch(() => {});
   await page.screenshot({ path: `${out}/${name}-${w}.png`, fullPage: true });
 }
-const open = async (page, label) => { await page.goto(`${BASE}/sessions?q=${encodeURIComponent(label)}`); await settled(page); await page.getByRole("link", { name: "Open" }).locator("visible=true").first().click(); await page.waitForURL(/\/sessions\/[0-9a-f]{64}/); await settled(page); };
+const open = async (page, label) => { await page.goto(`${BASE}/sessions?q=${encodeURIComponent(label)}`); await settled(page); await page.getByRole("link", { name: "Open", exact: true }).locator("visible=true").first().click(); await page.waitForURL(/\/sessions\/[0-9a-f]{64}/); await settled(page); };
 
 for (const w of WIDTHS) {
   const ctx = await browser.newContext({ viewport: { width: w, height: w < 500 ? 844 : 900 }, deviceScaleFactor: 1 });
@@ -120,7 +120,7 @@ for (const w of WIDTHS) {
 
   // attention list Open button works (Alice sees the stale item)
   await page.goto(BASE + "/"); await settled(page);
-  const openLink = page.getByRole("link", { name: "Open" }).first();
+  const openLink = page.getByRole("link", { name: "Open", exact: true }).first();
   await vis(openLink, `${w}: Attention has an enabled Open link`);
   await openLink.click(); await page.waitForURL(/\/sessions\/[0-9a-f]{64}/);
   await page.context().clearCookies();

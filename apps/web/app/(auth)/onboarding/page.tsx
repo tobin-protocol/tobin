@@ -114,7 +114,7 @@ export default function OnboardingPage() {
   const profileDone = async () => { await qc.invalidateQueries({ queryKey: ["me"] }); };
 
   return (
-    <div className="w-full max-w-[640px] rounded-panel bg-panel p-6 sm:p-8">
+    <div className="w-full max-w-[440px] border border-divider bg-page p-6 sm:p-8">
       {me.isLoading ? <div className="space-y-3" aria-busy="true"><Skeleton className="h-10 w-2/3" /><Skeleton className="h-40 w-full" /></div>
         : me.error && !(me.error instanceof ApiError && me.error.status === 401) ? <ErrorState title="Could not load your account" message={(me.error as Error).message} retry={<Button onClick={() => me.refetch()}>Try again</Button>} />
         : me.data?.onboarding?.step === "profile" ? <ProfileStep onDone={profileDone} />

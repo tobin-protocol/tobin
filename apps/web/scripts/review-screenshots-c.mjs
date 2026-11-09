@@ -38,7 +38,7 @@ async function shot(page, name, w) {
 }
 const open = async (page, label, tab) => {
   await page.goto(`${BASE}/sessions?q=${encodeURIComponent(label)}`); await settled(page);
-  await page.getByRole("link", { name: "Open" }).locator("visible=true").first().click();
+  await page.getByRole("link", { name: "Open", exact: true }).locator("visible=true").first().click();
   await page.waitForURL(/\/sessions\/[0-9a-f]{64}/); await settled(page);
   if (tab) { await page.goto(`${page.url().split("?")[0]}?tab=${tab}`); await settled(page); }
 };

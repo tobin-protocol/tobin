@@ -9,8 +9,9 @@ export default defineConfig({
   use: { baseURL: "http://127.0.0.1:3100", channel: "chrome" },
   webServer: {
     command: "npm run build && npx next start --hostname 127.0.0.1 --port 3100",
-    url: "http://127.0.0.1:3100/sign-in",
+    url: "http://127.0.0.1:3100/discover",
     reuseExistingServer: true,
+    env: { TOBIN_DEV_GALLERY: "1" },
     timeout: 240_000,
   },
 });

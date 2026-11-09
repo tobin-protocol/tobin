@@ -26,11 +26,22 @@ test("the stage rail never fills the last stage without a verified read-back", a
   await expect(page.getByText("Submitted, awaiting verification")).toBeVisible();
 });
 
-test("signed out, the app redirects to sign-in", async ({ page }) => {
+test("signed out, the root lands on Discover and a protected route goes to sign-in with a return path", async ({ page }) => {
   await page.goto("/");
-  await page.waitForURL(/\/sign-in/);
+  await page.waitForURL(/\/discover$/);
+  await expect(page.getByRole("heading", { name: "Discover", level: 1 })).toBeVisible();
+  await expect(page.getByText("Illustrative example. Not live data.")).toBeVisible();
+  await page.goto("/obligations");
+  await page.waitForURL(/\/sign-in\?next=%2Fobligations/);
   await expect(page.getByRole("heading", { name: "Sign in to Tobin" })).toBeVisible();
   await expect(page.getByText("Stellar Testnet").first()).toBeVisible();
+});
+
+test("a protected route answers with a redirect and no protected markup", async ({ request }) => {
+  const r = await request.get("/sessions", { maxRedirects: 0 });
+  expect(r.status()).toBe(307);
+  expect(r.headers()["location"]).toContain("/sign-in?next=%2Fsessions");
+  expect(await r.text()).not.toContain("Clearing");
 });
 
 test("wallet sign-in reports a missing Freighter plainly, inline", async ({ page }) => {

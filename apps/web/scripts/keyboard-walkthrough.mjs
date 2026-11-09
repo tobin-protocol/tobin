@@ -43,7 +43,7 @@ check(true, "signed in with the keyboard alone");
 
 // ---- navigate to Clearing Sessions ----
 await page.waitForLoadState("networkidle");
-await tabTo(/^Clearing Sessions/); await press("Enter"); await page.waitForURL(/\/sessions$/);
+await tabTo(/^Sessions/); await press("Enter"); await page.waitForURL(/\/sessions$/);
 check(true, "reached Clearing Sessions with Tab and Enter");
 
 // ---- create a session through the wizard ----
@@ -82,11 +82,12 @@ check(f?.label === "Review obligation", `closing the dialog returns focus to its
 
 // ---- command panel ----
 await page.keyboard.press("Control+k");
-await page.locator("#cmd-input").waitFor();
-f = await focused(); check(f?.id === "cmd-input", "Ctrl+K opens the command panel with focus in its field");
+await page.locator("[cmdk-input]").waitFor();
+check(await page.evaluate(() => document.activeElement?.hasAttribute("cmdk-input")), "Ctrl+K opens the command panel with focus in its field");
+check((await page.getByRole("listbox").count()) === 1, "the command panel exposes a listbox");
 await page.keyboard.type("Q4"); // a session this browser has already loaded (the list was opened earlier)
-await press("Tab"); f = await focused();
-check(/Q4 clearing run/.test(f?.label ?? ""), `Tab reaches the loaded session in the results (${f?.label})`);
+await press("ArrowDown"); await page.waitForTimeout(150);
+check(/Q4 clearing run/.test(await page.evaluate(() => document.querySelector("[cmdk-item][data-selected='true']")?.textContent ?? "")), "an arrow key selects the loaded session in the results");
 await press("Enter"); await page.waitForURL(/\/sessions\/[0-9a-f]{64}/);
 check(true, "Enter on a result navigates to the session");
 

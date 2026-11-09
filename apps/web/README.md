@@ -105,3 +105,13 @@ Apache-2.0, like the rest of the repository. The Tobin name and logo are not cov
 
 - `node apps/web/scripts/review-screenshots-f.mjs docs/screenshots/stage-f` runs 149 checks on the redesign (Overview relevant sessions, state layers, netting confirmation, deep links, Discover). Only 1440px images are committed.
 - New behaviour: `/discover` (Not supported), state layers on the session Overview, "Sessions that matter now" on the Overview. See `docs/web-redesign/`.
+
+## Rewrite, phase R1 (2026-11): shell, access control, public pages
+
+The UI is being rewritten to `docs/web-redesign/spec.md` (plan: `docs/web-redesign/plan.md`). R1 delivered:
+
+- **Server-side access control.** `proxy.ts` (Next 16's renamed middleware) asks the console who the session cookie belongs to, then applies `lib/access/decide.ts`. Public routes: `/discover` and `/sign-in`. Everything else redirects a signed-out request to `/sign-in?next=<route>` before any markup is rendered; an account without an organization goes to `/onboarding`; `/` for a signed-out visitor goes to `/discover`. `?next=` accepts same-origin paths only. With `NEXT_PUBLIC_TOBIN_SAMPLE_DATA=1` nothing is enforced.
+- **Frame.** 256px sidebar (a drawer under 1024px) with locked items when signed out, 58px top bar (environment, wallet cell with connected and verified apart, notifications, account), a help tile, and a full-page sign-in with no sidebar.
+- **Design system.** Light and greyscale like the landing page (primary action is black, the only colour is the failure red), square corners, no shadows. Tokens: `packages/ui-tokens/tokens.css`; every text/background pair is measured in `docs/web-redesign/contrast.md` (`node apps/web/scripts/contrast.mjs`). Fonts are the landing page's four families. Components are shadcn/ui primitives in `components/kit/` (restyled; nothing of shadcn's default look remains), icons are Hugeicons through `components/tobin/Icon.tsx`. The older components in `components/ui/` stay until the screens that use them are rewritten (R2 to R4).
+- **Component gallery.** `/dev/components` answers only in development, or when `TOBIN_DEV_GALLERY=1` is set at start-up (the Playwright config sets it).
+- Review script: `node apps/web/scripts/review-r1.mjs <dir>` (access control, Discover, sign-in, frame at 1440, 1024, 768 and 390 px, keyboard behaviour of the command panel and menus, sign-out).

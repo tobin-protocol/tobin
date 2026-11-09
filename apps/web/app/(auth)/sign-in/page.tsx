@@ -1,6 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -11,6 +12,7 @@ import { SegmentTabs } from "../../../components/ui/Data.tsx";
 import { useWallet } from "../../../components/wallet/WalletProvider.tsx";
 import { useMe } from "../../../components/shell/session.tsx";
 import { emailRegister, emailSignIn, zodResolver, type EmailRegister, type EmailSignIn } from "../../../lib/schemas.ts";
+import { safeNext } from "../../../lib/access/decide.ts";
 import { client } from "../../../lib/tobin/index.ts";
 import { runWalletSignIn, type SignInState } from "../../../lib/wallet/signin.ts";
 
@@ -33,7 +35,7 @@ function StepIndicator({ step }: { step: 1 | 2 }) {
         const n = (i + 1) as 1 | 2;
         return (
           <li key={label} aria-current={step === n ? "step" : undefined} className={step === n ? "font-medium text-ink" : n < step ? "text-ink" : "text-muted"}>
-            <span aria-hidden="true" className={`mr-1.5 inline-block size-2 rounded-full align-middle ${n <= step ? "bg-button" : "border border-muted"}`} />
+            <span aria-hidden="true" className={`mr-1.5 inline-block size-2 align-middle ${n <= step ? "bg-button" : "border border-muted"}`} />
             {n}. {label}
           </li>
         );
@@ -114,19 +116,21 @@ function SignInInner() {
   const params = useSearchParams();
   const me = useMe();
   const [method, setMethod] = useState<Method>("wallet");
-  useEffect(() => { if (me.data) router.replace("/"); }, [me.data, router]);
-  const done = async () => { await qc.invalidateQueries({ queryKey: ["me"] }); router.replace("/"); };
+  const next = safeNext(params.get("next")) ?? "/";
+  useEffect(() => { if (me.data) router.replace(next); }, [me.data, next, router]);
+  const done = async () => { await qc.invalidateQueries({ queryKey: ["me"] }); router.replace(next); };
   return (
-    <div className="w-full max-w-[420px] rounded-panel bg-panel p-6">
+    <div className="w-full max-w-[440px] border border-divider bg-page p-6">
       <h1 className="text-title font-medium">Sign in to Tobin</h1>
       <p className="mt-1 text-body text-muted">Institutional clearing and settlement on Stellar Testnet.</p>
       {params.get("expired") ? <p role="status" className="mt-4 rounded-card bg-card p-3 text-body">Your session expired. Sign in again to continue.</p> : null}
       <div className="mt-5"><SegmentTabs label="Sign-in method" value={method} onChange={setMethod} items={[{ value: "wallet", label: "Wallet" }, { value: "email", label: "Email" }]} /></div>
       <div className="mt-5">{method === "wallet" ? <WalletSignIn onDone={done} /> : <EmailSignIn onDone={done} />}</div>
+      <p className="mt-6 border-t border-divider pt-4 text-body"><Link href="/discover" className="inline-flex min-h-11 items-center underline underline-offset-4">Back to Discover</Link></p>
     </div>
   );
 }
 
 export default function SignInPage() {
-  return <Suspense fallback={<div className="h-64 w-full max-w-[420px] animate-pulse rounded-panel bg-panel" aria-busy="true" />}><SignInInner /></Suspense>;
+  return <Suspense fallback={<div className="h-64 w-full max-w-[440px] animate-pulse border border-divider bg-tile" aria-busy="true" />}><SignInInner /></Suspense>;
 }
