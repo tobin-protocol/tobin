@@ -1,3 +1,5 @@
 # Only the 1440 px review screenshots are committed. The review scripts regenerate the 900 px and 390 px versions; see README.md.
 *-900.png
 *-390.png
+*-1024.png
+*-768.png

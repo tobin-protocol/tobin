@@ -95,3 +95,9 @@ Each phase: typecheck, lint, unit tests (existing plus new for access redirects,
 3. **Launch app URL.** The app is local-only. Default `links.app` to `http://127.0.0.1:3000` in development and null in production (disabled button)?
 4. **Branch.** Confirm `feat/web-redesign-v2` from `main` (PR #44 is merged), rather than the prompt's `feat/web-redesign`.
 5. **Dependencies.** The prompt covers shadcn, Radix, cmdk and the two icon packages. `@hugeicons/core-free-icons` is needed as well; confirm it is in scope.
+
+## 12. Decisions taken (2026-11-09) and phase status
+
+Owner answers: the landing page's four fonts; greyscale like the landing page (no green; the primary action is black); Launch app defaults to `http://127.0.0.1:3000` in development and is disabled in a production build until a domain is given; branch `feat/web-redesign-v2` from `main`; `@hugeicons/core-free-icons` is in scope.
+
+**R1 status.** Built on `feat/web-redesign-v2`, not pushed. Deviations from this plan: (1) the `/dev/components` gallery is gated by `TOBIN_DEV_GALLERY=1` rather than development-only, because the smoke tests run against a production build; (2) the shadcn `shadcn` package is a dev dependency (it supplies `shadcn/tailwind.css`) and the generated components live in `components/kit/` because `components/ui/Button.tsx` and the CLI's `button.tsx` collide on a case-insensitive file system; (3) the sidebar's Reviews item still opens `/approvals` until R4; (4) the card tone is the 4% ink value flattened to #f5f5f5 so nested cards keep their contrast; (5) the shadcn `cn` helper package was replaced by `clsx` plus `tailwind-merge`, as the dependency rule lists. The old `Popover` and `CommandPanel` in `components/ui/Overlays.tsx` are no longer used by the shell and are deleted once the component gallery stops showing them (R5).
