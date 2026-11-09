@@ -123,3 +123,11 @@ test("the Execution step no longer claims that no route can start an execution",
   assert.doesNotMatch(src, /no route can start/);
   assert.match(src, /routes to start an execution and to begin an attempt, which this app does not call/);
 });
+
+test("the proxy forwards the public Discover data for GET only", async () => {
+  const { decide } = await import("../lib/proxy-policy.ts");
+  assert.deepEqual(decide("GET", ["public", "v1", "institutions"]), { ok: true, path: "/api/public/v1/institutions" });
+  assert.equal((decide("POST", ["public", "v1", "institutions"]) as { status: number }).status, 405);
+  assert.equal((decide("GET", ["public", "v2", "x"]) as { status: number }).status, 404);
+  assert.equal((decide("GET", ["stellar", "run"]) as { status: number }).status, 404);
+});

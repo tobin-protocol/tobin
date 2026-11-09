@@ -1,0 +1,9 @@
+# Railway image for the PUBLIC web service (apps/web). Set RAILWAY_DOCKERFILE_PATH=Dockerfile.web on the service.
+# NODE_ENV=production is set only AFTER the build (the build needs the dev dependencies for type checking).
+FROM node:24-bookworm-slim
+WORKDIR /app
+COPY . .
+RUN npm ci --ignore-scripts && npm run build --workspace tobin-web
+ENV NODE_ENV=production
+WORKDIR /app/apps/web
+CMD ["node", "scripts/start.mjs"]

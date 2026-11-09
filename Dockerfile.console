@@ -1,0 +1,11 @@
+# Railway image for the PRIVATE console service (apps/web-console). Set RAILWAY_DOCKERFILE_PATH=Dockerfile.console on the service.
+# Interim Testnet-pilot setup: SQLite on a mounted volume (TOBIN_DB_PATH=/data/tobin.sqlite), one replica. Migrations run before the server starts.
+# NODE_ENV=production is set only AFTER the build (the build needs the dev dependencies for type checking).
+FROM node:24-bookworm-slim
+WORKDIR /app
+COPY . .
+RUN npm ci --ignore-scripts && npm run build --workspace tobin-web-console
+ENV NODE_ENV=production
+WORKDIR /app/apps/web-console
+# TOBIN_ASSET_ISSUER (optional): configures the Testnet USD asset the operator list needs before settlement can be prepared (idempotent).
+CMD ["sh", "-c", "node scripts/db.ts migrate && if [ -n \"$TOBIN_ASSET_ISSUER\" ]; then node scripts/db.ts asset-add testnet USD \"$TOBIN_ASSET_ISSUER\"; fi && exec node scripts/start.mjs"]

@@ -18,7 +18,7 @@ export const PROXY_AUTH_HEADER = 'x-tobin-proxy-auth';
 export const CLIENT_IP_HEADER = 'x-tobin-client-ip';
 export const MIN_PROXY_SECRET_LENGTH = 32;
 /** The only paths a hosted console serves: the institutional API and the probes. Everything else (sandbox, W0 mock API, /api/rpc, /api/bootstrap, owner tools, pages) is refused. */
-export const HOSTED_PATHS = /^\/api\/(auth|registry|health|live|ready)(\/|$)/;
+export const HOSTED_PATHS = /^\/api\/(auth|registry|public|health|live|ready)(\/|$)/;
 export const PROBE_PATHS = /^\/api\/(health|live|ready)$/;
 
 export interface SecurityPolicy {

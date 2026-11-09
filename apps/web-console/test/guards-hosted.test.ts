@@ -55,7 +55,7 @@ test('hosted: every route handler in app/api is either served on purpose or refu
   const routes: string[] = [];
   const walk = (d: string): void => { for (const n of readdirSync(d)) { const p = join(d, n); if (statSync(p).isDirectory()) walk(p); else if (n === 'route.ts') routes.push('/' + relative(join(root, '..'), join(p, '..')).split('\\').join('/').replace(/\/\[\.\.\.path\]$/, '/x')); } };
   walk(root);
-  const served = new Set(['/api/auth/x', '/api/registry/x', '/api/health', '/api/live', '/api/ready']);
+  const served = new Set(['/api/auth/x', '/api/public/x', '/api/registry/x', '/api/health', '/api/live', '/api/ready']);
   assert.ok(routes.length >= 9, 'found the route handlers: ' + routes.join(', '));
   for (const r of routes) {
     const refusal = checkRequest({ ...base, pathname: r });
