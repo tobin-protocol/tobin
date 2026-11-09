@@ -235,3 +235,34 @@ Routes with no UI and still not built: obligation update, execution start and at
   - An obligation's history comes from the session's activity log, matched by the first 8 characters of its id (no per-obligation history route).
   - The settlement "Prepared" stage fills when a batch is prepared; nothing else can fill (no route).
   - Mark ready and the workflow card text changed: ready sessions can be reopened, so the dialog no longer says the session cannot be reopened.
+
+## 18. R4: the global pages. Routes read first, request counts, and what was built (2026-11-09)
+
+**Stage D, root cause.** In the R3 combined run Stage D failed one check and passed alone after a script fix. The cause was not run order: D asserted the old single-page Settlement tab, which R3 split into five steps (`?tab=settlement&step=review|prepare|batch|execution|sign`). D was patched to open each step. D already builds its own session through the UI as Alice, Bob and Carol, and needs only what the seed provides to every script: the three users, the organization and one supported asset. It reads no session made by another script. It was proved once in the combined order in R4 (see the report).
+
+**Routes each global page can call (read from `apps/web-console`).** The API has no cross-session or organization-wide aggregate for obligations, reviews or activity. Only the session list is organization-wide.
+
+| Page | Console routes | Scope | Fan-out for an admin with 10 sessions |
+|---|---|---|---|
+| Reviews | `GET sessions`, per session `GET authorization`, `GET settlement` | per-session | 1 + 10 x 2 = 21 |
+| Obligations | `GET sessions`, per session `GET obligations`, `GET sessions/:id` (activity for the sheet history) | per-session | 1 + 10 x 2 = 21 |
+| Activity | `GET sessions`, per session `GET sessions/:id` | per-session | 1 + 10 = 11 |
+| Organization overview/institutions | `GET orgs/:o` | organization | 1 |
+| Members and roles | `GET members`; admin only `GET invitations` | organization | 1 (member), 2 (admin) |
+| Wallets | `GET /api/auth/me` (account wallets), `GET wallet-verifications`, `GET wallets` (claims) | organization/account | 2 + me |
+| Settings | `GET /api/auth/audit` (+ me) | account | 1 |
+| Notifications | none (not supported) | n/a | 0 |
+
+Page parts share the query keys `["xs", org, session, part]`, so navigating Reviews to Obligations to Activity re-reads only the parts not yet cached. The sidebar Reviews count is passive: it reads the cache and makes no request. Measured counts are in the R4 report.
+
+**Built.** `/reviews` (My reviews and All; one `reviewQueue` function feeds the page and the sidebar count; separation of duties on each row; rows open the Settlement step; no decisions); `/approvals` redirects there. Global Obligations on the cross-session hook (search, asset, status and session filters, per-asset totals, coverage text, "Load next 10 sessions", rows open the same `ObligationDetail` sheet without Void). Global Activity on the same hook. Organization tabs Overview, Members and roles (invitations are a section; `?tab=invitations` and `?tab=profile` still work), Institutions, Wallets (`/wallets` redirects). Settings: password change shown as Not supported. Notifications unchanged (Not supported).
+
+**Deviations and conflicts.**
+- Link wallet. An earlier decision keeps wallet linking behind a feature flag, off, until the owner's Freighter test. The R4 brief says Link wallet opens the Connect wallet modal with no signing. Built as asked: the button opens the existing modal, which only detects wallets, writes nothing and signs nothing; the page says linking is not verification. No org claim is written. The wallet flow itself is unchanged.
+- The Reviews list no longer repeats calculation amounts (the old Approvals list did, with an extra `calculation` read per session). Stage F's "amounts in the approvals list" check was retired for that reason; the session's own Settlement step shows the amounts.
+- A calculation row cannot say who calculated it: the authorization view does not carry it, so the row says "Not shown for calculations".
+- Stage C, D and E matched "Showing N of M sessions"; the cross-session pages now say "Based on N of M sessions" (or "all N"); those checks were updated.
+
+**Measured requests per first load (R4 run, admin with 10 sessions read of 40+; `scripts/measure-requests.mjs`).** The totals include 3 to 4 shell requests (me, organizations, sessions list) on top of the per-session reads. Reviews 24 (20 per-session + 4), Obligations 24 (20 + 4), Activity 14 (10 + 4), Organization 3, Members and roles 4 (admin; 3 for others), Wallets 5, Settings 4, Notifications 3. Overview is 25 for an admin, 34 for a reviewer, 14 for a member. A member's Reviews and Obligations pages cost the same as an admin's. The estimates above (21, 21, 11) differ by the shell requests.
+
+**R4 verification (final build).** Typecheck and lint clean; unit tests 140 plus the r4 file; `review-r4.mjs` all checks pass at 1440/1024/768/390; Stages A, D (fresh DB, combined order), E, F pass; keyboard walkthrough 90 stops; axe 78 page-width combinations clean. Skipped on purpose: R1 to R3 scripts and Stages B and C (the shell and data layer changed only in the cross-session hook, and C's coverage text was updated but not re-run), Playwright smoke, full regression (waits for R5). 20 screenshots viewed; the 1440px ones are in `docs/screenshots/stage-r4/`.
