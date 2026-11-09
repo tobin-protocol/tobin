@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { cn, formatDateTime } from "../../lib/format.ts";
 import { stageText, stageView, STAGE_LABEL, type Stage, type StageInput } from "../../lib/stages.ts";
@@ -10,8 +11,8 @@ export const LIFECYCLE_GROUPS = ["Draft", "Participation", "Obligations", "Netti
  * Session lifecycle stepper: six groups, driven by real fields only (docs/web-app-plan.md section 5). Completed = filled dot and check; current = filled
  * ring with an exact sub-label; future = outlined dot, #b1b1b1 (decorative, not text-only information: the label stays #626262 for readability).
  */
-export function Stepper({ currentIndex, subLabel, stoppedAt, stoppedLabel, applicationOnly }: {
-  currentIndex: number; subLabel?: string; stoppedAt?: number; stoppedLabel?: string; applicationOnly?: boolean;
+export function Stepper({ currentIndex, subLabel, stoppedAt, stoppedLabel, applicationOnly, hrefs }: {
+  currentIndex: number; subLabel?: string; stoppedAt?: number; stoppedLabel?: string; applicationOnly?: boolean; /** where each group leads, in group order */ hrefs?: readonly string[];
 }) {
   return (
     <div>
@@ -25,7 +26,7 @@ export function Stepper({ currentIndex, subLabel, stoppedAt, stoppedLabel, appli
               <span aria-hidden="true" className={cn("flex size-4 items-center justify-center rounded-full", done ? "bg-button text-on-button" : current ? "border-[5px] border-button" : "border border-disabled")}>
                 {done ? <svg viewBox="0 0 12 12" className="size-2.5"><path d="M2.5 6.2l2.4 2.3 4.6-4.9" stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg> : null}
               </span>
-              <span className={cn("text-body", done || current ? "text-ink" : "text-muted", current && "font-medium")}>{g}</span>
+              {hrefs?.[i] ? <Link href={hrefs[i] as string} className={cn("text-body underline-offset-2 hover:underline max-md:inline-flex max-md:min-h-11 max-md:min-w-11 max-md:items-center max-md:justify-center", done || current ? "text-ink" : "text-muted", current && "font-medium")}>{g}</Link> : <span className={cn("text-body", done || current ? "text-ink" : "text-muted", current && "font-medium")}>{g}</span>}
               {stopped ? <span className="flex items-center gap-1 text-body text-danger"><CrossIcon className="mt-0" />{stoppedLabel ?? "Stopped"}</span> : null}
             </li>
           );

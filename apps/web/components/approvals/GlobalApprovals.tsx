@@ -4,7 +4,8 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { selectForReading } from "../../lib/derived/overview.ts";
-import { relativeTime } from "../../lib/format.ts";
+import { formatAmount, relativeTime } from "../../lib/format.ts";
+import { grossVsNet } from "../../lib/netting/group.ts";
 import { client } from "../../lib/tobin/index.ts";
 import type { AuthorizationView, BatchStatus, SessionRow, SettlementList } from "../../lib/tobin/types.ts";
 import { PageFrame } from "../shell/PageFrame.tsx";
@@ -15,7 +16,7 @@ import { EmptyState, ErrorState, Skeleton, StatusMark } from "../ui/Feedback.tsx
 import { Card, DerivedNote, Panel } from "../ui/Surfaces.tsx";
 import { AUTH_LABEL } from "./ApprovalsTab.tsx";
 
-interface Item { key: string; sessionId: string; session: string; kind: "Calculation review" | "Settlement batch review"; state: string; awaiting: boolean; youCanDecide: boolean; at: string | null; tab: "approvals" | "settlement" }
+interface Item { key: string; sessionId: string; session: string; kind: "Calculation review" | "Settlement batch review"; amount: string | null; state: string; awaiting: boolean; youCanDecide: boolean; at: string | null; tab: "approvals" | "settlement" }
 const BATCH_LABEL: Record<BatchStatus, string> = { "awaiting-review": "Awaiting review", approved: "Approved", rejected: "Rejected", invalidated: "No longer applies", superseded: "Superseded" };
 
 /** Review items across sessions, DERIVED from per-session reads (decision D6): capped at 10 sessions and labelled with "Showing N of M sessions". */
@@ -26,8 +27,9 @@ export function GlobalApprovals() {
   // the same keys the workspace uses, so a session opened before is served from the cache
   const auths = useQueries({ queries: toRead.map((r) => ({ queryKey: ["session", org.id, r.sessionId, "authorization"], queryFn: () => client.authorization.get(org.id, r.sessionId), staleTime: 30_000, retry: false })) });
   const sets = useQueries({ queries: toRead.map((r) => ({ queryKey: ["session", org.id, r.sessionId, "settlement"], queryFn: () => client.settlement.list(org.id, r.sessionId), staleTime: 30_000, retry: false })) });
-  const reading = auths.some((q) => q.isLoading) || sets.some((q) => q.isLoading);
-  const stamp = [...auths, ...sets].map((q) => q.dataUpdatedAt).join(",");
+  const calcs = useQueries({ queries: toRead.map((r) => ({ queryKey: ["session", org.id, r.sessionId, "calculation"], queryFn: () => client.sessions.calculation(org.id, r.sessionId), staleTime: 30_000, retry: false })) });
+  const reading = auths.some((q) => q.isLoading) || sets.some((q) => q.isLoading) || calcs.some((q) => q.isLoading);
+  const stamp = [...auths, ...sets, ...calcs].map((q) => q.dataUpdatedAt).join(",");
 
   const items = useMemo<Item[]>(() => {
     const out: Item[] = [];
@@ -35,11 +37,13 @@ export function GlobalApprovals() {
       const a = auths[i]?.data as AuthorizationView | undefined;
       if (a && a.state !== "no-calculation") {
         const last = a.decisions[a.decisions.length - 1];
-        out.push({ key: `${r.sessionId}-calc`, sessionId: r.sessionId, session: r.label, kind: "Calculation review", state: AUTH_LABEL[a.state], awaiting: a.state === "awaiting-review", youCanDecide: a.state === "awaiting-review" && a.eligibility.canDecide, at: last?.decidedAt ?? null, tab: "approvals" });
+        const cv = calcs[i]?.data; const c = cv?.calculation;
+        const amount = c ? `Gross ${formatAmount(c.gross, c.asset)} · net that moves ${formatAmount(grossVsNet(c.gross, c.positions, cv?.currency === "current").net, c.asset)}` : null;
+        out.push({ key: `${r.sessionId}-calc`, sessionId: r.sessionId, session: r.label, kind: "Calculation review", amount, state: AUTH_LABEL[a.state], awaiting: a.state === "awaiting-review", youCanDecide: a.state === "awaiting-review" && a.eligibility.canDecide, at: last?.decidedAt ?? null, tab: "approvals" });
       }
       const s = sets[i]?.data as SettlementList | undefined;
       const b = s ? [...s.batches].sort((x, y) => y.preparedAt.localeCompare(x.preparedAt))[0] : undefined;
-      if (b) out.push({ key: `${r.sessionId}-batch`, sessionId: r.sessionId, session: r.label, kind: "Settlement batch review", state: BATCH_LABEL[b.status], awaiting: b.status === "awaiting-review", youCanDecide: false, at: b.decision?.decidedAt ?? b.preparedAt, tab: "settlement" });
+      if (b) out.push({ key: `${r.sessionId}-batch`, sessionId: r.sessionId, session: r.label, kind: "Settlement batch review", amount: `Total moved ${formatAmount(b.totalAmount, b.asset.code)} · ${b.instructionCount} instruction${b.instructionCount === 1 ? "" : "s"}`, state: BATCH_LABEL[b.status], awaiting: b.status === "awaiting-review", youCanDecide: false, at: b.decision?.decidedAt ?? b.preparedAt, tab: "settlement" });
     });
     return out;
     // the query results are rebuilt whenever any updates (stamp)
@@ -73,7 +77,8 @@ export function GlobalApprovals() {
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <Link href={`/sessions/${i.sessionId}?tab=${i.tab}`} className="inline-flex min-h-11 items-center text-entity font-medium">{i.session}</Link>
-                      <p className="text-body text-muted">{i.kind}</p>
+                      <p className="text-body text-muted">{i.kind} · {org.name}</p>
+                      {i.amount ? <p className="mt-1 break-words text-body">{i.amount}</p> : null}
                     </div>
                     <div className="text-right">
                       <StatusMark kind={i.awaiting ? "action" : i.state === "Approved" ? "done" : i.state === "Rejected" ? "failed" : "unsupported"}>{i.state}</StatusMark>

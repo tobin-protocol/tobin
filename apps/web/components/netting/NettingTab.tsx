@@ -11,8 +11,8 @@ import { useWorkspace } from "../shell/session.tsx";
 import { Button } from "../ui/Button.tsx";
 import { Amount, Table, type Col } from "../ui/Data.tsx";
 import { EmptyState, ErrorState, InlineError, Skeleton, StatusMark } from "../ui/Feedback.tsx";
-import { SidePanel } from "../ui/Overlays.tsx";
-import { Banner, Card, DataCard, Panel } from "../ui/Surfaces.tsx";
+import { Dialog, SidePanel } from "../ui/Overlays.tsx";
+import { Banner, Card, DataCard, Panel, StatGrid } from "../ui/Surfaces.tsx";
 
 export type NettingStep = "inputs" | "calculation" | "result";
 const STEPS: { key: NettingStep; label: string }[] = [{ key: "inputs", label: "Eligible inputs" }, { key: "calculation", label: "Calculation" }, { key: "result", label: "Result" }];
@@ -34,10 +34,11 @@ export function StepStrip({ current }: { current: NettingStep }) {
 const positionLabel = (p: CalculationPosition) => (p.role === "debtor" ? "Pays" : p.role === "creditor" ? "Receives" : "Zero");
 
 /** The panel's one primary action: run netting, or the reason it cannot be run. */
-export function RunNettingPanel({ eligibleCount, excludedBlocking, participantCount, asset, workflow, running, error, onRun }: {
-  eligibleCount: number; excludedBlocking: number; participantCount: number; asset: string | null; workflow: "configuring" | "ready" | "closed"; running: boolean; error: string | null; onRun: () => void;
+export function RunNettingPanel({ eligibleCount, excludedBlocking, excludedCount, participantCount, asset, workflow, running, error, onRun }: {
+  eligibleCount: number; excludedBlocking: number; excludedCount: number; participantCount: number; asset: string | null; workflow: "configuring" | "ready" | "closed"; running: boolean; error: string | null; onRun: () => void;
 }) {
   const { actor } = useWorkspace();
+  const [confirming, setConfirming] = useState(false);
   const allowed = can(actor, "netting.run");
   const reason = !allowed.allowed ? allowed.reason
     : workflow === "ready" ? "The session is marked ready. It can only be recalculated while it is being configured."
@@ -52,12 +53,20 @@ export function RunNettingPanel({ eligibleCount, excludedBlocking, participantCo
         <h2 className="text-entity font-medium">Run netting</h2>
         <p className="mt-1 text-body text-muted">{eligibleCount === 0 ? "No obligations will be included." : `Will include ${eligibleCount} active obligation${eligibleCount === 1 ? "" : "s"} among ${participantCount} participants${asset ? ` in ${asset}` : ""}. The engine nets one asset per session.`}</p>
         <div className="mt-3 space-y-2">
-          <Button variant="primary" size="lg" disabled={!!reason} loading={running} onClick={onRun} aria-describedby={reason ? "net-reason" : undefined}>{running ? "Running netting" : "Run netting"}</Button>
+          <Button variant="primary" size="lg" disabled={!!reason} loading={running} onClick={() => setConfirming(true)} aria-describedby={reason ? "net-reason" : undefined}>{running ? "Running netting" : "Run netting"}</Button>
           {reason ? <p id="net-reason" className="text-body text-muted" role="note">{reason}</p> : null}
           {error ? <InlineError>{error}</InlineError> : null}
         </div>
         <p className="mt-3 text-label text-muted">The result is a calculation recorded in Tobin. It is not an approval, a signature or a settlement.</p>
       </Card>
+      <Dialog open={confirming} onClose={() => setConfirming(false)} title="Run netting?" description="A new calculation replaces the current one. Any review of the current calculation then no longer applies." primary={{ label: "Run netting", onClick: () => { setConfirming(false); onRun(); } }}>
+        <StatGrid columns={2} items={[
+          { label: "Obligations included", value: eligibleCount },
+          { label: "Left out", value: excludedCount, hint: excludedCount > 0 ? "Voided obligations are not netted" : undefined },
+          { label: "Participants", value: participantCount },
+          { label: "Asset", value: asset ?? "No data" },
+        ]} />
+      </Dialog>
     </Panel>
   );
 }

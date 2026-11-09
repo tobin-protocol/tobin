@@ -100,3 +100,8 @@ Keyboard-only walkthrough of sign-in, navigation, the create wizard, recording a
 ## Licence
 
 Apache-2.0, like the rest of the repository. The Tobin name and logo are not covered by it (see `apps/landing/NOTICE`).
+
+## Redesign pass additions
+
+- `node apps/web/scripts/review-screenshots-f.mjs docs/screenshots/stage-f` runs 149 checks on the redesign (Overview relevant sessions, state layers, netting confirmation, deep links, Discover). Only 1440px images are committed.
+- New behaviour: `/discover` (Not supported), state layers on the session Overview, "Sessions that matter now" on the Overview. See `docs/web-redesign/`.

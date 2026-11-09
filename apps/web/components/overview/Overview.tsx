@@ -3,7 +3,9 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { client } from "../../lib/tobin/index.ts";
-import { can, PRD_ROLE_HELP, roleLabels } from "../../lib/permissions/can.ts";
+import { can, roleLabels } from "../../lib/permissions/can.ts";
+import { relevantSessions } from "../../lib/derived/relevant-sessions.ts";
+import Link from "next/link";
 import { derive, selectForReading, SESSION_REQUEST_CAP, type AttentionItem, type RecentItem, type SessionBundle } from "../../lib/derived/overview.ts";
 import { formatDateTime, humanizeKind, INSTITUTION_LABEL, relativeTime } from "../../lib/format.ts";
 import { useWorkspace } from "../shell/session.tsx";
@@ -65,9 +67,19 @@ export function Overview() {
   const cnt = (v: number) => (reading ? "…" : derived && derived.sessionsRead === 0 ? "No data" : v);
   const approvalsPending = useApprovalsPending();
   const attentionRows: AttentionItem[] = [...(derived?.attention ?? []), ...(approvalsPending.count ? [{ kind: "approvals", label: "Approvals", detail: `${approvalsPending.count} awaiting your review (derived from the sessions read)` } as AttentionItem] : [])];
+  // the sessions most worth opening, from the same capped reads (a subset, and the page says so)
+  const relevant = relevantSessions(bundles, { canDecide: actor.reviewer, canRecalculate: isAdmin });
+  const createSession = can(actor, "sessions.create");
   const o = orgQ.data?.organization;
   return (
-    <PageFrame title="Overview" breadcrumbs={[{ label: org.name }, { label: "Overview" }]}>
+    <PageFrame title="Overview" breadcrumbs={[{ label: org.name }, { label: "Overview" }]} actions={createSession.allowed ? <ButtonLink href="/sessions/new" variant="primary">Create session</ButtonLink> : <Button variant="primary" disabled title={createSession.reason ?? undefined}>Create session</Button>}>
+      <nav aria-label="Quick links" className="mb-6 flex flex-wrap gap-2">
+        <ButtonLink href="/sessions" variant="quiet">View sessions</ButtonLink>
+        <ButtonLink href="/obligations" variant="quiet">View obligations</ButtonLink>
+        <ButtonLink href="/approvals" variant="quiet">Review approvals{approvalsPending.count ? ` (${approvalsPending.count})` : ""}</ButtonLink>
+        <ButtonLink href="/activity" variant="quiet">Inspect activity</ButtonLink>
+      </nav>
+      {!createSession.allowed ? <p className="-mt-3 mb-6 text-label text-muted" role="note">{createSession.reason} Creating a session needs the Admin role.</p> : null}
       {sessionsQ.error ? (
         <ErrorState title="Could not load sessions" message={(sessionsQ.error as Error).message} retry={<Button onClick={() => sessionsQ.refetch()}>Try again</Button>} />
       ) : (
@@ -82,12 +94,12 @@ export function Overview() {
                     <DataCard label="Needs your attention" value={reading ? "…" : attentionRows.length} note={reading ? "Reading sessions…" : "Derived from the sessions read"} />
                     <div className="space-y-4">
                       <StatGrid items={[
-                        { label: "Clearing sessions", value: derived.sessionsTotal, hint: "Real: from the session list" },
-                        { label: "Members", value: membersQ.data ? membersQ.data.length : "No data", hint: membersQ.data ? "Real" : undefined },
-                        { label: "Obligations recorded", value: cnt(derived.obligationsActive), hint: "Derived, active only" },
-                        { label: "Voided", value: cnt(derived.obligationsVoided), hint: "Derived" },
-                        { label: "Configuring", value: cnt(derived.byWorkflow.configuring), hint: "Derived" },
-                        { label: "Ready or closed", value: cnt(derived.byWorkflow.ready + derived.byWorkflow.closed), hint: "Derived" },
+                        { label: "Clearing sessions", value: derived.sessionsTotal, hint: "All sessions" },
+                        { label: "Members", value: membersQ.data ? membersQ.data.length : "No data", hint: membersQ.data ? "All members" : undefined },
+                        { label: "Obligations recorded", value: cnt(derived.obligationsActive), hint: "From the sessions read" },
+                        { label: "Voided", value: cnt(derived.obligationsVoided), hint: "From the sessions read" },
+                        { label: "Configuring", value: cnt(derived.byWorkflow.configuring), hint: "From the sessions read" },
+                        { label: "Ready or closed", value: cnt(derived.byWorkflow.ready + derived.byWorkflow.closed), hint: "From the sessions read" },
                       ]} />
                       <DerivedNote shown={derived.sessionsRead} total={derived.sessionsTotal} capped={derived.capped} />
                       {derived.unreadable > 0 ? <p className="text-label text-danger" role="status">{derived.unreadable} session{derived.unreadable === 1 ? "" : "s"} could not be read and {derived.unreadable === 1 ? "is" : "are"} left out of the derived counts.</p> : null}
@@ -96,6 +108,29 @@ export function Overview() {
                 </>
               )}
             </Panel>
+
+            <section aria-labelledby="rel-h" className="space-y-3">
+              <h2 id="rel-h" className="text-entity font-medium">Sessions that matter now</h2>
+              {sessionsQ.isLoading || reading ? (
+                <div className="space-y-px" role="status" aria-busy="true" aria-label="Loading sessions"><Skeleton className="h-14 w-full" /><Skeleton className="h-14 w-full" /></div>
+              ) : relevant.length === 0 ? (
+                <EmptyState title="No sessions to show" message="Sessions you can act on appear here. Create a session to begin." action={createSession.allowed ? <ButtonLink href="/sessions/new" variant="quiet">Create session</ButtonLink> : undefined} />
+              ) : (
+                <Panel className="p-3 sm:p-4"><ul className="divide-y divide-divider rounded-card bg-card" aria-label="Sessions that matter now">
+                  {relevant.map((s) => (
+                    <li key={s.sessionId} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">
+                      <span className="min-w-0 flex-1">
+                        <Link href={`/sessions/${s.sessionId}`} className="block break-words text-body font-medium underline-offset-2 hover:underline max-md:flex max-md:min-h-11 max-md:items-center">{s.label}</Link>
+                        <span className="block text-label text-muted">{s.activeObligations === null ? "No data" : `${s.activeObligations} active obligation${s.activeObligations === 1 ? "" : "s"}`}</span>
+                      </span>
+                      <StatusMark kind={s.tone === "attention" ? "action" : s.tone === "progress" ? "progress" : "unsupported"}>{s.stage}</StatusMark>
+                      <ButtonLink href={s.tab === "overview" ? `/sessions/${s.sessionId}` : `/sessions/${s.sessionId}?tab=${s.tab}`} variant="quiet" aria-label={`Open ${s.label}: ${s.stage}`}>Open</ButtonLink>
+                    </li>
+                  ))}
+                </ul></Panel>
+              )}
+              {derived ? <DerivedNote shown={derived.sessionsRead} total={derived.sessionsTotal} capped={derived.capped} /> : null}
+            </section>
 
             <section aria-labelledby="attention-h" className="space-y-3">
               <h2 id="attention-h" className="text-entity font-medium">Attention</h2>
@@ -138,14 +173,6 @@ export function Overview() {
                 ) : null}
                 {o ? <div className="mt-4 border-t border-divider pt-3"><p className="text-label uppercase tracking-wide text-muted">Organization id</p><Identifier value={o.id} head={12} tail={6} /></div> : null}
               </div>
-            </Card>
-            <Card>
-              <h2 className="text-entity font-medium">About access</h2>
-              <p className="mt-2 text-body text-muted">Tobin shows the real roles. How they relate to the product brief&apos;s role names:</p>
-              <ul className="mt-3 space-y-2 text-body">
-                {PRD_ROLE_HELP.map((h) => <li key={h.real}><span className="font-medium">{h.real}</span> <span className="text-muted">{h.prd}</span></li>)}
-              </ul>
-              <p className="mt-3 text-label text-muted">An application role never grants authority to sign on Stellar.</p>
             </Card>
             <NotSupported tone="card" feature="Settled value" reason="Nothing is confirmed on-chain through this application, so no settled value can be shown. It will not be estimated." />
           </Panel>

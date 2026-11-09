@@ -38,3 +38,11 @@ export function historyOf(obligationId: string, activity: readonly ActivityItem[
   const tag = `obligation ${obligationId.slice(0, 8)}`;
   return activity.filter((a) => a.kind.startsWith("obligation.") && a.detail.includes(tag)).sort((x, y) => x.at.localeCompare(y.at));
 }
+
+/** The state change an obligation event records, for the history (redesign PRD 8.5: previous and current state). Unknown kinds say nothing rather than guess. */
+export function transitionOf(kind: string): { from: string | null; to: string } | null {
+  if (kind === "obligation.created") return { from: null, to: "Active" };
+  if (kind === "obligation.voided") return { from: "Active", to: "Voided" };
+  return null;
+}
+export const transitionText = (t: { from: string | null; to: string }): string => (t.from ? `${t.from} to ${t.to}` : `Recorded as ${t.to}`);

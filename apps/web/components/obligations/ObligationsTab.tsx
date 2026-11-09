@@ -5,7 +5,8 @@ import { useMemo, useState } from "react";
 import { can } from "../../lib/permissions/can.ts";
 import { formatAmount, formatDateTime, humanizeKind } from "../../lib/format.ts";
 import { totalsByAsset } from "../../lib/netting/group.ts";
-import { historyOf } from "../../lib/obligations/rules.ts";
+import { useSearchParams } from "next/navigation";
+import { historyOf, transitionOf, transitionText } from "../../lib/obligations/rules.ts";
 import { client } from "../../lib/tobin/index.ts";
 import type { ActivityItem, ObligationView } from "../../lib/tobin/types.ts";
 import { useWorkspace } from "../shell/session.tsx";
@@ -25,7 +26,9 @@ export function ObligationsTab({ sessionId, query, workflow, activity, onChanged
   const { org, actor } = useWorkspace();
   const [status, setStatus] = useState<StatusFilter>("all");
   const [search, setSearch] = useState("");
-  const [openId, setOpenId] = useState<string | null>(null);
+  // the global Obligations page links here with ?ob=<id> to open that obligation
+  const params = useSearchParams();
+  const [openId, setOpenId] = useState<string | null>(() => params.get("ob"));
   const [voiding, setVoiding] = useState(false);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -98,7 +101,7 @@ export function ObligationsTab({ sessionId, query, workflow, activity, onChanged
                 const h = historyOf(selected.id, activity);
                 return h.length === 0 ? <p className="mt-1 text-body text-muted">No events are recorded for this obligation.</p> : (
                   <ol className="mt-2 divide-y divide-divider">
-                    {h.map((e) => <li key={`${e.at}-${e.kind}`} className="py-2.5"><span className="block text-body font-medium">{humanizeKind(e.kind)}</span><span className="block text-body text-muted">{e.detail}</span><span className="block text-label text-muted">{e.actor} · {formatDateTime(e.at)}</span></li>)}
+                    {h.map((e) => <li key={`${e.at}-${e.kind}`} className="py-2.5"><span className="block text-body font-medium">{humanizeKind(e.kind)}{transitionOf(e.kind) ? <span className="font-normal text-muted"> · {transitionText(transitionOf(e.kind)!)}</span> : null}</span><span className="block text-body text-muted">{e.detail}</span><span className="block text-label text-muted">{e.actor} · {formatDateTime(e.at)}</span></li>)}
                   </ol>
                 );
               })()}

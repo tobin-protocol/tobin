@@ -201,6 +201,7 @@ function SearchButton() {
         onClose={() => setOpen(false)}
         commands={[
           ...[...NAV, APPROVALS].map((n) => ({ id: n.href, label: n.label, group: "Go to", onSelect: () => router.push(n.href) })),
+          { id: "/discover", label: "Discover (not available)", group: "Future capability", onSelect: () => router.push("/discover") },
           // only the sessions this browser has already loaded: there is no backend search
           ...((qc.getQueryData<{ sessionId: string; label: string }[]>(["sessions", org.id]) ?? []).slice(0, 50).map((x) => ({ id: `s-${x.sessionId}`, label: x.label, group: "Loaded sessions", onSelect: () => router.push(`/sessions/${x.sessionId}`) }))),
         ]}

@@ -2,9 +2,10 @@
 
 import type { UseQueryResult } from "@tanstack/react-query";
 import { approvalNote, decisionStatusText } from "../../lib/approvals/rules.ts";
-import { middle } from "../../lib/format.ts";
-import type { AuthorizationView } from "../../lib/tobin/types.ts";
-import { Button } from "../ui/Button.tsx";
+import { formatAmount, middle } from "../../lib/format.ts";
+import { grossVsNet } from "../../lib/netting/group.ts";
+import type { AuthorizationView, CalculationView, ObligationView } from "../../lib/tobin/types.ts";
+import { Button, ButtonLink } from "../ui/Button.tsx";
 import { ErrorState, NotSupported, Skeleton } from "../ui/Feedback.tsx";
 import { ApprovalBlock, SignatureBlock, type DecisionRow } from "../ui/Flow.tsx";
 import { Card, StatGrid } from "../ui/Surfaces.tsx";
@@ -18,8 +19,11 @@ export const AUTH_LABEL: Record<AuthorizationView["state"], string> = {
  * (a #f0f0f0 card, Not supported) are separate sections: they never share a row or a button group. Approve and Reject live in the action panel as
  * separate confirmed dialogs, not in this tab.
  */
-export function ApprovalsTab({ query }: { query: UseQueryResult<AuthorizationView> }) {
+export function ApprovalsTab({ query, sessionId, obligations, calc }: { query: UseQueryResult<AuthorizationView>; sessionId: string; obligations: ObligationView[] | undefined; calc: CalculationView | undefined }) {
   const a = query.data;
+  const c = calc?.calculation ?? null;
+  const gn = c ? grossVsNet(c.gross, c.positions, calc?.currency === "current") : null;
+  const active = (obligations ?? []).filter((o) => o.status === "active");
   const rows: DecisionRow[] = (a?.decisions ?? []).map((d) => ({ id: d.id, reviewer: d.decidedBy, decision: d.decision, at: d.decidedAt, reason: d.reason || undefined, statusText: decisionStatusText(d.status) }));
   return (
     <div className="space-y-6">
@@ -40,6 +44,29 @@ export function ApprovalsTab({ query }: { query: UseQueryResult<AuthorizationVie
               ) : null}
             </div>
           ) : null}
+        </div>
+      </Card>
+
+      <Card>
+        <h2 className="text-entity font-medium">What is being reviewed</h2>
+        <p className="mt-1 text-body text-muted">The calculation and the obligations behind it, so the decision is made on what is in front of the reviewer.</p>
+        <div className="mt-3 space-y-4">
+          {c && gn ? (
+            <StatGrid columns={3} items={[
+              { label: "Gross obligations", value: formatAmount(c.gross, c.asset) },
+              { label: "Net that moves", value: formatAmount(gn.net, c.asset), hint: gn.reduction !== null ? `Netting removes ${formatAmount(gn.reduction, c.asset)}` : "Stale: not a current result" },
+              { label: "Participants", value: c.positions.length },
+            ]} />
+          ) : <p className="text-body text-muted">No calculation exists yet.</p>}
+          {active.length > 0 ? (
+            <ul className="divide-y divide-divider" aria-label="Obligations under review">
+              {active.map((o) => <li key={o.id} className="flex justify-between gap-3 py-2 text-body"><span>{o.debtorName} owes {o.creditorName}</span><span className="num whitespace-nowrap">{formatAmount(o.amount, o.asset)}</span></li>)}
+            </ul>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            <ButtonLink href={`/sessions/${sessionId}?tab=netting`} variant="quiet">Open netting</ButtonLink>
+            <ButtonLink href={`/sessions/${sessionId}?tab=obligations`} variant="quiet">Open obligations</ButtonLink>
+          </div>
         </div>
       </Card>
 

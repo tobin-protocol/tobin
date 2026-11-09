@@ -29,6 +29,7 @@ export function Button({ variant = "secondary", size = "md", loading = false, cl
   );
 }
 
-export function ButtonLink({ href, variant = "secondary", size = "md", className, children }: { href: string; variant?: ButtonVariant; size?: keyof typeof sizes; className?: string; children: ReactNode }) {
-  return <Link href={href} className={cn(base, variants[variant], sizes[size], className)}>{children}</Link>;
+/** A link that looks like a button. It forwards aria-label and title: a row of identical "Open" links needs distinct accessible names. */
+export function ButtonLink({ href, variant = "secondary", size = "md", className, children, "aria-label": ariaLabel, title }: { href: string; variant?: ButtonVariant; size?: keyof typeof sizes; className?: string; children: ReactNode; "aria-label"?: string; title?: string }) {
+  return <Link href={href} className={cn(base, variants[variant], sizes[size], className)} aria-label={ariaLabel} title={title}>{children}</Link>;
 }
