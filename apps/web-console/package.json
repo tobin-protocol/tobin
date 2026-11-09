@@ -11,7 +11,7 @@
     "dev": "next dev --hostname 127.0.0.1 --port 8787",
     "build": "next build",
     "build:console": "next build",
-    "start": "next start --hostname 127.0.0.1 --port 8787",
+    "start": "node scripts/start.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "node --test test/*.test.ts",
     "test:unit": "node --test test/guards.test.ts test/api.test.ts test/console-view.test.ts test/console-input.test.ts",
