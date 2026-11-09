@@ -11,7 +11,7 @@
 | Eligible | Development costs |
 | Ineligible | Audit costs (covered separately by the Audit Bank for eligible projects), marketing, legal fees, reimbursement of past work |
 | Deliverables | Specific, verifiable, each with a cost |
-| Tranches | T0 10% on acceptance (no deliverable); T1 20% MVP; T2 30% Testnet or equivalent; T3 40% Mainnet launch or equivalent. The three-tranche structure is recommended and adjustable. The handbook says the final tranche is normally a Mainnet launch and that jurisdiction-specific restrictions may modify this, for example a Testnet-only final tranche |
+| Tranches | OFFICIAL handbook structure: T0 10% on acceptance (no deliverable); T1 20% MVP; T2 30% Testnet or equivalent; T3 40% normally a Mainnet launch or equivalent. OUR PROPOSAL for this submission: T3 is the controlled institutional usage Testnet milestone (MVP-1.8, see the roadmap); Mainnet is not a deliverable. The handbook says the final tranche is normally a Mainnet launch and that jurisdiction-specific restrictions may modify this, for example a Testnet-only final tranche |
 | Timing | Each tranche submitted within 90 calendar days of the previous payment or the balance is forfeited |
 
 Scope (TEAM'S SCOPE): this submission is Stellar Testnet only; a Testnet-only final tranche relies on the handbook allowance above and is not an SCF decision. Mainnet is not a deliverable. Audit costs are outside this budget. Independent review is **planned** to be requested through the Audit Bank route; it has not been requested and no review has happened (roadmap D1.7-9).
