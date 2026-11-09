@@ -76,9 +76,10 @@ test("role change: the last active administrator cannot be demoted", () => {
   const p = roleChangePlan(admin, ms, ms[0]!, "member");
   assert.equal(p.blockedLastAdmin, true); assert.equal(p.canConfirm, false);
 });
-test("wallet wording says nothing is linked or verified", () => {
+test("wallet wording describes only what the button does", () => {
   assert.equal(WALLET_BUTTON_LABEL, "Connect a wallet");
-  assert.match(WALLET_NOTE, /not available yet/);
-  assert.match(WALLET_NOTE, /nothing is linked, signed or verified/);
+  // the note describes only what the button does and must not contradict a Verified row above it
+  assert.match(WALLET_NOTE, /looks for a wallet in this browser/);
+  assert.doesNotMatch(WALLET_NOTE, /not available|nothing is linked|not verified|unverified/i);
   assert.doesNotMatch(WALLET_BUTTON_LABEL, /link/i);
 });

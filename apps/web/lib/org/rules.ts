@@ -41,7 +41,7 @@ export const verifiedByMember = (v: readonly OrgVerification[]): Map<string, Org
 
 /** Wallet wording on the Wallets tab. The button only opens the Connect wallet window: nothing is linked, signed or verified. */
 export const WALLET_BUTTON_LABEL = "Connect a wallet";
-export const WALLET_NOTE = "This opens the Connect wallet window, which only looks for a wallet in this browser. Linking a wallet to your account and verifying it are not available yet: nothing is linked, signed or verified here.";
+export const WALLET_NOTE = "This button opens the Connect wallet window, which looks for a wallet in this browser. Verification is shown in the table above exactly as Tobin recorded it; this button does not change it.";
 
 export interface RoleChangePlan {
   /** the viewer may open the dialog at all (administrators only) */

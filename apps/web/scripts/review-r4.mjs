@@ -167,7 +167,7 @@ for (const w of WIDTHS) {
   await vis(main(page).getByText("Invite someone"), `${w}: the old Invitations address still works`);
   await go(page, "/wallets");
   check(/tab=wallets/.test(page.url()), `${w}: /wallets redirects to the Wallets tab`);
-  await vis(main(page).getByText(/nothing is linked, signed or verified/), `${w}: Wallets says nothing is linked or verified`);
+  await vis(main(page).getByText(/looks for a wallet in this browser/), `${w}: Wallets says nothing is linked or verified`);
   await main(page).getByRole("button", { name: "Connect a wallet" }).click();
   await vis(dlg(page), `${w}: Connect a wallet opens the Connect wallet window`);
   await shot(page, "organization-wallets-link", w);

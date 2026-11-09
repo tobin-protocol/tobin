@@ -16,6 +16,8 @@ import { middle } from "../../../lib/format.ts";
 import { roleLabels } from "../../../lib/permissions/can.ts";
 import { commandSessions } from "../../../lib/shell/command.ts";
 import { Icon } from "../../tobin/Icon.tsx";
+import { walletPopoverState, type PopoverAction } from "../../../lib/wallet/popover.ts";
+import { DisconnectWalletDialog } from "../../wallets/DisconnectWalletDialog.tsx";
 import { useWallet } from "../../wallet/WalletProvider.tsx";
 import { NAV } from "../nav.ts";
 import { useWorkspace } from "../session.tsx";
@@ -33,7 +35,7 @@ export function EnvironmentButton() {
           <span className="whitespace-nowrap font-label text-label"><span className="sm:hidden">Testnet</span><span className="hidden sm:inline">Stellar Testnet</span></span>
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-72 text-body">
+      <PopoverContent align="end" aria-label="Network" className="w-72 text-body">
         <p className="font-medium">Stellar Testnet</p>
         <p className="mt-1 text-muted">Tobin runs on Stellar Testnet only, with test assets. Nothing in this app moves real funds, and there is no Mainnet state.</p>
       </PopoverContent>
@@ -41,42 +43,52 @@ export function EnvironmentButton() {
   );
 }
 
-/** Connected and verified are two different facts and are shown as two rows. */
+/** Connected and verified are two different facts and are shown as two rows. Every word comes from walletPopoverState; wrong network is never "connected". */
 export function WalletCell() {
   const { me } = useWorkspace();
   const { wallet, connect, refresh } = useWallet();
+  const [disconnecting, setDisconnecting] = useState<{ id: string; publicKey: string } | null>(null);
+  const [open, setOpen] = useState(false);
   const address = "address" in wallet ? wallet.address : null;
-  const verified = !!address && (me.wallets ?? []).some((w) => w.publicKey === address);
-  const state = wallet.kind === "DETECTING" ? "Checking" : wallet.kind === "READY" ? (verified ? "Connected, verified" : "Connected, not verified") : wallet.kind === "WRONG_NETWORK" ? "Wrong network" : wallet.kind === "NOT_ALLOWED" ? "Not connected" : "Freighter not found";
+  const record = address ? (me.wallets ?? []).find((w) => w.publicKey === address) ?? null : null;
+  const verified = !!record;
+  const st = walletPopoverState(wallet, verified);
+  const has = (a: PopoverAction) => st.actions.includes(a);
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button type="button" aria-label={`Wallet: ${state}`} className={BAR_BTN}>
-          <span aria-hidden="true" className="flex size-6 items-center justify-center bg-ink-10 text-label">{address ? address[0] : "·"}</span>
-          <span className="hidden text-left leading-tight lg:block">
-            <span className="block font-mono text-ident normal-case">{address ? middle(address, 4, 4) : "No wallet"}</span>
-            <span className="block font-label text-label normal-case text-muted">{state}</span>
-          </span>
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 text-body">
-        <p className="font-medium">Wallet</p>
-        <dl className="mt-2 space-y-1.5">
-          <div className="flex justify-between gap-3"><dt className="text-muted">Provider</dt><dd>Freighter</dd></div>
-          <div className="flex justify-between gap-3"><dt className="text-muted">Connected</dt><dd>{wallet.kind === "READY" ? "Yes" : "No"}</dd></div>
-          <div className="flex justify-between gap-3"><dt className="text-muted">Verified for your account</dt><dd>{verified ? "Yes" : "No"}</dd></div>
-          {address ? <div className="flex justify-between gap-3"><dt className="text-muted">Address</dt><dd className="font-mono text-ident">{middle(address, 6, 6)}</dd></div> : null}
-        </dl>
-        <p className="mt-3 text-label text-muted">Connected means Freighter answered on Testnet. Verified means you proved control of this key to Tobin. A connected wallet is not a verified one, and neither grants a role or signing authority in Tobin.</p>
-        {wallet.kind === "UNAVAILABLE" ? <p className="mt-2 text-label text-muted">Freighter was not found in this browser.</p> : null}
-        {wallet.kind === "WRONG_NETWORK" ? <p className="mt-2 text-label text-muted">Freighter is on {wallet.network}. Switch it to Testnet.</p> : null}
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Button size="sm" onClick={() => connect()}>Connect Freighter</Button>
-          <Button size="sm" variant="outline" onClick={() => refresh()}>Check again</Button>
-        </div>
-        <Link href="/wallets" className="mt-3 inline-flex min-h-11 items-center text-body underline underline-offset-4">Manage wallets</Link>
-      </PopoverContent>
-    </Popover>
+    <>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button type="button" aria-label={`Wallet: ${st.barLabel}`} className={BAR_BTN}>
+            <span aria-hidden="true" className="flex size-6 items-center justify-center bg-ink-10 text-label">{address ? address[0] : "·"}</span>
+            <span className="hidden text-left leading-tight lg:block">
+              <span className="block font-mono text-ident normal-case">{address ? middle(address, 4, 4) : "No wallet"}</span>
+              <span className="block font-label text-label normal-case text-muted">{st.barLabel}</span>
+            </span>
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="end" aria-label="Wallet" className="w-80 text-body" data-wallet-state={st.id}>
+          <p className="font-medium">{st.title}</p>
+          <dl className="mt-2 space-y-1.5">
+            <div className="flex justify-between gap-3"><dt className="text-muted">Provider</dt><dd>Freighter</dd></div>
+            <div className="flex justify-between gap-3"><dt className="text-muted">Connected</dt><dd>{st.connected ? "Yes" : "No"}</dd></div>
+            <div className="flex justify-between gap-3"><dt className="text-muted">Verified for your account</dt><dd>{verified ? "Yes" : "No"}</dd></div>
+            {address ? <div className="flex justify-between gap-3"><dt className="text-muted">Address</dt><dd className="font-mono text-ident">{middle(address, 6, 6)}</dd></div> : null}
+          </dl>
+          {st.lines.map((l) => <p key={l} className="mt-3 text-label text-muted">{l}</p>)}
+          {st.detail ? <p className="mt-2 text-label text-muted">{st.detail}</p> : null}
+          {st.connected ? <p className="mt-2 text-label text-muted">Connected means Freighter answered on Testnet. Verified means you proved control of this key to Tobin.</p> : null}
+          {st.actions.some((a) => a !== "manage") ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {has("connect") ? <Button size="sm" onClick={() => connect()}>Connect Freighter</Button> : null}
+              {has("disconnect") && record ? <Button size="sm" variant="outline" onClick={() => { setOpen(false); setDisconnecting({ id: record.id, publicKey: record.publicKey }); }}>Disconnect</Button> : null}
+              {has("check-again") ? <Button size="sm" variant="outline" onClick={() => refresh()}>Check again</Button> : null}
+            </div>
+          ) : null}
+          {has("manage") ? <Link href="/organization?tab=wallets" onClick={() => setOpen(false)} className="mt-3 inline-flex min-h-11 items-center text-body underline underline-offset-4">Manage wallets</Link> : null}
+        </PopoverContent>
+      </Popover>
+      <DisconnectWalletDialog wallet={disconnecting} onClose={() => setDisconnecting(null)} />
+    </>
   );
 }
 

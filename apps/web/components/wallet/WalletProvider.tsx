@@ -1,9 +1,9 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { connectWallet, inspectWallet, loadFreighter, type FreighterLike, type WalletState } from "../../lib/wallet/freighter.ts";
+import { connectWallet, inspectWallet, loadFreighter, type FreighterLike, type WalletView } from "../../lib/wallet/freighter.ts";
 
-export type WalletView = { kind: "DETECTING" } | WalletState;
+export type { WalletView };
 interface Ctx { wallet: WalletView; api: () => Promise<FreighterLike | undefined>; refresh: () => Promise<void>; connect: () => Promise<void> }
 const WalletContext = createContext<Ctx | null>(null);
 
@@ -20,7 +20,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => { setWallet(await inspectWallet(await api())); }, [api]);
   const connect = useCallback(async () => {
     const r = await connectWallet(await api());
-    if (!r.ok) { setWallet({ kind: r.rejected ? "NOT_ALLOWED" : "UNAVAILABLE", reason: r.reason }); return; }
+    if (!r.ok) { setWallet(r.rejected ? { kind: "NOT_ALLOWED", cause: "locked-or-denied", reason: r.reason } : { kind: "UNAVAILABLE", reason: r.reason }); return; }
     await refresh();
   }, [api, refresh]);
 

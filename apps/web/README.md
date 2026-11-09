@@ -67,7 +67,7 @@ Real roles only: **Admin** and **Member**, plus a separate **Reviewer** grant th
 
 - **Real** (read from the console as it answers): sessions, obligations, calculations, authorizations, settlement batches, members, invitations, wallet records, account audit.
 - **Derived** (computed here from per-session reads of the newest sessions, because the API has no aggregate endpoint): Overview, Reviews, global Obligations, global Activity and the sidebar Reviews count. Every one says how much it covers ("Based on N of M sessions") and "Load next 10 sessions" widens it. No figure is summed across assets.
-- **Not supported** (shown with the shared component and a reason, never mocked): Notifications; Sign, Submit and Verify; collecting Stellar signatures; N-of-M approval; participants from other organizations; assets, deadlines and settlement parameters at session creation; institution directory; roles beyond Admin and Member; password change; list of active sessions. Wallet linking and verification are not available: the Connect a wallet button only opens a window that looks for a wallet in this browser.
+- **Not supported** (shown with the shared component and a reason, never mocked): Notifications; Sign, Submit and Verify; collecting Stellar signatures; N-of-M approval; participants from other organizations; assets, deadlines and settlement parameters at session creation; institution directory; roles beyond Admin and Member; password change; list of active sessions. Wallet linking from this app is not available (the backend can link, the client has no call for it): the Connect a wallet button only opens a window that looks for a wallet in this browser. Disconnect removes the verified record and the sessions that used it; it cannot remove Tobin's permission inside Freighter.
 - **Sample**: only with `NEXT_PUBLIC_TOBIN_SAMPLE_DATA=1`, labelled. The Discover "how clearing works" figures are an illustrative example and say so.
 
 ## Scripts
@@ -75,7 +75,7 @@ Real roles only: **Admin** and **Member**, plus a separate **Reviewer** grant th
 ```bash
 npm run typecheck --workspace tobin-web   # ~30 s
 npm run lint      --workspace tobin-web   # ~1 min
-npm test          --workspace tobin-web   # ~10 s: node --test, 143 tests (permissions, derivation, proxy policy, Confirmed rule, source scans, roles, review queue)
+npm test          --workspace tobin-web   # ~10 s: node --test, 150 tests (permissions, derivation, proxy policy, Confirmed rule, source scans, roles, review queue)
 ```
 
 Browser scripts need both servers running and a **fresh, seeded, throwaway** console database (`SEED_EXTRA_SESSIONS=12 SEED_WALLET=1 SEED_ASSET_REF=testnet:USD:G... node scripts/seed-review-data.mjs`). They drive the real UI and real API as Alice (admin), Bob (reviewer) and Carol (member); times are rough, on a laptop:
@@ -87,6 +87,7 @@ Browser scripts need both servers running and a **fresh, seeded, throwaway** con
 | `node scripts/review-r2.mjs <dir>` | Overview, Sessions, wizard, workspace shell | 6 min |
 | `node scripts/review-r3.mjs <dir>` | workspace tabs, Settlement steps, Reopen | 10 min |
 | `node scripts/review-r4.mjs <dir>` | global pages, Organization, Settings | 8 min |
+| `AXE_PATH=... node scripts/review-wallet-states.mjs <dir>` | wallet popover states against a mock Freighter, axe with it open, Disconnect confirmation and one real Disconnect; needs the seed with `SEED_WALLET=1` | 4 min |
 | `node scripts/review-r5.mjs <dir>` | axe on every route (signed-out, member, admin), overflow at 390 and 360, every dialog and sheet's copy; needs `AXE_PATH` | 10 min |
 | `node scripts/review-screenshots{,-b,-c,-d,-e,-f}.mjs <dir>` | Stages A to F, the earlier acceptance runs | 3 to 10 min each |
 | `node scripts/keyboard-walkthrough.mjs` | keyboard-only main flows | 2 min |

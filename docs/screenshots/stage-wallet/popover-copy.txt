@@ -1,0 +1,189 @@
+Wallet popover copy as rendered (mock Freighter)
+
+--- 1440px not-found (top bar: Wallet: Freighter not found)
+Freighter not found
+Provider
+Freighter
+Connected
+No
+Verified for your account
+No
+Freighter was not found in this browser. Install the extension, then check again.
+Freighter is not installed or did not answer
+CHECK AGAIN
+
+--- 1440px not-connected (top bar: Wallet: Not connected)
+Freighter is installed, not connected
+Provider
+Freighter
+Connected
+No
+Verified for your account
+No
+This site has not been given access in Freighter yet. Connecting opens a Freighter window that you approve.
+CONNECT FREIGHTER
+CHECK AGAIN
+
+--- 1440px locked-or-denied (top bar: Wallet: Locked or declined)
+Freighter is locked or access was declined
+Provider
+Freighter
+Connected
+No
+Verified for your account
+No
+Unlock Freighter, or approve the access request, then connect again.
+wallet is locked (code -4)
+CONNECT FREIGHTER
+CHECK AGAIN
+
+--- 1440px connected-verified (top bar: Wallet: Connected, verified)
+Connected and verified
+Provider
+Freighter
+Connected
+Yes
+Verified for your account
+Yes
+Address
+GDQIJW…NSYL6X
+Freighter is connected on Testnet, and Tobin has a verified record of this key for your account. Neither grants a role or signing authority in Tobin.
+Connected means Freighter answered on Testnet. Verified means you proved control of this key to Tobin.
+DISCONNECT
+Manage wallets
+
+--- 1440px connected-unverified (top bar: Wallet: Connected, not verified)
+Connected, not verified
+Provider
+Freighter
+Connected
+Yes
+Verified for your account
+No
+Address
+GDQP2K…HG4W37
+Freighter is connected on Testnet, but Tobin has no verified record of this key for your account, so Tobin has nothing to disconnect. To stop this site using the wallet, remove Tobin's access inside Freighter.
+Connected means Freighter answered on Testnet. Verified means you proved control of this key to Tobin.
+Manage wallets
+
+--- 1440px wrong-network (top bar: Wallet: Wrong network)
+Wrong network
+Provider
+Freighter
+Connected
+No
+Verified for your account
+Yes
+Address
+GDQIJW…NSYL6X
+Tobin supports Stellar Testnet only in this build. Switch Freighter to Testnet.
+Freighter is on PUBLIC.
+CHECK AGAIN
+
+--- 390px not-found (top bar: Wallet: Freighter not found)
+Freighter not found
+Provider
+Freighter
+Connected
+No
+Verified for your account
+No
+Freighter was not found in this browser. Install the extension, then check again.
+Freighter is not installed or did not answer
+CHECK AGAIN
+
+--- 390px not-connected (top bar: Wallet: Not connected)
+Freighter is installed, not connected
+Provider
+Freighter
+Connected
+No
+Verified for your account
+No
+This site has not been given access in Freighter yet. Connecting opens a Freighter window that you approve.
+CONNECT FREIGHTER
+CHECK AGAIN
+
+--- 390px locked-or-denied (top bar: Wallet: Locked or declined)
+Freighter is locked or access was declined
+Provider
+Freighter
+Connected
+No
+Verified for your account
+No
+Unlock Freighter, or approve the access request, then connect again.
+wallet is locked (code -4)
+CONNECT FREIGHTER
+CHECK AGAIN
+
+--- 390px connected-verified (top bar: Wallet: Connected, verified)
+Connected and verified
+Provider
+Freighter
+Connected
+Yes
+Verified for your account
+Yes
+Address
+GDQIJW…NSYL6X
+Freighter is connected on Testnet, and Tobin has a verified record of this key for your account. Neither grants a role or signing authority in Tobin.
+Connected means Freighter answered on Testnet. Verified means you proved control of this key to Tobin.
+DISCONNECT
+Manage wallets
+
+--- 390px connected-unverified (top bar: Wallet: Connected, not verified)
+Connected, not verified
+Provider
+Freighter
+Connected
+Yes
+Verified for your account
+No
+Address
+GDQP2K…HG4W37
+Freighter is connected on Testnet, but Tobin has no verified record of this key for your account, so Tobin has nothing to disconnect. To stop this site using the wallet, remove Tobin's access inside Freighter.
+Connected means Freighter answered on Testnet. Verified means you proved control of this key to Tobin.
+Manage wallets
+
+--- 390px wrong-network (top bar: Wallet: Wrong network)
+Wrong network
+Provider
+Freighter
+Connected
+No
+Verified for your account
+Yes
+Address
+GDQIJW…NSYL6X
+Tobin supports Stellar Testnet only in this build. Switch Freighter to Testnet.
+Freighter is on PUBLIC.
+CHECK AGAIN
+
+--- 1440px Wallets tab, wrong network
+Wallet in this browser
+GDQIJWAI…NSYL6X Not connected. Freighter is on PUBLIC. Tobin supports Stellar Testnet only in this build. Switch Freighter to Testnet.
+NOTE: This button opens the Connect wallet window, which looks for a wallet in this browser. Verification is shown in the table above exactly as Tobin recorded it; this button does not change it.
+
+--- 390px Wallets tab, wrong network
+Wallet in this browser
+GDQIJWAI…NSYL6X Not connected. Freighter is on PUBLIC. Tobin supports Stellar Testnet only in this build. Switch Freighter to Testnet.
+NOTE: This button opens the Connect wallet window, which looks for a wallet in this browser. Verification is shown in the table above exactly as Tobin recorded it; this button does not change it.
+
+--- 390px Disconnect confirmation (from the popover)
+Disconnect this wallet?
+This removes the verified record of this wallet from your Tobin account and signs out every Tobin session that used it. It does not delete or change the Stellar account, and nothing on Stellar is affected.
+GDQIJWAISCGEAGPCA4CMQDRCTNL4TTWWKJGTKCO5UKXH2VVXNVNSYL6X
+Tobin cannot remove its own access inside Freighter, because a website cannot revoke it. To revoke that permission as well, open Freighter's connected sites and remove Tobin there.
+If it is the only way your account can sign in, the server refuses and says so.
+Cancel
+Disconnect wallet
+
+--- 1440px Disconnect confirmation (from the popover)
+Disconnect this wallet?
+This removes the verified record of this wallet from your Tobin account and signs out every Tobin session that used it. It does not delete or change the Stellar account, and nothing on Stellar is affected.
+GDQIJWAISCGEAGPCA4CMQDRCTNL4TTWWKJGTKCO5UKXH2VVXNVNSYL6X
+Tobin cannot remove its own access inside Freighter, because a website cannot revoke it. To revoke that permission as well, open Freighter's connected sites and remove Tobin there.
+If it is the only way your account can sign in, the server refuses and says so.
+Cancel
+Disconnect wallet

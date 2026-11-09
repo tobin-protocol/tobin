@@ -1,18 +1,20 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { formatDate, formatDateTime } from "../../lib/format.ts";
 import { WALLET_BUTTON_LABEL, WALLET_NOTE, walletRows, type WalletRow } from "../../lib/org/rules.ts";
+import { WRONG_NETWORK_MESSAGE } from "../../lib/wallet/popover.ts";
+import { DisconnectWalletDialog } from "./DisconnectWalletDialog.tsx";
 import { client } from "../../lib/tobin/index.ts";
 import { useWallet } from "../wallet/WalletProvider.tsx";
 import { useConnectWallet } from "../auth/ConnectWallet.tsx";
 import { useMe, useWorkspace } from "../shell/session.tsx";
-import { CopyButton, reasonOf } from "../sessions/shared.tsx";
+import { CopyButton } from "../sessions/shared.tsx";
 import { Button } from "../ui/Button.tsx";
 import { Identifier, Table, type Col } from "../ui/Data.tsx";
 import { EmptyState, ErrorState, InlineError, Skeleton } from "../ui/Feedback.tsx";
-import { Dialog, SidePanel } from "../ui/Overlays.tsx";
+import { SidePanel } from "../ui/Overlays.tsx";
 import { Card, StatGrid } from "../ui/Surfaces.tsx";
 
 export const NO_AUTHORITY = "Application roles never grant signing authority, and a verified wallet confers no role, no reviewer capability and no signing authority in Tobin.";
@@ -53,16 +55,13 @@ export function OrgWallets() {
 
 /** The wallets of the signed-in account, as the backend returns them. It is the body of the Organization page's Wallets tab. */
 export function WalletsPanel() {
-  const { org } = useWorkspace();
   const connect = useConnectWallet();
   const me = useMe();
   const wallet = useWallet();
-  const qc = useQueryClient();
   const [open, setOpen] = useState<WalletRow | null>(null);
   const [confirm, setConfirm] = useState<WalletRow | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const browserAddress = wallet.wallet.kind === "READY" || wallet.wallet.kind === "WRONG_NETWORK" ? wallet.wallet.address : null;
+  // only Freighter on Testnet is a connection; a wrong network is never shown as connected
+  const browserAddress = wallet.wallet.kind === "READY" ? wallet.wallet.address : null;
   const rows = walletRows(me.data?.wallets ?? [], browserAddress);
 
   const cols: Col<WalletRow>[] = [
@@ -71,15 +70,8 @@ export function WalletsPanel() {
     { id: "conn", header: "Connection", cell: (r) => <span className={r.connection.startsWith("Connected") ? "font-medium" : "text-muted"}>{r.connection === "Connected in this browser" ? "Connected" : "Not connected"}</span> },
     { id: "ver", header: "Verification", cell: (r) => r.verification },
     { id: "when", header: "Associated", cell: (r) => <span className="whitespace-nowrap text-muted">{formatDate(r.verifiedAt)}</span>, hideBelow: "md" },
-    { id: "act", header: "", align: "right", cell: (r) => <Button variant="quiet" onClick={() => { setError(null); setOpen(r); }} aria-label={`Details of wallet ${r.publicKey.slice(0, 8)}`}>Details</Button> },
+    { id: "act", header: "", align: "right", cell: (r) => <Button variant="quiet" onClick={() => setOpen(r)} aria-label={`Details of wallet ${r.publicKey.slice(0, 8)}`}>Details</Button> },
   ];
-
-  const disconnect = async () => {
-    if (!confirm) return;
-    setBusy(true); setError(null);
-    try { await client.auth.removeWallet(confirm.id); setConfirm(null); setOpen(null); await qc.invalidateQueries({ queryKey: ["me"] }); await qc.invalidateQueries({ queryKey: ["org-verifications", org.id] }); }
-    catch (e) { setError(reasonOf(e)); setConfirm(null); } finally { setBusy(false); }
-  };
 
   return (
     <>
@@ -94,7 +86,6 @@ export function WalletsPanel() {
           </div>
           <div className="mt-3"><Button onClick={connect.open}>{WALLET_BUTTON_LABEL}</Button></div>
           <p className="mt-2 max-w-prose text-label text-muted" role="note">{WALLET_NOTE}</p>
-          {error ? <div className="mt-3"><InlineError>{error}</InlineError></div> : null}
           <p className="mt-3 text-label text-muted">The backend records no wallet provider, so none is shown.</p>
         </Card>
 
@@ -104,7 +95,8 @@ export function WalletsPanel() {
             {wallet.wallet.kind === "DETECTING" ? <span className="text-muted">Checking for Freighter…</span>
               : wallet.wallet.kind === "UNAVAILABLE" ? <span className="text-muted">Freighter was not found in this browser.</span>
               : wallet.wallet.kind === "NOT_ALLOWED" ? <span className="text-muted">Freighter is installed but this site is not allowed. {wallet.wallet.reason}</span>
-              : <span><Identifier value={wallet.wallet.address} head={8} tail={6} /> <span className="text-muted">on {wallet.wallet.network}{wallet.wallet.kind === "WRONG_NETWORK" ? ". Switch Freighter to Testnet." : ""}</span></span>}
+              : wallet.wallet.kind === "WRONG_NETWORK" ? <span><Identifier value={wallet.wallet.address} head={8} tail={6} /> <span className="text-muted">Not connected. Freighter is on {wallet.wallet.network}. {WRONG_NETWORK_MESSAGE}</span></span>
+              : <span><Identifier value={wallet.wallet.address} head={8} tail={6} /> <span className="text-muted">Connected on {wallet.wallet.network}</span></span>}
           </div>
         </Card>
 
@@ -129,15 +121,12 @@ export function WalletsPanel() {
               ]} />
             </div>
             <p className="text-body text-muted" role="note">{NO_AUTHORITY}</p>
-            <Button variant="destructive" onClick={() => { setError(null); setConfirm(open); }}>Disconnect wallet</Button>
+            <Button variant="destructive" onClick={() => setConfirm(open)}>Disconnect wallet</Button>
           </div>
         ) : null}
       </SidePanel>
 
-      <Dialog open={!!confirm} onClose={() => setConfirm(null)} destructive title="Disconnect this wallet?" description="This removes the verified wallet from your Tobin account and signs out every session that used it. It does not delete or change the Stellar account, and nothing on Stellar is affected." primary={{ label: "Disconnect wallet", onClick: disconnect, loading: busy }}>
-        {confirm ? <p className="break-all font-mono text-ident">{confirm.publicKey}</p> : null}
-        <p className="mt-2 text-label text-muted">If it is the only way your account can sign in, the server refuses and says so.</p>
-      </Dialog>
+      <DisconnectWalletDialog wallet={confirm} onClose={() => setConfirm(null)} onDone={() => setOpen(null)} />
     </>
   );
 }
