@@ -70,7 +70,7 @@ Real roles only: **Admin** and **Member**, plus a separate **Reviewer** grant th
 - **Not supported** (shown with the shared component and a reason, never mocked): Notifications; Sign, Submit and Verify; collecting Stellar signatures; N-of-M approval; participants from other organizations; assets, deadlines and settlement parameters at session creation; institution directory; roles beyond Admin and Member; password change; list of active sessions. Wallet linking and verification are not available: the Connect a wallet button only opens a window that looks for a wallet in this browser.
 - **Sample**: only with `NEXT_PUBLIC_TOBIN_SAMPLE_DATA=1`, labelled. The Discover "how clearing works" figures are an illustrative example and say so.
 
-## Checks
+## Scripts
 
 ```bash
 npm run typecheck --workspace tobin-web   # ~30 s
