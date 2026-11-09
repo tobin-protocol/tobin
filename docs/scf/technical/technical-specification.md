@@ -1,4 +1,4 @@
-# Tobin technical specification (as implemented)
+# Tobin technical specification 
 
 Status: technical document of the SCF Build Award (Open Track) submission package, 2026-11-09. Describes the rules the code implements today, not a design. Our own recommended documentation.
 Evidence basis: `contracts/clearing/src/lib.rs` (read line by line), `contracts/token/src/lib.rs`, `packages/mvp1-sdk/src/{engine,digest.ts,sdk/prepare.ts}`, `apps/web-console/lib/{registry,auth,stellar,db,server}`. Constants are quoted from the files named. Same-author; tests exist but were not run for this document.
