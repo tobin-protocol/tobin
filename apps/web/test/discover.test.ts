@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { unavailableClient } from "../lib/discover/client.ts";
 import type { PublicInstitution, PublicSettlement } from "../lib/discover/types.ts";
-import { EMPTY_TILE, SORTS, explorerUrl, institutionView, parseSort, parseTab, settlementView, statsView } from "../lib/discover/view.ts";
+import { EMPTY_BODY, EMPTY_TILE, SORTS, explorerUrl, institutionView, parseSort, parseTab, settlementView, statsView } from "../lib/discover/view.ts";
 
 // These fixtures exist only in this test. No screen ships sample rows.
 const HASH = "a".repeat(64);
@@ -93,4 +93,11 @@ test("the API can never produce a verified mark unless it says so", () => {
   const raw = { id: "s1", asset: { code: "USD" }, amount: "1", settledAt: "2026-11-09T10:00:00Z", txHash: HASH, network: "testnet" };
   assert.equal(settlementView(mapSettlement(raw)!).mark, null);
   assert.equal(mapSettlement({ ...raw, parties: { payer: { institutionId: "a", displayName: "A" } } })!.parties, null);
+});
+
+test("each empty tab is worded for what it lists; institutions and assets are not called settlement data", () => {
+  assert.equal(EMPTY_BODY.settlements, "Public settlement data is not available yet.");
+  assert.equal(EMPTY_BODY.institutions, "No institutions have chosen public visibility yet.");
+  assert.equal(EMPTY_BODY.assets, "No assets are in public use yet.");
+  assert.doesNotMatch(EMPTY_BODY.institutions + EMPTY_BODY.assets, /settlement/i);
 });

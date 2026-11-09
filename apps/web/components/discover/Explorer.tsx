@@ -3,7 +3,7 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { discover } from "../../lib/discover/client.ts";
-import { EMPTY_TILE, SORTS, TABS, institutionView, parseSort, parseTab, settlementView, statsView } from "../../lib/discover/view.ts";
+import { EMPTY_BODY, EMPTY_TILE, SORTS, TABS, institutionView, parseSort, parseTab, settlementView, statsView } from "../../lib/discover/view.ts";
 import type { DiscoverTab, PublicAssetUse, PublicInstitution, PublicSettlement } from "../../lib/discover/types.ts";
 import { PageTabs } from "../ui/Data.tsx";
 import { StatGrid } from "../ui/Surfaces.tsx";
@@ -14,11 +14,11 @@ import { formatAmount, formatDateTime } from "../../lib/format.ts";
 
 const TILE = "flex min-h-[86px] flex-col justify-center gap-1 bg-tile px-4 py-3";
 
-function EmptyTile({ note }: { note?: string }) {
+function EmptyTile({ note, tab }: { note?: string; tab: DiscoverTab }) {
   return (
     <li className={TILE}>
       <p className="font-label text-label uppercase tracking-wider">{EMPTY_TILE.title}</p>
-      <p className="text-body text-muted">{note ?? EMPTY_TILE.body}</p>
+      <p className="text-body text-muted">{note ?? EMPTY_BODY[tab]}</p>
     </li>
   );
 }
@@ -109,7 +109,7 @@ export function Explorer() {
         ) : (
           <>
             <ul aria-label={`${TABS.find((t) => t.id === tab)?.label}`} className="mt-4 space-y-2">
-              {items.length === 0 ? <EmptyTile note={note} /> : tab === "settlements" ? (items as PublicSettlement[]).map((s) => <SettlementTile key={s.id} s={s} />) : tab === "institutions" ? (items as PublicInstitution[]).map((i) => <InstitutionTile key={i.id} i={i} />) : (items as PublicAssetUse[]).map((a) => <AssetTile key={a.asset.code + (a.asset.issuer ?? "")} a={a} />)}
+              {items.length === 0 ? <EmptyTile note={note} tab={tab} /> : tab === "settlements" ? (items as PublicSettlement[]).map((s) => <SettlementTile key={s.id} s={s} />) : tab === "institutions" ? (items as PublicInstitution[]).map((i) => <InstitutionTile key={i.id} i={i} />) : (items as PublicAssetUse[]).map((a) => <AssetTile key={a.asset.code + (a.asset.issuer ?? "")} a={a} />)}
             </ul>
             {failed ? <p role="alert" className="mt-2 text-body text-danger">{failed.kind === "error" ? failed.message : ""}</p> : null}
             {list.hasNextPage ? <div className="mt-4"><Button variant="outline" disabled={list.isFetchingNextPage} onClick={() => void list.fetchNextPage()}>{list.isFetchingNextPage ? "Loading" : "Load more"}</Button></div> : null}

@@ -25,6 +25,13 @@ export type AnySort = SettlementSort | InstitutionSort | AssetSort;
 
 export const EMPTY_TILE = { title: "No data", body: "Public settlement data is not available yet." } as const;
 
+/** The body of an empty list, worded for what the tab lists. Institutions and assets are not settlement data. */
+export const EMPTY_BODY: Record<DiscoverTab, string> = {
+  settlements: EMPTY_TILE.body,
+  institutions: "No institutions have chosen public visibility yet.",
+  assets: "No assets are in public use yet.",
+};
+
 export function statsView(result: DiscoverResult<ProtocolStats> | undefined): { label: string; value: string }[] {
   const s = result?.kind === "ok" ? result.data : null;
   const count = (n: number | null | undefined) => (typeof n === "number" ? String(n) : "No data");
