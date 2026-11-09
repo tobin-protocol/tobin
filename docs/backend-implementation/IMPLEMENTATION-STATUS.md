@@ -17,8 +17,8 @@ P0, P1, P2, P3, P4, P5, P7, P6. P8 (settlement execution) is not approved and no
 | Phase | Scope | Branch | Status | Acceptance |
 |---|---|---|---|---|
 | P0 | Record decisions, baseline, dependency and risk matrix; no source change | `docs/backend-p0-decisions` | **Merged** (PR #47) | accepted by merge |
-| P1 | Hosting readiness and security hardening on SQLite | `feat/backend-hosting-hardening` | **In review** (pull request open) | pending owner review; CI result recorded on the PR |
-| P2 | Registry store conformance, tenant isolation, concurrency, immutability, JSON key order | `test/registry-store-conformance` (planned) | Not started | not accepted |
+| P1 | Hosting readiness and security hardening on SQLite | `feat/backend-hosting-hardening` | **Merged** (PR #48; CI green on the PR) | accepted by merge |
+| P2 | Registry store conformance, tenant isolation, concurrency, immutability, JSON key order | `test/registry-store-conformance` | **In review** (pull request open) | pending owner review; CI result recorded on the PR |
 | P3 | Asynchronous store refactor on SQLite | `refactor/async-registry-store` (planned) | Not started | not accepted |
 | P4 | PostgreSQL implementation | `feat/postgres-persistence` (planned) | Not started | not accepted |
 | P5 | SQLite backup, inspection, migration utility and rehearsals | `feat/sqlite-postgres-migration` (planned) | Not started | not accepted |
@@ -94,3 +94,35 @@ The skipped tests are expected to be bridge-dependent (`TOBIN_BRIDGE_EXE` unset)
 **Outstanding / risks.** Railway behaviour for the listen address, `PORT`, and the forwarded-address header is Unknown (validation plan in `HOSTING-CONFIGURATION.md` section 7). Bringing the entry lifetime to 10 ledgers has not been exercised in an owner-attended interactive session (R-18). Invitation-controlled registration, email verification and recovery, wallet linking and the separate-reviewer rule remain P7. The development code is refused, not removed, in a hosted build. The new CI job has not yet run on hosted CI.
 
 **Acceptance.** Exit criteria status: configurable fail-closed guards (met, local); no unauthenticated development routes in hosted mode (met, local); security headers verified (met, local Chrome); CSRF at the correct boundary (met, local); IP-aware limiting tested (met, local); redacted structured logs (met, local); distinct liveness and readiness (met, local); `apps/web` checks in CI (added, pending first run); existing functionality intact (met on the scripts listed above); staging-compatible configuration can be built (met: hosted production builds and servers run on loopback). Owner acceptance pending.
+
+## P2 record (database and tenant-isolation test foundation)
+
+**Scope.** Tests and test infrastructure only. No application code, schema, dependency or workflow change. Policy recorded in [`CI-VALIDATION-POLICY.md`](CI-VALIDATION-POLICY.md).
+
+**What was added (all under `apps/web-console/test/`).**
+
+- `store-harness.ts`: the store factory (`StoreHarness`, `StoreHandle`) with the SQLite harness and `TOBIN_TEST_STORE` selection (an unknown value fails loudly). The handle offers only what the domain API does not: raw mutation attempts, row counts, failure injection, the operator-configured asset.
+- `registry-conformance.suite.ts` (+ `registry-conformance.sqlite.test.ts`): 13 tests. Immutability (all 15 append-only or immutable tables refuse UPDATE and DELETE; the chain populates every one except three documented ones: the two invalidation tables and signer-set snapshots, each explained and asserted); atomicity (five operations fail with an injected failure on the last write and leave every domain table unchanged, then succeed once the failure is removed; a failed decision does not consume the calculation); JSON key order (six participants added in reverse id order; positions stable across reads and the settlement can be prepared, which recomputes and compares `JSON.stringify`); concurrency invariants (two administrators stepping down at once, one invitation accepted once, concurrent calculations, one decision per calculation, one batch per approved calculation and one review per batch, one execution per batch); two idempotency characterization tests and the P7 requirement list as data.
+- `tenant-isolation.suite.ts` (+ `.sqlite.test.ts`): 6 tests over an explicit table of **47 organization-scoped routes**, cross-checked against the router's own `sub ===` dispatches. A foreign administrator gets exactly the answer a nonexistent organization gets (no existence oracle), nothing from the first organization appears in any response, no table row count changes after the whole table is replayed, another organization's session and batch ids look nonexistent, a member is refused administrator work with 403, and an unauthenticated caller gets 401 everywhere.
+
+**Evidence that the suite detects faults (mutation checks, run once by hand, each reverted; the tree is clean).** Removing the `calculations_no_update` trigger is caught; making rollback commit is caught; disabling the last-administrator guard was **not** caught by the first version of the concurrency test (the permission rules masked it), so the test was rewritten (both administrators step down at once) and then caught; making the store sort position keys is caught; removing the membership check in `invitations()` and the administrator check in `#updateProfile` are caught by the tenant-isolation suite.
+
+**Tests executed (Tested locally; Node v24.14.0).**
+
+| Command | Result |
+|---|---|
+| `node --test test/registry-conformance.sqlite.test.ts` | 13 tests, 13 pass |
+| `node --test test/tenant-isolation.sqlite.test.ts` | 6 tests, 6 pass |
+| `npm test --workspace tobin-web-console` | 537 tests, 529 pass, 0 fail, 8 skipped (the same 8), 0 todo (before P2: 518) |
+| root typecheck | exit 0 |
+
+**Deviations and honest limits.**
+
+1. **"Extract assertions from the existing test files" is only partly done.** The new suites carry the store-contract assertions (immutability, atomicity, concurrency, tenant isolation, key order). The domain tests in `registry.test.ts`, `clearing-ops`, `authorization-ops`, `settlement-ops`, `attempts-ops`, `signer-set-ops`, `wallet-ops` and `backend-db.test.ts` still build their own SQLite backend and many use `b.db.raw` directly, so they cannot yet run on another store. Making them store-parametric needs the asynchronous helper of P3 (the helper is rewritten there anyway); until then they keep running on SQLite through the real handlers and remain part of the full suite. This is a deferred check, not a passed one: it must be completed in P3, before P4 uses them as the PostgreSQL gate.
+2. **The concurrency tests do not interleave.** The store is synchronous (`node:sqlite`), so concurrent HTTP calls execute one after another on one thread. The tests assert the invariants and the exactly-once outcomes that every store must hold; real interleaving appears with the asynchronous store (P3) and PostgreSQL (P4), where these same tests become meaningful races. The suite must be run with real concurrent writers on PostgreSQL before staging.
+3. **Idempotency**: no behaviour exists yet. CI rejects `todo` and skipped tests, so pending behaviour is recorded as the `IDEMPOTENCY_REQUIREMENTS` list and as two characterization tests of today's behaviour (duplicates are created; the header is ignored) that P7 replaces deliberately.
+4. The harness has no PostgreSQL implementation yet; `TOBIN_TEST_STORE=postgres` fails with a clear message.
+
+**Deferred or not run, and when they must run (per the CI policy).** Web unit tests, lint, builds and browser scripts were not run: no application code or UI changed (they run in CI on the pull request). The console browser journeys and PostgreSQL concurrency tests: not before P4 and staging. Dependency-aware CI and caching: before staging (see the policy).
+
+**Acceptance.** Exit criteria: registry conformance suite passes on SQLite (met, with deviation 1); tenant isolation covered for every organization-scoped route (met); concurrency and immutability tests pass (met, with deviation 2); JSON key-order preservation tested (met); the suites are the gate for SQLite and PostgreSQL (the SQLite half exists; PostgreSQL arrives in P4). Owner acceptance pending.
