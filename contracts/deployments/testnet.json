@@ -76,7 +76,7 @@
       },
       "gitCommit": "cb2e617",
       "recordedAt": "2026-11-03T08:30Z",
-      "recordNote": "gitCommit is the repository commit at which this entry was recorded. The deployed Wasm is the same audited build as the legacy token (hash above); the contract sources were not changed."
+      "recordNote": "gitCommit is the repository commit at which this entry was recorded. The deployed Wasm is the same verified Testnet build artifact as the legacy token (same Wasm hash, recorded above); the contract sources were not changed. No independent security audit is claimed."
     }
   },
   "functionalChecks": {

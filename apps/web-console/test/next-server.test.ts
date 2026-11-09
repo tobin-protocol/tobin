@@ -75,7 +75,7 @@ test('the page, its scripts and the sandbox API are served locally with the secu
     assert.ok(nonce, 'the policy carries a nonce');
     const html = await home.text();
     assert.match(html, /<title>Tobin Console \(local sandbox\)<\/title>/);
-    assert.match(html, /Everything here runs in a local sandbox on this machine/);
+    assert.match(html, /Everything on this page runs in a local sandbox on this machine/);
     assert.match(html, /id="app"/);
     assert.match(html, /id="error"[^>]*role="alert"/);
     assert.ok(html.includes(`nonce="${nonce}"`), 'Next.js applied the nonce to its inline scripts');

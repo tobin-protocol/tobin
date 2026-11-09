@@ -11,7 +11,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body>
         <header>
           <h1>Tobin Console</h1>
-          <p>MVP-1, experimental. Everything here runs in a local sandbox on this machine.</p>
+          <p>Local sandbox console for the MVP-1 contracts. Everything on this page runs in a local sandbox on this machine; the institutional application is apps/web.</p>
         </header>
         {children}
       </body>

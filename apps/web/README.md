@@ -1,6 +1,6 @@
 # Tobin web app (`apps/web`)
 
-The institutional web app for Tobin: a client of the web console's API (`apps/web-console`), reached through a server-side proxy. Institutions record the payment obligations of a session, run a deterministic netting calculation, have a reviewer approve the calculation and the settlement batch, and see the record of what happened.
+The canonical user-facing web app for Tobin: a client of the API hosted by the web console (`apps/web-console`), reached through a server-side proxy. Institutions record the payment obligations of a session, run a deterministic netting calculation, have a reviewer approve the calculation and the settlement batch, and see the record of what happened.
 
 ## Status
 
@@ -8,7 +8,7 @@ The institutional web app for Tobin: a client of the web console's API (`apps/we
 
 What the app **cannot** do, by design of the current backend: sign, submit or verify a Stellar transaction; link or verify a wallet; send notifications; list other institutions. A Tobin approval is a recorded decision, not a Stellar signature. "Confirmed" is never shown, because no endpoint reports an independently read-back transaction (only `lib/stages.ts` may name it).
 
-Hosting is **local only** until a reachable backend exists: the console is Next.js route handlers plus one SQLite file bound to `127.0.0.1`. `apps/web-console` remains the canonical institutional UI until this app reaches parity and the owner says so.
+Hosting: the app is served at `https://app.tobinprotocol.xyz` on Vercel (Testnet demonstration), talking to the console on Railway (Next.js route handlers plus one SQLite file on a volume, one replica). In hosted mode the console accepts only the shared proxy secret and serves `/api/auth`, `/api/registry`, `/api/public` and the probes; see [`docs/backend-implementation/RAILWAY-TESTNET-PILOT.md`](../../docs/backend-implementation/RAILWAY-TESTNET-PILOT.md). The hosted app does not sign, submit or verify transactions, and registration is open on the current deployment. This app is the canonical user-facing UI; `apps/web-console` stays as the backend, API and owner-tools host, and its older UI overlaps with this app until it is retired.
 
 ## Run it
 
@@ -38,7 +38,7 @@ TOBIN_DB_PATH=/tmp/tobin-web.sqlite node scripts/db.ts asset-add testnet USD <a 
 | `TOBIN_DEV_GALLERY` | off | `1` enables `/dev/components`, the component gallery with fictional values (also on in `next dev`) |
 | `NODE_ENV` | set by Next | selects dev or production behaviour |
 
-Nothing secret is configured here and nothing may be committed. The landing page's `Launch app` link is a separate setting (`NEXT_PUBLIC_TOBIN_APP_URL` in `apps/landing`): it points at `http://127.0.0.1:3000` in development and is disabled in production until a domain is chosen.
+Nothing secret is configured here and nothing may be committed. The landing page's `Launch app` link is a separate setting (`NEXT_PUBLIC_TOBIN_APP_URL` in `apps/landing`): it points at `http://127.0.0.1:3000` in development; in a production build it is disabled ("Launch app (soon)") unless that variable is set to the app's address.
 
 ## Route map
 
@@ -46,7 +46,7 @@ Access is enforced on the server in `proxy.ts` (it asks the console who owns the
 
 | Route | Access | Notes |
 |---|---|---|
-| `/discover` | public | explorer; empty until a public API exists |
+| `/discover` | public | explorer; not yet wired to the console public API (see Known limits) |
 | `/sign-in` | public | email and password, or the Connect wallet window |
 | `/onboarding` | signed in, no organization | |
 | `/` | signed in | Overview: derived attention items |
@@ -104,5 +104,5 @@ axe-core is not a dependency: install it in a scratch folder and point `AXE_PATH
 - Cross-session pages read at most the newest sessions you have loaded (10 at first); they are slow for large organizations and say so. An aggregate endpoint would replace the hook in `components/data/useCrossSession.tsx` only.
 - The command panel lists up to the newest 300 loaded sessions and says when it is capped.
 - A calculation's author is not exposed by the API, so Reviews cannot show it.
-- Public Discover data does not exist; the page is an honest empty explorer.
+- The Discover page is an honest empty explorer: the console now serves a public read-only API (`/api/public/v1`), but this page is not wired to it in this tree.
 - Light theme only, no theme switcher.

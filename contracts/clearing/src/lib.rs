@@ -1,6 +1,6 @@
 //! TobinClearingV1: the clearing contract of the Tobin experimental MVP-1 (baseline "Phase B", contract core).
 //!
-//! Experimental. Not Tobin protocol v0.2 (no conformance claim, no v0.2 digest), not for deployment, test token only.
+//! Experimental. Not Tobin protocol v0.2 (no conformance claim, no v0.2 digest), test token only. Deployed on Stellar Testnet only; not approved for Mainnet or production use and not independently audited.
 //! Design sources: the baseline specification `docs/spec/MVP-1 Implementation Specification — Draft 0.1.md` (S§n) and the earlier design-phase records, which are
 //! internal and unpublished (CD = contract design, EQ-nn / DB-nn = decision identifiers). Engineering choices made while implementing are marked `CHOICE` and listed in `core/README.md`.
 //!
