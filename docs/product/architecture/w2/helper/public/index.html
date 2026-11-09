@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tobin W2 validation helper</title>
+<style>
+body{font:15px/1.45 system-ui,sans-serif;margin:0;padding:16px;max-width:960px;margin-inline:auto;background:#fff;color:#111}
+.banner{background:#7a1f00;color:#fff;padding:8px 12px;font-weight:600}
+fieldset{margin:12px 0;border:1px solid #888;padding:10px}
+button{margin:2px 4px 2px 0;padding:6px 10px}
+button:disabled{opacity:.45}
+pre{background:#f2f2f2;padding:8px;overflow:auto;max-height:260px;white-space:pre-wrap;word-break:break-all}
+#state{font-weight:700;padding:6px 10px;border:2px solid #111;display:inline-block;margin:4px 0}
+.bad{color:#a00000}.ok{color:#075}
+</style></head><body>
+<div class="banner">TOBIN W2 VALIDATION HELPER: Stellar TESTNET only, disposable accounts, local validation tool, not a product feature. Submission is disabled unless the owner authorizes it.</div>
+<h2>Wallet</h2>
+<div>State: <span id="state">…</span></div>
+<pre id="wallet">…</pre>
+<button id="connect">Connect / refresh wallet</button>
+<fieldset><legend>Fixed operation (no arbitrary calls)</legend>
+<select id="op"><option value="create">T-1 create_session (creator A)</option><option value="join_B">T-2 join_session (B; signers B and A)</option><option value="join_C">T-3/T-4 join_session (C; signers C and A)</option></select>
+Expiry lifetime (ledgers, 1 to 10 only): <input id="life" type="number" min="1" max="10" value="10" style="width:4em">
+<div>
+<button id="prepare">1. Prepare + simulate (any profile; source account E)</button>
+<button id="sign">2. Sign MY authorization entries (profile of A, B or C)</button>
+<button id="finalize">3. Re-simulate with signed entries (enforcing)</button>
+<button id="envsign">4. Sign envelope (profile of E)</button>
+<button id="submit">5. Submit</button>
+<button id="poll">6. Poll / verify</button>
+<button id="read">Read session S (read-only simulation)</button>
+</div></fieldset>
+<h2>Operation review</h2><pre id="review">nothing prepared</pre>
+<h2>Log</h2><pre id="log"></pre>
+<script src="/vendor/stellar-sdk.js"></script>
+<script src="/vendor/freighter-api.js"></script>
+<script src="/core.js"></script>
+<script src="/app.js"></script>
+</body></html>

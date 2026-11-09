@@ -1,0 +1,35 @@
+AGREE    unchanged, config ABSENT
+    node (exit 0): 9b594c5407b7934274f9c41a47f2dfc13a781f4f7b0cc0962a8ab57a52bacbb7
+    ps   (exit 0): 9b594c5407b7934274f9c41a47f2dfc13a781f4f7b0cc0962a8ab57a52bacbb7
+AGREE    unchanged, config PRESENT (fixture)
+    node (exit 0): be98c38925304261cbef0931e5c0a581c45dfc74abe01a4af38563133b0ed800
+    ps   (exit 0): be98c38925304261cbef0931e5c0a581c45dfc74abe01a4af38563133b0ed800
+AGREE    pinned.cjs changed (pin set to a throwaway value)
+    node (exit 0): 2e967cd1ed2a6ed190de0bfdbcf0aab999a779b88d538341a4644f729f475318
+    ps   (exit 0): 2e967cd1ed2a6ed190de0bfdbcf0aab999a779b88d538341a4644f729f475318
+AGREE    pinned.cjs + one space
+    node (exit 0): 21ffef79b95256175dd572de3220f6a6d34dea3ee4ca4b23c2fd7da75a1ad355
+    ps   (exit 0): 21ffef79b95256175dd572de3220f6a6d34dea3ee4ca4b23c2fd7da75a1ad355
+AGREE    pinned.cjs missing
+    node (exit 2): REFUSED(exit 2): declared dependency pinned.cjs is missing from C:\Users\Ebubechi\AppData\Local\Temp\parity-NatfFF\c2
+    ps   (exit 2): REFUSED(exit 2): "Could not find file 'C:\Users\Ebubechi\AppData\Local\Temp\parity-NatfFF\c2\pinned.cjs'."
+AGREE    pinned.cjs with CRLF
+    node (exit 2): REFUSED(exit 2): contains a CR byte; the baseline requires LF line endings
+    ps   (exit 2): REFUSED(exit 2): C:\Users\Ebubechi\AppData\Local\Temp\parity-NatfFF\c3\pinned.cjs contains a CR byte
+AGREE    pinned.cjs with BOM
+    node (exit 2): REFUSED(exit 2): starts with a UTF-8 BOM
+    ps   (exit 2): REFUSED(exit 2): C:\Users\Ebubechi\AppData\Local\Temp\parity-NatfFF\c4\pinned.cjs starts with a UTF-8 BOM
+AGREE    pinned.cjs with invalid UTF-8
+    node (exit 2): REFUSED(exit 2): is not valid UTF-8
+    ps   (exit 2): REFUSED(exit 2): C:\Users\Ebubechi\AppData\Local\Temp\parity-NatfFF\c5\pinned.cjs is not valid UTF-8
+AGREE    config with CRLF
+    node (exit 2): REFUSED(exit 2): contains a CR byte; the baseline requires LF line endings
+    ps   (exit 2): REFUSED(exit 2): C:\Users\Ebubechi\AppData\Local\Temp\parity-NatfFF\bad-6.json contains a CR byte
+AGREE    config with BOM
+    node (exit 2): REFUSED(exit 2): starts with a UTF-8 BOM
+    ps   (exit 2): REFUSED(exit 2): C:\Users\Ebubechi\AppData\Local\Temp\parity-NatfFF\bad-7.json starts with a UTF-8 BOM
+AGREE    config with invalid UTF-8
+    node (exit 2): REFUSED(exit 2): is not valid UTF-8
+    ps   (exit 2): REFUSED(exit 2): C:\Users\Ebubechi\AppData\Local\Temp\parity-NatfFF\bad-8.json is not valid UTF-8
+
+cases: 11, agreeing (same hash, or both refuse with exit 2): 11

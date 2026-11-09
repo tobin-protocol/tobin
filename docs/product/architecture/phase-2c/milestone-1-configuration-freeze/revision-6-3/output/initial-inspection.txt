@@ -1,0 +1,33 @@
+== 1. Revision 6.2 archive SHA-256
+6692524dd77b707ea209a63ad2666a23723511e1b075fb4a6a9881a256047413 */c/Users/Ebubechi/Documents/codes/scf/tobin-protocol/tobin/docs/product/architecture/phase-2c/milestone-1-configuration-freeze/PHASE-2C-REVISION-6-2-EVIDENCE.zip
+expected 6692524dd77b707ea209a63ad2666a23723511e1b075fb4a6a9881a256047413
+== 2. extracted entries: 35
+== 3. internal checksums
+OK 34
+== 4. Revision 5 archive in the 6.2 package
+01a3948e55bccc94975d46e304f024e0c858db91560d8af91a985d561494d609 *x62/revision-6-2/revision-5/tst-signer-revision-5-review.zip
+expected 01a3948e55bccc94975d46e304f024e0c858db91560d8af91a985d561494d609
+tst-signer-revision-5/
+== 5. eight runtime files vs Revision 5 archive
+identical: authorization ae3088b47d683f98
+identical: dpapi-key 7acf06713e5ec947
+identical: pinned 312ed3f24c83ed1f
+identical: refusal 562039b8d581894e
+identical: sdk-loader 7bc1fedc451da5ea
+identical: state-store ae59de944e9b3c62
+identical: tst-signer-core 207fc6b722bcad99
+identical: tst-signer 5f55891425daf0f0
+== 6. B0 manifest
+9b594c5407b7934274f9c41a47f2dfc13a781f4f7b0cc0962a8ab57a52bacbb7 *x62/revision-6-2/baseline-manifest-B0-revision-6-2.txt
+TOBIN-TST-SIGNER-BASELINE v1
+ABSENT  config:deployment-config.json
+de18071d1f64bf6aa1806a4eb250b3be7c1811a8e8ecdfc3c103013cf1d9b92f  external:@stellar/stellar-sdk@17.4.0/dist/stellar-sdk.js
+ee981053db93fce5c81310620d8198a493aa134ecd35d3e64540296687d72a62  external:@stellar/stellar-sdk@17.4.0/package.json
+ae3088b47d683f98b0c987afc086989aaf46c1e837d5c183272064e39bdef1b9  file:authorization.cjs
+7acf06713e5ec9478515180333ba132060d3bb68d75b0c8002923e0c41b589de  file:dpapi-key.cjs
+312ed3f24c83ed1f8e5e7ebc8f3501389374f3b18528698d638830cef8dff361  file:pinned.cjs
+562039b8d581894e4c9a5c79262a182bf7a603b85ce9031f39d3401607b46f3e  file:refusal.cjs
+7bc1fedc451da5ea4e839ce7a25e048696548aad7fb794cfef1c0a14671817a9  file:sdk-loader.cjs
+ae59de944e9b3c624d9f33c1c07c78f6eb0bb8c77ef81fdd781513115b5b393e  file:state-store.cjs
+207fc6b722bcad99189c030583bc0aa1b24ece7e5927c6eed084bcefaeafffc3  file:tst-signer-core.cjs
+5f55891425daf0f0f3480b461a9d2152affafbf1cb27e4c0d0837b86f3e93b6a  file:tst-signer.cjs

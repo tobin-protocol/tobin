@@ -1,0 +1,13 @@
+import fs from 'node:fs';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const S = require('@stellar/stellar-sdk'); const C = require('./public/core.js');
+const base = 'http://127.0.0.1:8799';
+const cfg = await (await fetch(base + '/api/config')).json();
+const p = await (await fetch(base + '/api/prepare', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op: 'create' }) })).json();
+const server = new S.rpc.Server(base + '/api/rpc', { allowHttp: true });
+const acct = await server.getAccount(cfg.accounts.E);
+const tx = new S.TransactionBuilder(acct, { fee: '1000', networkPassphrase: cfg.passphrase, timebounds: { minTime: 0, maxTime: Math.floor(Date.now() / 1000) + 300 } }).addOperation(S.Operation.invokeContractFunction({ contract: p.call.contract, function: p.call.fn, args: p.call.args.map((a) => C.scVal(S, a)) })).build();
+const sim = await server.simulateTransaction(tx);
+fs.writeFileSync('evidence/fixture-create-tx.json', JSON.stringify({ txXdr: C.rebuild(S, tx, sim.result.auth, cfg.passphrase).toXDR(), intent: p.intent, note: 'unsigned T-1 transaction as simulated; public data only' }));
+console.log('ok');
