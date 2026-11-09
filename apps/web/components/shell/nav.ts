@@ -9,7 +9,7 @@ export const NAV: NavItem[] = [
   { id: "overview", href: "/", label: "Overview", icon: Home01Icon },
   { id: "sessions", href: "/sessions", label: "Sessions", icon: Layers01Icon },
   { id: "obligations", href: "/obligations", label: "Obligations", icon: Task01Icon },
-  { id: "reviews", href: "/approvals", label: "Reviews", icon: CheckmarkSquare02Icon },
+  { id: "reviews", href: "/reviews", label: "Reviews", icon: CheckmarkSquare02Icon },
   { id: "activity", href: "/activity", label: "Activity", icon: Activity01Icon },
   { id: "organization", href: "/organization", label: "Organization", icon: Building03Icon },
   { id: "settings", href: "/settings", label: "Settings", icon: Settings02Icon },

@@ -4,7 +4,7 @@ import { chromium } from "@playwright/test";
 
 const BASE = process.env.WEB_URL ?? "http://127.0.0.1:3100";
 const PW = "Correct-horse-battery-1";
-const PAGES = ["/", "/sessions"];
+const PAGES = ["/", "/sessions", "/reviews", "/obligations", "/activity", "/organization", "/organization?tab=members", "/organization?tab=wallets", "/settings", "/notifications"];
 const label = process.argv[2] ?? "run";
 const browser = await chromium.launch({ channel: "chrome" });
 const rows = [];

@@ -103,10 +103,9 @@ for (const w of WIDTHS) {
   await go(page, "/obligations");
   await vis(page.getByText("Active totals by asset"), `${w}: global obligations`);
   if (w >= 900) await vis(page.getByRole("columnheader", { name: "Obligation" }), `${w}: the global list shows the obligation identifier`);
-  // the list covers the 10 newest sessions (the cap), so follow whichever obligation link is shown
-  const link = page.locator('a[href*="&ob="]').locator("visible=true").first();
-  await link.click(); await page.waitForURL(/[?&]ob=[0-9a-f]{64}/);
-  await vis(page.getByText("History").first(), `${w}: a global obligation opens its detail in its session`);
+  // R4: a row opens the same detail sheet in place (it no longer navigates away)
+  await page.getByRole("button", { name: /^Open obligation/ }).first().click();
+  await vis(page.getByText("History").first(), `${w}: a global obligation opens its detail sheet`);
   await vis(page.getByText("Recorded as Active").first(), `${w}: and its history states the change`);
   await shot(page, "obligation-deeplink", w);
   await page.keyboard.press("Escape");
@@ -147,9 +146,8 @@ for (const w of WIDTHS) {
   // ============ Bob: reviewer ============
   await signIn(page, "bob@example.test"); await settled(page);
   await vis(page.getByRole("list", { name: "Needs your attention" }).getByText("Awaiting your review").first(), `${w}: a reviewer's Overview puts the session awaiting their review first`);
-  await go(page, "/approvals");
-  await vis(page.getByText(/Gross [\d,]+ USD/).first(), `${w}: the approvals list shows the amounts under review`);
-  await vis(page.getByText(/Calculation review · Alpha Bank/).first(), `${w}: and the organization`);
+  await go(page, "/reviews");
+  await vis(page.getByText(/Calculation review/).first(), `${w}: the Reviews list shows the calculation under review (R4: amounts are no longer repeated in the list; the session shows them)`);
   await shot(page, "approvals-amounts", w);
   await openSession(page, `Review me ${w}`, "approvals");
   await vis(page.getByRole("heading", { name: "What is being reviewed" }), `${w}: the session Approvals tab shows what is being reviewed`);

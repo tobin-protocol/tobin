@@ -52,7 +52,7 @@ for (const w of WIDTHS) {
 
   // ---- activity ----
   await go(page, "/activity");
-  await vis(page.getByText(/Showing \d+ of \d+ sessions|Showing all \d+ sessions/), `${w}: activity says how many sessions it read`);
+  await vis(page.getByText(/Based on (\d+ of \d+|all \d+) sessions?/), `${w}: activity says how many sessions it read`);
   await vis(page.getByText("Events that belong to no session"), `${w}: activity says what it cannot list`);
   const before = await page.getByRole("list", { name: "Activity" }).getByRole("listitem").count();
   await page.getByLabel("Event type").selectOption({ label: "Obligation created" });

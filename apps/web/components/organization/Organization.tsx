@@ -13,7 +13,7 @@ import type { Member, Role } from "../../lib/tobin/types.ts";
 import { PageFrame } from "../shell/PageFrame.tsx";
 import { useWorkspace } from "../shell/session.tsx";
 import { CopyButton, reasonOf } from "../sessions/shared.tsx";
-import { OrgWallets } from "../wallets/Wallets.tsx";
+import { WalletsPanel } from "../wallets/Wallets.tsx";
 import { Button } from "../ui/Button.tsx";
 import { PageTabs, Table, type Col } from "../ui/Data.tsx";
 import { AccessDenied, EmptyState, ErrorState, InlineError, NotSupported, Skeleton, StatusMark } from "../ui/Feedback.tsx";
@@ -21,20 +21,22 @@ import { ChoiceGroup, SelectField, TextAreaField, TextField } from "../ui/Form.t
 import { Dialog, SidePanel } from "../ui/Overlays.tsx";
 import { Card, Panel, StatGrid } from "../ui/Surfaces.tsx";
 
-const TABS = [{ key: "profile", label: "Profile" }, { key: "members", label: "Members" }, { key: "invitations", label: "Invitations" }, { key: "wallets", label: "Wallets" }] as const;
+const TABS = [{ key: "overview", label: "Overview" }, { key: "members", label: "Members and roles" }, { key: "institutions", label: "Institutions" }, { key: "wallets", label: "Wallets" }] as const;
+/** Older addresses: Profile is the Overview, Invitations are a section of Members and roles. */
+const ALIAS: Record<string, TabKey> = { profile: "overview", invitations: "members" };
 type TabKey = (typeof TABS)[number]["key"];
 
 export function Organization() {
   const { org } = useWorkspace();
   const params = useSearchParams();
   const raw = params.get("tab");
-  const tab: TabKey = TABS.some((t) => t.key === raw) ? (raw as TabKey) : "profile";
-  const href = (k: TabKey) => (k === "profile" ? "/organization" : `/organization?tab=${k}`);
+  const tab: TabKey = TABS.some((t) => t.key === raw) ? (raw as TabKey) : ALIAS[raw ?? ""] ?? "overview";
+  const href = (k: TabKey) => (k === "overview" ? "/organization" : `/organization?tab=${k}`);
   return (
     <PageFrame title="Organization" breadcrumbs={[{ label: org.name }, { label: "Organization" }]}>
       <div className="mb-6 border-b border-divider"><PageTabs label="Organization sections" items={TABS.map((t) => ({ href: href(t.key), label: t.label }))} activeHref={href(tab)} /></div>
       <Panel className="space-y-4">
-        {tab === "profile" ? <ProfileTab /> : tab === "members" ? <MembersTab /> : tab === "invitations" ? <InvitationsTab /> : <OrgWallets />}
+        {tab === "overview" ? <ProfileTab /> : tab === "members" ? <><MembersTab /><InvitationsTab /></> : tab === "institutions" ? <InstitutionsTab /> : <WalletsPanel />}
       </Panel>
     </PageFrame>
   );
@@ -81,6 +83,31 @@ function ProfileTab() {
           </form>
         ) : <p className="mt-2 text-body text-muted" role="note">{edit.reason} Only administrators can edit the profile.</p>}
       </Card>
+    </div>
+  );
+}
+
+// ---------------- Institutions ----------------
+/** The backend has one institution per organization: its own profile. There is no directory and no counterparty record. */
+function InstitutionsTab() {
+  const { org } = useWorkspace();
+  const q = useQuery({ queryKey: ["org", org.id], queryFn: () => client.organizations.get(org.id) });
+  const o = q.data?.organization;
+  if (q.isLoading) return <Skeleton className="h-32 w-full" />;
+  if (q.error || !o) return <ErrorState title="Could not load the institution" message={(q.error as Error)?.message ?? "No data"} retry={<Button onClick={() => q.refetch()}>Try again</Button>} />;
+  return (
+    <div className="space-y-4">
+      <Card>
+        <h2 className="text-entity font-medium">{o.name}</h2>
+        <div className="mt-3">
+          <StatGrid columns={3} items={[
+            { label: "Type", value: o.institutionType ? INSTITUTION_LABEL[o.institutionType] ?? o.institutionType : "No data" },
+            { label: "Jurisdiction", value: o.jurisdiction ?? "No data" },
+            { label: "Visibility", value: o.visibility === "public" ? "Public" : "Private" },
+          ]} />
+        </div>
+      </Card>
+      <NotSupported tone="card" feature="Institution directory and counterparties" reason="The backend stores this organization's own profile only. It has no list of other institutions and no counterparty records." />
     </div>
   );
 }

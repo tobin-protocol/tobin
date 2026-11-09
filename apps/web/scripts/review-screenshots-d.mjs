@@ -119,7 +119,7 @@ for (const w of WIDTHS) {
 
   // global Approvals page for Bob
   await page.goto(BASE + "/approvals"); await settled(page);
-  await vis(page.getByText(/Showing \d+ of \d+ sessions|Showing all \d+ sessions/), `${w}: the approvals page says how many sessions it read`);
+  await vis(page.getByText(/Based on (\d+ of \d+|all \d+) sessions?/), `${w}: the approvals page says how many sessions it read`);
   await shot(page, "approvals-global", w);
 
   // ============ Alice: prepare settlement ============

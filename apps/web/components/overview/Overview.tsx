@@ -20,17 +20,17 @@ import { StatGrid } from "../ui/Surfaces.tsx";
 const SECTION_H = "text-entity font-medium";
 
 export function Overview() {
-  const { org, actor } = useWorkspace();
+  const { me, org, actor } = useWorkspace();
   const isAdmin = can(actor, "invitations.manage").allowed;
   const create = can(actor, "sessions.create");
   const membersQ = useQuery({ queryKey: ["members", org.id], queryFn: () => client.organizations.members(org.id) });
   const invitesQ = useQuery({ queryKey: ["invitations", org.id], queryFn: () => client.organizations.invitations(org.id), enabled: isAdmin });
   // only the people who can act on an authorization need it: a plain member reads one request fewer per session
-  const parts: Part[] = actor.reviewer || isAdmin ? ["detail", "authorization"] : ["detail"];
+  const parts: Part[] = actor.reviewer ? ["detail", "authorization", "settlement"] : isAdmin ? ["detail", "authorization"] : ["detail"];
   const cs = useCrossSession({ parts });
 
   const pending = isAdmin ? (invitesQ.data ? invitesQ.data.filter((i) => i.status === "pending").length : null) : null;
-  const figures = useMemo(() => overviewOf(cs.rows ?? [], cs.bundles, { canDecide: actor.reviewer, canRecalculate: isAdmin }, pending), [cs.rows, cs.bundles, actor.reviewer, isAdmin, pending]);
+  const figures = useMemo(() => overviewOf(cs.rows ?? [], cs.bundles, { canDecide: actor.reviewer, canRecalculate: isAdmin }, pending, { reviewer: actor.reviewer, displayName: me.user.displayName }), [cs.rows, cs.bundles, actor.reviewer, isAdmin, pending, me.user.displayName]);
   const count = cs.rows && !cs.listError ? cs.total : null;
   const loading = cs.listLoading || (cs.reading && cs.bundles.length === 0);
 

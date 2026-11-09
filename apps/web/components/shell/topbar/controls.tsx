@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { client } from "../../../lib/tobin/index.ts";
 import { middle } from "../../../lib/format.ts";
 import { roleLabels } from "../../../lib/permissions/can.ts";
+import { commandSessions } from "../../../lib/shell/command.ts";
 import { Icon } from "../../tobin/Icon.tsx";
 import { useWallet } from "../../wallet/WalletProvider.tsx";
 import { NAV } from "../nav.ts";
@@ -153,7 +154,8 @@ export function SearchCommand() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
   const go = (href: string) => { setOpen(false); router.push(href); };
-  const sessions = (qc.getQueryData<{ sessionId: string; label: string }[]>(["sessions", org.id]) ?? []).slice(0, 300);
+  const loaded = commandSessions(qc.getQueryData<{ sessionId: string; label: string; createdAt: string }[]>(["sessions", org.id]));
+  const sessions = loaded.items;
   return (
     <>
       <button type="button" onClick={() => setOpen(true)} aria-label="Search (Ctrl or Cmd plus K)" className={cn(BAR_BTN, "max-sm:hidden")}>
@@ -169,7 +171,7 @@ export function SearchCommand() {
               {NAV.map((n) => <CommandItem key={n.id} value={n.label} onSelect={() => go(n.href)}>{n.label}</CommandItem>)}
             </CommandGroup>
             {sessions.length ? (
-              <CommandGroup heading="Loaded sessions">
+              <CommandGroup heading={loaded.note ? `Loaded sessions. ${loaded.note}` : "Loaded sessions"}>
                 {sessions.map((s) => <CommandItem key={s.sessionId} value={`session ${s.label}`} onSelect={() => go(`/sessions/${s.sessionId}`)}>{s.label}</CommandItem>)}
               </CommandGroup>
             ) : null}

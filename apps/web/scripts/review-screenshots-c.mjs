@@ -180,7 +180,7 @@ for (const w of WIDTHS) {
 
   // global Obligations page
   await page.goto(BASE + "/obligations"); await settled(page);
-  await vis(page.getByText(/Showing \d+ of \d+ sessions|Showing all \d+ sessions/), `${w}: the global list says how many sessions it read`);
+  await vis(page.getByText(/Based on (\d+ of \d+|all \d+) sessions?/), `${w}: the global list says how many sessions it read`);
   await vis(page.getByText("Active totals by asset"), `${w}: totals are listed per asset`);
   await shot(page, "obligations-global", w);
   await page.getByRole("button", { name: "Voided", exact: true }).click(); await settled(page);

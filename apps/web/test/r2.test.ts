@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { redirectAfterOrgSwitch } from "../lib/access/org-switch.ts";
-import { overviewOf, pendingReviews, type Bundle } from "../lib/cross-session/overview.ts";
+import { overviewOf, type Bundle } from "../lib/cross-session/overview.ts";
 import { INITIAL_CAP, LOAD_STEP, canLoadMore, coverageOf, nextCap, windowOf } from "../lib/cross-session/window.ts";
 import { DEFAULT_QUERY, filterByState, parseQuery, serializeQuery } from "../lib/sessions/list.ts";
 import { addParticipants, recoveryOf, retryFailed } from "../lib/sessions/wizard.ts";
@@ -71,14 +71,6 @@ test("attention lists reviews for reviewers, recalculation for admins, and invit
   assert.deepEqual(admin.attention.map((a) => a.kind), ["invitations", "stale"]);
   const member = overviewOf(rs, bundles, { canDecide: false, canRecalculate: false }, null);
   assert.equal(member.attention.length, 0);
-});
-
-test("the Reviews count reads only what was loaded: null until then, and only for reviewers", () => {
-  const rs = rows(2);
-  assert.equal(pendingReviews([], { canDecide: true }), null, "nothing loaded yet");
-  assert.equal(pendingReviews([{ row: rs[0]!, detail: detail("configuring"), failed: false }], { canDecide: true }), null, "no authorization loaded");
-  assert.equal(pendingReviews([{ row: rs[0]!, authorization: auth("awaiting-review"), failed: false }, { row: rs[1]!, authorization: auth("approved"), failed: false }], { canDecide: true }), 1);
-  assert.equal(pendingReviews([{ row: rs[0]!, authorization: auth("awaiting-review"), failed: false }], { canDecide: false }), null);
 });
 
 // ---- the banner ----

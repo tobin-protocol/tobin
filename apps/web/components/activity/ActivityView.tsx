@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Activity01Icon } from "@hugeicons/core-free-icons";
 import { useMemo, useState } from "react";
 import { applyActivityFilter, eventKinds, NO_FILTER, type ActivityEntry, type ActivityFilter, type Outcome } from "../../lib/activity/derive.ts";
 import { formatDateTime, humanizeKind, relativeTime } from "../../lib/format.ts";
@@ -79,7 +80,7 @@ export function ActivityView({ entries, sessions, showSession }: { entries: Acti
         </div>
       ) : null}
 
-      <SidePanel open={!!open} onClose={() => setOpen(null)} title="Activity record">
+      <SidePanel open={!!open} onClose={() => setOpen(null)} title="Activity record" icon={Activity01Icon}>
         {open ? (
           <div className="space-y-4">
             <div className="rounded-card bg-card p-4">

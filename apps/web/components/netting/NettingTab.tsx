@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState, type ReactNode } from "react";
+import { Calculator01Icon } from "@hugeicons/core-free-icons";
 import { can } from "../../lib/permissions/can.ts";
 import { formatAmount, formatDateTime } from "../../lib/format.ts";
 import { absAmount, eligibility, groupPositions, grossVsNet, splitByAsset } from "../../lib/netting/group.ts";
@@ -196,7 +197,7 @@ export function NettingTab({ sessionId, obligations, participants, readiness, ru
           </Card>
 
           <div><Button onClick={() => setDetails(true)}>Calculation details</Button></div>
-          <SidePanel open={details} onClose={() => setDetails(false)} title="Calculation details">
+          <SidePanel open={details} onClose={() => setDetails(false)} title="Calculation details" icon={Calculator01Icon}>
             <div className="space-y-4">
               <div className="rounded-card bg-card p-4">
                 <dl className="space-y-3 text-body">

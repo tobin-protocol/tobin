@@ -69,7 +69,7 @@ export function Workspace() {
 
   const refresh = () => Promise.all([
     qc.invalidateQueries({ queryKey: ["session", org.id, sessionId] }),
-    qc.invalidateQueries({ queryKey: ["bundle", org.id, sessionId] }),
+    qc.invalidateQueries({ queryKey: ["xs", org.id, sessionId] }),
     qc.invalidateQueries({ queryKey: ["sessions", org.id] }),
   ]);
   const runNetting = async () => {

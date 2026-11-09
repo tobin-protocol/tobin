@@ -1,6 +1,8 @@
 "use client";
 
+import type { IconSvgElement } from "@hugeicons/react";
 import type { ReactNode } from "react";
+import { Icon } from "./Icon.tsx";
 import { Button } from "@/components/kit/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/kit/dialog";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/kit/sheet";
@@ -46,13 +48,13 @@ export function Confirm({ open, onClose, title, description, children, primary, 
 }
 
 /** A right-hand detail panel for one record, without leaving the list: a shadcn Sheet, full width on small screens. Drop-in for the older `SidePanel`. */
-export function DetailSheet({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
+export function DetailSheet({ open, onClose, title, icon, children }: { open: boolean; onClose: () => void; title: string; /** a Hugeicons icon shown before the title */ icon?: IconSvgElement; children: ReactNode }) {
   const back = useReturnFocus(open);
   return (
     <Sheet open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <SheetContent side="right" className="w-full max-w-[480px] overflow-y-auto sm:max-w-[480px]" onCloseAutoFocus={back}>
         <SheetHeader>
-          <SheetTitle>{title}</SheetTitle>
+          <SheetTitle className="flex items-center gap-2">{icon ? <Icon icon={icon} size={20} /> : null}{title}</SheetTitle>
           <SheetDescription className="sr-only">Details of the selected record. Read-only unless an action is shown.</SheetDescription>
         </SheetHeader>
         <div className="px-4 pb-6">{children}</div>

@@ -6,14 +6,14 @@ import { formatDate, formatDateTime } from "../../lib/format.ts";
 import { walletRows, type WalletRow } from "../../lib/org/rules.ts";
 import { client } from "../../lib/tobin/index.ts";
 import { useWallet } from "../wallet/WalletProvider.tsx";
-import { PageFrame } from "../shell/PageFrame.tsx";
+import { useConnectWallet } from "../auth/ConnectWallet.tsx";
 import { useMe, useWorkspace } from "../shell/session.tsx";
 import { CopyButton, reasonOf } from "../sessions/shared.tsx";
 import { Button } from "../ui/Button.tsx";
 import { Identifier, Table, type Col } from "../ui/Data.tsx";
 import { EmptyState, ErrorState, InlineError, Skeleton } from "../ui/Feedback.tsx";
 import { Dialog, SidePanel } from "../ui/Overlays.tsx";
-import { Card, Panel, StatGrid } from "../ui/Surfaces.tsx";
+import { Card, StatGrid } from "../ui/Surfaces.tsx";
 
 export const NO_AUTHORITY = "Application roles never grant signing authority, and a verified wallet confers no role, no reviewer capability and no signing authority in Tobin.";
 
@@ -51,8 +51,10 @@ export function OrgWallets() {
   );
 }
 
-export function Wallets() {
+/** The wallets of the signed-in account, as the backend returns them. It is the body of the Organization page's Wallets tab. */
+export function WalletsPanel() {
   const { org } = useWorkspace();
+  const connect = useConnectWallet();
   const me = useMe();
   const wallet = useWallet();
   const qc = useQueryClient();
@@ -80,16 +82,18 @@ export function Wallets() {
   };
 
   return (
-    <PageFrame title="Wallets" breadcrumbs={[{ label: org.name }, { label: "Wallets" }]}>
-      <Panel className="space-y-4">
+    <>
+      <div className="space-y-4">
         <Card>
           <h2 className="text-entity font-medium">Your wallets</h2>
           <p className="mt-1 text-body text-muted">Connection is what this browser&apos;s Freighter reports right now. Verification is what Tobin recorded when you proved control of the key. They are separate: a connected wallet is not a verified one.</p>
           <div className="mt-3">
             {me.isLoading ? <Skeleton lines={3} /> : me.error ? <ErrorState title="Could not load your wallets" message={(me.error as Error).message} retry={<Button onClick={() => me.refetch()}>Try again</Button>} /> : (
-              <Table columns={cols} data={rows} getRowId={(r) => r.id} empty={<EmptyState title="No verified wallet" message="You signed in with email. A wallet is linked by proving control of its key with Freighter; linking is not built in this app yet." />} />
+              <Table columns={cols} data={rows} getRowId={(r) => r.id} empty={<EmptyState title="No verified wallet" message="No wallet is linked to this account. The backend lists none." />} />
             )}
           </div>
+          <div className="mt-3"><Button onClick={connect.open}>Link wallet</Button></div>
+          <p className="mt-2 max-w-prose text-label text-muted" role="note">Link wallet opens the Connect wallet window, which only looks for a wallet in this browser. Linking is not verification: nothing is signed here, and Tobin records proof of control only for wallets listed above as verified.</p>
           {error ? <div className="mt-3"><InlineError>{error}</InlineError></div> : null}
           <p className="mt-3 text-label text-muted">The backend records no wallet provider, so none is shown.</p>
         </Card>
@@ -106,7 +110,7 @@ export function Wallets() {
 
         <OrgWallets />
         <p className="rounded-card bg-card p-4 text-body text-muted" role="note">{NO_AUTHORITY}</p>
-      </Panel>
+      </div>
 
       <SidePanel open={!!open} onClose={() => setOpen(null)} title="Wallet">
         {open ? (
@@ -134,6 +138,6 @@ export function Wallets() {
         {confirm ? <p className="break-all font-mono text-ident">{confirm.publicKey}</p> : null}
         <p className="mt-2 text-label text-muted">If it is the only way your account can sign in, the server refuses and says so.</p>
       </Dialog>
-    </PageFrame>
+    </>
   );
 }

@@ -71,7 +71,7 @@ for (const w of [1440, 900, 390]) {
   await page.locator("#login-password").fill(PW);
   await page.getByRole("button", { name: "Log in", exact: true }).click(); await page.waitForURL(BASE + "/");
   const sp = await sessionPath(page);
-  const pages = [["discover-signed-in", "/discover"], ["overview", "/"], ["sessions", "/sessions"], ["create-session", "/sessions/new"], ["obligations", "/obligations"], ["approvals", "/approvals"], ["activity", "/activity"], ["wallets", "/wallets"],
+  const pages = [["discover-signed-in", "/discover"], ["overview", "/"], ["sessions", "/sessions"], ["create-session", "/sessions/new"], ["obligations", "/obligations"], ["reviews", "/reviews"], ["activity", "/activity"], ["institutions", "/organization?tab=institutions"],
     ["organization-profile", "/organization"], ["organization-members", "/organization?tab=members"], ["organization-invitations", "/organization?tab=invitations"], ["organization-wallets", "/organization?tab=wallets"],
     ["settings", "/settings"], ["notifications", "/notifications"], ["components", "/dev/components"],
     ...["overview", "participants", "obligations", "netting", "approvals", "settlement", "activity"].map((t) => [`workspace-${t}`, t === "overview" ? sp : `${sp}?tab=${t}`])];

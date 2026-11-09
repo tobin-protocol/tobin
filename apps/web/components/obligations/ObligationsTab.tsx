@@ -3,10 +3,11 @@
 import { type UseQueryResult } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { can } from "../../lib/permissions/can.ts";
-import { formatAmount, formatDateTime, humanizeKind } from "../../lib/format.ts";
+import { formatAmount } from "../../lib/format.ts";
 import { totalsByAsset } from "../../lib/netting/group.ts";
 import { useSearchParams } from "next/navigation";
-import { historyOf, transitionOf, transitionText, voidGate } from "../../lib/obligations/rules.ts";
+import { Task01Icon } from "@hugeicons/core-free-icons";
+import { voidGate } from "../../lib/obligations/rules.ts";
 import { client } from "../../lib/tobin/index.ts";
 import type { ActivityItem, ObligationView } from "../../lib/tobin/types.ts";
 import { useWorkspace } from "../shell/session.tsx";
@@ -16,7 +17,8 @@ import { Amount, SegmentTabs, Table, type Col } from "../ui/Data.tsx";
 import { EmptyState, InlineError, StatusMark } from "../ui/Feedback.tsx";
 import { TextField } from "../ui/Form.tsx";
 import { Confirm as Dialog, DetailSheet as SidePanel } from "../tobin/Overlays.tsx";
-import { Card, DataCard, StatGrid } from "../ui/Surfaces.tsx";
+import { Card, StatGrid } from "../ui/Surfaces.tsx";
+import { ObligationDetail } from "./ObligationDetail.tsx";
 
 type StatusFilter = "all" | "active" | "voided";
 
@@ -78,34 +80,9 @@ export function ObligationsTab({ sessionId, query, workflow, activity, onChanged
       </Card>
       {error ? <InlineError>{error}</InlineError> : null}
 
-      <SidePanel open={!!selected} onClose={() => setOpenId(null)} title="Obligation">
+      <SidePanel open={!!selected} onClose={() => setOpenId(null)} title="Obligation" icon={Task01Icon}>
         {selected ? (
-          <div className="space-y-4">
-            <DataCard label={selected.status === "voided" ? "Amount (voided)" : "Amount"} value={<span className="break-words">{formatAmount(selected.amount, selected.asset)}</span>} note={`${selected.debtorName} owes ${selected.creditorName}`} />
-            <div className="rounded-card bg-card p-4">
-              <StatGrid columns={2} items={[
-                { label: "Status", value: selected.status === "active" ? "Active" : "Voided" },
-                { label: "Revision", value: selected.revision },
-                { label: "Asset", value: selected.asset, hint: selected.assetIdentity === "canonical" ? "Supported asset identity" : "Code only, not an asset identity" },
-                { label: "Reference", value: selected.reference || "No data" },
-                { label: "Recorded by", value: selected.createdBy ?? "No data" },
-                { label: "Recorded", value: formatDateTime(selected.createdAt) },
-                { label: "Last changed by", value: selected.updatedBy ?? "No data" },
-                { label: "Last changed", value: formatDateTime(selected.updatedAt ?? selected.createdAt) },
-              ]} />
-              <p className="mt-3 break-all border-t border-divider pt-3 font-mono text-ident text-muted">{selected.id}</p>
-            </div>
-            <div className="rounded-card bg-card p-4">
-              <h3 className="text-body font-medium">History</h3>
-              {(() => {
-                const h = historyOf(selected.id, activity);
-                return h.length === 0 ? <p className="mt-1 text-body text-muted">No events are recorded for this obligation.</p> : (
-                  <ol className="mt-2 divide-y divide-divider">
-                    {h.map((e) => <li key={`${e.at}-${e.kind}`} className="py-2.5"><span className="block text-body font-medium">{humanizeKind(e.kind)}{transitionOf(e.kind) ? <span className="font-normal text-muted"> · {transitionText(transitionOf(e.kind)!)}</span> : null}</span><span className="block text-body text-muted">{e.detail}</span><span className="block text-label text-muted">{e.actor} · {formatDateTime(e.at)}</span></li>)}
-                  </ol>
-                );
-              })()}
-            </div>
+          <ObligationDetail selected={selected} all={all} activity={activity} footer={<>
             {(() => {
               const g = voidGate({ adminAllowed: voidAllowed.allowed, adminReason: voidAllowed.reason, workflow, status: selected.status });
               if (selected.status !== "active") return null;
@@ -114,7 +91,7 @@ export function ObligationsTab({ sessionId, query, workflow, activity, onChanged
                 : <p className="text-body text-muted" role="note">{g.reason}</p>;
             })()}
             <p className="text-label text-muted">An obligation cannot be edited or deleted here. Voiding keeps the record and adds its own history entry.</p>
-          </div>
+          </>} />
         ) : null}
       </SidePanel>
 
