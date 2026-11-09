@@ -43,7 +43,7 @@ export function SidebarContent({ signedIn, pending, onNavigate }: { signedIn: bo
                 >
                   <Icon icon={n.icon} size={20} />
                   <span className="min-w-0 flex-1 truncate">{n.label}</span>
-                  {n.id === "reviews" && pending ? <><span aria-hidden="true" className="min-w-6 bg-ink px-1.5 text-center font-label text-label text-on-button">{pending}</span><span className="sr-only">{pending} awaiting your review, derived from up to 10 sessions</span></> : null}
+                  {n.id === "reviews" && pending ? <><span aria-hidden="true" className="min-w-6 bg-ink px-1.5 text-center font-label text-label text-on-button">{pending}</span><span className="sr-only">{pending} calculations awaiting your review, from the sessions loaded so far</span></> : null}
                   {locked ? <><Icon icon={SquareLock01Icon} size={16} /><span className="sr-only">Locked: sign in first</span></> : null}
                 </Link>
               </li>

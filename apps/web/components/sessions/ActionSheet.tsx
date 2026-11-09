@@ -25,7 +25,7 @@ export function ActionSheet({ summary, children }: { summary: string; children: 
     <aside
       data-sheet
       aria-label="Session action"
-      className="min-w-0 lg:sticky lg:top-24 lg:order-2 lg:self-start max-md:fixed max-md:inset-x-0 max-md:bottom-16 max-md:z-30 max-md:rounded-t-panel max-md:bg-panel max-md:shadow-float"
+      className="min-w-0 lg:sticky lg:top-24 lg:order-2 lg:self-start max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-30 max-md:border-t max-md:border-divider max-md:bg-page"
     >
       <button type="button" onClick={toggle} aria-expanded={open} aria-controls={id} className="flex h-14 w-full items-center justify-between gap-3 px-5 text-left text-body font-medium md:hidden">
         <span className="min-w-0 truncate"><span className="text-label uppercase tracking-wide text-muted">Next step</span><span className="block truncate">{summary}</span></span>

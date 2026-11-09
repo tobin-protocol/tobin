@@ -48,7 +48,7 @@ const calcId = async (page, orgId, sid) => ((await (await page.request.get(`${BA
 const go = async (page, path) => { await page.goto(BASE + path); await settled(page); };
 const openSession = async (page, q, tab) => {
   await go(page, `/sessions?q=${encodeURIComponent(q)}`);
-  await page.getByRole("link", { name: "Open", exact: true }).locator("visible=true").first().click();
+  await page.getByRole("link", { name: /^Open \S/ }).locator("visible=true").first().click();
   await page.waitForURL(/\/sessions\/[0-9a-f]{64}/); await settled(page);
   if (tab) await go(page, `${new URL(page.url()).pathname}?tab=${tab}`);
 };
@@ -62,41 +62,22 @@ for (const w of WIDTHS) {
   // ============ Alice: administrator ============
   await signIn(page, "alice@example.test");
   await settled(page);
-  await vis(page.getByRole("heading", { name: "Sessions that matter now" }), `${w}: the Overview lists the sessions that matter now`);
-  await vis(page.getByRole("navigation", { name: "Quick links" }).getByRole("link", { name: "View sessions" }), `${w}: the Overview offers quick links`);
+  // R2 rewrote the Overview, the sessions list and the workspace Overview. The checks that belonged to the previous design (sessions that matter now, quick links,
+  // contents counts in the list, state layers, at-a-glance, Stepper links) are retired; scripts/review-r2.mjs covers their replacements.
+  await vis(page.getByRole("heading", { name: "Needs your attention" }), `${w}: the Overview has a Needs your attention list`);
   check(await page.getByRole("link", { name: "Create session" }).count() >= 1, `${w}: the Overview has one primary action, Create session`);
   check(await page.getByRole("heading", { name: "About access" }).count() === 0, `${w}: the role help is no longer on the Overview (it is in Settings)`);
-  await vis(page.getByText(/Showing \d+ of \d+ sessions|Showing all \d+ sessions/).first(), `${w}: the Overview still says how many sessions it read`);
+  await vis(page.getByTestId("coverage"), `${w}: the Overview still says how many sessions it read`);
   await shot(page, "overview-redesign", w);
-  const first = page.getByRole("list", { name: "Sessions that matter now" }).getByRole("link", { name: /^Open / }).first();
-  const label = await first.getAttribute("aria-label");
-  await first.click(); await page.waitForURL(/\/sessions\/[0-9a-f]{64}/);
-  check(true, `${w}: an Overview session leads to the right section (${label})`);
 
-  // sessions list: contents
-  await go(page, "/sessions?q=Q4");
-  await vis(page.getByText("Contents (derived)").locator("visible=true").first(), `${w}: the sessions list shows what is inside each session`);
-  await vis(page.getByText("3 participants").locator("visible=true").first(), `${w}: with participant counts`);
-  await vis(page.getByText("3 obligations").locator("visible=true").first(), `${w}: and obligation counts`);
-  await shot(page, "sessions-contents", w);
-
-  // workspace overview
+  // workspace: the summary card replaces the layers and the at-a-glance list
   await openSession(page, "Q4");
-  const base = new URL(page.url()).pathname;
-  await vis(page.getByRole("heading", { name: "State, layer by layer" }), `${w}: the session shows its state layer by layer`);
-  const layers = page.getByRole("list", { name: "State layers" }).getByRole("listitem");
-  check(await layers.count() === 5, `${w}: five layers (application, calculation, review, settlement preparation, blockchain)`);
-  await vis(page.getByRole("list", { name: "State layers" }).getByText("Not recorded"), `${w}: the blockchain layer reads Not recorded`);
-  const layerText = await page.getByRole("list", { name: "State layers" }).innerText();
-  check(!/\b(settled|confirmed)\b/i.test(layerText.replace("nothing is shown as settled or confirmed", "")), `${w}: no layer claims the session is settled or confirmed`);
-  await vis(page.getByRole("heading", { name: "At a glance" }), `${w}: an at-a-glance summary`);
-  await vis(page.getByRole("heading", { name: "Recent events" }), `${w}: and the recent events`);
+  await vis(page.getByLabel("Session summary"), `${w}: the workspace has one summary card`);
+  const summaryText = await page.getByLabel("Session summary").innerText();
+  const rail = await page.getByLabel("Session summary").getByRole("listitem").allInnerTexts();
+  check(rail.length === 4 && rail.slice(1).every((t) => /Not supported/.test(t)), `${w}: the stage rail reads Not supported for Signed, Submitted and the final stage (${rail.length} items)`);
+  check(!/\bsettled\b/i.test(summaryText), `${w}: the summary never says the session is settled`);
   await shot(page, "workspace-layers", w);
-  await page.getByRole("list", { name: "Session sections" }).getByRole("link", { name: "Open Netting" }).click();
-  await page.waitForURL(/tab=netting/); check(true, `${w}: At a glance leads to Netting`);
-  await go(page, base);
-  await page.getByRole("list", { name: "Session progress" }).getByRole("link", { name: "Approval", exact: true }).click();
-  await page.waitForURL(/tab=approvals/); check(true, `${w}: a Stepper group leads to its section`);
 
   // netting confirmation, on a session with a stale calculation
   await openSession(page, "Monthly settlement", "netting");
@@ -165,7 +146,7 @@ for (const w of WIDTHS) {
 
   // ============ Bob: reviewer ============
   await signIn(page, "bob@example.test"); await settled(page);
-  await vis(page.getByRole("list", { name: "Sessions that matter now" }).getByText("Awaiting your review"), `${w}: a reviewer's Overview puts the session awaiting their review first`);
+  await vis(page.getByRole("list", { name: "Needs your attention" }).getByText("Awaiting your review").first(), `${w}: a reviewer's Overview puts the session awaiting their review first`);
   await go(page, "/approvals");
   await vis(page.getByText(/Gross [\d,]+ USD/).first(), `${w}: the approvals list shows the amounts under review`);
   await vis(page.getByText(/Calculation review · Alpha Bank/).first(), `${w}: and the organization`);

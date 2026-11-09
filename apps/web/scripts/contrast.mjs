@@ -27,12 +27,14 @@ const hex = ({ r, g, b }) => "#" + [r, g, b].map((n) => Math.round(n).toString(1
 
 const page = parse(tok("page"));
 const surface = {
-  page, tile: parse(tok("tile")), card: over(parse(tok("card")), page), data: parse(tok("data")), "ink-10": over(parse(tok("ink-10")), page), button: parse(tok("button")), "ink-soft": parse(tok("ink-soft")),
+  page, tile: parse(tok("tile")),
+  /* the banner grain: black noise at most 0.35 x 0.5 = 17.5% opaque over the band */
+  "data-grain": over({ r: 0, g: 0, b: 0, a: 0.175 }, parse(tok("data"))), card: over(parse(tok("card")), page), data: parse(tok("data")), "ink-10": over(parse(tok("ink-10")), page), button: parse(tok("button")), "ink-soft": parse(tok("ink-soft")),
 };
 const text = { ink: parse(tok("ink")), muted: parse(tok("muted")), "on-button": parse(tok("on-button")), danger: parse(tok("danger")), disabled: parse(tok("disabled")) };
 
 const pairs = [
-  ["ink", "page", "Body text"], ["ink", "tile", "Text on a list tile or chip"], ["ink", "card", "Text on a card"], ["ink", "data", "Banner headline"], ["ink", "ink-10", "Text on a secondary button"],
+  ["ink", "page", "Body text"], ["ink", "tile", "Text on a list tile or chip"], ["ink", "card", "Text on a card"], ["ink", "data", "Banner headline"], ["ink", "data-grain", "Banner headline over the darkest grain"], ["ink", "ink-10", "Text on a secondary button"],
   ["muted", "page", "Muted text on the page"], ["muted", "tile", "Muted text on a tile"], ["muted", "card", "Muted text on a card"], ["muted", "data", "Muted text on the banner band"],
   ["on-button", "button", "Primary button label"], ["on-button", "ink-soft", "Primary button label, hover"],
   ["danger", "page", "Failure text on the page"], ["danger", "tile", "Failure text on a tile"], ["danger", "card", "Failure text on a card"],
@@ -52,6 +54,8 @@ const md = [
   "| Text | Background | Use | Text colour | Background colour | Ratio | Result |",
   "|---|---|---|---|---|---|---|",
   ...rows.map((x) => `| ${x.t} | ${x.s} | ${x.use} | ${x.fg} | ${x.bg} | ${x.r.toFixed(2)}:1 | ${x.exempt ? "exempt" : x.pass ? "pass" : "FAIL"} |`),
+  "",
+  "The banner carries one line of ink text only; muted text is never placed on the grain (it would fall to about 3.3:1).",
   "",
   "Hairlines (ink at 20%) are decoration, not text. Interactive boundaries that carry meaning on their own (the 2px focus ring) are solid ink on white (21:1).",
   "",

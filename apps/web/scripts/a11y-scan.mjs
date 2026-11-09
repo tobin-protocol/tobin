@@ -15,7 +15,7 @@ const bad = []; const summary = [];
 
 async function sessionPath(page) {
   await page.goto(BASE + "/sessions?q=Q4"); await page.waitForLoadState("networkidle");
-  await page.getByRole("link", { name: "Open", exact: true }).locator("visible=true").first().click();
+  await page.getByRole("link", { name: /^Open \S/ }).locator("visible=true").first().click();
   await page.waitForURL(/\/sessions\/[0-9a-f]{64}/);
   return new URL(page.url()).pathname;
 }

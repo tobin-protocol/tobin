@@ -68,7 +68,7 @@ for (const w of WIDTHS) {
   await shot(page, "activity-record", w);
   await page.keyboard.press("Escape");
 
-  await go(page, "/sessions?q=Q4"); await page.getByRole("link", { name: "Open", exact: true }).locator("visible=true").first().click(); await page.waitForURL(/\/sessions\/[0-9a-f]{64}/);
+  await go(page, "/sessions?q=Q4"); await page.getByRole("link", { name: /^Open \S/ }).locator("visible=true").first().click(); await page.waitForURL(/\/sessions\/[0-9a-f]{64}/);
   await go(page, `${new URL(page.url()).pathname}?tab=activity`);
   await vis(page.getByLabel("Event type"), `${w}: the session Activity tab uses the same component`);
   check(await page.getByLabel("Session", { exact: true }).count() === 0, `${w}: the session tab has no session filter`);
@@ -207,7 +207,7 @@ for (const w of WIDTHS) {
   const page = await ctx.newPage();
   await signIn(page, "alice@example.test");
   await go(page, "/sessions?q=Phase");
-  const link = page.getByRole("link", { name: "Open", exact: true }).locator("visible=true").first();
+  const link = page.getByRole("link", { name: /^Open \S/ }).locator("visible=true").first();
   if (await link.count()) {
     await link.click(); await page.waitForURL(/\/sessions\/[0-9a-f]{64}/); await settled(page);
     await go(page, `${new URL(page.url()).pathname}?tab=obligations`);

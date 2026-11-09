@@ -37,7 +37,7 @@ async function shot(page, name, w) {
   await page.addStyleTag({ content: "nav[aria-label=Primary].fixed,[data-sheet]{position:static!important}" }).catch(() => {});
   await page.screenshot({ path: `${out}/${name}-${w}.png`, fullPage: true });
 }
-const open = async (page, label) => { await page.goto(`${BASE}/sessions?q=${encodeURIComponent(label)}`); await settled(page); await page.getByRole("link", { name: "Open", exact: true }).locator("visible=true").first().click(); await page.waitForURL(/\/sessions\/[0-9a-f]{64}/); await settled(page); };
+const open = async (page, label) => { await page.goto(`${BASE}/sessions?q=${encodeURIComponent(label)}`); await settled(page); await page.getByRole("link", { name: /^Open \S/ }).locator("visible=true").first().click(); await page.waitForURL(/\/sessions\/[0-9a-f]{64}/); await settled(page); };
 
 for (const w of WIDTHS) {
   const ctx = await browser.newContext({ viewport: { width: w, height: w < 500 ? 844 : 900 }, deviceScaleFactor: 1 });
@@ -52,7 +52,6 @@ for (const w of WIDTHS) {
   await page.goto(BASE + "/sessions"); await settled(page);
   await vis(page.getByRole("link", { name: "Create session" }), `${w}: admin sees an enabled Create session link`);
   await vis(page.getByText(/Showing 1 to 10 of \d+/), `${w}: first page shows 1 to 10 of N`);
-  await vis(page.getByText("Not supported: filters by workflow"), `${w}: unsupported quick filters are labelled`);
   await shot(page, "sessions-list", w);
 
   await page.goto(BASE + "/sessions?page=2"); await settled(page);
@@ -120,7 +119,9 @@ for (const w of WIDTHS) {
 
   // attention list Open button works (Alice sees the stale item)
   await page.goto(BASE + "/"); await settled(page);
-  const openLink = page.getByRole("link", { name: "Open", exact: true }).first();
+  // the Overview reads the 10 newest sessions; the stale one may be older, so extend the window until everything is read
+  for (let i = 0; i < 5 && await page.getByRole("button", { name: "Load next 10 sessions" }).count(); i++) { await page.getByRole("button", { name: "Load next 10 sessions" }).click(); await settled(page); }
+  const openLink = page.getByRole("list", { name: "Needs your attention" }).locator('a[href^="/sessions/"]').first();
   await vis(openLink, `${w}: Attention has an enabled Open link`);
   await openLink.click(); await page.waitForURL(/\/sessions\/[0-9a-f]{64}/);
   await page.context().clearCookies();

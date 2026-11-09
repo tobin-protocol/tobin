@@ -131,8 +131,8 @@ for (const w of WIDTHS) {
   await dialog(page).getByRole("button", { name: "Prepare settlement" }).click();
   await vis(page.getByRole("heading", { name: "Prepared settlement" }), `${w}: the settlement is prepared`);
   await vis(page.getByText("The instructions reconcile exactly to the approved net positions."), `${w}: the instructions reconcile to the approved result`);
-  await vis(page.getByLabel("Transaction stages").getByText("Prepared").first(), `${w}: the stage rail reaches Prepared`);
-  const stagesText = await page.getByLabel("Transaction stages").innerText();
+  await vis(page.getByLabel("Transaction stages").last().getByText("Prepared").first(), `${w}: the stage rail reaches Prepared`);
+  const stagesText = await page.getByLabel("Transaction stages").last().innerText();
   check((stagesText.match(/Not supported/g) ?? []).length === 3, `${w}: Signed, Submitted and the final stage each read Not supported (${(stagesText.match(/Not supported/g) ?? []).length})`);
   check(await page.getByRole("button", { name: "Approve settlement", exact: true }).isDisabled(), `${w}: the preparer cannot approve their own batch`);
   await vis(page.getByText(/Separation of duties|reviewer capability/), `${w}: the reason is shown to the preparer`);
@@ -180,7 +180,7 @@ for (const w of WIDTHS) {
   await vis(page.getByText("No execution has been recorded for this batch."), `${w}: no execution exists and the page says what one needs`);
   await vis(page.getByText("Sign", { exact: true }).first(), `${w}: Sign is listed`);
   check(await page.getByText("Not supported").count() >= 5, `${w}: Sign, Submit, Verify and the stage rail all read Not supported`);
-  check(await page.getByText("Submitted", { exact: true }).count() <= 1, `${w}: Submitted appears only as a stage name`);
+  check(await page.locator("#tab-content").getByText("Submitted", { exact: true }).count() <= 1, `${w}: Submitted appears only as a stage name`);
   await shot(page, "settlement-approved", w);
 
   // overview of the session with the approved batch

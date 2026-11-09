@@ -1,17 +1,21 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { usePathname, useRouter } from "next/navigation";
 import { ArrowDown01Icon } from "@hugeicons/core-free-icons";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/kit/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { client } from "../../lib/tobin/index.ts";
 import { INSTITUTION_LABEL } from "../../lib/format.ts";
+import { redirectAfterOrgSwitch } from "../../lib/access/org-switch.ts";
 import { Icon } from "../tobin/Icon.tsx";
 import { useWorkspace } from "./session.tsx";
 
 /** Organization selector under the logo. Everything in the app is scoped to the selected organization. */
 export function OrgSelector({ onNavigate }: { onNavigate?: () => void }) {
   const { orgs, org, switchOrg } = useWorkspace();
+  const path = usePathname();
+  const router = useRouter();
   const detail = useQuery({ queryKey: ["org", org.id], queryFn: () => client.organizations.get(org.id) });
   const type = detail.data?.organization.institutionType;
   return (
@@ -33,7 +37,7 @@ export function OrgSelector({ onNavigate }: { onNavigate?: () => void }) {
             key={o.id}
             aria-current={o.id === org.id ? "true" : undefined}
             className={cn("min-h-11 gap-3", o.id === org.id && "bg-tile")}
-            onSelect={async () => { onNavigate?.(); if (o.id !== org.id) await switchOrg(o.id); }}
+            onSelect={async () => { onNavigate?.(); if (o.id === org.id) return; const to = redirectAfterOrgSwitch(path); if (to) router.replace(to); await switchOrg(o.id); }}
           >
             <span className="min-w-0 flex-1"><span className="block truncate text-body font-medium">{o.name}</span><span className="block text-label text-muted">{o.role === "admin" ? "Admin" : "Member"}</span></span>
             {o.id === org.id ? <span className="text-label text-muted">Current</span> : null}
