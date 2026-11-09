@@ -48,6 +48,7 @@ export class MockAdapter implements TobinClient {
     update: async () => ORG,
     verifications: async () => [],
     claims: async () => [],
+    signerSetHistory: async () => ({ current: null, history: [] }),
     setRole: async () => {}, setStatus: async () => {}, removeMember: async () => {}, setReviewer: async () => {},
     invite: async () => { throw new Error("Invitations are not available with sample data."); },
     revokeInvitation: async () => {},

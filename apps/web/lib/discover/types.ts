@@ -54,16 +54,18 @@ export interface ProtocolStats {
   assetsInUse: number | null;
   /** ISO 8601 */
   lastSettlementAt: string | null;
+  /** what the backend says about the figures it does not publish; shown as is */
+  note?: string;
 }
 
 export type DiscoverTab = "settlements" | "institutions" | "assets";
 export type SettlementSort = "newest" | "oldest" | "amount-high" | "amount-low";
-export type InstitutionSort = "name" | "newest" | "most-settlements";
+export type InstitutionSort = "name" | "newest";
 export type AssetSort = "code" | "most-settlements" | "latest";
 export interface ListQuery<S extends string> { sort: S; /** opaque, from the previous page */ cursor?: string; limit?: number }
-export interface Page<T> { items: T[]; nextCursor: string | null; /** the number of records, when the backend knows it */ total: number | null }
+export interface Page<T> { items: T[]; nextCursor: string | null; /** the number of records, when the backend knows it */ total: number | null; /** what the backend says about an empty or partial list; shown as is */ note?: string }
 
-export type DiscoverResult<T> = { kind: "ok"; data: T } | { kind: "unavailable"; reason: string };
+export type DiscoverResult<T> = { kind: "ok"; data: T } | { kind: "unavailable"; reason: string } | { kind: "error"; message: string };
 
 export interface DiscoverClient {
   stats(): Promise<DiscoverResult<ProtocolStats>>;
