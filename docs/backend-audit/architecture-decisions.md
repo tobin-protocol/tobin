@@ -68,3 +68,19 @@ Later:
 - Live Testnet RPC and Horizon retention and rate limits.
 - Behaviour of redirects and cookies behind Railway's edge; whether Freighter binds origin on `signMessage`.
 - Whether Vercel runs any checks on landing or docs.
+
+## 5. Status annex: owner decisions as of 2026-11-09
+
+Added after the audit was completed. Sections 1 to 4 above are the audit's original proposals and evidence and are unchanged; they are the historical baseline. The accepted record is [`docs/backend-implementation/ADR-0001-approved-backend-decisions.md`](../backend-implementation/ADR-0001-approved-backend-decisions.md). This annex only marks what the owner has decided; it does not claim that any recommendation has been implemented.
+
+Approved (section 3, items 1 to 7, and the proposals D1 to D13 as amended in the ADR):
+
+- PostgreSQL and the `pg` dependency; Railway; Stellar Testnet institutional pilot only (item 1).
+- Public `web`, private `console`, private PostgreSQL; owner Stellar tools remain local (items 2 and 3).
+- Necessary SQLite data is preserved; what is necessary is decided by inspection in P5 (item 2).
+- Authorization-entry lifetime: 10 ledgers (item 4).
+- A different reviewer must approve the settlement batch (item 5).
+- The Wallets tab implements real wallet linking to the authenticated account (item 6).
+- Registration is invitation-controlled; email verification and account recovery come before any open registration (item 7).
+
+Still unresolved (section 3, later items, plus new ones): lock strategy (item 8); RLS timing (item 9, deferred by decision BD-18); cascade from memberships to wallet verification evidence (item 10); actor-column foreign keys and dead-column removal (item 11); retention periods (item 12); external anchoring of `activity` (item 13); unifying the two wallet mechanisms (item 14); migration archive, soak and rollback window (item 15); browser support and screen-reader acceptance (item 16); the email delivery provider; and the new items U-11 to U-13 in the ADR. Item 17 (settlement execution model) is not approved and is out of scope for this mandate.
