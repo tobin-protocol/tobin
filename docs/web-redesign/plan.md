@@ -122,3 +122,38 @@ Owner decision: the greyscale palette stays. Wherever the spec or earlier messag
 - `/sign-in`: split layout, an original illustration on the left (hidden under 900px), logo top-left, a close icon back to Discover, "Sign up or sign in", an Email address field, a Continue button disabled until the address is valid, an "Or" divider, Continue with wallet (opens the same dialog) and small testnet and help text. The backend supports an email and a password, not an email alone, so Continue leads to a second step (log in, or create an account with a name and password).
 
 **Dependencies.** The `shadcn` package is not a dependency: its small stylesheet is vendored as `apps/web/app/shadcn.css` and the generator is run with `npx shadcn@latest` (apps/web/README.md).
+
+## 14. R2: what the console offers (read from the service code, 2026-11-09) and what R2 builds
+
+Source: `apps/web-console/lib/registry/service.ts` (`markReady`, `closeSession`, `reopenSession`, `#move`, `readiness`), `clearing.ts` (`readinessChecks`, `TRANSITIONS`), `http.ts` (routes, status codes). Read as code, not from comments.
+
+### 14.1 Session states and transitions
+
+A session has one workflow state: `configuring`, `ready` or `closed`. `TRANSITIONS`: configuring to ready; ready to configuring (reopen) or closed; closed to nothing. Every operation also refuses a `fixture` session (`FIXTURE`, 409). The state is an application record only; nothing is on-chain.
+
+### 14.2 Mark ready: `POST /api/registry/orgs/:org/sessions/:id/ready`
+
+- **Permission:** administrator only. `#need(orgId, user, admin = true)` throws `FORBIDDEN` ("administrator role required", 403) for a member, including a member with the reviewer capability. The reviewer grant gives nothing here.
+- **Preconditions (all inside one transaction):** the session is `configuring` (else `INVALID_STATE` 409, "a ready session cannot become ready"); and every readiness check except the `state` check passes (else `INVALID_STATE`, "not ready: <labels>"). The checks: at least two active participants; at least one active obligation; every obligation names two active participants; all obligations use one asset; the obligations pass the netting engine; **a calculation exists; the latest calculation is current** (same inputs as now); net positions sum to zero.
+- **Returns:** 200 with the readiness view `{ state, ready, checks, currency, note }`. A refused attempt is logged as `session.readiness-evaluated`; a success also logs `session.state-changed`.
+- **Consequence the UI must state:** once ready, `#editable` refuses participant and obligation changes (they need `configuring`). The console has `POST .../reopen` (ready to configuring), but R2 does not offer it (not requested), so a session marked ready cannot be edited again from this app.
+- **A precondition the UI cannot fully show:** "the latest calculation is current" is computed by the server from a hash of the inputs. The UI shows the console's own `GET .../readiness` checks (labels and fixes), which carry that result, so nothing is guessed; if that read fails the button says so instead of guessing.
+
+### 14.3 Close session: `POST /api/registry/orgs/:org/sessions/:id/close`
+
+- **Permission:** administrator only (same `#need`).
+- **Preconditions:** the session is `ready` (the only state with a transition to `closed`; a `configuring` session gets `INVALID_STATE`, "a configuring session cannot become closed"); and the latest calculation has a settlement batch for that calculation whose status is `approved` and still eligible (else `INVALID_STATE`, "closing requires an approved, still-eligible settlement batch for the current calculation"). Closure is operational: nothing has settled.
+- **Returns:** 200 with the readiness view.
+- **Reachability:** a settlement batch is prepared and reviewed in the Settlement tab, which already exists, so a ready session with an approved batch can be closed from the UI. Preparing and reviewing a batch only refuse a closed session (the `session-open` check and `decide`), so the order calculate, review, mark ready, prepare, review the batch, close works. The server checks the batch against the latest calculation; the UI sees only the latest batch's status.
+- **What R2 shows:** Close is available when the session is ready and the latest settlement batch the UI reads is approved; otherwise the reason names which is missing. The server still decides.
+
+### 14.4 The Stepper mapping (kept from the old workspace)
+
+`lib/sessions/lifecycle.ts` maps facts to six groups (Draft, Participation, Obligations, Netting, Approval, Settlement). It walks the facts in order and **stops at the first one that could not be read** ("... could not be read, so progress after this point is not shown"); it never counts an unread fact as done. A closed session is every group done. `next-action.ts` turns the view into the single next action. The R2 summary card shows "Step N of 6: <group>", that sub-label, the four-square stage rail (only Prepared can be reached: when a settlement is prepared; Signed, Submitted and the final stage read Not supported), and the next action. The workspace waits for every fact before drawing the card, so a request still in flight is never shown as unread.
+
+### 14.5 What R2 builds, and what it keeps
+
+- One cross-session hook (`components/data/useCrossSession.tsx`, pure parts in `lib/cross-session`): a window of 10 sessions, "Load next 10 sessions", the coverage sentence ("Based on N of M sessions"), and a passive mode that reads only the cache. It replaces the Overview's own bundle queries and the shell's per-session badge reads. It reads `detail` for every session and `authorization` only for administrators and reviewers (a member cannot act on one).
+- Overview, Sessions list, create wizard (a single recovery panel, retry only what failed), workspace shell, Mark ready and Close session (one confirmed dialog each, administrator only, the reason shown when disabled), route-level loading, error and not-found files, specific titles, and the redirect to Sessions with a notice when the organization changes on a session URL.
+- Kept working in the new shell: the Obligations, Netting, Approvals and Settlement tab bodies and their panels, so no flow is lost between phases. Approvals is no longer a tab: its content is the "Calculation review" view inside Settlement (`?tab=approvals` still opens it). R3 rebuilds these.
+- Deviations from the spec, with reasons: (1) the Sessions list drops the per-row participant and obligation counts and the avatar stack from R1's tile anatomy, because they cost two requests per row and the list has no aggregate; (2) the Reviews count in the sidebar is passive: it appears once a page has loaded the data, and counts calculations only, not settlement batches; (3) the list's Status filter acts on the rows of the current page (the workflow state is read per visible row); (4) the Overview drops obligation totals (an extra request per session for a number that is only partial).
