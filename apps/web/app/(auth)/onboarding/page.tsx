@@ -111,7 +111,9 @@ export default function OnboardingPage() {
     else if (me.data?.onboarding?.step === "done" && (me.data.organizations?.length ?? 0) > 0) router.replace("/");
   }, [me.data, me.error, router]);
 
-  const enter = async (orgId: string) => { await client.auth.setWorkspace(orgId); await qc.invalidateQueries({ queryKey: ["me"] }); router.replace("/"); };
+  // The account now has an organization. Leave with a full navigation, not a client-side one: it cannot stall on a pending refetch or a cached "no organization" answer, and the server re-reads who you are.
+  // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- deliberate full navigation, see above
+  const enter = async (orgId: string) => { await client.auth.setWorkspace(orgId); qc.clear(); window.location.href = "/"; };
   const profileDone = async () => { await qc.invalidateQueries({ queryKey: ["me"] }); };
 
   return (
