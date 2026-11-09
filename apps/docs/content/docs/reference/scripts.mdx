@@ -1,0 +1,327 @@
+---
+title: Repository scripts and CLI tools
+description: Reference guide for repository operator scripts, multisig management, CI checks, release gates, and account tools.
+---
+
+This page documents the command-line scripts across the repository that manage databases, inspect Testnet accounts and signer sets, validate CI release gates, and run administrative verification procedures.
+
+For standard npm workspace scripts, see [Commands](/docs/reference/commands).
+
+<Callout type="warn" title="Authorization and network safety">
+  Per the repository operating rules ([`AGENTS.md`](https://github.com/tobin-protocol/tobin/blob/main/AGENTS.md)),
+  submitting network transactions, creating or funding accounts, changing signer sets, or executing governed mint operations
+  require **explicit owner authorization**. Read-only simulation, verification, and offline audit tools do not require
+  prior approval.
+</Callout>
+
+## Category overview
+
+| Directory | Scope | Network access | Owner approval required |
+|---|---|---|:--:|
+| `apps/web-console/scripts/` | Database migrations and Testnet preflight diagnostics | Local SQLite / Testnet Horizon & RPC | Read-only checks: No |
+| `scripts/accounts/` | Account manifest schema and threshold combinations | None (offline) | No |
+| `scripts/multisig/` | Administrative multisig inspection, preparation, and verification | Testnet Horizon & RPC | Execution / submission: Yes |
+| `scripts/ci/` | Test summaries, link checks, dependency inventories, Wasm hashes | Local cargo cache / lockfiles | No |
+| `scripts/release/` | Gate readiness validation and source-tree leakage scanning | None (offline) | No |
+| `scripts/tst-signer/` | Restricted testnet token admin signer and SDK restoration | Testnet RPC (when executing) | Execution / submission: Yes |
+
+## Database operator CLI (`apps/web-console/scripts/db.ts`)
+
+The database script manages SQLite schema migrations, status inspection, asset configuration, and demo data fixtures.
+
+Run these commands from `apps/web-console` or through the npm workspace wrapper:
+
+```bash
+npm run db:migrate --workspace tobin-web-console
+npm run db:status  --workspace tobin-web-console
+```
+
+### `migrate`
+
+* **Command:** `node scripts/db.ts migrate`
+* **Purpose:** Applies all pending migrations (from `lib/db/database.ts`) atomically and idempotently.
+* **Inputs read:** `TOBIN_DB_PATH` environment variable (defaults to `.data/tobin-dev.sqlite` if unset and `NODE_ENV` is not `production`).
+* **Side effects:** Modifies the SQLite database file, updating schema version.
+* **Owner authorization:** Not required for development databases.
+
+### `status`
+
+* **Command:** `node scripts/db.ts status`
+* **Purpose:** Inspects current schema version against the latest migration.
+* **Inputs read:** `TOBIN_DB_PATH`.
+* **Side effects:** Outputs JSON `{current, latest, pending}`. Exits with code `2` if migrations are pending, `0` if up to date.
+* **Owner authorization:** No.
+
+### `asset-add`
+
+* **Command:** `node scripts/db.ts asset-add <testnet|public> <native | CODE ISSUER>`
+* **Purpose:** Registers a supported clearing and settlement asset in the local database registry.
+* **Inputs read:** Command-line network, code, and issuer.
+* **Side effects:** Inserts asset record into `supported_assets`.
+* **Owner authorization:** Local configuration only; no on-chain verification is made.
+
+### `asset-disable`
+
+* **Command:** `node scripts/db.ts asset-disable <asset-id>`
+* **Purpose:** Disables an existing asset for new clearing sessions. Historical batches retain their snapshots.
+* **Inputs read:** Asset identifier (e.g. `testnet:native`).
+* **Side effects:** Sets asset status to `disabled` in the SQLite database.
+* **Owner authorization:** No.
+
+### `asset-list`
+
+* **Command:** `node scripts/db.ts asset-list`
+* **Purpose:** Dumps all configured assets as formatted JSON.
+* **Inputs read:** SQLite database.
+* **Side effects:** None (read-only query).
+* **Owner authorization:** No.
+
+### `seed-demo`
+
+* **Command:** `node scripts/db.ts seed-demo`
+* **Purpose:** Seeds labelled fixture demonstration organizations, users, and clearing sessions.
+* **Inputs read:** `TOBIN_DEMO_PASSWORD` environment variable (12 to 128 characters).
+* **Side effects:** Writes fixture records into the local development database. Refuses execution if `NODE_ENV=production`.
+* **Owner authorization:** No.
+
+## Testnet diagnostic and preflight tools (`apps/web-console/scripts/`)
+
+These scripts perform non-mutating network inspections against the Stellar Testnet. None of them use private keys or submit transactions.
+
+### `testnet-account-check.mjs`
+
+* **Command:** `node scripts/testnet-account-check.mjs <public-key> [outfile.json]`
+* **Purpose:** Verifies that a participant account exists on Testnet, has funded XLM for fees (at least 5 XLM), is distinct from the administrative multisig account, and is a single-key account.
+* **Inputs read:** [`accounts/testnet-admin.json`](https://github.com/tobin-protocol/tobin/blob/main/accounts/testnet-admin.json), command-line arguments.
+* **Network / files touched:** Queries Horizon (`https://horizon-testnet.stellar.org`) and Soroban RPC. Writes optional JSON evidence report.
+* **Owner authorization:** No (read-only public data).
+
+### `testnet-multisig-audit.mjs`
+
+* **Command:** `node scripts/testnet-multisig-audit.mjs <outfile.json>`
+* **Purpose:** Performs a dual-channel audit of the administrative multisig account on Testnet by reading Horizon and Soroban RPC independently, comparing them with [`accounts/testnet-admin.json`](https://github.com/tobin-protocol/tobin/blob/main/accounts/testnet-admin.json), and computing minimal authorizing sets for thresholds 5/6/7.
+* **Inputs read:** [`contracts/deployments/testnet.json`](https://github.com/tobin-protocol/tobin/blob/main/contracts/deployments/testnet.json) and [`accounts/testnet-admin.json`](https://github.com/tobin-protocol/tobin/blob/main/accounts/testnet-admin.json).
+* **Network / files touched:** Queries Horizon and Soroban RPC; writes output evidence to `<outfile.json>`.
+* **Owner authorization:** No (read-only audit).
+
+### `testnet-preflight.mjs`
+
+* **Command:** `node scripts/testnet-preflight.mjs [outfile.json]`
+* **Purpose:** Validates RPC health, Testnet passphrase (`Test SDF Network ; September 2015`), deployed contract instances, and matching Wasm bytecode hashes. Simulates read-only contract getters (`symbol`, `decimals`, `cap`, `minter`, `balance`, `config`) using an unsigned source account.
+* **Inputs read:** [`contracts/deployments/testnet.json`](https://github.com/tobin-protocol/tobin/blob/main/contracts/deployments/testnet.json) and [`accounts/testnet-admin.json`](https://github.com/tobin-protocol/tobin/blob/main/accounts/testnet-admin.json).
+* **Network / files touched:** Soroban RPC testnet. Writes optional JSON report.
+* **Owner authorization:** No (read-only simulation).
+
+### `testnet-simulate.mjs`
+
+* **Command:** `node scripts/testnet-simulate.mjs [outfile.json]`
+* **Purpose:** Builds an `ExecutionPlan` from real public identifiers, constructs unsigned transactions for each plan step, simulates them against Testnet RPC, and reads recorded transaction hashes back.
+* **Inputs read:** `contracts/deployments/testnet.json`, `accounts/testnet-admin.json`, optional environment variables `TOBIN_SECOND_ACCOUNT` and `TOBIN_BATCH_ID`.
+* **Network / files touched:** Soroban RPC testnet. Writes optional JSON report.
+* **Owner authorization:** No (unsigned simulation only).
+
+## Stellar account manifests (`scripts/accounts/`)
+
+### `check-accounts.mjs`
+
+* **Command:** `node scripts/accounts/check-accounts.mjs [accounts/testnet-admin.json]`
+* **Purpose:** Validates a Tobin account manifest offline: verifies public key formats, CRC-16 checksums, network passphrase, status (`PENDING_SIGNER_ADDRESSES`, `CONFIGURED_MASTER_ENABLED`, `ACTIVE`), and prints all signer combinations with the thresholds they satisfy (low: 5, medium: 6, high: 7).
+* **Inputs read:** Manifest file path.
+* **Network / files touched:** None (fully offline). Exits 1 if the manifest is invalid.
+* **Owner authorization:** No.
+
+## Multisig administration and verification (`scripts/multisig/`)
+
+Scripts in `scripts/multisig/` support setting up, inspecting, and verifying the dedicated administrative multisig account.
+
+### `validate-signers.mjs`
+
+* **Command:** `npm run validate:signers [-- --candidates accounts/testnet-admin.signers-submitted.json]`
+* **Purpose:** Checks candidate public keys for format, length (56 characters), valid checksums, duplicates, and verifies whether they are activated on Testnet.
+* **Inputs read:** Manifest or candidate JSON file.
+* **Network / files touched:** Read-only Horizon testnet lookup.
+* **Owner authorization:** No.
+
+### `inspect.mjs`
+
+* **Command:** `npm run multisig:inspect -- <public-key>`
+* **Purpose:** Prints an account's signers, weights, thresholds, flags, and native XLM balance from Horizon.
+* **Inputs read:** Target account public key.
+* **Network / files touched:** Horizon testnet query.
+* **Owner authorization:** No.
+
+### `prepare.mjs`
+
+* **Command:** `npm run multisig:prepare -- --account <public-key>`
+* **Purpose:** Generates the ordered setup transaction sequence for the administrative multisig account (adding signers and setting thresholds).
+* **Inputs read:** [`accounts/testnet-admin.json`](https://github.com/tobin-protocol/tobin/blob/main/accounts/testnet-admin.json) and account public key.
+* **Network / files touched:** None (purely offline preparation).
+* **Owner authorization:** No to generate; executing the prepared steps requires owner authorization.
+
+### `verify.mjs`
+
+* **Command:** `npm run multisig:verify -- --account <public-key> [--master-disabled]`
+* **Purpose:** Compares the live on-chain Testnet account with [`accounts/testnet-admin.json`](https://github.com/tobin-protocol/tobin/blob/main/accounts/testnet-admin.json) (three signers at weights 5/2/1, thresholds 5/6/7).
+* **Inputs read:** Manifest and target public key.
+* **Network / files touched:** Reads account from Horizon. Exits 1 on any discrepancy.
+* **Owner authorization:** No.
+
+### `setup-tx.mjs`
+
+* **Command:**
+  * Build unsigned: `node scripts/multisig/setup-tx.mjs build [--out file]`
+  * Verify signed: `node scripts/multisig/setup-tx.mjs verify <signed.xdr|XDR>`
+* **Purpose:** Builds the unsigned configuration transaction for the multisig account (signers added first, thresholds raised last) or verifies that a signed envelope matches approved operations and contains genuine ed25519 signatures.
+* **Inputs read:** `accounts/testnet-admin.json`, Horizon sequence number.
+* **Network / files touched:** Reads account sequence from Horizon during build/verify. Does not submit.
+* **Owner authorization:** Submitting the resulting transaction requires explicit owner authorization.
+
+### `governed-token.mjs`
+
+* **Command:**
+  * Build deployment: `node scripts/multisig/governed-token.mjs build-deploy [--out file]`
+  * Verify deployment: `node scripts/multisig/governed-token.mjs verify-deploy <signed.xdr|XDR> [--signers founder,security]`
+  * Build mint: `node scripts/multisig/governed-token.mjs build-mint --token <contract-id> --to <public-key> --amount <amount> [--out file]`
+  * Verify mint: `node scripts/multisig/governed-token.mjs verify-mint <signed.xdr|XDR> --token <contract-id> --to <public-key> --amount <amount> --signers founder,security`
+  * Submit transaction: `node scripts/multisig/governed-token.mjs submit <signed.xdr|XDR>`
+* **Purpose:** Deploys and manages the governed test token whose minter is the administrative multisig account.
+* **Inputs read:** Deployment manifest and account manifest.
+* **Network / files touched:** Reads/submits to Soroban Testnet RPC.
+* **Owner authorization:** **Explicit owner authorization required** for deployment and mint submissions.
+
+### `signing-check.mjs`
+
+* **Command:**
+  * Build inert: `node scripts/multisig/signing-check.mjs build [--account <public-key>]`
+  * Verify signature: `node scripts/multisig/signing-check.mjs verify <signed.xdr> [--account <public-key>]`
+* **Purpose:** Tests an external signing workflow (e.g. hardware wallet or CLI identity) using an inert, unsubmittable transaction envelope (`seq_num: 1`, memo `tobin-sign-check-do-not-send`).
+* **Inputs read:** Account public key.
+* **Network / files touched:** None (offline envelope verification).
+* **Owner authorization:** No (cannot modify network state).
+
+## Continuous integration scripts (`scripts/ci/`)
+
+CI helper scripts are invoked by GitHub Actions workflows ([`.github/workflows/`](https://github.com/tobin-protocol/tobin/tree/main/.github/workflows)) or run locally before committing.
+
+### `cargo-test-summary.mjs`
+
+* **Command:** `node scripts/ci/cargo-test-summary.mjs <cargo-test-output-file> "<title>" [--expect-passed N]`
+* **Purpose:** Parses `cargo test` stdout/stderr, aggregates passed/failed/ignored test counts across suites, and writes a summary table to `GITHUB_STEP_SUMMARY`.
+* **Inputs read:** Cargo test text output file.
+* **Side effects:** Writes Markdown to standard output or GitHub summary. Exits with non-zero code on failures.
+* **Owner authorization:** No.
+
+### `check-links.mjs`
+
+* **Command:** `node scripts/ci/check-links.mjs [--include-untracked]`
+* **Purpose:** Validates relative Markdown links and anchor targets across tracked repository documentation files. External HTTP links are ignored (offline check).
+* **Inputs read:** Tracked `.md` files via `git ls-files`.
+* **Side effects:** Reports broken links; exits 1 if any broken link is found.
+* **Owner authorization:** No.
+
+### `dependency-report.mjs`
+
+* **Command:** `node scripts/ci/dependency-report.mjs [output.csv]`
+* **Purpose:** Compares repository lockfiles against the recorded dependency baseline ([`ci/dependency-baseline.csv`](https://github.com/tobin-protocol/tobin/blob/main/ci/dependency-baseline.csv)) and reports new, removed, or changed packages, license expressions, and triage flags.
+* **Inputs read:** `package-lock.json`, `ci/dependency-baseline.csv`, local Cargo cache.
+* **Side effects:** Outputs comparison report; does not alter lockfiles.
+* **Owner authorization:** No.
+
+### `update-npm-baseline.mjs`
+
+* **Command:** `node scripts/ci/update-npm-baseline.mjs [--check]`
+* **Purpose:** Regenerates the npm section of `ci/dependency-baseline.csv` from `package-lock.json`. In `--check` mode, verifies that the baseline file is in sync with the current lockfile without modifying it.
+* **Inputs read:** Root `package-lock.json` and `ci/dependency-baseline.csv`.
+* **Side effects:** Rewrites `ci/dependency-baseline.csv` (when `--check` is omitted). Exits 1 if out of sync in `--check` mode.
+* **Owner authorization:** No.
+
+### `test-skip-report.mjs`
+
+* **Command:** `node scripts/ci/test-skip-report.mjs <test-output-file> --allow "<test-name>=<reason-prefix>"`
+* **Purpose:** Enforces an explicit test skip allow-list from Node.js `node:test` output. Fails if any unexpected skip occurs, if any test fails, or if an allowed skip stops occurring.
+* **Inputs read:** Node test output text file.
+* **Side effects:** Writes summary to GitHub Actions step summary. Exits 1 on unapproved skips.
+* **Owner authorization:** No.
+
+### `wasm-hash-report.mjs`
+
+* **Command:** `node scripts/ci/wasm-hash-report.mjs <wasm-directory> [output.txt] [--rebuild <second-dir>]`
+* **Purpose:** Computes SHA-256 hashes of compiled contract WebAssembly binaries, compares them against historical Windows records ([`ci/wasm-hashes-recorded.txt`](https://github.com/tobin-protocol/tobin/blob/main/ci/wasm-hashes-recorded.txt)) and the Linux reference ([`ci/wasm-hashes-linux.txt`](https://github.com/tobin-protocol/tobin/blob/main/ci/wasm-hashes-linux.txt)).
+* **Inputs read:** Compiled `.wasm` files.
+* **Side effects:** Reports hash differences. Exits 1 if Wasm files are missing or if enforced reference mismatch occurs.
+* **Owner authorization:** No.
+
+## Release readiness and source scanning (`scripts/release/`)
+
+### `check-gates.mjs`
+
+* **Command:**
+  * Report mode: `node scripts/release/check-gates.mjs [--csv <out.csv>] [--include-untracked]`
+  * Enforce mode: `node scripts/release/check-gates.mjs --target <target-name>`
+* **Purpose:** Validates the release gate matrix in [`release/RELEASE-GATES.json`](https://github.com/tobin-protocol/tobin/blob/main/release/RELEASE-GATES.json) against repository state, verifying required approvals, dates, and evidence files.
+* **Inputs read:** `release/RELEASE-GATES.json`, git tree status.
+* **Side effects:** Generates gate status report. In enforce mode, exits 1 if any gate for the specified target is not marked `PASS`.
+* **Owner authorization:** No (validation tool only; cannot publish releases).
+
+### `scan.mjs` (Release scanner)
+
+* **Command:** Tested via `node --test scripts/release/scan.test.mjs` and invoked by `check-gates.mjs`.
+* **Purpose:** Inspects files for disallowed patterns: Stellar secret keys (`S...`), private key blocks, absolute local file system paths, and unapproved contract IDs outside [`contracts/deployments/testnet.json`](https://github.com/tobin-protocol/tobin/blob/main/contracts/deployments/testnet.json).
+* **Inputs read:** Repository source files.
+* **Side effects:** Reports gate G09 violations.
+* **Owner authorization:** No.
+
+## Restricted TST signer tooling (`scripts/tst-signer/`)
+
+The TST signer is a restricted administrative CLI tool for testnet token operations.
+
+### `restore-sdk.cjs`
+
+* **Command:**
+  ```bash
+  node scripts/tst-signer/restore-sdk.cjs
+  node scripts/tst-signer/restore-sdk.cjs --verify-only
+  ```
+* **Purpose:** Offline, fail-closed extraction and verification of `@stellar/stellar-sdk` 17.4.0 from the tracked tarball `scripts/tst-signer/pk/stellar-stellar-sdk-17.4.0.tgz`. Verifies the tarball checksum against [`SDK-PACKAGE-INVENTORY.sha256`](https://github.com/tobin-protocol/tobin/blob/main/scripts/tst-signer/SDK-PACKAGE-INVENTORY.sha256).
+* **Inputs read:** Tracked SDK tarball and hash inventories.
+* **Side effects:** Extracts minimal runtime files (`package.json`, `LICENSE`, `dist/stellar-sdk.js`) into `scripts/tst-signer/pk/x-stellar-stellar-sdk-17.4.0/package/`.
+* **Owner authorization:** No (purely offline verification).
+
+### `signer/tst-signer.cjs`
+
+* **Command:**
+  ```bash
+  node scripts/tst-signer/signer/tst-signer.cjs baseline
+  node scripts/tst-signer/signer/tst-signer.cjs preview deploy
+  node scripts/tst-signer/signer/tst-signer.cjs --approved-baseline <hash> init
+  node scripts/tst-signer/signer/tst-signer.cjs --approved-baseline <hash> preview <deploy|mint-C|mint-D>
+  node scripts/tst-signer/signer/tst-signer.cjs --approved-baseline <hash> execute <deploy|mint-C|mint-D>
+  ```
+* **Purpose:** Previews and executes pre-approved administrative token operations (`deploy`, `mint-C`, `mint-D`) on Testnet. Requires an approved baseline hash supplied from an external record.
+* **Inputs read:** Command-line parameters, approved baseline hash, local deployment config.
+* **Network / files touched:** Testnet RPC when executing.
+* **Owner authorization:** **Explicit owner authorization required** for `execute` operations.
+
+### `verify-signer-baseline.cjs` (`scripts/tst-signer-verify/`)
+
+* **Command:**
+  ```bash
+  node scripts/tst-signer-verify/verify-signer-baseline.cjs --signer-dir scripts/tst-signer/signer --expected <64-hex-hash>
+  ```
+* **Purpose:** External, independent hash-only verifier that recomputes the TST signer runtime baseline hash and compares it with an expected value.
+* **Inputs read:** Signer directory files.
+* **Side effects:** Exits `0` on match, `1` on hash mismatch, `2` on closure refusal, `3` on usage error.
+* **Owner authorization:** No (hash-only verification).
+
+## Modules without standalone CLI usage
+
+Several scripts in the repository serve as internal utility modules or test files rather than standalone CLI entry points:
+
+| File | Purpose | Invoked by |
+|---|---|---|
+| `scripts/ci/lib.mjs` | Shared formatting, error reporting, and GitHub Actions summary helpers. | CI scripts in `scripts/ci/` and `scripts/release/` |
+| `scripts/ci/npm-inventory.mjs` | Parser extracting dependency tree and license metadata from `package-lock.json`. | `dependency-report.mjs`, `update-npm-baseline.mjs` |
+| `scripts/multisig/lib.mjs` | Manifest parser, CRC utilities, account comparison logic, and Horizon lookup helpers. | Multisig scripts in `scripts/multisig/` |
+| `scripts/multisig/signature-tools.mjs` | Ed25519 signature and transaction envelope verification utilities. | `setup-tx.mjs`, `governed-token.mjs`, `signing-check.mjs` |
+| `scripts/release/scan.mjs` | Pure regex and rule evaluation functions scanning source text for secrets and paths. | `check-gates.mjs`, `scan.test.mjs` |
+| `*.test.mjs`, `*.test.cjs` | Automated test suites for corresponding scripts. | `node --test` |
