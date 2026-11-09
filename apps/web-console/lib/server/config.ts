@@ -118,3 +118,8 @@ export function clientIpFromForwarded(forwardedFor: string | null, hops: number)
   const ip = parts[parts.length - 1];
   return ip && /^[0-9a-f:.]{2,45}$/i.test(ip) ? ip.toLowerCase() : null;
 }
+
+/** For development-only route handlers: a hosted console answers 404 and never runs them. Reads the environment here so the isolated W0 module does not. */
+export function hostedRefusal(): Response | null {
+  return isHosted(process.env) ? new Response('not found', { status: 404, headers: { 'content-type': 'text/plain', 'cache-control': 'no-store' } }) : null;
+}

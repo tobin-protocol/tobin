@@ -1,3 +1,4 @@
+import { withRequestLog } from '../../../lib/server/log.ts';
 import { migrationStatus } from '../../../lib/db/database.ts';
 import { BackendUnavailable, getBackend } from '../../../lib/server/backend.ts';
 
@@ -6,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 // Readiness: the database answers and the schema is at the version this build expects. It says nothing about Stellar connectivity: that is a separate,
 // explicit check and is not implied by this one. No path, connection detail or user data is reported.
-export function GET(): Response {
+function handle(): Response {
   const h = { 'content-type': 'application/json', 'cache-control': 'no-store' };
   try {
     const st = migrationStatus(getBackend().db);
@@ -16,3 +17,5 @@ export function GET(): Response {
     return new Response(JSON.stringify({ status: 'not-ready', database: e instanceof BackendUnavailable ? 'not configured or unavailable' : 'error', stellar: 'not checked' }), { status: 503, headers: h });
   }
 }
+
+export const GET = withRequestLog(handle);

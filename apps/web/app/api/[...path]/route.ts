@@ -2,6 +2,7 @@ import { decide, MAX_BODY_BYTES, REQUEST_HEADER } from "../../../lib/proxy-polic
 import { CLIENT_IP_HEADER, isHosted, parseOrigin, trustedHops, upstreamAuthHeaders } from "../../../lib/server/config.ts";
 import { clientIpFromForwarded } from "../../../lib/server/client-ip.ts";
 import { checkBrowserRequest, originPredicate } from "../../../lib/server/csrf.ts";
+import { log, requestIdOf, routeLabel, withRequestLog } from "../../../lib/server/log.ts";
 
 // Server-side proxy to the web console's API (decision D2). The browser talks only to this origin; this handler talks to the console.
 // It validates the REAL browser request first (content type, CSRF header, Origin, Fetch Metadata: lib/server/csrf.ts) and only then adds the headers the
@@ -30,9 +31,12 @@ async function forward(request: Request, ctx: { params: Promise<{ path: string[]
     },
     originPredicate(hosted, parseOrigin(process.env.TOBIN_PUBLIC_ORIGIN)),
   );
-  if (refusal) return reply(refusal.status, refusal.error, refusal.message);
+  if (refusal) {
+    log("warn", "csrf.refused", { reason: refusal.error, method: request.method, route: routeLabel(new URL(request.url).pathname) });
+    return reply(refusal.status, refusal.error, refusal.message);
+  }
 
-  const headers = new Headers({ accept: "application/json", ...upstreamAuthHeaders(process.env) });
+  const headers = new Headers({ accept: "application/json", "x-request-id": requestIdOf(request), ...upstreamAuthHeaders(process.env) });
   const cookie = request.headers.get("cookie");
   if (cookie) headers.set("cookie", cookie);
   const ip = clientIpFromForwarded(request.headers.get("x-forwarded-for"), trustedHops(process.env));
@@ -58,5 +62,5 @@ async function forward(request: Request, ctx: { params: Promise<{ path: string[]
   return new Response(await upstream.text(), { status: upstream.status, headers: out });
 }
 
-export const GET = forward;
-export const POST = forward;
+export const GET = withRequestLog(forward);
+export const POST = withRequestLog(forward);

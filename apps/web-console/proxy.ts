@@ -4,6 +4,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { PROXY_AUTH_HEADER, securityPolicy } from './lib/server/config.ts';
+import { log } from './lib/server/log.ts';
 import { buildCsp, checkRequest, configuredPort, SECURITY_HEADERS } from './lib/server/guards.ts';
 
 export function proxy(request: NextRequest): NextResponse {
@@ -18,6 +19,7 @@ export function proxy(request: NextRequest): NextResponse {
     proxyAuth: request.headers.get(PROXY_AUTH_HEADER),
   });
   if (refusal) {
+    log('warn', 'guard.refused', { status: refusal.status, reason: refusal.body, method: request.method, path: request.nextUrl.pathname.slice(0, 80) });
     const res = new NextResponse(refusal.body, { status: refusal.status, headers: { 'content-type': 'text/plain', 'cache-control': 'no-store' } });
     for (const h of SECURITY_HEADERS) res.headers.set(h.key, h.value);
     return res;
