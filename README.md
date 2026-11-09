@@ -10,229 +10,242 @@
 
 <br>
 
-**Institutional clearing and settlement infrastructure built on Stellar: record obligations, calculate net positions, apply authorization controls, prepare settlement instructions, and settle through Stellar. Testnet execution is currently performed by separate, owner-run tools.**
+# Tobin
 
-<br>
+**Institutional clearing and settlement infrastructure on Stellar.**
 
 [Website](https://tobinprotocol.xyz) ·
-[Documentation map](#documentation-map) ·
-[Issues](https://github.com/tobin-protocol/tobin/issues) ·
-[Contributing](CONTRIBUTING.md) ·
-[Security](SECURITY.md) ·
-[Licence](LICENSE)
+[Documentation](https://docs.tobinprotocol.xyz) ·
+[GitHub](https://github.com/tobin-protocol/tobin) ·
+[Submission documents](docs/scf/README.md) ·
+[Security](SECURITY.md)
 
 </div>
 
+Tobin is open-source software that helps financial institutions coordinate the payment obligations they owe each other on Stellar. Institutions record obligations; a deterministic engine computes each participant's net position; a reviewer approves the exact result; settlement instructions are prepared for the net amounts only; and a Soroban contract validates and executes a plan that every participant has approved and every debtor has authorized.
+
 > [!IMPORTANT]
-> **Pre-production institutional infrastructure.** Tobin's core clearing and settlement workflows have been implemented and demonstrated through controlled Stellar Testnet execution. Production deployment and real-value use have not yet been approved.
-> Milestones MVP-1.2 to MVP-1.5 and wallet-first authentication are implemented. The Testnet demonstration is real but narrow: one owner-run settlement of eight transactions with test assets. The evidence is from the implementing author only, no independent security review has been performed, and the release gates for a versioned or production release remain blocked. The institutional application persists clearing and settlement **preparation** records; actual Testnet execution is performed by **separate owner-run tools**, and confirmed outcomes are **not** written back into the application's records. See [Project status](#project-status-and-roadmap), [Current scope and remaining engineering work](#current-scope-and-remaining-engineering-work) and the [maturity terminology](docs/COMMUNICATION-AND-MATURITY-TERMINOLOGY.md).
-
-## Table of contents
-
-- [What is Tobin?](#what-is-tobin)
-- [The problem](#the-problem)
-- [What Tobin provides](#what-tobin-provides)
-- [How Tobin works](#how-tobin-works)
-- [Architecture](#architecture)
-- [Security model](#security-model)
-- [Current scope and remaining engineering work](#current-scope-and-remaining-engineering-work)
-- [Project status and roadmap](#project-status-and-roadmap)
-- [Repository layout](#repository-layout)
-- [Getting started](#getting-started)
-- [Testing](#testing)
-- [Documentation map](#documentation-map)
-- [Contributing and community](#contributing-and-community)
-- [Licence](#licence)
-
-## What is Tobin?
-
-Tobin is institutional clearing and settlement infrastructure built on [Stellar](https://stellar.org), open source under Apache-2.0, for financial institutions that already move money on the network. Institutions record the payment obligations they owe each other. Tobin computes each participant's **net position** deterministically, requires a reviewer to approve the exact result, and prepares settlement instructions for only the net amounts. The application persists these clearing and settlement **preparation** records. Executing them on Stellar is a separate step: owner-run Testnet tools collect real signatures and submit the transactions to a Soroban smart contract one step at a time, each after the owner's typed confirmation. Nothing is submitted automatically, the application does not reconcile on-chain results automatically, and confirmed outcomes are not written back into its records. The contract applies its own validation to whatever plan it is given (see [Netting engine and contract validation](#netting-engine-and-contract-validation)).
-
-**Why Stellar is central.** Stellar does four jobs in the design. *Settlement:* a Soroban contract validates the plan and moves the net amounts atomically, all or nothing. *Authorization:* each debtor authorizes its own transfer through Stellar account signing and Soroban authorization, with multisig signer sets verified against the network, so no operator key can move funds. *Execution:* transactions are signed by the required accounts and submitted one step at a time. *Verification:* outcomes are read back from the ledger by transaction hash and compared with the approved plan, never inferred from an API reply.
-
-The repository holds three connected things:
-
-1. **An institutional application**: the user-facing app is `apps/web` (the canonical user interface; hosted at app.tobinprotocol.xyz on Vercel for the Testnet demonstration); `apps/web-console` is the backend, API and owner-tools host (hosted on Railway). Together they cover organizations and memberships, clearing sessions, obligations, calculations, reviewer approval, settlement preparation and sign-in. State is persisted in SQLite. The hosted app does not execute settlement.
-2. **Soroban contracts and a TypeScript SDK** (`contracts/`, `packages/mvp1-sdk`): a clearing contract that settles a session atomically in a Soroban token contract, a capped-supply test token, and the netting engine and digest code that both the application and the tests use.
-3. **Stellar Testnet tooling** (inside `apps/web-console`, run locally by the owner; not part of the hosted app): owner-run tools that verify wallet control, check multisig signer sets, collect real Freighter signatures, submit the settlement transactions one step at a time after the owner's typed confirmation, and read the results back from the network. They keep their own run log and do not update the application's records.
-
-**Intended users** are institutions with recurring payment obligations to several counterparties on Stellar: anchors, payment institutions, cross-border payment providers and institutional Stellar applications. Multilateral clearing only helps where several institutions owe each other. Whether real Stellar payment flows are interconnected enough to benefit has **not** been measured yet.
-
-**Role in the Stellar ecosystem.** Tobin sits above Stellar's existing standards; it does not replace SEP-31, SEP-24 or SEP-38 and defines no protocol token. It is not an anchor, custodian, payment processor, DEX, lender or bank, and it does not decide any institution's KYC or regulatory obligations. "Non-custodial" is used in a technical sense only (no Tobin operator key can move funds under the design); it is not a legal characterisation, and the claim depends on real-value deployments that do not exist.
-
-Tobin is **not** a universal clearing network and not a fully decentralized protocol: the application is a single-instance web app backed by one SQLite file, and the on-chain part is a settlement contract plus signatures.
+> **Status: Stellar Testnet only, specification and validation stage.** The core clearing and settlement preparation workflow is implemented and tested. One owner-run Testnet settlement (eight transactions, one base unit of a test token) has been executed and read back. The evidence is from the implementing author only; **no independent security review has taken place**; the hosted web application stops at settlement preparation and does not sign or submit transactions; the hosted deployment is a Testnet demonstration, not an institutional pilot. Mainnet and real-value use are not authorized. See [Status](#status).
 
 ## The problem
 
-When institutions have recurring obligations to several counterparties, the obligations cross and mostly offset, yet each one is usually settled on its own. In practice this means:
+When institutions have recurring obligations to several counterparties, the obligations cross and largely offset, yet each is usually tracked and settled on its own:
 
-- **Fragmented obligations.** Payments owed between the same institutions are tracked in separate places and settled one by one.
+- **Fragmented obligations.** Amounts owed between the same institutions live in separate systems and are settled one by one.
 - **Manual reconciliation.** Teams reconcile spreadsheets and statements by hand to agree who owes whom.
-- **Inefficient settlement coordination.** Gross settlement moves far more value than the net exposure requires.
-- **No structured institutional approval.** The people who record or change an obligation can often also release the payment.
-- **Operational and authorization risk.** A stale approval, a changed amount or a wrong signer can lead to settling something nobody approved.
-- **Settlement and reconciliation uncertainty.** A submitted transaction is not a confirmed one, and a confirmed one still has to be matched against what was approved.
+- **Coordination and settlement preparation.** Settling gross amounts moves far more value than the net exposure requires, and every counterparty must agree on what to settle.
+- **Approval and authorization.** The person who records or changes an obligation can often also release the payment.
+- **Settlement visibility.** A submitted transaction is not a confirmed one, and a confirmed one still has to be matched against what was approved.
 
-A worked example (arithmetic only, not data): A owes B 100, B owes C 80, C owes A 70. Settled one by one that moves 250. Cleared first, A pays 30, B receives 20 and C receives 10, so only 30 is settled. Net positions always sum to zero. (That is one valid way to settle those net positions; other plans can satisfy the same positions, and the contract accepts any plan that meets its own rules, described below.)
+A worked example (arithmetic only): A owes B 100, B owes C 80, C owes A 70. Settled one by one that moves 250. Cleared first, A pays 30, B receives 20 and C receives 10, so 30 is settled. Net positions always sum to zero. Whether real Stellar payment flows are interconnected enough for netting to help has **not been measured**; that is an open hypothesis, not a result.
 
-## What Tobin provides
+## What Tobin does
 
-Status labels: **Implemented** means the code and tests exist in this repository. **Testnet-verified** means it was exercised against the real Stellar Testnet. Production deployment has not yet been approved. The terms (implemented, tested, Testnet-verified, independently reviewed, pilot-ready, production-approved) are defined in the [maturity terminology guide](docs/COMMUNICATION-AND-MATURITY-TERMINOLOGY.md) and are not interchangeable.
-
-| Capability | Implemented | Testnet-verified | Notes |
-|---|:--:|:--:|---|
-| Institutional workspaces: organizations, memberships (admin or member, active or suspended), invitations bound to an email, a wallet, or open | Yes | n/a | Application-level only; never a Stellar authority |
-| Wallet-first sign-in and onboarding: server-issued single-use challenges, verified wallets, sessions, create-or-join flow | Yes | No | The Freighter flow is tested with a protocol-compatible stand-in; a real-Freighter run in Edge is outstanding |
-| Clearing sessions with participants and obligations (integer base units, canonical asset identity) | Yes | n/a | Sessions carry a provenance label (see [Architecture](#architecture)) |
-| Clearing calculations (deterministic netting) with immutable snapshots | Yes | n/a | The engine generates a default plan. It is a calculator, not an authority: many valid plans can exist, and the contract neither requires a proposal to equal the engine's plan nor enforces a minimal or unique one |
-| Institutional reviewer authorization, separation of duties, immutable decisions, automatic invalidation of stale approvals | Yes | n/a | An approval is a database record, not a signature |
-| Settlement preparation: deterministic instructions, immutable batches, batch review, operational closure | Yes | n/a | Preparation moves no funds |
-| Soroban contracts: clearing contract and a capped test token | Yes | Yes | Deployed on Testnet; see `contracts/deployments/testnet.json` |
-| Wallet ownership verification and signer-set-aware co-signing (multisig) | Yes | Yes | Real Freighter and a real multisig account were used in the owner-run validation |
-| Stellar Testnet settlement execution: eight transactions from session creation to `settle` | Yes (owner-run tool) | Yes | One run: a one-base-unit settlement of a governed test token |
-| Independent chain read and reconciliation against the approved plan | Foundations | Yes (one run) | An owner-run tool reads RPC and Horizon on request and compares the result with the approved plan; there is no automatic application-level reconciliation (see the note below) |
-
-> [!NOTE]
-> **What is and is not connected.** The persisted application records stop at "execution preconditions": the Settlement tab itself says *Stellar execution (preconditions only)*, and the settlement and execution records never read from or submit to the network (the one registry route that touches the chain is the read-only recording of a signer set). Real on-chain execution is performed by separate, owner-run tools (`/wallet-check`, `/cosign-check`, `/settle-run`) that keep their own run log. Writing confirmed on-chain outcomes back into the persisted application records is **not implemented**.
-
-**Not implemented:** account recovery for wallet-only users; deadlines, abort, default and recovery handling, collateral and Merkle commitments (the broader protocol design); hardware-wallet or second-wallet validation; any Mainnet capability; independent audit.
-
-## How Tobin works
-
-The implemented lifecycle, with the boundary between application operations and Stellar operations made explicit:
-
-```mermaid
-flowchart TB
-  subgraph APP["Application level: Tobin web console and SQLite. Nothing here is on-chain."]
-    direction TB
-    A1["1. Wallet sign-in: a server-issued challenge is signed in Freighter and verified by the server"]
-    A2["2. Onboarding: create an institution or accept an invitation"]
-    A3["3. Membership and roles: administrator, member, reviewer grant"]
-    A4["4. Clearing session: a local draft"]
-    A5["5. Participants and obligations"]
-    A6["6. Clearing calculation: deterministic net positions, saved as an immutable snapshot"]
-    A7["7. Institutional review: a reviewer approves or rejects the exact calculation"]
-    A8["8. Settlement preparation: instructions, batch review, execution preconditions"]
-    A1 --> A2 --> A3 --> A4 --> A5 --> A6 --> A7 --> A8
-  end
-  subgraph STELLAR["Stellar Testnet: owner-run tools, real signatures"]
-    direction TB
-    S1["9. Authorization: the account holders and, for the multisig account, the required signers sign"]
-    S2["10. Execution: create session, join, submit obligation, finalize, propose, approve, settle, one transaction at a time"]
-    S3["11. Confirmation and reconciliation: the owner-run tool reads the chain and compares with the approved plan; not automatic, not written back"]
-    S1 --> S2 --> S3
-  end
-  A8 -. "the approved plan is the input; outcomes are not written back" .-> S1
-```
-
-| Step | What happens | Where |
+| Stage | What happens | State today |
 |---|---|---|
-| 1-3 | A wallet proves control of a key; Tobin finds or creates the internal user; the user creates or joins an institution. Authentication grants no role | Application |
-| 4-5 | Participants and obligations are recorded. An obligation is a debtor, a creditor and an integer amount in one asset | Application |
-| 6 | The netting engine produces net positions (`outgoing - incoming`; positive means the participant pays). Any change to participants or obligations makes the earlier result stale | Application |
-| 7 | A reviewer approves or rejects **that exact calculation**. Nobody can decide on a result they recorded, changed or calculated | Application |
-| 8 | An approved calculation becomes an immutable batch of generated settlement instructions; a second review approves the batch; every participant needs a verified Stellar account on the right network before execution is allowed | Application |
-| 9-10 | Each required account authorizes its own step; the clearing contract moves its own session through Open, Committed, Approved and Settled, and `settle` executes the contract's approved plan atomically (the plan must satisfy the contract's own validation rules) | Stellar |
-| 11 | A transaction is only trusted after it is read back from the network by hash and matched against the approved plan. The owner-run tool does this on request; it is not automatic and the result is not written back into the application's records | Owner-run tool |
+| 1. Participants | an institution (organization), its members, roles and a separate reviewer grant | implemented |
+| 2. Clearing session | participants and one asset for a clearing run | implemented |
+| 3. Obligations | debtor, creditor and an integer amount, recorded by an administrator | implemented |
+| 4. Netting | deterministic net positions saved as an immutable snapshot; any change makes it stale | implemented |
+| 5. Review and authorization | a reviewer approves or rejects that exact calculation; a decision is bound to it and invalidated if inputs change | implemented (a database decision, not a signature) |
+| 6. Settlement preparation | an immutable batch of generated instructions, reviewed; participants need verified Stellar accounts | implemented; the hosted application stops here |
+| 7. Stellar settlement | the clearing contract validates the plan and executes the debtor-authorized transfers | contracts deployed on Testnet; executed by owner-run tools, one scenario |
+| 8. Verification and reconciliation | the transaction is read back from the network by hash and compared with the approved plan | in the owner-run tool, on request; results are not written back to application records |
 
-A prepared batch is not a submitted transaction, a signed transaction is not a submitted one, a submitted one is not a confirmed one, and a confirmed one is not settled until it is reconciled.
+This is **not** one automated end-to-end production workflow. Stages 1 to 6 run in the application; stages 7 and 8 run in separate, owner-run Testnet tools. A prepared batch is not a transaction, a signed transaction is not a submitted one, a submitted one is not a confirmed one, and a confirmed one counts as settled only after it is read back and reconciled against the approved batch.
 
-### Netting engine and contract validation
-
-These are two different things and are kept separate:
-
-- **The netting engine** (`packages/mvp1-sdk/src/engine`) computes each participant's net position and generates a *default* set of settlement instructions. The application stores that result in an immutable batch for review. It is a calculator and an advisory check, never an authority.
-- **The Soroban contract** enforces its own rules on whatever plan it is proposed, using the net positions it derives from the obligations recorded in the session: every party is an admitted participant; every amount is positive; for each participant the amount paid equals the net debit and the amount received equals the net credit, so no value is omitted, duplicated or introduced; instructions are in strictly ascending (payer, payee) order; and arithmetic is checked. The empty plan is valid only when every net is zero.
-
-The contract does **not** compare a proposal with the engine's output and does **not** require the plan to be minimal or unique: it accepts any plan that meets those rules. Tobin's owner-run execution tool proposes the approved batch's instructions, re-ordered only into the contract's required order, and refuses locally if the mapped plan differs from the approved batch. That is an application-side check; the contract's own validation is the authority.
-
-## Architecture
+## How it works
 
 ```mermaid
 flowchart LR
   subgraph BROWSER["Browser"]
-    UI["Next.js pages and components"]
-    FW["Freighter extension"]
+    UI["apps/web: institutional application"]
+    FW["Freighter wallet"]
   end
-  subgraph SERVER["Next.js server on Node 24"]
-    API["Route handlers: /api/auth, /api/registry, /api/stellar"]
-    AUTH["AuthService: sessions, wallet challenges"]
-    REG["Registry: organizations, sessions, authorization, settlement preparation"]
-    STL["lib/stellar: plan builder, signer sets, RPC adapter, owner-run tools"]
+  subgraph HOST["Hosted today: Testnet demonstration"]
+    PROXY["apps/web server-side proxy"]
+    API["apps/web-console: API, authorization, settlement preparation"]
+    DB[("SQLite file on a volume")]
   end
-  DB[("SQLite file via node:sqlite")]
-  SDK["packages/mvp1-sdk: netting engine, digests, prepared contract calls"]
-  subgraph CHAIN["Stellar Testnet"]
+  subgraph OWNER["Run locally by the owner"]
+    TOOLS["owner-run Stellar tools: sign, submit, read back"]
+  end
+  subgraph STELLAR["Stellar Testnet"]
+    CON["TobinClearingV1 and test token (Soroban)"]
     RPC["Soroban RPC and Horizon"]
-    CON["TobinClearingV1 and token contracts"]
   end
-  UI --> API
+  PG[("PostgreSQL")]:::planned
+  UI --> PROXY --> API --> DB
   UI <--> FW
-  API --> AUTH --> DB
-  API --> REG --> DB
-  REG --> SDK
-  API --> STL --> SDK
-  STL --> RPC --> CON
+  TOOLS <--> FW
+  TOOLS --> RPC --> CON
+  API -.-> PG
+  classDef planned stroke-dasharray: 4 3,color:#555
 ```
 
-| Layer | What it is | Where |
+Dashed means planned and not built. The pieces:
+
+- **Application layer (`apps/web`).** The canonical user-facing application. It has no database and reaches the backend only through a server-side proxy.
+- **Backend and API (`apps/web-console`).** Authentication, organizations, sessions, obligations, calculations, institutional approvals, settlement preparation and a read-only public Discover API, over SQLite with immutable history tables enforced by triggers. It also hosts the owner-run Stellar tools and a local sandbox.
+- **Clearing and netting (`packages/mvp1-sdk`).** The netting engine, digests and prepared contract calls. The engine generates a default plan; it is a calculator, not an authority.
+- **Soroban contracts (`contracts/`).** The clearing contract (session lifecycle Open, Committed, Approved, Settled) and a capped test token.
+- **Wallet signing.** Freighter signs in the browser; no Tobin server holds a Stellar private key.
+- **Audit records.** Decisions, batches, execution records and authentication events are immutable or append-only.
+
+**What the contract does and does not enforce.** It accepts any plan that satisfies its own rules: every party admitted, every amount positive, each participant's payments and receipts equal to its net, instructions in strict order, checked arithmetic. It does **not** require the plan to equal the engine's output or to be minimal, and it has no time limit, abort, default or administrator override. The 10-ledger authorization-entry lifetime is a policy value in the owner-run tool, not something the contract enforces. Details: [technical specification](docs/scf/technical/technical-specification.md).
+
+## Why Stellar
+
+Stellar is the settlement layer of the design, not a place where all institutional records live. What is implemented against it: Soroban contracts that validate and execute a settlement plan (the clearing contract writes its Settled state and result record in the same invocation as the token transfers, and a failing transfer reverts it); Soroban authorization, so each debtor authorizes its own transfer; wallet signing through Freighter, including multisig signer sets that are checked against the network; Testnet execution of one session; and read-back of the contract state and the transaction by hash. Obligations, calculations, reviews and approvals are **off-chain application state**; only the settlement outcome is on-chain. Tobin sits above Stellar's existing standards and defines no protocol token. See [Stellar integration](docs/scf/technical/stellar-integration.md).
+
+## Status
+
+Terms follow the [maturity guide](docs/COMMUNICATION-AND-MATURITY-TERMINOLOGY.md).
+
+| Level | Today |
+|---|---|
+| Implemented | MVP-1.2 to MVP-1.5 and wallet-first authentication, each complete with stated limitations |
+| Tested | automated suites, contract tests and browser journeys; same-author |
+| Testnet-verified | the settlement path, narrowly: one owner-run execution with multisig co-signing, read back from the network |
+| Independently reviewed | **no** |
+| Pilot-ready | **no** |
+| Production-approved | **no** |
+
+| Capability | Description | Status |
 |---|---|---|
-| Frontend | `apps/web` is the canonical user-facing application (Next.js 16, React 19; a client of the console API through a server-side proxy). `apps/web-console` also ships an older institutional UI under `app/(institution)`, the local sandbox page `/` and the W0 console; these overlap with `apps/web` | `apps/web`, `apps/web-console` |
-| Backend and API | `apps/web-console` hosts the API: route handlers on the Node runtime (`/api/auth/*`, `/api/registry/*`, `/api/stellar/*`, `/api/public/*`); a `proxy.ts` that enforces Host/Origin guards (loopback only locally; an allow-list and a shared proxy secret when `TOBIN_DEPLOYMENT_MODE=hosted`) and a per-request CSP | `apps/web-console/app/api`, `proxy.ts` |
-| Persistence | SQLite through `node:sqlite` (no database server, one application instance); numbered, atomic migrations 1 to 8; immutable and append-only tables enforced by triggers | `apps/web-console/lib/db` |
-| Authentication and authorization | Opaque HttpOnly session cookie (hash stored); wallet challenges; membership and role checks on the server in `Registry` | `lib/auth`, `lib/registry` |
-| Stellar integration | `@stellar/stellar-sdk` 17.4.0 and `@stellar/freighter-api` 6.0.1; execution plan, signer-set verifier, RPC adapter, owner-run tools | `lib/stellar` |
-| Contracts and SDK | Rust 1.96.0 and Soroban SDK 29.0.0; the TypeScript engine, digest and SDK are shared by the application and tests | `contracts/`, `packages/mvp1-sdk` |
-| Tests and CI | `node:test` suites, real-browser journeys over the Chrome DevTools Protocol, GitHub Actions workflows | `test/`, `.github/workflows/` |
+| Institutional onboarding | wallet-first sign-in, invitations, create or join an organization | implemented; tested with a protocol-compatible stand-in and by the owner with a real Freighter on Testnet, with no cross-browser or screen-reader pass; account recovery not built; registration is open on the hosted demonstration |
+| Organizations and membership | admin or member, active or suspended, reviewer grant | implemented; application-level only, never a Stellar authority |
+| Clearing sessions and obligations | integer base units, canonical asset identity, provenance labels | implemented |
+| Netting | deterministic, immutable snapshots, stale detection | implemented; the economic benefit is unproven |
+| Institutional authorization | decisions bound to the calculation, separation of duties, automatic invalidation | implemented; a reviewer who prepared a batch cannot approve it, but a different reviewer from the calculation's approver is **not** required yet (planned) |
+| Settlement preparation | immutable batches, batch review, closure | implemented; moves no funds |
+| Stellar Testnet integration | deployed contracts, Freighter signing, multisig, owner-run execution | implemented as local tools; one run, one base unit; the plan used in that run was fixed in the tool, not derived from a database batch |
+| Transaction verification | read-back by hash and comparison with the plan | in the owner-run tool only; not stored |
+| Public Discover API | read-only list of organizations that chose public visibility | implemented; settlements and statistics are empty or null because no read-back outcome is recorded |
+| Operations and reconciliation | reconciliation and exception handling in the application | planned (MVP-1.6) |
+| Security and infrastructure | hosted guards, CSP, CSRF checks at the proxy, structured logs, tenant-isolation and store-conformance suites | implemented; PostgreSQL, backups, independent review and monitoring planned (MVP-1.7) |
 
-### Four kinds of state, kept apart
+### Current scope and remaining engineering work
 
-| State | What it is | Examples |
-|---|---|---|
-| **Application state** | Rows in SQLite. Not on-chain | organizations, sessions, obligations, users, wallets |
-| **Clearing and settlement preparation state** | Application records that define what was approved | calculation snapshots; reviewer decisions (`active`, `superseded`, `invalidated`); batches (`awaiting-review`, `approved`, `rejected`, `invalidated`, `superseded`) |
-| **Stellar transaction state** | What happened to a transaction Tobin built | `awaiting-signer`, `signing`, `signed`, `submission-pending`, `submitted`, `confirmed`, `reconciled`, `failed`, `expired`, `unknown-outcome`, `reconciliation-required` (defined in `lib/registry/settlement-state.ts`) |
-| **Independently verified on-chain state** | What the network says when read back, never inferred from an API reply | the session, obligations, proposal, approvals and settlement record in the contract, token balances, a transaction read by hash |
+These are the validation and engineering gaps between the implemented Testnet integration and a pilot. Each is true today and tracked.
 
-A session record also carries a **provenance** label: `fixture` (demonstration data, never on-chain), `local-draft` (created in the application, nothing submitted), `chain-read` (a read-only RPC observation exists, not tied to a verified transaction) and `chain-confirmed` (a read matched the id and the creating transaction was confirmed successful).
+1. Evidence is same-author, from one environment and one browser engine; no independent penetration test, fuzzing or security review has been done.
+2. Wallet and multisig verification is incomplete (no second-wallet or hardware-wallet validation); no cross-browser or screen-reader pass.
+3. The Testnet settlement was one run of one base unit. Maximum-size sessions, fee breakdown and measured resources have not been validated, and the plan used was fixed in the owner-run tool rather than derived from a database batch.
+4. Confirmed on-chain outcomes are not written back to application records; no route can mark a session `chain-confirmed`.
+5. Account recovery is deferred: a wallet-only user must keep access to at least one verified wallet.
+6. Migration 8 was tested on fresh databases and a populated version-7 test database, not on a real operator database.
+7. The hosted demonstration runs one SQLite instance with open registration and no backup or restore test; PostgreSQL, invitation-controlled registration, email verification and the different-reviewer rule are planned.
 
-## Security model
+Evidence: [implementation status](docs/scf/implementation/implementation-status.md), [evidence register](docs/scf/implementation/evidence-register.md), the recorded Testnet files in [`docs/product/architecture/mvp-1.5/evidence/`](docs/product/architecture/mvp-1.5/evidence/) and the contract manifest [`contracts/deployments/testnet.json`](contracts/deployments/testnet.json).
 
-- **Wallet ownership is not institutional authority.** Signing in proves control of a key. Memberships, roles, reviewer grants and settlement authority are separate records, each checked by the server on every request.
-- **Wallet ownership verification.** Challenges are server-issued, bound to site, network, key and purpose, single-use, and expire in five minutes; the signed text is rebuilt on the server and the signature is verified there.
-- **Institutional roles are not Stellar signing authority.** An application administrator is not a multisig signer and not a reviewer. The owner-run Testnet tools additionally require a verified wallet that is a configured signer, the administrative account or the second account.
-- **Reviewer separation of duties.** A reviewer cannot decide on a calculation they recorded, changed or calculated; an administrator is not automatically a reviewer.
-- **Approvals are bound to what they approve.** A decision is bound to the exact calculation snapshot and a batch approval to the instruction hash; any later change invalidates them rather than silently carrying over.
-- **Immutable records.** Decisions, batches, execution attempts, signer-set snapshots and authentication events are immutable or append-only, enforced by database triggers as well as by code.
-- **Secure sessions.** HttpOnly, SameSite=Strict cookies (Secure in production), hash-only storage, rotation on sign-in, an absolute limit (and an idle limit for wallet sessions), revocation, a request-header CSRF guard and persisted rate limiting.
-- **Testnet restrictions.** Wallet sign-in, the ownership proof and signer-set recording accept Stellar Testnet only. No Mainnet transaction, RPC, signer or settlement path exists. (The operator command `node scripts/db.ts asset-add public ...`, run from `apps/web-console`, can still register a `public` asset identity as configuration; it cannot execute anything.)
+## Repository
 
-The detailed reviews are in the [documentation map](#documentation-map). They are the author's own reviews, not independent audits.
+```text
+apps/web/          canonical user-facing application (Next.js 16, React 19)
+apps/web-console/  backend and API host: institutional API, public Discover API, SQLite persistence,
+                   owner-run Stellar tools, local sandbox, an older institutional UI that overlaps apps/web
+apps/docs/         documentation site (docs.tobinprotocol.xyz)
+apps/landing/      project website (tobinprotocol.xyz)
+packages/          mvp1-sdk (netting engine, digests, SDK), ui-tokens (shared design tokens)
+contracts/         Rust and Soroban: clearing, token, deployments (Testnet manifest)
+scripts/           CI, release-gate, multisig and signer tooling
+ci/  release/      dependency baseline and Wasm hash records; release controls and gates
+accounts/          public metadata of Testnet accounts (no secrets)
+docs/              documentation: SCF package, milestone records, governance, reference
+```
 
-## Current scope and remaining engineering work
+`apps/web` is the canonical application. `apps/web-console` stays as the backend and the only host of the owner-run tools; its older UI overlaps `apps/web` and has a retirement plan in [ui-and-console](docs/scf/technical/ui-and-console.md). Nothing is removed yet.
 
-These are the validation and engineering requirements that stand between the implemented Testnet integration and a pilot. They are retained because they are true and because each one is planned or tracked, not because the work is hypothetical.
+## Documentation map
 
-1. A real-Freighter validation of the wallet-first flow in Microsoft Edge is outstanding; automated browser tests use a protocol-compatible stand-in.
-2. Evidence is same-author, from one environment and one browser engine; no independent penetration test or fuzzing has been done.
-3. Migration 8 was tested on fresh databases and a populated version-7 test database, not on a real operator database.
-4. Account recovery is deferred: a user must keep access to at least one verified wallet. There is no administrator or support override.
-5. Confirmed on-chain outcomes are not written back to the persisted application records.
-6. The settlement on Testnet was a single run of a one-base-unit settlement; maximum-size sessions, fee breakdown and measured resources have not been validated.
-7. A repository ruleset on `main` requires a pull request with one approving review and blocks force pushes and deletion, but it requires **no specific CI check** and repository and organization admins can bypass it. That CI check must pass is project policy in [CONTRIBUTING.md](CONTRIBUTING.md), not something GitHub enforces.
+The public site is [docs.tobinprotocol.xyz](https://docs.tobinprotocol.xyz). The submission package below lives in this repository and is **not yet published on the docs site**.
+
+| Document | Purpose |
+|---|---|
+| [SCF documentation index](docs/scf/README.md) | main reviewer entry point |
+| [Technical overview](TECHNICAL.md) | one-page summary |
+| [Product requirements](docs/scf/product/prd.md) | scope and requirements |
+| [Roadmap](docs/scf/product/roadmap.md) | milestones and the SCF tranche mapping |
+| [Architecture](docs/scf/technical/architecture.md) | components, trust boundaries, current and planned topology |
+| [Technical specification](docs/scf/technical/technical-specification.md) | behaviour with code references |
+| [Stellar integration](docs/scf/technical/stellar-integration.md) | Soroban, signing, submission, read-back |
+| [Security overview](docs/scf/security/security-overview.md), [threat model](docs/scf/security/threat-model.md) | controls, limitations, review status |
+| [API reference](docs/scf/technical/api-reference.md) | institutional HTTP API |
+| [Implementation status](docs/scf/implementation/implementation-status.md) | what exists today |
+| [Testing and validation](docs/scf/implementation/testing-and-validation.md) | verification evidence and gates |
+| [Deployment and operations](docs/scf/implementation/deployment-and-operations.md) | local and hosted deployment |
+| [Evidence register](docs/scf/implementation/evidence-register.md) | claims mapped to evidence |
+| [AI disclosure](docs/scf/product/ai-disclosure.md) | AI-assisted development |
+
+Older milestone records and decisions are under `docs/product/architecture/`; [`AGENTS.md`](AGENTS.md) is the guide for contributors and coding agents.
+
+## Getting started
+
+Prerequisites: Node.js 24 or later (CI uses 24.14.0; Node 24 runs `.ts` directly and provides `node:sqlite`), the npm bundled with it, and Chrome or Edge for browser checks. Contract work needs Rust 1.96.0 with `rustfmt`, `clippy` and the `wasm32v1-none` target, and the Stellar CLI 28.0.0 only to build Wasm. No database server is needed. Freighter is needed only to try wallet flows by hand, on **Testnet**.
+
+**Local development**
+
+```bash
+git clone https://github.com/tobin-protocol/tobin.git && cd tobin
+npm ci
+npm run dev --workspace tobin-web-console     # backend and API, http://127.0.0.1:8787
+npm run dev --workspace tobin-web             # user-facing app, http://127.0.0.1:3000 (needs the console running)
+```
+
+Locally the console accepts only loopback Host names by design. Settlement preparation needs a configured asset; see [`apps/web/README.md`](apps/web/README.md) for the full local setup, environment variables and asset command. No `.env` file is required and none is committed.
+
+### Environment and database
+
+No `.env` file is required and none is committed (`.env*` files are git-ignored). Never commit credentials. Optional variables:
+
+| Variable | Purpose |
+|---|---|
+| `TOBIN_DB_PATH` | SQLite file. **Required when `NODE_ENV=production`**; otherwise defaults to `.data/tobin-dev.sqlite` in the app directory (git-ignored) |
+| `PORT` | must match the port the server is started with (default 8787) |
+| `TOBIN_BRIDGE_EXE` | path to the Rust bridge executable (sandbox console and bridge-backed tests) |
+| `TOBIN_STELLAR_CLEARING_CONTRACT` | public id of the deployed clearing contract used by the execution-plan adapter |
+| `TOBIN_SECOND_ACCOUNT`, `TOBIN_ADMIN_ACCOUNT_RECORD`, `TOBIN_DEPLOYMENT_RECORD`, `TOBIN_BATCH_ID` | inputs of the owner-run tools; see `apps/web-console/lib/stellar/` |
+| `TOBIN_DEMO_PASSWORD` | password for `db:seed-demo` demonstration users (refused in production) |
+
+Migrations apply when the server starts. By hand, from the repository root: `npm run db:migrate --workspace tobin-web-console` (idempotent), `npm run db:status --workspace tobin-web-console` (exits 2 while migrations are pending). The hosted-mode variables (Host allow-list, proxy secret, public origin) are in [`HOSTING-CONFIGURATION.md`](docs/backend-implementation/HOSTING-CONFIGURATION.md).
+
+**Tests**
+
+```bash
+npm run typecheck                                 # all workspaces
+npm test --workspace tobin-web-console            # backend, security, persistence, isolation tests
+npm test --workspace tobin-mvp1-sdk               # engine and SDK
+npm test --workspace tobin-web                    # web application unit tests
+npm run lint --workspace tobin-web
+node --test scripts/release/scan.test.mjs         # release-scan rule tests
+```
+
+**Contracts**
+
+```bash
+cd contracts
+cargo test --locked --workspace                   # native contract tests
+cargo build --locked -p tobin-clearing-v1 --example bridge   # development bridge used by some TypeScript tests
+stellar contract build                            # Wasm
+```
+
+Set `TOBIN_BRIDGE_EXE` to the bridge executable to run the bridge-backed tests; without it they are skipped and reported. More commands (database, browser journeys, builds) are in [`AGENTS.md`](AGENTS.md) section 9 and [`apps/web/README.md`](apps/web/README.md). There is no one-command deployment; hosted deployment is described in [deployment and operations](docs/scf/implementation/deployment-and-operations.md).
+
+## Testing and evidence
+
+- **Automated suites:** unit and integration tests for the engine, the registry, authentication and authorization; a registry store-conformance suite and a tenant-isolation suite over every organization-scoped route; Rust contract tests; real-browser journeys; web unit tests.
+- **CI:** pull requests run formatting, Rust tests, type checks, production builds, the backend and SDK suites, the web application's lint, tests, build and hosted-mode checks, dependency-baseline and link checks, the release-scan tests and the W0 browser journey. The contract-Wasm job and one console browser journey run from a separate workflow on `main`, weekly and on demand, not on pull requests; the other browser journeys are run locally and are not part of CI. Workflow definitions: [`.github/workflows/`](.github/workflows/).
+- **Testnet evidence:** one owner-run settlement and the validation records in [`docs/product/architecture/mvp-1.5/evidence/`](docs/product/architecture/mvp-1.5/evidence/); same-author, single run.
+- **Skips and gaps:** bridge-backed tests are skipped without the Rust bridge (CI allows one explicit skip); maximum-size sessions, fee breakdown, resource measurements, fuzzing and independent review have not been done. Release gates for a versioned or production release remain blocked in [`release/RELEASE-GATES.json`](release/RELEASE-GATES.json).
+
+Test counts are recorded with their date and commit in [testing and validation](docs/scf/implementation/testing-and-validation.md), not here.
+
+## Security
+
+Report suspected vulnerabilities privately through GitHub private vulnerability reporting (the Security tab of this repository); see [`SECURITY.md`](SECURITY.md) for the process and the secondary contact. Do not open a public issue for a vulnerability and do not include real credentials or keys in a report. The security work so far is the author's own; **no independent audit or penetration test has been performed**. Controls and limitations: [security overview](docs/scf/security/security-overview.md).
 
 ## Project status and roadmap
-
-**Maturity at a glance** (definitions in the [terminology guide](docs/COMMUNICATION-AND-MATURITY-TERMINOLOGY.md)):
-
-| Level | Status |
-|---|---|
-| Implemented | Yes: MVP-1.2 to MVP-1.5 and wallet-first authentication |
-| Tested | Yes: automated suites, contract tests and browser journeys (same-author) |
-| Testnet-verified | The settlement path, narrowly: one owner-run execution of eight transactions with multisig co-signing, read back from the network |
-| Independently reviewed | No |
-| Pilot-ready | No: depends on MVP-1.6 to MVP-1.8 and an independent security review |
-| Production-approved | No |
 
 | Milestone | Description | Status |
 |---|---|---|
@@ -241,157 +254,15 @@ These are the validation and engineering requirements that stand between the imp
 | MVP-1.4 | Settlement Preparation Engine | Completed |
 | MVP-1.5 | Stellar Settlement Integration | Completed with limitations |
 | MVP-1.6 | Institutional Operations and Reconciliation | Planned |
-| MVP-1.7 | Security, Governance and Infrastructure Hardening | Planned |
+| MVP-1.7 | Security, Governance and Infrastructure Hardening | Planned; hosting hardening and test-foundation work has begun |
 | MVP-1.8 | Controlled Institutional Pilot | Planned |
 
-Wallet-first authentication and institutional onboarding were delivered after MVP-1.5 as a separate piece of work (**complete with limitations**); it does not rename or reorder the milestones above.
+Wallet-first authentication was delivered after MVP-1.5 as separate work (complete with limitations). Completing a milestone does not mean production readiness. Scope, deliverables and the SCF tranche mapping are in the [roadmap](docs/scf/product/roadmap.md).
 
-**Completing MVP-1.5 does not mean production readiness.** It means the Testnet integration was built and validated within a narrow, stated scope. The versioned-release and production gates in [`release/RELEASE-GATES.json`](release/RELEASE-GATES.json) remain blocked, and real-value use is out of scope until the later milestones and an independent security review are done.
+## Contributing
 
-<details>
-<summary>The earlier protocol-level milestones (M0 to M8), unchanged</summary>
-
-The repository's earlier README tracked the broader protocol on a separate list. Its content is preserved here, not renamed or reordered: M0 protocol specification (draft); M1 ledger and economic validation with a go, modify or stop decision (not complete); M2 experimental Soroban MVP on Stellar Testnet (complete for the experimental scope only); M3 SDK and reference implementation of the broader protocol; M4 public testnet for the broader protocol; M5 conformance suite and independent security review; M6 institutional pilot; M7 Mainnet, only after the technical, network and operational criteria are met; M8 network growth. The product requirements and the draft protocol specification are not published in this repository.
-
-</details>
-
-## Repository layout
-
-```text
-tobin/
-├── apps/
-│   ├── web/                canonical user-facing application (Next.js; a client of the console API)
-│   ├── web-console/        backend and API host: institutional API and older UI, owner-run Testnet tools,
-│   │   ├── app/            local sandbox Console and the W0 console; pages and route handlers
-│   │   ├── components/     client components
-│   │   ├── lib/            auth, db (migrations), registry, stellar, server guards, console, w0
-│   │   ├── scripts/        database operator commands and Testnet read-only scripts
-│   │   └── test/           unit and integration tests; browser journeys in test/browser/
-│   └── landing/            the project website (Next.js, has its own AGENTS.md)
-├── packages/
-│   └── mvp1-sdk/           TypeScript netting engine, digests, SDK and local bridge client
-├── contracts/              Rust and Soroban: clearing/, token/, deployments/ (Testnet manifest)
-├── docs/                   architecture and milestone documents, governance, reference, reports,
-│                           spec, assets
-├── scripts/                CI, release-gate, multisig and signer tooling
-├── ci/                     dependency baseline, Wasm hash records, CI notes
-├── release/                release controls, gate definitions, process-deviation log
-├── accounts/               public metadata of Testnet accounts (no secrets, ever)
-└── .github/                workflows, issue forms and the pull request template
-```
-
-## Getting started
-
-### Prerequisites
-
-| Tool | Version | Needed for |
-|---|---|---|
-| Node.js | 24 or later (CI uses 24.14.0) | everything TypeScript; Node 24 runs `.ts` files directly and provides `node:sqlite` |
-| npm | the version bundled with Node 24 (11.19.0 was used locally) | workspaces, `npm ci` |
-| Rust | 1.96.0 with `rustfmt`, `clippy` and the `wasm32v1-none` target (CI pin) | contracts and the Rust development bridge |
-| Stellar CLI | 28.0.0 | building contract Wasm only |
-| Chrome or Edge | any recent version | browser journeys (set `TOBIN_BROWSER` if it is not detected) |
-
-No database server is needed. Freighter is needed only to try the wallet flows by hand, on **Testnet**.
-
-### Install and run
-
-```bash
-git clone https://github.com/tobin-protocol/tobin.git
-cd tobin
-npm ci                                              # CI uses: npm ci --ignore-scripts
-npm run typecheck                                   # all workspaces
-npm run dev --workspace tobin-web-console           # http://127.0.0.1:8787
-```
-
-Open <http://127.0.0.1:8787/sign-in>. Locally the console binds to the loopback interface and refuses other Host names by design; the user-facing app (`apps/web`, see its README) runs beside it on `127.0.0.1:3000`. The page at `/` is the MVP-1 local sandbox Console and needs the Rust bridge (below); the institutional pages do not.
-
-### Environment and database
-
-No `.env` file is required, and none exists in the repository. Never commit credentials; `.env*` files are git-ignored. Optional variables:
-
-| Variable | Purpose |
-|---|---|
-| `TOBIN_DB_PATH` | database file. **Required when `NODE_ENV=production`**; otherwise defaults to `.data/tobin-dev.sqlite` (relative to the app directory, git-ignored) |
-| `PORT` | must match the `--port` the server is started with (default 8787) |
-| `TOBIN_BRIDGE_EXE` | path to the Rust bridge executable (sandbox Console and bridge-backed tests) |
-| `TOBIN_STELLAR_CLEARING_CONTRACT` | public id of the deployed clearing contract used by the execution-plan adapter |
-| `TOBIN_SECOND_ACCOUNT` | public key of the second participant account for the owner-run settlement tool |
-| `TOBIN_ADMIN_ACCOUNT_RECORD`, `TOBIN_DEPLOYMENT_RECORD`, `TOBIN_BATCH_ID`, `TOBIN_VALIDATION_CREATOR`, `TOBIN_REPO_ROOT` | owner-run tool inputs; see `apps/web-console/lib/stellar/` |
-| `TOBIN_DEMO_PASSWORD` | password for `db:seed-demo` demonstration users (refused in production) |
-| `TOBIN_BROWSER`, `TOBIN_WIDTH` | browser path and viewport width for the journeys |
-
-Migrations apply automatically when the server starts. To run them by hand (from the repository root):
-
-```bash
-npm run db:migrate --workspace tobin-web-console     # idempotent
-npm run db:status  --workspace tobin-web-console     # prints the version; exits 2 while migrations are pending
-npm run db:seed-demo --workspace tobin-web-console   # fixture demo data; needs TOBIN_DEMO_PASSWORD
-```
-
-### Rust contracts and the bridge
-
-```bash
-cd contracts
-cargo test --locked --workspace                                  # contract tests (native)
-cargo build --locked -p tobin-clearing-v1 --example bridge       # the development bridge used by TS tests
-stellar contract build                                           # Wasm (needs the Stellar CLI)
-```
-
-Point `TOBIN_BRIDGE_EXE` at `contracts/target/debug/examples/bridge` (`bridge.exe` on Windows). Without it, the bridge-backed tests are skipped and the skips are reported.
-
-### Build
-
-```bash
-npm run build:console                  # production build of the web console
-npm run build --workspace tobin-landing
-```
-
-### Windows and PowerShell notes
-
-- Use PowerShell syntax for variables: `$env:TOBIN_BRIDGE_EXE = "C:\path\to\tobin\contracts\target\debug\examples\bridge.exe"`; `export` is for Bash.
-- Run the database and tool commands through `npm run ... --workspace tobin-web-console` so the working directory is the app directory; several tools resolve paths from it.
-- Stop a server by process, not by killing every `node` process on the machine.
-- Browser journeys find Chrome or Edge in their usual install paths; otherwise set `TOBIN_BROWSER`.
-
-## Testing
-
-| Layer | Command | Notes |
-|---|---|---|
-| TypeScript type check | `npm run typecheck` | all workspaces |
-| SDK tests | `npm test --workspace tobin-mvp1-sdk` | `node:test`; use the bridge to avoid skips |
-| Console unit, integration, security and persistence tests | `npm test --workspace tobin-web-console` | real SQLite; bridge-backed tests are skipped without `TOBIN_BRIDGE_EXE` |
-| Contract tests | `cd contracts && cargo test --locked --workspace` | also run against Wasm in the integration workflow |
-| Release-scan rule tests | `node --test scripts/release/scan.test.mjs` | the source-tree scan behind gate G09 |
-| Browser journeys | from `apps/web-console`: `TOBIN_WIDTH=1200 node test/browser/<journey>.mjs <output dir>` | `journey`, `w0-journey`, `sessions-journey`, `settlement-journey`, `authorization-journey`, `clearing-journey`, `backend-journey`, `wallet-auth-journey`; needs a production build; run at 1200 and 420 |
-
-**Local validation is not hosted CI.** On pull requests, hosted CI runs formatting, Rust tests, the type check, both production builds, the SDK and console suites with the bridge, the dependency-baseline and link checks, the scan tests, and the W0 browser journey. The other browser journeys are not run on pull requests, so a PR that could affect them needs the local results in its description. One TypeScript test is allowed to skip (known-answer fixtures are not published); any other skip must be explained. See [`ci/README.md`](ci/README.md).
-
-## Documentation map
-
-| Need | Read | For |
-|---|---|---|
-| Product requirements | *Not published in this repository* | the protocol specification is a draft held outside the repository |
-| Whole-system orientation | [`AGENTS.md`](AGENTS.md) | contributors and coding agents: domain model, trust boundaries, invariants, navigation |
-| Persistence and operations | [`BACKEND_PERSISTENCE_ARCHITECTURE.md`](docs/product/architecture/mvp-1.2/BACKEND_PERSISTENCE_ARCHITECTURE.md), [`DATA_MODEL`](docs/product/architecture/mvp-1.2/BACKEND_PERSISTENCE_DATA_MODEL.md), [`OPERATIONS`](docs/product/architecture/mvp-1.2/BACKEND_PERSISTENCE_OPERATIONS.md) | anyone changing the database or running the app |
-| Milestone records | `docs/product/architecture/mvp-1.2` to `mvp-1.5` (acceptance, closure, implementation, security reports), e.g. [MVP-1.3 implementation](docs/product/architecture/mvp-1.3/MVP-1.3-IMPLEMENTATION.md), [MVP-1.4 implementation](docs/product/architecture/mvp-1.4/MVP-1.4-IMPLEMENTATION.md), [MVP-1.5 closure](docs/product/architecture/mvp-1.5/MVP-1.5-CLOSURE.md) | reviewers and anyone extending a subsystem |
-| Authentication and security | [Wallet-first architecture](docs/product/architecture/wallet-first-auth/WALLET-FIRST-AUTH-ARCHITECTURE.md), [security review](docs/product/architecture/wallet-first-auth/WALLET-FIRST-AUTH-SECURITY-REVIEW.md), [MVP-1.3 authorization security](docs/product/architecture/mvp-1.3/MVP-1.3-AUTHORIZATION-SECURITY.md), [MVP-1.5 threat model](docs/product/architecture/mvp-1.5/MVP-1.5-THREAT-MODEL.md) | security-minded contributors |
-| Stellar integration | [Wallet and signing](docs/product/architecture/mvp-1.5/MVP-1.5-WALLET-AND-SIGNING.md), [contract compatibility](docs/product/architecture/mvp-1.5/MVP-1.5-CONTRACT-COMPATIBILITY.md), [Testnet verification](docs/product/architecture/mvp-1.5/MVP-1.5-TESTNET-VERIFICATION.md), [ABI reference](docs/reference/MVP-1-ABI-AND-AUTHORIZATION-REFERENCE.md), [`contracts/README.md`](contracts/README.md) | Stellar and Soroban contributors |
-| API | no single reference for the institutional API; the auth endpoints are tabulated in the wallet-first architecture document, the registry routes are in `apps/web-console/lib/registry/http.ts`. [`W1-API-REFERENCE.md`](docs/product/architecture/w1/W1-API-REFERENCE.md) covers only the mock `/api/w0/*` API | API contributors |
-| Testing | [MVP-1 test plan](docs/reference/MVP-1-TEST-PLAN-AND-STAGE-B.md), [wallet-first validation record](docs/product/architecture/wallet-first-auth/WALLET-FIRST-AUTH-VALIDATION.md), [`ci/README.md`](ci/README.md) | anyone writing or reviewing tests |
-| Deployment and governance | [`contracts/deployments/testnet.json`](contracts/deployments/testnet.json), [governance documents](docs/governance/testnet-administrative-multisig.md), [`accounts/README.md`](accounts/README.md), [`release/CHECKLIST.md`](release/CHECKLIST.md) | maintainers |
-| Architecture decisions | there is no ADR directory; decisions are recorded inside the milestone documents and [`W1-DECISION-PAPERS.md`](docs/product/architecture/w1/W1-DECISION-PAPERS.md) | anyone proposing a design change |
-| Older paths | [`docs/PATH-MAP.md`](docs/PATH-MAP.md) | readers of documents written before the monorepo move |
-
-## Contributing and community
-
-- [`CONTRIBUTING.md`](CONTRIBUTING.md): how to propose, build, test and submit a change.
-- [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md): expected behaviour.
-- [`SECURITY.md`](SECURITY.md): report vulnerabilities privately, never in a public issue.
-- [`AGENTS.md`](AGENTS.md): instructions for AI coding agents ([`CLAUDE.md`](CLAUDE.md) points to it).
-- [Issues](https://github.com/tobin-protocol/tobin/issues): bug reports and feature proposals use the issue forms; GitHub Discussions are not enabled.
-- Pull requests use the [pull request template](.github/pull_request_template.md).
+[`CONTRIBUTING.md`](CONTRIBUTING.md) · [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) · [`SECURITY.md`](SECURITY.md) · [Issues](https://github.com/tobin-protocol/tobin/issues). Pull requests use the [template](.github/pull_request_template.md).
 
 ## Licence
 
-The code, documentation and specification the project owns or controls are licensed under the [Apache License 2.0](LICENSE). Third-party dependencies keep their own licences. The Tobin name, logo and brand assets are **not** licensed under Apache-2.0; see [`apps/landing/NOTICE`](apps/landing/NOTICE). The banner in this README is a rectangular crop of an existing brand image ([provenance](docs/assets/README.md)).
+The code, documentation and specification the project owns are licensed under the [Apache License 2.0](LICENSE). Third-party dependencies keep their own licences. The Tobin name, logo and brand assets are not licensed under Apache-2.0; see [`apps/landing/NOTICE`](apps/landing/NOTICE).
