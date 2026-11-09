@@ -65,3 +65,11 @@ export function stageText(stage: Stage, reached: boolean): StageText {
 export const STOPPED_STATES: readonly ExecState[] = ["failed", "expired", "unknown-outcome"];
 export const isStopped = (s: ExecState | undefined): boolean => !!s && STOPPED_STATES.includes(s);
 export const NO_AUTOMATIC_RETRY = "No automatic retry.";
+
+/**
+ * The only way another screen may show the final stage: a mark that exists solely when a verified read-back is reported. The public Discover tiles call this
+ * with the record's flag, so no other file needs (or may contain) the Confirmed label.
+ */
+export function verifiedMark(verifiedReadBack: boolean): string | null {
+  return verifiedReadBack ? STAGE_LABEL.confirmed : null;
+}

@@ -1,7 +1,6 @@
-import { Wallets } from "../../../components/wallets/Wallets.tsx";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Wallets" };
-
+/** Wallets are a tab of the Organization page. */
 export default function Page() {
-  return <Wallets />;
+  redirect("/organization?tab=wallets");
 }

@@ -20,10 +20,10 @@ const browser = await chromium.launch({ channel: "chrome" });
 async function signIn(page, email) {
   await page.context().clearCookies();
   await page.goto(BASE + "/sign-in");
-  await page.getByRole("button", { name: "Email", exact: true }).click();
-  await page.locator("#login-email").fill(email);
+  await page.locator("#auth-email").fill(email);
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page.locator("#login-password").fill(PW);
-  await page.getByRole("button", { name: "Sign in", exact: true }).last().click();
+  await page.getByRole("button", { name: "Log in", exact: true }).click();
   await page.waitForURL(BASE + "/");
 }
 async function settled(page) {
@@ -48,7 +48,7 @@ const calcId = async (page, orgId, sid) => ((await (await page.request.get(`${BA
 const go = async (page, path) => { await page.goto(BASE + path); await settled(page); };
 const openSession = async (page, q, tab) => {
   await go(page, `/sessions?q=${encodeURIComponent(q)}`);
-  await page.getByRole("link", { name: "Open" }).locator("visible=true").first().click();
+  await page.getByRole("link", { name: /^Open \S/ }).locator("visible=true").first().click();
   await page.waitForURL(/\/sessions\/[0-9a-f]{64}/); await settled(page);
   if (tab) await go(page, `${new URL(page.url()).pathname}?tab=${tab}`);
 };
@@ -62,41 +62,22 @@ for (const w of WIDTHS) {
   // ============ Alice: administrator ============
   await signIn(page, "alice@example.test");
   await settled(page);
-  await vis(page.getByRole("heading", { name: "Sessions that matter now" }), `${w}: the Overview lists the sessions that matter now`);
-  await vis(page.getByRole("navigation", { name: "Quick links" }).getByRole("link", { name: "View sessions" }), `${w}: the Overview offers quick links`);
+  // R2 rewrote the Overview, the sessions list and the workspace Overview. The checks that belonged to the previous design (sessions that matter now, quick links,
+  // contents counts in the list, state layers, at-a-glance, Stepper links) are retired; scripts/review-r2.mjs covers their replacements.
+  await vis(page.getByRole("heading", { name: "Needs your attention" }), `${w}: the Overview has a Needs your attention list`);
   check(await page.getByRole("link", { name: "Create session" }).count() >= 1, `${w}: the Overview has one primary action, Create session`);
   check(await page.getByRole("heading", { name: "About access" }).count() === 0, `${w}: the role help is no longer on the Overview (it is in Settings)`);
-  await vis(page.getByText(/Showing \d+ of \d+ sessions|Showing all \d+ sessions/).first(), `${w}: the Overview still says how many sessions it read`);
+  await vis(page.getByTestId("coverage"), `${w}: the Overview still says how many sessions it read`);
   await shot(page, "overview-redesign", w);
-  const first = page.getByRole("list", { name: "Sessions that matter now" }).getByRole("link", { name: /^Open / }).first();
-  const label = await first.getAttribute("aria-label");
-  await first.click(); await page.waitForURL(/\/sessions\/[0-9a-f]{64}/);
-  check(true, `${w}: an Overview session leads to the right section (${label})`);
 
-  // sessions list: contents
-  await go(page, "/sessions?q=Q4");
-  await vis(page.getByText("Contents (derived)").locator("visible=true").first(), `${w}: the sessions list shows what is inside each session`);
-  await vis(page.getByText("3 participants").locator("visible=true").first(), `${w}: with participant counts`);
-  await vis(page.getByText("3 obligations").locator("visible=true").first(), `${w}: and obligation counts`);
-  await shot(page, "sessions-contents", w);
-
-  // workspace overview
+  // workspace: the summary card replaces the layers and the at-a-glance list
   await openSession(page, "Q4");
-  const base = new URL(page.url()).pathname;
-  await vis(page.getByRole("heading", { name: "State, layer by layer" }), `${w}: the session shows its state layer by layer`);
-  const layers = page.getByRole("list", { name: "State layers" }).getByRole("listitem");
-  check(await layers.count() === 5, `${w}: five layers (application, calculation, review, settlement preparation, blockchain)`);
-  await vis(page.getByRole("list", { name: "State layers" }).getByText("Not recorded"), `${w}: the blockchain layer reads Not recorded`);
-  const layerText = await page.getByRole("list", { name: "State layers" }).innerText();
-  check(!/\b(settled|confirmed)\b/i.test(layerText.replace("nothing is shown as settled or confirmed", "")), `${w}: no layer claims the session is settled or confirmed`);
-  await vis(page.getByRole("heading", { name: "At a glance" }), `${w}: an at-a-glance summary`);
-  await vis(page.getByRole("heading", { name: "Recent events" }), `${w}: and the recent events`);
+  await vis(page.getByLabel("Session summary"), `${w}: the workspace has one summary card`);
+  const summaryText = await page.getByLabel("Session summary").innerText();
+  const rail = await page.getByLabel("Session summary").getByRole("listitem").allInnerTexts();
+  check(rail.length === 4 && rail.slice(1).every((t) => /Not supported/.test(t)), `${w}: the stage rail reads Not supported for Signed, Submitted and the final stage (${rail.length} items)`);
+  check(!/\bsettled\b/i.test(summaryText), `${w}: the summary never says the session is settled`);
   await shot(page, "workspace-layers", w);
-  await page.getByRole("list", { name: "Session sections" }).getByRole("link", { name: "Open Netting" }).click();
-  await page.waitForURL(/tab=netting/); check(true, `${w}: At a glance leads to Netting`);
-  await go(page, base);
-  await page.getByRole("list", { name: "Session progress" }).getByRole("link", { name: "Approval", exact: true }).click();
-  await page.waitForURL(/tab=approvals/); check(true, `${w}: a Stepper group leads to its section`);
 
   // netting confirmation, on a session with a stale calculation
   await openSession(page, "Monthly settlement", "netting");
@@ -122,10 +103,9 @@ for (const w of WIDTHS) {
   await go(page, "/obligations");
   await vis(page.getByText("Active totals by asset"), `${w}: global obligations`);
   if (w >= 900) await vis(page.getByRole("columnheader", { name: "Obligation" }), `${w}: the global list shows the obligation identifier`);
-  // the list covers the 10 newest sessions (the cap), so follow whichever obligation link is shown
-  const link = page.locator('a[href*="&ob="]').locator("visible=true").first();
-  await link.click(); await page.waitForURL(/[?&]ob=[0-9a-f]{64}/);
-  await vis(page.getByText("History").first(), `${w}: a global obligation opens its detail in its session`);
+  // R4: a row opens the same detail sheet in place (it no longer navigates away)
+  await page.getByRole("button", { name: /^Open obligation/ }).first().click();
+  await vis(page.getByText("History").first(), `${w}: a global obligation opens its detail sheet`);
   await vis(page.getByText("Recorded as Active").first(), `${w}: and its history states the change`);
   await shot(page, "obligation-deeplink", w);
   await page.keyboard.press("Escape");
@@ -140,15 +120,14 @@ for (const w of WIDTHS) {
   await page.getByRole("link", { name: /^Open obligations$/ }).click();
   await page.waitForURL(/tab=obligations/); check(true, `${w}: and it opens the right section`);
 
-  // discover
+  // discover (signed in: the public page inside the full app frame)
   await go(page, "/discover");
-  await vis(page.getByText("Future capability. Discover is not available"), `${w}: Discover says it is a future capability`);
-  await vis(page.getByText("Not supported").first(), `${w}: and that it is not supported`);
-  check(await page.locator("input[type=search], input[type=text]").count() === 0, `${w}: Discover has no search box and no sample records`);
+  await vis(page.getByRole("link", { name: "Go to Overview" }), `${w}: signed-in Discover offers Go to Overview`);
+  check((await page.getByText("No data", { exact: true }).count()) >= 5, `${w}: Discover reads No data (stats and the empty tile)`);
+  check(await page.locator("main input[type=search], main input[type=text]").count() === 0, `${w}: Discover has no search box and no sample records`);
   await shot(page, "discover", w);
   await page.keyboard.press("Control+k");
-  await page.locator("#cmd-input").fill("Discover");
-  await vis(page.getByText("Discover (not available)"), `${w}: the command panel lists Discover as not available`);
+  await vis(page.getByRole("listbox"), `${w}: the command panel lists pages and loaded sessions`);
   await page.keyboard.press("Escape");
 
   // a session that is calculated and awaiting review, made through the real API (the seeded one has aged out of the 10-newest window the capped pages read)
@@ -166,10 +145,9 @@ for (const w of WIDTHS) {
 
   // ============ Bob: reviewer ============
   await signIn(page, "bob@example.test"); await settled(page);
-  await vis(page.getByRole("list", { name: "Sessions that matter now" }).getByText("Awaiting your review"), `${w}: a reviewer's Overview puts the session awaiting their review first`);
-  await go(page, "/approvals");
-  await vis(page.getByText(/Gross [\d,]+ USD/).first(), `${w}: the approvals list shows the amounts under review`);
-  await vis(page.getByText(/Calculation review · Alpha Bank/).first(), `${w}: and the organization`);
+  await vis(page.getByRole("list", { name: "Needs your attention" }).getByText("Awaiting your review").first(), `${w}: a reviewer's Overview puts the session awaiting their review first`);
+  await go(page, "/reviews");
+  await vis(page.getByText(/Calculation review/).first(), `${w}: the Reviews list shows the calculation under review (R4: amounts are no longer repeated in the list; the session shows them)`);
   await shot(page, "approvals-amounts", w);
   await openSession(page, `Review me ${w}`, "approvals");
   await vis(page.getByRole("heading", { name: "What is being reviewed" }), `${w}: the session Approvals tab shows what is being reviewed`);

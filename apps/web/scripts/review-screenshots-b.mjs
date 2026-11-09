@@ -19,10 +19,10 @@ const browser = await chromium.launch({ channel: "chrome" });
 
 async function signIn(page, email) {
   await page.goto(BASE + "/sign-in");
-  await page.getByRole("button", { name: "Email", exact: true }).click();
-  await page.locator("#login-email").fill(email);
+  await page.locator("#auth-email").fill(email);
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page.locator("#login-password").fill(PW);
-  await page.getByRole("button", { name: "Sign in", exact: true }).last().click();
+  await page.getByRole("button", { name: "Log in", exact: true }).click();
   await page.waitForURL(BASE + "/");
 }
 async function settled(page) {
@@ -37,7 +37,24 @@ async function shot(page, name, w) {
   await page.addStyleTag({ content: "nav[aria-label=Primary].fixed,[data-sheet]{position:static!important}" }).catch(() => {});
   await page.screenshot({ path: `${out}/${name}-${w}.png`, fullPage: true });
 }
-const open = async (page, label) => { await page.goto(`${BASE}/sessions?q=${encodeURIComponent(label)}`); await settled(page); await page.getByRole("link", { name: "Open" }).locator("visible=true").first().click(); await page.waitForURL(/\/sessions\/[0-9a-f]{64}/); await settled(page); };
+/** kind: "draft" (no participants) | "awaiting" (calculated, nobody reviewed it) | "stale" (calculated, then an obligation was added). Made through the real API as the signed-in user. */
+async function ownSession(page, label, kind) {
+  const orgId = (await (await page.request.get(BASE + "/api/auth/me")).json()).organizations[0].id;
+  const org = `${BASE}/api/registry/orgs/${orgId}`;
+  const post = async (path, data) => { const r = await page.request.post(org + path, { data: data ?? {} }); if (!r.ok()) throw new Error(`${path} ${r.status()} ${await r.text()}`); return r.json(); };
+  const sid = (await post("/sessions", { label })).session.sessionId;
+  if (kind === "draft") return sid;
+  const members = (await (await page.request.get(org + "/members")).json()).members;
+  const id = (n) => members.find((m) => m.name === n).userId;
+  for (const m of members) await post(`/sessions/${sid}/participants`, { userId: m.userId });
+  const ref = (await (await page.request.get(`${org}/sessions/${sid}/settlement`)).json()).assets[0].id;
+  const ob = (d, c, amt) => post(`/sessions/${sid}/obligations`, { debtor: id(d), creditor: id(c), amount: amt, assetRef: ref, reference: "b" });
+  await ob("Alice", "Bob", "100"); await ob("Bob", "Carol", "80"); await ob("Carol", "Alice", "70");
+  await post(`/sessions/${sid}/calculate`);
+  if (kind === "stale") await ob("Alice", "Carol", "5");
+  return sid;
+}
+const open = async (page, label) => { await page.goto(`${BASE}/sessions?q=${encodeURIComponent(label)}`); await settled(page); await page.getByRole("link", { name: /^Open \S/ }).locator("visible=true").first().click(); await page.waitForURL(/\/sessions\/[0-9a-f]{64}/); await settled(page); };
 
 for (const w of WIDTHS) {
   const ctx = await browser.newContext({ viewport: { width: w, height: w < 500 ? 844 : 900 }, deviceScaleFactor: 1 });
@@ -52,7 +69,6 @@ for (const w of WIDTHS) {
   await page.goto(BASE + "/sessions"); await settled(page);
   await vis(page.getByRole("link", { name: "Create session" }), `${w}: admin sees an enabled Create session link`);
   await vis(page.getByText(/Showing 1 to 10 of \d+/), `${w}: first page shows 1 to 10 of N`);
-  await vis(page.getByText("Not supported: filters by workflow"), `${w}: unsupported quick filters are labelled`);
   await shot(page, "sessions-list", w);
 
   await page.goto(BASE + "/sessions?page=2"); await settled(page);
@@ -99,7 +115,9 @@ for (const w of WIDTHS) {
   await shot(page, "workspace-participants-after-remove", w);
 
   // ---- the calculated session: all tabs ----
-  await open(page, "Q4 clearing");
+  const ownLabel = `B awaiting ${w} ${Date.now().toString(36)}`;
+  await ownSession(page, ownLabel, "awaiting");
+  await open(page, ownLabel);
   const base = page.url().split("?")[0];
   await vis(page.getByText("Calculation awaiting review").first(), `${w}: stepper sub-label says the calculation awaits review`);
   check(await page.getByRole("button", { name: "Review the calculation", exact: true }).isDisabled(), `${w}: the Phase D action is disabled, not faked`);
@@ -110,8 +128,12 @@ for (const w of WIDTHS) {
   await page.goto(`${base}?tab=netting`); await vis(page.getByText("Pays"), `${w}: netting tab shows real positions`);
 
   // stale session and draft
-  await open(page, "Monthly settlement"); await vis(page.getByText(/calculation is stale/i).first(), `${w}: stale session says so`); await shot(page, "workspace-stale", w);
-  await open(page, "Draft run"); await vis(page.getByText(/active participants?; at least 2/).first(), `${w}: empty draft is at Participation`); await shot(page, "workspace-draft", w);
+  const staleLabel = `B stale ${w} ${Date.now().toString(36)}`;
+  const staleId = await ownSession(page, staleLabel, "stale");
+  await open(page, staleLabel); await vis(page.getByText(/calculation is stale/i).first(), `${w}: stale session says so`); await shot(page, "workspace-stale", w);
+  const draftLabel = `B draft ${w} ${Date.now().toString(36)}`;
+  await ownSession(page, draftLabel, "draft");
+  await open(page, draftLabel); await vis(page.getByText(/active participants?; at least 2/).first(), `${w}: empty draft is at Participation`); await shot(page, "workspace-draft", w);
 
   // not found
   await page.goto(`${BASE}/sessions/${"0".repeat(64)}`); await settled(page);
@@ -120,7 +142,9 @@ for (const w of WIDTHS) {
 
   // attention list Open button works (Alice sees the stale item)
   await page.goto(BASE + "/"); await settled(page);
-  const openLink = page.getByRole("link", { name: "Open" }).first();
+  // the Overview reads the 10 newest sessions; the stale one may be older, so extend the window until everything is read
+  for (let i = 0; i < 5 && await page.getByRole("button", { name: "Load next 10 sessions" }).count(); i++) { await page.getByRole("button", { name: "Load next 10 sessions" }).click(); await settled(page); }
+  const openLink = page.getByRole("list", { name: "Needs your attention" }).locator(`a[href^="/sessions/${staleId}"]`).first();
   await vis(openLink, `${w}: Attention has an enabled Open link`);
   await openLink.click(); await page.waitForURL(/\/sessions\/[0-9a-f]{64}/);
   await page.context().clearCookies();

@@ -1,0 +1,376 @@
+Dialog and sheet copy, as rendered (R5 pass)
+
+=== Connect wallet (sign-in)
+Connect wallet
+Choose a wallet. Installed wallets come first.
+Freighter
+CHECKING
+CONNECT
+Freighter is a desktop browser extension. It does not run in a phone browser, so connect from a desktop browser with the extension installed.
+Only wallets Tobin can sign in with are listed. Tobin never asks for a seed phrase or a private key.
+CLOSE
+
+=== Command panel
+Searches loaded sessions only. The backend has no search, so obligations, settlements, transactions and activity cannot be searched.
+Go to
+Discover
+Overview
+Sessions
+Obligations
+Reviews
+Activity
+Organization
+Settings
+Loaded sessions
+R5 prepared mw97mn58
+R5 ready mw97mn58
+R5 calc mw97mn58
+R5 draft mw97mn58
+Draft run
+Monthly settlement
+Q4 clearing run
+Weekly netting 12
+Weekly netting 11
+Weekly netting 10
+Weekly netting 9
+Weekly netting 8
+Weekly netting 7
+Weekly netting 6
+Weekly netting 5
+Weekly netting 4
+Weekly netting 3
+Weekly netting 2
+Weekly netting 1
+
+=== Sign out everywhere
+Sign out everywhere?
+Every session of your account ends, on every device, including this one. You will need to sign in again. Your records are kept.
+Cancel
+Sign out everywhere
+
+=== Connect a wallet
+Connect wallet
+Choose a wallet. Installed wallets come first.
+Freighter
+CHECKING
+CONNECT
+Freighter is a desktop browser extension. It does not run in a phone browser, so connect from a desktop browser with the extension installed.
+Only wallets Tobin can sign in with are listed. Tobin never asks for a seed phrase or a private key.
+CLOSE
+
+=== Member sheet
+Member
+Close
+NAME
+Carol
+ROLE
+Member
+REVIEWER
+No
+STATUS
+Active
+MEMBER SINCE
+09 Nov 2026, 12:00 UTC
+EMAIL
+carol@example.test
+Change role
+Grant reviewer capability
+Suspend member
+Remove member
+
+=== Change role dialog
+Change Carol's role?
+From Member to Admin.
+New role
+Member
+Admin
+They will gain
+Edit the organization profile
+Change roles, suspend or remove members
+Invite people and revoke invitations
+Grant or revoke the reviewer capability
+Create sessions
+Manage sessions
+Add and remove session participants
+Record obligations
+Void obligations
+Run netting
+Prepare settlement
+Begin an execution attempt
+Record organization wallet claims
+Record signer sets
+The reviewer capability is separate and is not changed by a role change.
+Cancel
+Change role
+
+=== Grant reviewer dialog
+Grant the reviewer capability?
+They will be able to approve or reject calculations and settlement batches. The server still enforces separation of duties: nobody decides on work they recorded, calculated or prepared.
+Cancel
+Grant capability
+
+=== Suspend dialog
+Suspend Carol?
+They keep their record but lose access.
+A suspended member keeps their record but has no access and no authority until restored.
+You cannot suspend yourself, and the last active administrator cannot be suspended.
+Cancel
+Suspend member
+
+=== Remove dialog
+Remove Carol?
+This ends their membership.
+The membership ends and the member loses all access to this organization.
+They are removed from every session still being configured; each such session's calculation and review is invalidated.
+Removal is refused if they are a participant with active obligations (void those first) or a participant of a session that is no longer being configured.
+The last active administrator cannot be removed.
+Their earlier activity stays on record.
+Cancel
+Remove member
+
+=== Obligation sheet (global)
+Obligation
+Details of the selected record. Read-only unless an action is shown.
+AMOUNT
+70 USD
+Carol owes Alice
+STATUS
+Active
+REVISION
+1
+ASSET
+USD
+Supported asset identity
+REFERENCE
+r5
+RECORDED BY
+Alice
+RECORDED
+09 Nov 2026, 12:00 UTC
+LAST CHANGED BY
+Alice
+LAST CHANGED
+09 Nov 2026, 12:00 UTC
+0a737a815137b6be5ea9419de7a7db872809e299d8fed40004386ea5bec36dec
+History
+Obligation created · Recorded as Active
+obligation 0a737a81: Carol owes Alice 70 USD (r5)
+Alice · 09 Nov 2026, 12:00 UTC
+Session: R5 prepared mw97mn58. Recording and voiding happen in the session.
+CLOSE
+
+=== Activity record panel
+Activity record
+Details of the selected record. Read-only unless an action is shown.
+WHEN
+09 Nov 2026, 12:00 UTC
+WHO
+Alice
+OPERATION
+Settlement batch prepared
+RESULT
+Recorded
+Derived from the event type
+settlement.batch-prepared
+Detail
+batch 6185234b from calculation calc_127: 2 instruction(s), USD, total 30
+Session
+R5 prepared mw97mn58
+Open settlement
+Records are read-only. The backend keeps no transaction evidence or reference for an event, so none is shown.
+CLOSE
+
+=== Run netting confirmation
+Run netting?
+A new calculation replaces the current one. Any review of the current calculation then no longer applies.
+OBLIGATIONS INCLUDED
+3
+LEFT OUT
+0
+PARTICIPANTS
+3
+ASSET
+USD
+CANCEL
+RUN NETTING
+CLOSE
+
+=== Obligation sheet (workspace)
+Obligation
+Details of the selected record. Read-only unless an action is shown.
+AMOUNT
+100 USD
+Alice owes Bob
+STATUS
+Active
+REVISION
+1
+ASSET
+USD
+Supported asset identity
+REFERENCE
+r5
+RECORDED BY
+Alice
+RECORDED
+09 Nov 2026, 12:00 UTC
+LAST CHANGED BY
+Alice
+LAST CHANGED
+09 Nov 2026, 12:00 UTC
+1aef7fa8ed21c14c78f93dc9f7e806fce581a4b72a0a3e3227d17dd2b68dbd3f
+History
+Obligation created · Recorded as Active
+obligation 1aef7fa8: Alice owes Bob 100 USD (r5)
+Alice · 09 Nov 2026, 12:00 UTC
+Void obligation
+An obligation cannot be edited or deleted here. Voiding keeps the record and adds its own history entry.
+CLOSE
+
+=== Void obligation
+Void this obligation?
+It stays on record as voided and is no longer netted. This invalidates the current calculation and any review of it. A voided obligation cannot be changed again.
+DEBTOR
+Alice
+CREDITOR
+Bob
+AMOUNT
+100 USD
+Reason (optional)
+CANCEL
+VOID OBLIGATION
+CLOSE
+
+=== Calculation details sheet
+Calculation details
+Details of the selected record. Read-only unless an action is shown.
+CALCULATION ID
+calc_ed3968ee46a60b6e45
+ASSET
+USD
+CALCULATED
+09 Nov 2026, 12:00 UTC by Alice
+OBLIGATIONS USED
+3
+CURRENCY
+Current
+VALIDATION
+The obligations pass the engine checks: passes; Net positions sum to zero: passes
+Per participant
+Carol
+Receives 10 USD
+Bob
+Receives 20 USD
+Alice
+Pays 30 USD
+The backend returns no version field for a calculation, so none is shown.
+CLOSE
+
+=== Mark ready
+Mark this session ready?
+Every readiness check passes. Marking it ready records that the application records are consistent.
+After this, participants and obligations cannot be changed unless an administrator reopens the session. Ready is not approval, signing or settlement.
+CANCEL
+MARK READY
+CLOSE
+
+=== Reopen session
+Reopen this session?
+Reopening makes it possible to change a session that was marked ready. Read what that means before you confirm.
+WHAT CHANGES
+The session becomes "Being configured" again. Participants and obligations can change, and netting can be run again.
+WHAT IS KEPT
+Reopening alone deletes nothing and changes no record: the calculation, every review decision and any prepared settlement stay exactly as they are.
+WHAT STOPS APPLYING LATER
+The first change you make afterwards (adding or removing a participant, recording or voiding an obligation, or running netting) makes every review decision stop applying and the calculation stale. A prepared settlement then no longer applies either.
+Nothing is erased. Old decisions and the old settlement stay on record, marked "No longer applies". You then calculate, review, prepare and review again, and mark the session ready again.
+CANCEL
+REOPEN SESSION
+CLOSE
+
+=== Approve calculation
+Approve this calculation?
+You approve exactly this calculation. If participants or obligations change afterwards, the approval no longer applies.
+CALCULATION
+calc_ed3…0b6e45
+ASSET
+USD
+GROSS
+250 USD
+NET THAT MOVES
+30 USD
+Carol
+Receives 10 USD
+Bob
+Receives 20 USD
+Alice
+Pays 30 USD
+CANCEL
+APPROVE CALCULATION
+CLOSE
+
+=== Reject calculation
+Reject this calculation?
+The rejection and your reason are recorded. The calculation cannot then be approved; change the inputs and calculate again.
+CALCULATION
+calc_ed3…0b6e45
+ASSET
+USD
+GROSS
+250 USD
+NET THAT MOVES
+30 USD
+Carol
+Receives 10 USD
+Bob
+Receives 20 USD
+Alice
+Pays 30 USD
+Reason (required)
+0 of 500 characters
+CANCEL
+REJECT CALCULATION
+CLOSE
+
+=== Approve settlement
+Approve this settlement?
+You approve exactly these instructions, matched by their fingerprint. If anything changes, the approval no longer applies.
+INSTRUCTIONS
+2
+TOTAL MOVED
+30 USD
+ASSET
+USD
+ATTEMPT
+1
+Alice pays Carol
+10 USD
+Alice pays Bob
+20 USD
+fb29cf4620cf6e74…93a0ddcb3648
+CANCEL
+APPROVE SETTLEMENT
+CLOSE
+
+=== Reject settlement
+Reject this settlement?
+The rejection and your reason are recorded. An administrator can then prepare it again.
+INSTRUCTIONS
+2
+TOTAL MOVED
+30 USD
+ASSET
+USD
+ATTEMPT
+1
+Alice pays Carol
+10 USD
+Alice pays Bob
+20 USD
+fb29cf4620cf6e74…93a0ddcb3648
+Reason (required)
+0 of 500 characters
+CANCEL
+REJECT SETTLEMENT
+CLOSE
+

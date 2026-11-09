@@ -16,7 +16,7 @@ page.on("pageerror", (e) => problems.push(`page error ${e}`));
 const focused = () => page.evaluate(() => {
   const a = document.activeElement; if (!a || a === document.body) return null;
   const cs = getComputedStyle(a);
-  return { tag: a.tagName.toLowerCase(), label: (a.getAttribute("aria-label") || a.getAttribute("title") || (a.labels && a.labels[0] ? a.labels[0].textContent : "") || a.textContent || a.id || "").trim().replace(/\s+/g, " ").slice(0, 60), id: a.id, type: a.getAttribute("type"), ring: (parseFloat(cs.outlineWidth) >= 2 && cs.outlineStyle !== "none") || (() => { const c = a.closest("label"); if (!c) return false; const k = getComputedStyle(c); return parseFloat(k.outlineWidth) >= 2 && k.outlineStyle !== "none"; })(), inDialog: !!a.closest("dialog") };
+  return { tag: a.tagName.toLowerCase(), label: (a.getAttribute("aria-label") || a.getAttribute("title") || (a.labels && a.labels[0] ? a.labels[0].textContent : "") || a.textContent || a.id || "").trim().replace(/\s+/g, " ").slice(0, 60), id: a.id, type: a.getAttribute("type"), ring: (parseFloat(cs.outlineWidth) >= 2 && cs.outlineStyle !== "none") || (() => { const c = a.closest("label"); if (!c) return false; const k = getComputedStyle(c); return parseFloat(k.outlineWidth) >= 2 && k.outlineStyle !== "none"; })(), inDialog: !!a.closest("dialog, [role=dialog]") };
 });
 async function press(key) { await page.keyboard.press(key); }
 /** Tab (or Shift+Tab) until the focused element's label matches; every stop must show a focus ring. */
@@ -35,15 +35,15 @@ await page.goto(BASE + "/sign-in");
 let f = await tabTo(/Skip to content/); check(!!f, "the first Tab stop is the skip link");
 await press("Enter"); await page.waitForTimeout(200);
 check(await page.evaluate(() => document.activeElement?.id === "main" || !!document.activeElement?.closest("main")), "Enter on the skip link moves focus into the main content");
-await tabTo(/^Email$/); await press("Enter");
-await tabTo(/Email address|login-email/); await page.keyboard.type("alice@example.test");
-await press("Tab"); await page.keyboard.type(PW);
+await tabTo(/Email address|auth-email/); await page.keyboard.type("alice@example.test");
+await press("Enter");
+await tabTo(/Password|login-password/); await page.keyboard.type(PW);
 await press("Enter"); await page.waitForURL(BASE + "/", { timeout: 20000 });
 check(true, "signed in with the keyboard alone");
 
 // ---- navigate to Clearing Sessions ----
 await page.waitForLoadState("networkidle");
-await tabTo(/^Clearing Sessions/); await press("Enter"); await page.waitForURL(/\/sessions$/);
+await tabTo(/^Sessions/); await press("Enter"); await page.waitForURL(/\/sessions$/);
 check(true, "reached Clearing Sessions with Tab and Enter");
 
 // ---- create a session through the wizard ----
@@ -82,11 +82,12 @@ check(f?.label === "Review obligation", `closing the dialog returns focus to its
 
 // ---- command panel ----
 await page.keyboard.press("Control+k");
-await page.locator("#cmd-input").waitFor();
-f = await focused(); check(f?.id === "cmd-input", "Ctrl+K opens the command panel with focus in its field");
+await page.locator("[cmdk-input]").waitFor();
+check(await page.evaluate(() => document.activeElement?.hasAttribute("cmdk-input")), "Ctrl+K opens the command panel with focus in its field");
+check((await page.getByRole("listbox").count()) === 1, "the command panel exposes a listbox");
 await page.keyboard.type("Q4"); // a session this browser has already loaded (the list was opened earlier)
-await press("Tab"); f = await focused();
-check(/Q4 clearing run/.test(f?.label ?? ""), `Tab reaches the loaded session in the results (${f?.label})`);
+await press("ArrowDown"); await page.waitForTimeout(150);
+check(/Q4 clearing run/.test(await page.evaluate(() => document.querySelector("[cmdk-item][data-selected='true']")?.textContent ?? "")), "an arrow key selects the loaded session in the results");
 await press("Enter"); await page.waitForURL(/\/sessions\/[0-9a-f]{64}/);
 check(true, "Enter on a result navigates to the session");
 

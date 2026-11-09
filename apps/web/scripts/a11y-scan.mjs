@@ -15,7 +15,7 @@ const bad = []; const summary = [];
 
 async function sessionPath(page) {
   await page.goto(BASE + "/sessions?q=Q4"); await page.waitForLoadState("networkidle");
-  await page.getByRole("link", { name: "Open" }).locator("visible=true").first().click();
+  await page.getByRole("link", { name: /^Open \S/ }).locator("visible=true").first().click();
   await page.waitForURL(/\/sessions\/[0-9a-f]{64}/);
   return new URL(page.url()).pathname;
 }
@@ -63,12 +63,15 @@ for (const w of [1440, 900, 390]) {
   const ctx = await browser.newContext({ viewport: { width: w, height: w < 500 ? 844 : 900 } });
   await ctx.addInitScript(() => { try { sessionStorage.setItem("tobin-sheet", "open"); } catch {} });
   const page = await ctx.newPage();
+  await page.goto(BASE + "/discover"); await scanPage(page, "discover-signed-out", w);
   await page.goto(BASE + "/sign-in"); await scanPage(page, "sign-in", w);
-  await page.getByRole("button", { name: "Email", exact: true }).click();
-  await page.locator("#login-email").fill("alice@example.test"); await page.locator("#login-password").fill(PW);
-  await page.getByRole("button", { name: "Sign in", exact: true }).last().click(); await page.waitForURL(BASE + "/");
+  await page.getByRole("button", { name: "Continue with wallet" }).click(); await page.getByRole("dialog").waitFor(); await scanPage(page, "connect-wallet-dialog", w); await page.keyboard.press("Escape");
+  await page.locator("#auth-email").fill("alice@example.test"); await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await scanPage(page, "sign-in-step-2", w);
+  await page.locator("#login-password").fill(PW);
+  await page.getByRole("button", { name: "Log in", exact: true }).click(); await page.waitForURL(BASE + "/");
   const sp = await sessionPath(page);
-  const pages = [["overview", "/"], ["sessions", "/sessions"], ["create-session", "/sessions/new"], ["obligations", "/obligations"], ["approvals", "/approvals"], ["activity", "/activity"], ["wallets", "/wallets"],
+  const pages = [["discover-signed-in", "/discover"], ["overview", "/"], ["sessions", "/sessions"], ["create-session", "/sessions/new"], ["obligations", "/obligations"], ["reviews", "/reviews"], ["activity", "/activity"], ["institutions", "/organization?tab=institutions"],
     ["organization-profile", "/organization"], ["organization-members", "/organization?tab=members"], ["organization-invitations", "/organization?tab=invitations"], ["organization-wallets", "/organization?tab=wallets"],
     ["settings", "/settings"], ["notifications", "/notifications"], ["components", "/dev/components"],
     ...["overview", "participants", "obligations", "netting", "approvals", "settlement", "activity"].map((t) => [`workspace-${t}`, t === "overview" ? sp : `${sp}?tab=${t}`])];

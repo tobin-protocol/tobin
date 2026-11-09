@@ -8,8 +8,8 @@ export default function Page() {
   return (
     <PageFrame title="Notifications" breadcrumbs={[{ label: "Notifications" }]}>
       <div className="max-w-xl space-y-4">
-        <NotSupported feature="Notifications" reason="The backend has no notifications: no route, no model and no unread count. Nothing is listed here and nothing is simulated. Items that need your attention are on the Overview and Approvals pages." />
-        <div className="flex gap-2"><ButtonLink href="/" variant="quiet">Go to Overview</ButtonLink><ButtonLink href="/approvals" variant="quiet">Go to Approvals</ButtonLink></div>
+        <NotSupported feature="Notifications" reason="The backend has no notifications: no route, no model and no unread count. Nothing is listed here and nothing is simulated. Items that need your attention are on the Overview and Reviews pages." />
+        <div className="flex gap-2"><ButtonLink href="/" variant="quiet">Go to Overview</ButtonLink><ButtonLink href="/reviews" variant="quiet">Go to Reviews</ButtonLink></div>
       </div>
     </PageFrame>
   );

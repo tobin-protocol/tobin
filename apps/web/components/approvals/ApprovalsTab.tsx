@@ -7,7 +7,7 @@ import { grossVsNet } from "../../lib/netting/group.ts";
 import type { AuthorizationView, CalculationView, ObligationView } from "../../lib/tobin/types.ts";
 import { Button, ButtonLink } from "../ui/Button.tsx";
 import { ErrorState, NotSupported, Skeleton } from "../ui/Feedback.tsx";
-import { ApprovalBlock, SignatureBlock, type DecisionRow } from "../ui/Flow.tsx";
+import { ApprovalBlock, type DecisionRow } from "../ui/Flow.tsx";
 import { Card, StatGrid } from "../ui/Surfaces.tsx";
 
 export const AUTH_LABEL: Record<AuthorizationView["state"], string> = {
@@ -16,7 +16,7 @@ export const AUTH_LABEL: Record<AuthorizationView["state"], string> = {
 
 /**
  * The real review flow: ONE reviewer's decision on ONE exact calculation (not N of M). The decision record (ApprovalBlock, white) and the wallet-signature block
- * (a #f0f0f0 card, Not supported) are separate sections: they never share a row or a button group. Approve and Reject live in the action panel as
+ * is in step 5 of the close-out (Not supported): they never share a row, a step or a button group. Approve and Reject live in the action panel as
  * separate confirmed dialogs, not in this tab.
  */
 export function ApprovalsTab({ query, sessionId, obligations, calc }: { query: UseQueryResult<AuthorizationView>; sessionId: string; obligations: ObligationView[] | undefined; calc: CalculationView | undefined }) {
@@ -74,7 +74,6 @@ export function ApprovalsTab({ query, sessionId, obligations, calc }: { query: U
 
       <NotSupported tone="card" feature="N-of-M approval" reason="The backend records one reviewer's decision on one calculation. There is no approval threshold or multi-party quorum." />
 
-      <div><SignatureBlock signers={[]} threshold={0} /></div>
     </div>
   );
 }

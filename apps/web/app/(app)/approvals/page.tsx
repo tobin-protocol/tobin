@@ -1,7 +1,6 @@
-import { GlobalApprovals } from "../../../components/approvals/GlobalApprovals.tsx";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Approvals" };
-
+/** The old address of the Reviews queue. */
 export default function Page() {
-  return <GlobalApprovals />;
+  redirect("/reviews");
 }

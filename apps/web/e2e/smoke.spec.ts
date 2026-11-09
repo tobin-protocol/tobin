@@ -26,18 +26,35 @@ test("the stage rail never fills the last stage without a verified read-back", a
   await expect(page.getByText("Submitted, awaiting verification")).toBeVisible();
 });
 
-test("signed out, the app redirects to sign-in", async ({ page }) => {
+test("signed out, the root lands on Discover and a protected route goes to sign-in with a return path", async ({ page }) => {
   await page.goto("/");
-  await page.waitForURL(/\/sign-in/);
-  await expect(page.getByRole("heading", { name: "Sign in to Tobin" })).toBeVisible();
+  await page.waitForURL(/\/discover$/);
+  await expect(page.getByRole("heading", { name: "Discover", level: 1 })).toBeVisible();
+  await expect(page.getByText("Illustrative example. Not live data.")).toBeHidden();
+  await page.getByText("How clearing works").click();
+  await expect(page.getByText("Illustrative example. Not live data.")).toBeVisible();
+  await expect(page.getByText("No data", { exact: true }).first()).toBeVisible();
+  await page.goto("/obligations");
+  await page.waitForURL(/\/sign-in\?next=%2Fobligations/);
+  await expect(page.getByRole("heading", { name: "Sign up or sign in" })).toBeVisible();
   await expect(page.getByText("Stellar Testnet").first()).toBeVisible();
 });
 
-test("wallet sign-in reports a missing Freighter plainly, inline", async ({ page }) => {
+test("a protected route answers with a redirect and no protected markup", async ({ request }) => {
+  const r = await request.get("/sessions", { maxRedirects: 0 });
+  expect(r.status()).toBe(307);
+  expect(r.headers()["location"]).toContain("/sign-in?next=%2Fsessions");
+  expect(await r.text()).not.toContain("Clearing");
+});
+
+test("the connect-wallet dialog says Freighter is not installed and links to its install page", async ({ page }) => {
   await page.goto("/sign-in");
-  await page.getByRole("button", { name: "Sign in with wallet" }).click();
-  await expect(page.getByText("Freighter not found")).toBeVisible();
-  await expect(page.getByText(/Install the Freighter extension/)).toBeVisible();
+  await page.getByRole("button", { name: "Continue with wallet" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText("NOT INSTALLED")).toBeVisible();
+  await expect(dialog.getByRole("link", { name: /Install Freighter/ })).toHaveAttribute("href", "https://www.freighter.app");
+  await expect(dialog.getByText(/desktop browser extension/)).toBeVisible();
+  await expect(dialog.getByRole("textbox", { name: "Search wallets" })).toHaveCount(0);
 });
 
 test("the proxy refuses routes it must not forward", async ({ request }) => {

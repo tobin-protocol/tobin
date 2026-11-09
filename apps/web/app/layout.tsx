@@ -1,12 +1,15 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, JetBrains_Mono } from "next/font/google";
+import { Instrument_Sans, Outfit, Space_Grotesk, Urbanist } from "next/font/google";
 import type { ReactNode } from "react";
 import { Providers } from "../components/Providers.tsx";
 import "./globals.css";
 
-// Geist stands in for the design spec's Gellix. JetBrains Mono is used only for identifiers, hashes and addresses.
-const geist = Geist({ subsets: ["latin"], variable: "--font-geist", display: "swap" });
-const jetbrains = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains", display: "swap" });
+// The landing page's four faces (apps/landing/src/app/layout.tsx), loaded the same way: Urbanist for headings, Outfit for display numerals and the banner
+// headline, Instrument Sans for the interface, Space Grotesk for labels. Identifiers use the system monospace stack, as on the landing page. No other face.
+const urbanist = Urbanist({ subsets: ["latin"], variable: "--font-urbanist", display: "swap" });
+const outfit = Outfit({ subsets: ["latin"], variable: "--font-outfit", display: "swap" });
+const instrumentSans = Instrument_Sans({ subsets: ["latin"], variable: "--font-instrument-sans", display: "swap" });
+const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-space-grotesk", display: "swap" });
 
 export const metadata: Metadata = {
   title: { default: "Tobin", template: "%s · Tobin" },
@@ -17,9 +20,9 @@ export const viewport: Viewport = { width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`${geist.variable} ${jetbrains.variable}`}>
+    <html lang="en" className={`${urbanist.variable} ${outfit.variable} ${instrumentSans.variable} ${spaceGrotesk.variable}`}>
       <body>
-        <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-btn focus:bg-button focus:px-3 focus:py-2 focus:text-on-button">Skip to content</a>
+        <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:bg-button focus:px-3 focus:py-2 focus:text-on-button">Skip to content</a>
         <Providers>{children}</Providers>
       </body>
     </html>

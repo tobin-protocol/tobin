@@ -13,6 +13,7 @@ import { Button, ButtonLink } from "../ui/Button.tsx";
 import { AccessDenied, ErrorState, InlineError, NotSupported, Skeleton } from "../ui/Feedback.tsx";
 import { TextField } from "../ui/Form.tsx";
 import { StatGrid } from "../ui/Surfaces.tsx";
+import { addParticipants, recoveryOf, retryFailed, type AddOutcome } from "../../lib/sessions/wizard.ts";
 import { CopyButton, reasonOf } from "./shared.tsx";
 
 type Step = "details" | "participants" | "review" | "created";
@@ -22,7 +23,7 @@ const STEPS: { key: Exclude<Step, "created">; label: string }[] = [
   { key: "review", label: "Review" },
 ];
 
-interface Outcome { session: CreatedSession; added: string[]; failed: { name: string; reason: string }[] }
+interface Outcome extends AddOutcome { session: CreatedSession }
 
 export function CreateSession() {
   const { org, actor } = useWorkspace();
@@ -33,13 +34,14 @@ export function CreateSession() {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const members = useQuery({ queryKey: ["members", org.id], queryFn: () => client.organizations.members(org.id), enabled: allowed.allowed });
   const form = useForm<SessionForm>({ resolver: zodResolver(sessionForm), defaultValues: { label: "" } });
 
   if (!allowed.allowed) {
     return (
-      <PageFrame title="Create session" breadcrumbs={[{ label: org.name }, { href: "/sessions", label: "Clearing Sessions" }, { label: "Create" }]}>
+      <PageFrame title="Create session" breadcrumbs={[{ label: org.name }, { href: "/sessions", label: "Sessions" }, { label: "Create" }]}>
         <AccessDenied title="You cannot create sessions" message={<>{allowed.reason} Ask an administrator of {org.name} to create the session, or to make you an administrator.</>} />
       </PageFrame>
     );
@@ -52,20 +54,27 @@ export function CreateSession() {
     setBusy(true); setError(null);
     try {
       const session = await client.sessions.create(org.id, label);
-      const added: string[] = []; const failed: Outcome["failed"] = [];
-      for (const m of chosen) {
-        try { await client.participants.add(org.id, session.sessionId, m.userId); added.push(m.name); } catch (e) { failed.push({ name: m.name, reason: reasonOf(e) }); }
-      }
+      const result = await addParticipants(chosen.map((m) => ({ userId: m.userId, name: m.name })), (id) => client.participants.add(org.id, session.sessionId, id), reasonOf);
       await qc.invalidateQueries({ queryKey: ["sessions", org.id] });
-      setOutcome({ session, added, failed });
+      setOutcome({ session, ...result });
       setStep("created");
     } catch (e) {
       setError(reasonOf(e));
     } finally { setBusy(false); }
   };
 
+  const retry = async () => {
+    if (!outcome) return;
+    setRetrying(true);
+    const next = await retryFailed(outcome, (id) => client.participants.add(org.id, outcome.session.sessionId, id), reasonOf);
+    await qc.invalidateQueries({ queryKey: ["session", org.id, outcome.session.sessionId] });
+    setOutcome({ session: outcome.session, ...next });
+    setRetrying(false);
+  };
+  const recovery = outcome ? recoveryOf(outcome) : null;
+
   return (
-    <PageFrame title="Create session" breadcrumbs={[{ label: org.name }, { href: "/sessions", label: "Clearing Sessions" }, { label: "Create" }]} sensitive>
+    <PageFrame title="Create session" breadcrumbs={[{ label: org.name }, { href: "/sessions", label: "Sessions" }, { label: "Create" }]} sensitive>
       <div className="mx-auto w-full max-w-[640px] rounded-panel bg-panel p-6 sm:p-8">
         {step !== "created" ? (
           <ol className="mb-6 flex gap-5" aria-label="Steps">
@@ -151,12 +160,13 @@ export function CreateSession() {
               <p className="mt-1 break-all font-mono text-ident" data-testid="created-session-id">{outcome.session.sessionId}</p>
               <div className="mt-3"><CopyButton value={outcome.session.sessionId} label="Copy session id" /></div>
             </div>
-            {outcome.added.length > 0 ? <p className="text-body text-muted">Added: {outcome.added.join(", ")}.</p> : null}
-            {outcome.failed.length > 0 ? (
-              <div className="rounded-card bg-card p-3" role="alert">
-                <p className="text-body font-medium text-danger">{outcome.failed.length} participant{outcome.failed.length === 1 ? " was" : "s were"} not added</p>
-                <ul className="mt-1 text-body">{outcome.failed.map((f) => <li key={f.name}>{f.name}: {f.reason}</li>)}</ul>
-                <p className="mt-1 text-label text-muted">The session exists. Add them on its Participants tab.</p>
+            {outcome.added.length > 0 ? <p className="text-body text-muted">Added: {outcome.added.map((m) => m.name).join(", ")}.</p> : null}
+            {recovery?.kind === "partial" ? (
+              <div className="space-y-3 border border-danger-line p-4" role="alert" aria-labelledby="recovery-h">
+                <p id="recovery-h" className="text-body font-medium text-danger">{recovery.headline}</p>
+                <ul className="text-body">{recovery.failed.map((f) => <li key={f.userId}>{f.name}: {f.reason}</li>)}</ul>
+                <p className="text-label text-muted">The session exists and what was added stays added. Retry adds only the {recovery.failed.length === 1 ? "participant" : "participants"} listed above, or add them later on the Participants tab.</p>
+                <Button variant="primary" loading={retrying} onClick={retry}>{recovery.failed.length === 1 ? "Retry this participant" : "Retry these " + recovery.failed.length}</Button>
               </div>
             ) : null}
             <div className="flex flex-col gap-2 sm:flex-row">

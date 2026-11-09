@@ -98,7 +98,7 @@ export function Table<T extends RowData>({ columns, data, getRowId, loading, err
   const pages = pageSize && total ? Math.max(1, Math.ceil(total / pageSize)) : 1;
   return (
     <div>
-      <div className="overflow-x-auto rounded-card bg-card">
+      <div className="overflow-x-auto rounded-card bg-card" tabIndex={0}>
         <table className="w-full border-collapse text-left text-body">
           <thead>
             {table.getHeaderGroups().map((g) => (

@@ -99,19 +99,22 @@ test("APPROVAL / SIGNATURE SEPARATION: the approval block has no signing control
   const approval = section("ApprovalBlock"); const signature = section("SignatureBlock");
   assert.doesNotMatch(approval, /Sign with wallet|SignatureBlock|signingSupported/);
   assert.doesNotMatch(signature, /bApproveb|onApprove|onReject|ApprovalBlock/);
-  assert.match(signature, /Not supported/);
+  assert.match(signature, /<NotSupported /);
   assert.match(signature, /bg-card/, "the signature block is the same white card surface as the approval block");
   assert.match(approval, /bg-card/, "the approval block is a white card");
   assert.match(signature, /data-icon="key"/, "told apart by a key icon");
   assert.match(signature, /Wallet signatures/, "and by its title");
   assert.doesNotMatch(signature, /bg-panel/, "no separate colour");
 });
-test("APPROVAL / SIGNATURE SEPARATION: they never share a row or a button group on the Approvals tab", () => {
-  const src = readFileSync(new URL("../components/approvals/ApprovalsTab.tsx", import.meta.url), "utf8");
-  const a = src.indexOf("<ApprovalBlock"); const s = src.indexOf("<SignatureBlock");
-  assert.ok(a >= 0 && s >= 0);
-  const between = src.slice(Math.min(a, s), Math.max(a, s));
-  assert.doesNotMatch(between, /<Button|<ButtonLink|flex-row|className="flex[^"]*gap/, "nothing joins them into a row or button group");
+test("APPROVAL / SIGNATURE SEPARATION: they never share a step, a row or a button group in the close-out", () => {
+  // the approval block is rendered in steps 1 and 3 (ApprovalsTab, BatchStep); the signature block only in step 5 (SignStep)
+  const steps = readFileSync(new URL("../components/settlement/Steps.tsx", import.meta.url), "utf8");
+  const sign = steps.slice(steps.indexOf("export function SignStep"));
+  assert.match(sign, /<SignatureBlock/);
+  assert.doesNotMatch(sign, /<ApprovalBlock|<Button|<ButtonLink/, "no approval and no action joins the signature block");
+  const tab = readFileSync(new URL("../components/approvals/ApprovalsTab.tsx", import.meta.url), "utf8");
+  assert.match(tab, /<ApprovalBlock/);
+  assert.doesNotMatch(tab, /<SignatureBlock/);
 });
 
 test("FAILED STATES: failed, expired and unknown-outcome show the recorded reason, the time and no automatic retry", () => {

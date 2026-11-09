@@ -21,9 +21,13 @@ export interface FreighterLike {
 
 export type WalletState =
   | { kind: "UNAVAILABLE"; reason: string }
-  | { kind: "NOT_ALLOWED"; reason: string }
+  /** cause: the site simply has no access yet, or Freighter is locked / the request was declined (it does not say which, so the text hedges) */
+  | { kind: "NOT_ALLOWED"; reason: string; cause?: "not-granted" | "locked-or-denied" }
   | { kind: "WRONG_NETWORK"; address: string; network: string }
   | { kind: "READY"; address: string; network: string };
+
+/** What the app holds: a detecting moment, then one of the wallet states. */
+export type WalletView = { kind: "DETECTING" } | WalletState;
 
 const errText = (e: WalletError | undefined) => (e ? `${e.message ?? "wallet error"}${e.code !== undefined ? ` (code ${e.code})` : ""}` : "");
 async function safe<T>(f: () => Promise<T>): Promise<{ ok: true; value: T } | { ok: false; reason: string }> {
@@ -49,7 +53,7 @@ export async function inspectWallet(api: FreighterLike | undefined): Promise<Wal
   const n = await safe(() => api.getNetwork());
   const ad = await safe(() => api.getAddress());
   if (!n.ok || n.value.error) return { kind: "UNAVAILABLE", reason: n.ok ? errText(n.value.error) : n.reason };
-  if (!ad.ok || ad.value.error || !ad.value.address) return { kind: "NOT_ALLOWED", reason: ad.ok ? errText(ad.value.error) || "Freighter returned no address (locked?)" : ad.reason };
+  if (!ad.ok || ad.value.error || !ad.value.address) return { kind: "NOT_ALLOWED", cause: "locked-or-denied", reason: ad.ok ? errText(ad.value.error) || "Freighter returned no address (locked?)" : ad.reason };
   if (n.value.networkPassphrase !== TESTNET_PASSPHRASE) return { kind: "WRONG_NETWORK", address: ad.value.address, network: n.value.network };
   return { kind: "READY", address: ad.value.address, network: n.value.network };
 }

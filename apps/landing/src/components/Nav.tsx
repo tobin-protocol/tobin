@@ -15,6 +15,22 @@ const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 const PILL = 792;
 /** Top offset of the pill once the fold is done. */
 const PILL_TOP = 12;
+/** Opens the web application. `links.app` is null in a production build until an address exists; the button is then disabled and says so instead of linking nowhere. */
+function LaunchApp({ className, onClick }: { className: string; onClick?: () => void }) {
+  if (!links.app) {
+    return (
+      <button type="button" disabled aria-disabled="true" className={`${className} cursor-not-allowed opacity-50`}>
+        Launch app (soon)
+      </button>
+    );
+  }
+  return (
+    <a href={links.app} onClick={onClick} className={className}>
+      Launch app
+    </a>
+  );
+}
+
 /** Gap between the status bar and the nav before the fold. */
 const BAR_GAP = 12;
 
@@ -149,17 +165,7 @@ export function Nav() {
         </ul>
 
         <div className="flex items-center gap-2">
-          {links.github ? (
-            <a
-              href={links.github}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-light inline-flex !px-3 !py-1.5 !text-[0.8125rem] max-lg:!min-h-8 lg:!px-5 lg:!text-[0.875rem]"
-            >
-              GitHub
-              <span className="sr-only"> (opens in a new tab)</span>
-            </a>
-          ) : null}
+          <LaunchApp className="btn btn-light inline-flex !px-3 !py-1.5 !text-[0.8125rem] max-lg:!min-h-8 lg:!px-5 lg:!text-[0.875rem]" />
           <button
             ref={toggleRef}
             type="button"
@@ -205,18 +211,7 @@ export function Nav() {
               </li>
             ))}
           </ul>
-          {links.github ? (
-            <a
-              href={links.github}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={close}
-              className="btn btn-light mt-8 w-full"
-            >
-              GitHub
-              <span className="sr-only"> (opens in a new tab)</span>
-            </a>
-          ) : null}
+          <LaunchApp className="btn btn-light mt-8 w-full" onClick={close} />
         </div>
       ) : null}
     </m.header>

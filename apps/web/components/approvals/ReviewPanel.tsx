@@ -13,7 +13,7 @@ import { reasonOf } from "../sessions/shared.tsx";
 import { Button } from "../ui/Button.tsx";
 import { InlineError } from "../ui/Feedback.tsx";
 import { TextAreaField } from "../ui/Form.tsx";
-import { Dialog } from "../ui/Overlays.tsx";
+import { Confirm as Dialog } from "../tobin/Overlays.tsx";
 import { Card, Panel, StatGrid } from "../ui/Surfaces.tsx";
 import { AUTH_LABEL } from "./ApprovalsTab.tsx";
 

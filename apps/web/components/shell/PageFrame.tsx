@@ -3,11 +3,12 @@ import type { ReactNode } from "react";
 import { TestnetStrip } from "../ui/Surfaces.tsx";
 
 /** max width 1200, 24px gutters, breadcrumbs (14 muted), 28/500 title, at most one primary action on the right. */
-export function PageFrame({ title, breadcrumbs, actions, sensitive, children }: {
-  title: string; breadcrumbs?: { href?: string; label: string }[]; actions?: ReactNode; sensitive?: boolean; children: ReactNode;
+export function PageFrame({ title, breadcrumbs, actions, sensitive, banner, children }: {
+  title: string; breadcrumbs?: { href?: string; label: string }[]; actions?: ReactNode; sensitive?: boolean; /** the grain band, on Overview and Sessions only */ banner?: ReactNode; children: ReactNode;
 }) {
   return (
     <>
+      {banner}
       {sensitive ? <TestnetStrip /> : null}
       <div className="mx-auto w-full max-w-[1200px] px-4 pb-24 pt-6 sm:px-6 md:pb-12">
         {breadcrumbs?.length ? (

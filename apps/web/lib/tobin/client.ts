@@ -51,6 +51,12 @@ export interface TobinClient {
     create(orgId: string, label: string): Promise<CreatedSession>;
     readiness(orgId: string, sessionId: string): Promise<Readiness>;
     calculation(orgId: string, sessionId: string): Promise<CalculationView>;
+    /** Admin. configuring to ready, only when every readiness check passes. Ready is not approval, signing or settlement. Returns the readiness view. */
+    markReady(orgId: string, sessionId: string): Promise<Readiness>;
+    /** Admin. ready to closed, only with an approved, still-eligible settlement batch for the current calculation. Operational closure: nothing has settled. */
+    close(orgId: string, sessionId: string): Promise<Readiness>;
+    /** Admin. ready to configuring. Changes the workflow state only: nothing is deleted. The first edit afterwards invalidates reviews and the prepared settlement. */
+    reopen(orgId: string, sessionId: string): Promise<Readiness>;
   };
   participants: {
     list(orgId: string, sessionId: string): Promise<SessionParticipantView[]>;
@@ -142,6 +148,9 @@ export class HttpAdapter implements TobinClient {
     create: async (orgId, label) => (await api<{ session: CreatedSession }>(`${org(orgId)}/sessions`, { method: "POST", body: { label } })).session,
     readiness: (orgId, sessionId) => api<Readiness>(`${org(orgId)}/sessions/${encodeURIComponent(sessionId)}/readiness`),
     calculation: (orgId, sessionId) => api<CalculationView>(`${org(orgId)}/sessions/${encodeURIComponent(sessionId)}/calculation`),
+    markReady: (orgId, sessionId) => api<Readiness>(`${org(orgId)}/sessions/${encodeURIComponent(sessionId)}/ready`, { method: "POST" }),
+    close: (orgId, sessionId) => api<Readiness>(`${org(orgId)}/sessions/${encodeURIComponent(sessionId)}/close`, { method: "POST" }),
+    reopen: (orgId, sessionId) => api<Readiness>(`${org(orgId)}/sessions/${encodeURIComponent(sessionId)}/reopen`, { method: "POST" }),
   };
   participants: TobinClient["participants"] = {
     list: async (orgId, sessionId) => (await api<{ participants: SessionParticipantView[] }>(`${org(orgId)}/sessions/${encodeURIComponent(sessionId)}/participants`)).participants,

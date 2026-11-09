@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState, type ReactNode } from "react";
+import { Calculator01Icon } from "@hugeicons/core-free-icons";
 import { can } from "../../lib/permissions/can.ts";
 import { formatAmount, formatDateTime } from "../../lib/format.ts";
 import { absAmount, eligibility, groupPositions, grossVsNet, splitByAsset } from "../../lib/netting/group.ts";
@@ -11,7 +12,7 @@ import { useWorkspace } from "../shell/session.tsx";
 import { Button } from "../ui/Button.tsx";
 import { Amount, Table, type Col } from "../ui/Data.tsx";
 import { EmptyState, ErrorState, InlineError, Skeleton, StatusMark } from "../ui/Feedback.tsx";
-import { Dialog, SidePanel } from "../ui/Overlays.tsx";
+import { Confirm as Dialog, DetailSheet as SidePanel } from "../tobin/Overlays.tsx";
 import { Banner, Card, DataCard, Panel, StatGrid } from "../ui/Surfaces.tsx";
 
 export type NettingStep = "inputs" | "calculation" | "result";
@@ -41,7 +42,7 @@ export function RunNettingPanel({ eligibleCount, excludedBlocking, excludedCount
   const [confirming, setConfirming] = useState(false);
   const allowed = can(actor, "netting.run");
   const reason = !allowed.allowed ? allowed.reason
-    : workflow === "ready" ? "The session is marked ready. It can only be recalculated while it is being configured."
+    : workflow === "ready" ? "The session is marked ready. It can only be recalculated while it is being configured. An administrator can reopen it."
     : workflow === "closed" ? "A closed session cannot change."
     : eligibleCount === 0 ? "There are no active obligations to net. Record one first."
     : participantCount < 2 ? "Netting needs at least two participants."
@@ -148,12 +149,10 @@ export function NettingTab({ sessionId, obligations, participants, readiness, ru
       {c && gn && grouped ? (
         <>
           {!current ? <Banner role="status" className="rounded-card">This calculation is stale: participants or obligations changed after it. Run netting again. The figures below are the old result and are not a current one.</Banner> : null}
-          <DataCard label="Gross versus net" value={
-            <span className="grid gap-4 sm:grid-cols-2">
-              <span className="min-w-0"><span className="block text-label uppercase tracking-wide text-muted">Gross</span><span className="block break-words">{formatAmount(gn.gross, c.asset)}</span></span>
-              <span className="min-w-0"><span className="block text-label uppercase tracking-wide text-muted">Net</span><span className="block break-words">{formatAmount(gn.net, c.asset)}</span></span>
-            </span>
-          } note={gn.reduction !== null ? `Netting removes ${formatAmount(gn.reduction, c.asset)} of gross payments.` : "A reduction is shown only for a current calculation."} />
+          <div className="grid gap-4 sm:grid-cols-2" role="group" aria-label="Gross versus net">
+            <DataCard label="Gross" value={<span className="break-words">{formatAmount(gn.gross, c.asset)}</span>} note="Every active obligation added up, before netting." />
+            <DataCard label="Net that moves" value={<span className="break-words">{formatAmount(gn.net, c.asset)}</span>} note={gn.reduction !== null ? `Netting removes ${formatAmount(gn.reduction, c.asset)} of gross payments.` : "A reduction is shown only for a current calculation."} />
+          </div>
 
           <Card>
             <h3 className="text-entity font-medium">Participant positions</h3>
@@ -198,7 +197,7 @@ export function NettingTab({ sessionId, obligations, participants, readiness, ru
           </Card>
 
           <div><Button onClick={() => setDetails(true)}>Calculation details</Button></div>
-          <SidePanel open={details} onClose={() => setDetails(false)} title="Calculation details">
+          <SidePanel open={details} onClose={() => setDetails(false)} title="Calculation details" icon={Calculator01Icon}>
             <div className="space-y-4">
               <div className="rounded-card bg-card p-4">
                 <dl className="space-y-3 text-body">

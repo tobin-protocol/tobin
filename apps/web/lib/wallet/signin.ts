@@ -1,6 +1,7 @@
 // Browser-side wallet sign-in sequence. The wallet and the HTTP calls are injected so the sequence is unit-tested with a labelled MOCK wallet (test only);
 // the server challenge and verification are real. Every outcome is a named state with a plain explanation, never an open-ended wait.
 import { connectWallet, inspectWallet, SIGN_TIMEOUT_MS, TESTNET_PASSPHRASE, type FreighterLike } from "./freighter.ts";
+import { WRONG_NETWORK_MESSAGE } from "./popover.ts";
 import type { WalletChallenge } from "../tobin/client.ts";
 
 export type SignInState =
@@ -39,7 +40,7 @@ export async function runWalletSignIn(d: SignInDeps): Promise<SignInOutcome> {
   }
   const address = c.address;
   const st = await inspectWallet(d.api);
-  if (st.kind === "WRONG_NETWORK") return say("wrong-network", `Freighter is on "${st.network}". Switch it to Stellar Testnet and try again.`, { address });
+  if (st.kind === "WRONG_NETWORK") return say("wrong-network", `${WRONG_NETWORK_MESSAGE} (Freighter is on "${st.network}".)`, { address });
   if (st.kind !== "READY") return say("locked", "Freighter is not ready. Unlock it and try again.", { address });
 
   say("requesting-challenge", "Requesting a one-time challenge from Tobin…");

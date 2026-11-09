@@ -11,24 +11,9 @@ import { reasonOf } from "../sessions/shared.tsx";
 import { Button } from "../ui/Button.tsx";
 import { InlineError } from "../ui/Feedback.tsx";
 import { TextAreaField } from "../ui/Form.tsx";
-import { Dialog } from "../ui/Overlays.tsx";
+import { Confirm as Dialog } from "../tobin/Overlays.tsx";
 import { Card, Panel, StatGrid } from "../ui/Surfaces.tsx";
 import type { SettlementData } from "./useSettlement.ts";
-
-type StepState = "done" | "current" | "todo" | "unsupported";
-function Steps({ items }: { items: { label: string; state: StepState }[] }) {
-  return (
-    <ol className="space-y-2" aria-label="Settlement steps">
-      {items.map((s, i) => (
-        <li key={s.label} aria-current={s.state === "current" ? "step" : undefined} className="flex items-center gap-2 text-body">
-          <span aria-hidden="true" className={s.state === "done" ? "size-3 rounded-full bg-button" : s.state === "current" ? "size-3 rounded-full border-[4px] border-button" : "size-3 rounded-full border border-disabled"} />
-          <span className={s.state === "unsupported" ? "text-muted" : s.state === "todo" ? "text-muted" : "font-medium"}>{i + 1}. {s.label}</span>
-          {s.state === "unsupported" ? <span className="text-label text-muted">Not supported</span> : null}
-        </li>
-      ))}
-    </ol>
-  );
-}
 
 /**
  * The step-by-step panel of the Settlement tab. Only the steps the backend performs have actions: Prepare (admin) and Review (reviewer, never the preparer).
@@ -73,12 +58,6 @@ export function SettlementPanel({ sessionId, s, workflow, onChanged }: { session
   const prepare = () => run(() => client.settlement.prepare(org.id, sessionId, { calculationId: preview!.calculationId as string, ...(attempts > 0 ? { attempt: attempts + 1 } : {}) }));
   const decide = (kind: "approve" | "reject") => run(() => client.settlement.decide(org.id, sessionId, s.latest!.id, kind, { instructionsHash: (b as NonNullable<typeof b>).batch.instructionsHash, ...(kind === "reject" ? { reason: reason.trim() } : {}) }));
 
-  const steps: { label: string; state: StepState }[] = [
-    { label: "Prepare", state: live || status === "rejected" ? "done" : "current" },
-    { label: "Review", state: status === "approved" || status === "rejected" ? "done" : status === "awaiting-review" ? "current" : "todo" },
-    { label: "Sign", state: "unsupported" }, { label: "Submit", state: "unsupported" }, { label: "Verify", state: "unsupported" },
-  ];
-
   const summary = b ? (
     <div className="rounded-card bg-card p-4">
       <StatGrid columns={2} items={[
@@ -99,8 +78,7 @@ export function SettlementPanel({ sessionId, s, workflow, onChanged }: { session
   return (
     <Panel className="space-y-3" aria-label="Settlement steps">
       <Card>
-        <p className="text-label uppercase tracking-wide text-muted">Settlement</p>
-        <div className="mt-2"><Steps items={steps} /></div>
+        <p className="text-label uppercase tracking-wide text-muted">Close-out action</p>
 
         <div className="mt-4 space-y-2 border-t border-divider pt-4">
           {needsPrepare ? (

@@ -51,6 +51,10 @@ export function Settings() {
             </form>
           </Card>
           <Card>
+            <h3 className="text-body font-medium">Password</h3>
+            <div className="mt-3"><NotSupported tone="panel" feature="Change password" reason="The backend has no route to change a password, so none is offered here." /></div>
+          </Card>
+          <Card>
             <h3 className="text-body font-medium">Sessions</h3>
             <p className="mt-1 text-body text-muted">You can end every session of your account at once, including this one. Signed in with {me.user.authMethod === "wallet" ? "a wallet" : "email and password"}.</p>
             <div className="mt-3"><Button variant="destructive" onClick={() => setSignOutAll(true)}>Sign out everywhere</Button></div>
