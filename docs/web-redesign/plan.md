@@ -157,3 +157,81 @@ A session has one workflow state: `configuring`, `ready` or `closed`. `TRANSITIO
 - Overview, Sessions list, create wizard (a single recovery panel, retry only what failed), workspace shell, Mark ready and Close session (one confirmed dialog each, administrator only, the reason shown when disabled), route-level loading, error and not-found files, specific titles, and the redirect to Sessions with a notice when the organization changes on a session URL.
 - Kept working in the new shell: the Obligations, Netting, Approvals and Settlement tab bodies and their panels, so no flow is lost between phases. Approvals is no longer a tab: its content is the "Calculation review" view inside Settlement (`?tab=approvals` still opens it). R3 rebuilds these.
 - Deviations from the spec, with reasons: (1) the Sessions list drops the per-row participant and obligation counts and the avatar stack from R1's tile anatomy, because they cost two requests per row and the list has no aggregate; (2) the Reviews count in the sidebar is passive: it appears once a page has loaded the data, and counts calculations only, not settlement batches; (3) the list's Status filter acts on the rows of the current page (the workflow state is read per visible row); (4) the Overview drops obligation totals (an extra request per session for a number that is only partial).
+
+## 15. R2 follow-up: checks retired in R2, and Stage B's independence
+
+Checks of the Stage A to F scripts that R2 retired or rewrote, and why. Everything else in those scripts was kept and passed on the final R2 build.
+
+| Script | Check | Why it was retired or changed |
+|---|---|---|
+| B | "unsupported quick filters are labelled" (3 widths) | The Sessions list no longer has quick filters; the Status filter replaced them. |
+| B | "Attention has an enabled Open link" read the first session link | The Overview's first attention item is now often Invitations (a link to the organization), and the stale session can fall outside the 10-session window. It now looks for the link to B's own stale session. |
+| B, C, E, F, a11y | the "Open" link was found by the exact name "Open" | The list links are named for their session ("Open <name>"), so the selector became a pattern. Same check, new name. |
+| D | "Submitted appears only as a stage name" counted the whole page | The session summary now also holds a stage rail; the check counts the tab content only. |
+| F | "Overview lists the sessions that matter now" | The Overview's section is now "Needs your attention". Replaced by a check for that heading. |
+| F | "Overview offers quick links" | The Quick links group was removed from the Overview in R2. |
+| F | "Overview still says how many sessions it read" | Replaced by the coverage line (`Based on N of M sessions`) check. |
+| F | Sessions list "Contents (derived)" with participant and obligation counts (3 checks) | The list no longer reads two extra requests per row; counts were dropped (R2 deviation 1). |
+| F | "session shows its state layer by layer", "five layers", "blockchain layer reads Not recorded", "no layer claims settled or confirmed", "at-a-glance", "recent events" | The workspace Overview tab no longer repeats the summary. The layers card and the at-a-glance list were removed; the stage rail in the summary card now carries the Not supported reading. Replaced by checks on the summary card. |
+| F | "At a glance leads to Netting", "a Stepper group leads to its section" | The Stepper and the at-a-glance links no longer exist. |
+| F | "the command panel lists Discover as not available" | Discover is a real page and an ordinary item in the command panel since R1. |
+| keyboard walkthrough | sign in with the "Email" tab and open the command panel by a text field id | The sign-in page and the command panel (shadcn Command) changed in R1. Same flows, new controls. |
+
+**Stage B independence (2026-11-10).** Stage B no longer depends on the seeded sessions or on the order scripts run in. It makes its own sessions through the real API (one awaiting review, one stale, one draft), so it passes alone and in the combined order. The two seeded sessions it used for the Overview and the stale label are no longer needed.
+
+## 16. R3: what the console does for Reopen, and every route the four tabs call (read from the code, 2026-11-10)
+
+### 16.1 `POST /api/registry/orgs/:org/sessions/:id/reopen`
+
+Source: `service.ts` `reopenSession` (one line), `#move`, `#editable`, `#invalidate`; `clearing.ts` `TRANSITIONS`; `http.ts` line for `ready|reopen|close`.
+
+- **Role:** administrator only (`#need(orgId, u, true)`; FORBIDDEN 403 "administrator role required").
+- **Preconditions:** the session is `ready`. `TRANSITIONS` is `configuring: [ready]`, `ready: [configuring, closed]`, `closed: []`, so only a ready session can go back to `configuring`; a configuring session gets INVALID_STATE ("a configuring session cannot become configuring") and a closed session gets INVALID_STATE. A fixture session gets FIXTURE (409).
+- **What it does:** `#move` writes the new workflow state and logs `session.state-changed` (`ready -> configuring`). It calls `#invalidate` nowhere and writes no calculation, decision or batch: **reopening alone changes nothing else.** It returns the readiness view.
+- **Effect on the calculation, reviews and settlement batches:** none at the moment of reopening. The calculation, every review decision and any prepared batch stay as they are, still "approved". The effect comes with the first change afterwards, because participants, obligations and netting all need `configuring` (`#editable`: "the session is marked ready: reopen it to make changes") and each of them calls `#invalidate` (participant added or removed, obligation recorded or voided, a new calculation): every decision then gets an invalidation record (status "No longer applies"), the calculation's input hash no longer matches (stale), and a batch's status becomes `invalidated` or `superseded` (it is "no longer eligible"). Nothing is deleted; the old records stay and are labelled. The session must then be calculated, reviewed, prepared, reviewed and marked ready again.
+- **Not in the console:** there is no reopen for a closed session, and nothing that "discards" records.
+- **UI (R3):** a Reopen session row appears only while the session is ready; administrator only, disabled with the reason otherwise; one confirmation whose text is `lib/sessions/reopen.ts` (checked against the service code by a test).
+
+### 16.2 Console routes the four tabs call today
+
+All are under `/api/registry/orgs/:org`, through the app's proxy.
+
+| Tab | Route | Used for |
+|---|---|---|
+| Obligations | `GET /sessions/:id/obligations` | the table (also read by Netting, Settlement and the Overview tab) |
+| | `POST /sessions/:id/obligations` | record an obligation (admin, configuring only) |
+| | `POST /sessions/:id/obligations/:oid/void` | void (admin, configuring only; optional reason) |
+| | `GET /sessions/:id/settlement` | the supported-asset list for the form (`assets`, `status: supported`) |
+| | `GET /sessions/:id/participants` | debtor and creditor choices |
+| | `GET /sessions/:id` | the session detail whose activity items give an obligation's history (there is no per-obligation history route; `GET /obligations/:oid` exists and is not called) |
+| Netting | `GET /sessions/:id/calculation` | the current result and its currency |
+| | `POST /sessions/:id/calculate` | run netting (admin, configuring only) |
+| | `GET /sessions/:id/readiness` | the validation checks and the currency |
+| | `GET /sessions/:id/obligations`, `/participants` | eligible and excluded tables |
+| Settlement (and the old Approvals) | `GET /sessions/:id/authorization` | the review state |
+| | `POST /sessions/:id/authorization/approve` and `/reject` | decide a calculation (reviewer; reject needs a reason) |
+| | `GET /sessions/:id/calculation` | what is under review, and the diff |
+| | `GET /sessions/:id/settlement` | the batches, the preparation checks, the assets |
+| | `GET /sessions/:id/settlement/batches/:bid` | the prepared instructions and their validation |
+| | `POST /sessions/:id/settlement/prepare` | prepare (admin; body `calculationId`, optional `attempt`) |
+| | `POST /sessions/:id/settlement/batches/:bid/approve` and `/reject` | decide a batch (reviewer who did not prepare it; body `instructionsHash`, reject needs a reason) |
+| | `GET /sessions/:id/settlement/batches/:bid/execution` and `.../execution/attempts` | the read-only execution record |
+| Activity | `GET /sessions/:id` | `workspace.activity.items` (the only source; events with no session subject cannot be read) |
+| Reopen (new) | `POST /sessions/:id/reopen` | section 16.1 |
+
+Routes with no UI and still not built: obligation update, execution start and attempt begin, wallet claims and signer sets, session-level routes for notifications or search (none exist).
+
+## 17. R3: what was built, and deviations
+
+- **Reopen** in the workflow controls (panel and every tab's workflow card), ready sessions only.
+- **Obligations tab:** table with search and status filter; record form in the action panel with only the backend's five fields (a supported-asset select, or a code field when none is configured); a review confirmation; the server's message under the field it concerns; a detail sheet (shadcn Sheet) with history; Void as its own confirmed action with its own history entry; no edit; one active total per asset, never across assets.
+- **Netting tab:** Inputs, Calculation, Result strip; eligible and excluded tables (the backend excludes only voided obligations; an active obligation naming a removed participant is reported as blocking); Run netting with one confirmation; separate Gross and Net cards; positions grouped net debtors, net creditors, zero, a section per asset; the original-versus-net two panes with linked highlight; calculation details limited to fields the backend returns; a stale label; no graph.
+- **Settlement tab:** one linear close-out (`lib/settlement/closeout.ts`, `components/settlement/CloseOut.tsx`, `Steps.tsx`): five numbered steps on a left rail, the shown step on the right, actions in the action panel with one confirmation each. Approval block ("Review decision", check icon) and signature block ("Wallet signatures", key icon) are separate, never in the same step. After an approval: "Approval recorded in Tobin. This is not an on-chain signature." The red diff blocks approval of a settlement (rejecting stays possible). `?tab=approvals` redirects. The duplicate "Transaction stages" list was removed; the stage rail stays once, in the session summary.
+- **Activity tab:** `ActivityView` is the one shared component (filters for event type, date range and result; a side panel with the full record; read-only). R4's global page reuses it.
+- **Overlays:** the R3 tabs use shadcn Dialog and Sheet through `components/tobin/Overlays.tsx` (`Confirm`, `DetailSheet`, drop-ins for the older native dialog and side panel, which remain for R4 screens).
+- **Deviations and notes:**
+  - The "excluded" table lists only what the backend reports. The prompt's second reason ("active obligation naming an inactive participant") is shown as blocking, as before; the backend refuses to net then.
+  - Activity's "result" is derived from the event kind (the backend returns none) and is labelled that way.
+  - An obligation's history comes from the session's activity log, matched by the first 8 characters of its id (no per-obligation history route).
+  - The settlement "Prepared" stage fills when a batch is prepared; nothing else can fill (no route).
+  - Mark ready and the workflow card text changed: ready sessions can be reopened, so the dialog no longer says the session cannot be reopened.
