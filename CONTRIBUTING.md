@@ -303,6 +303,7 @@ AI-assisted development is welcome. You remain fully responsible for what you su
 - Do not accept new dependencies, commands or files you do not understand.
 - Disclose significant AI assistance in the pull request (the template has a field). Do not add AI attribution trailers to commits.
 - Coding agents must also follow [`AGENTS.md`](AGENTS.md).
+- If your AI use adds a tool, a new area of work or changes how AI output is reviewed, update [`AI_DISCLOSURE.md`](AI_DISCLOSURE.md) in the same pull request.
 
 ## Documentation requirements
 

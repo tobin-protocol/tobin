@@ -220,7 +220,7 @@ The public site is [docs.tobinprotocol.xyz](https://docs.tobinprotocol.xyz). The
 | [Testing and validation](docs/scf/implementation/testing-and-validation.md) | verification evidence and gates |
 | [Deployment and operations](docs/scf/implementation/deployment-and-operations.md) | local and hosted deployment |
 | [Evidence register](docs/scf/implementation/evidence-register.md) | claims mapped to evidence |
-| [AI disclosure](docs/scf/product/ai-disclosure.md) | AI-assisted development |
+| [AI disclosure](AI_DISCLOSURE.md) | AI-assisted development: tools, uses, limits, accountability (SCF version: [docs/scf/ai-disclosure.md](docs/scf/ai-disclosure.md)) |
 
 Older milestone records and decisions are under `docs/product/architecture/`; [`AGENTS.md`](AGENTS.md) is the guide for contributors and coding agents.
 

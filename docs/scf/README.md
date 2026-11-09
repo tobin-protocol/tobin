@@ -26,7 +26,7 @@ Evidence basis: the repository at the commit that contains this package, its rec
 | | [onchain-growth-and-metrics.md](product/onchain-growth-and-metrics.md) | how on-chain growth would be measured |
 | | [budget-and-timeline.md](product/budget-and-timeline.md) | budget framework by official tranche |
 | | [team.md](product/team.md) | team and prior work |
-| | [ai-disclosure.md](product/ai-disclosure.md) | use of AI-generated and AI-assisted artifacts and the verification process |
+| | [ai-disclosure.md](ai-disclosure.md) | use of AI-generated and AI-assisted artifacts and the verification process |
 | Technical | [architecture.md](technical/architecture.md) | components, trust boundaries, on-chain versus off-chain, current versus planned |
 | | [technical-specification.md](technical/technical-specification.md) | the rules as implemented, with code references |
 | | [stellar-integration.md](technical/stellar-integration.md) | contracts, signing, submission, read-back, the network's current capabilities |
