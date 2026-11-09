@@ -6,6 +6,7 @@
     "netting-and-validation",
     "authentication-and-authorization",
     "stellar-execution",
+    "stellar-integration",
     "persistence"
   ]
 }

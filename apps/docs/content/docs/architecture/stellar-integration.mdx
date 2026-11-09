@@ -1,0 +1,360 @@
+---
+title: Stellar integration layer
+description: The modules in apps/web-console/lib/stellar - what each one does, what it may read or submit, where Testnet-only is enforced, and which tests cover it.
+---
+
+<Callout type="warn" title="Testnet only, owner-run submission">
+  Every module here is restricted to Stellar Testnet. Exactly one code path submits a transaction, and it belongs to
+  an owner-run tool that requires a typed confirmation for each step. The institutional application builds plans and
+  records attempts but never contacts the network for them, and confirmed outcomes are not written back to
+  application records.
+</Callout>
+
+This page is for engineers who change execution, signing or reconciliation code in
+[`apps/web-console/lib/stellar`](https://github.com/tobin-protocol/tobin/tree/main/apps/web-console/lib/stellar).
+[Stellar execution](/docs/architecture/stellar-execution) describes the contract steps. This page describes the
+application modules that build those steps, read signer sets, talk to the network and compare the results.
+
+## Two callers, kept apart
+
+The directory serves two callers. They share the pure modules but do not share state.
+
+| Caller | Uses | Touches the network | Records |
+|---|---|---|---|
+| The institutional application: `Registry` in `lib/registry/service.ts` and the signer-set route in `lib/registry/http.ts` | `execution-plan`, `retry-policy`, `signer-set` (`fingerprintOf`), `live` (signer-set route only) | Only the signer-set route reads the network, through `live`. Attempts never contact it | SQLite: immutable attempts, append-only attempt events, signer-set snapshots |
+| The owner-run Testnet tools: `/wallet-check`, `/cosign-check`, `/settle-run` and `/api/stellar/*` | `owner-validation`, `cosign`, `run`, `owner-access`, `rpc`, `live`, `compare`, `freighter` | Reads, simulates, and (in `run` only) submits | In-process memory, plus an append-only log file written by `run` |
+
+`Registry.beginExecutionAttempt` builds an `ExecutionPlan` from the approved batch and stores it with a new attempt.
+Nothing in that path signs, submits or reads the chain, and no HTTP route advances an attempt. The owner-run
+`/settle-run` tool does not read that attempt: `run.buildRunPlan` builds its own fixed one-unit plan from the
+deployment record and environment variables.
+
+## What may read the network and what may submit
+
+| Capability | Modules | Notes |
+|---|---|---|
+| No network at all | `execution-plan`, `compare`, `signer-set` (except `readLiveSignerSet`, whose fetchers are injected), `retry-policy`, `owner-access` | `owner-access` and `cosign.readPolicy` read the local account record file, not the network |
+| Read-only network | `rpc` (account reads, simulation, contract views, `readTransaction`, `pollTransaction`), `live`, `cosign`, `owner-validation`, `run` (`runStatus`, `prepareStep`, `attachEntry`, `resolveStep`) | A simulation sends a transaction to the RPC for evaluation; it is not a submission and proves nothing about inclusion |
+| Submits a transaction | `rpc.submitSigned`, called **only** by `run.submitStep` | Reached only through `POST /api/stellar/run` with `action: "submit"` |
+| Signs | None on the server. The owner's Freighter extension, in the browser, through `freighter.requestTransactionSignature` and the SDK's `authorizeEntry` in `components/settle-run.tsx` and `components/wallet-check.tsx` | No module holds, receives or stores a private key or seed phrase |
+
+`wallet-signin` and `freighter-core` talk to the Freighter extension and to Tobin's own `/api/auth/wallet` routes.
+They never contact Stellar.
+
+## Modules
+
+### `execution-plan.ts`
+
+- **Purpose:** maps an approved settlement batch onto the deployed contract's on-chain lifecycle. It is pure and
+  deterministic, with no network, wallet, signing or database access.
+- **Inputs (`PlanInput`):** `network` (only `'testnet'`), the clearing contract id, the batch asset identity, the
+  batch id, the initiator's user id, a map from user id to *verified* Stellar account, the approved net positions,
+  the active obligations and the approved instructions. `ceilings` is optional and defaults to `DEPLOYED_CEILINGS`
+  (4 participants, 16 obligations, 16 instructions).
+- **Outputs (`ExecutionPlan`, schema `tobin-execution-plan/v1`):** the ordered steps, each a `PreparedCall` from
+  `tobin-mvp1-sdk` that lists its signers. Also the expected nets, obligation commitment, proposal digest, proposal
+  revision (always 1) and total moved, the set of required signers, and a SHA-256 `fingerprint` of the plan. The
+  on-chain session id is `onChainSessionId(batchId)`, a hash of the batch id, so a second attempt can only continue
+  the same session, never create a duplicate.
+- **Step order:** `create_session`, one `join_session` per non-creator participant, one `submit_obligation` per
+  obligation, `finalize_obligations`, `propose_settlement`, one `approve_settlement` per participant, and `settle`.
+  Two participants and one obligation give eight steps.
+- **Safety rules:** it throws `PlanError` when:
+  - the network is not Testnet;
+  - the asset is not a `testnet:contract:` token identity;
+  - a participant has no verified account, or two participants resolve to the same account;
+  - the initiator is not a participant;
+  - a ceiling is exceeded, or there are no obligations or no instructions;
+  - `validatePlan` from the SDK engine rejects the instructions;
+  - the approved nets differ from the nets the on-chain obligations produce;
+  - the instructions differ from the approved batch in anything other than order.
+
+  Local validation is advisory: the contract remains the authority.
+
+### `signer-set.ts`
+
+- **Purpose:** decides whether signatures authorize a transaction for an account, given the account's signer set. It
+  is pure except for `readLiveSignerSet`, whose network access comes in through injected functions.
+- **Inputs and outputs:**
+  - `signerSetFromHorizon` and `signerSetFromRpc` normalize the two network formats into a `SignerSet` (thresholds and
+    signers).
+  - `fingerprintOf` hashes everything that decides authorization.
+  - `minimalAuthorizingSets` lists the smallest signer combinations that reach a threshold.
+  - `signerMembership` reports which proven keys are signers. This is information only and grants no permission.
+  - `verifyEnvelope` returns an `EnvelopeVerification` with the weight, the valid signers and a list of `problems`.
+  - `authorizationRequirements` states, for each step and signer, whether one key suffices or envelope multisig is
+    needed.
+  - `readLiveSignerSet` reads Horizon and the RPC and returns a set only if both agree.
+- **Safety rules:**
+  - Everything fails closed.
+  - Signers that are not ed25519 keys are refused, as are duplicate signers and out-of-range weights or thresholds.
+  - `verifyEnvelope` checks every signature over the transaction hash. Signatures by unknown keys, invalid signatures
+    and repeated signatures add no weight.
+  - The transaction source must be the account.
+  - The set's fingerprint must equal the one the approval was based on.
+  - Every key in `require` must have signed: reaching the weight another way does not satisfy the policy.
+  - A step that needs two multisig accounts in one transaction is refused rather than assembled by hand.
+  - Signer-set membership never grants an institutional role.
+
+### `rpc.ts`
+
+- **Purpose:** the Stellar RPC layer, built on `@stellar/stellar-sdk` 17.4.0. It encodes arguments, builds unsigned
+  transactions, simulates them, reads chain state and submits signed transactions.
+- **Inputs and outputs:**
+  - `toScVal` encodes the SDK's tagged arguments.
+  - `buildAndSimulate` reads the source account's real sequence number, simulates the call, and returns an assembled
+    unsigned `BuiltTransaction`. The XDR is empty if the simulation failed.
+  - `readObservedChain` returns the `ObservedChain` that `compare` consumes: session, obligations, proposal, approvals
+    and settlement, read with view simulations.
+  - `tokenBalance` and `tokenTotalSupply` read token state.
+  - `readTransaction` and `pollTransaction` read a transaction by hash.
+  - `submitSigned` submits a signed envelope.
+- **Safety rules:**
+  - Nothing here holds a key or signs.
+  - A failed simulation yields nothing to sign.
+  - Resource fees come from the simulation and are never invented.
+  - `createServer` refuses plain HTTP.
+  - `readTransaction` reports only `SUCCESS` and `FAILED` as results. `NOT_FOUND` and `UNAVAILABLE` are unknown
+    outcomes.
+  - `submitSigned` computes the hash before sending and sends exactly once. A transport error, `TRY_AGAIN_LATER` or an
+    unrecognized status is `unknown`, and `PENDING` is `accepted`: neither is a confirmation.
+  - `pollTransaction` reads only the original hash. Reaching its deadline returns an unknown outcome, never a
+    failure.
+
+### `compare.ts`
+
+- **Purpose:** independent reconciliation of what is on chain with the approved `ExecutionPlan`. It is pure.
+- **Input:** an `ExecutionPlan` and an `ObservedChain`.
+- **Output:** a `Comparison` with `ok`, a `progress` value (`not-started`, `created`, `obligations-recorded`,
+  `finalized`, `proposed`, `approved` or `settled`) and a list of `mismatches`.
+- **Safety rules:**
+  - It compares every observed fact with the plan: creator, token, capacities, participants, obligation
+    commitment, proposal, approvals and the settlement result.
+  - Obligations must match exactly (id, debtor, creditor and amount).
+  - It recomputes net positions from the on-chain obligations with the netting engine and compares them with the
+    approved positions.
+  - The proposal must match the approved instructions in order, with the same digest and revision.
+  - It never trusts a hash or a session id on its own.
+  - Partial but consistent progress is `ok`. Any difference is a mismatch, and a mismatch means stop. A contract that
+    netted differently is never accepted.
+
+### `retry-policy.ts`
+
+- **Purpose:** the MVP-1.5 policy for execution attempts. It is pure. It is used by
+  `Registry.beginExecutionAttempt`, not by the owner-run tools.
+- **Inputs and outputs:** `mayStartAttempt(last, { reviewedFailure })` returns `{ allowed, reason }`, and
+  `stateAfterSubmission(kind)` maps a submission outcome to an execution state from `lib/registry/settlement-state.ts`.
+- **Safety rules:**
+  - Only one attempt may be live at a time.
+  - An `unknown-outcome` blocks any new attempt until the original hash has been read.
+  - `confirmed`, `reconciled` and `reconciliation-required` are never retried.
+  - `expired` allows a new attempt after revalidation.
+  - `failed` allows one only after an explicit review.
+  - `stateAfterSubmission` never returns `confirmed`: only an independent read can confirm.
+
+### `live.ts`
+
+- **Purpose:** connects `readLiveSignerSet` to the real Testnet Horizon and Soroban RPC. It is read-only.
+- **Input:** an account and a network (default `'testnet'`).
+- **Output:** a `LiveSignerSet`, either the set and its fingerprint or a reason.
+- **Safety rules:** it returns no set for any network other than Testnet. Horizon requests time out after 15
+  seconds. If either source fails or the two disagree, the caller gets no set, never a guessed one.
+- **Callers:** `cosign`, `run`, and the organization signer-set route in `lib/registry/http.ts`. That route checks
+  authorization before it reads the network.
+
+### `cosign.ts`
+
+- **Purpose:** the owner-run test of transaction-level co-signing for the administrative multisig account (MVP-1.5
+  stage 4). It runs on the server, behind `/api/stellar/cosign` and the `/cosign-check` page.
+- **Inputs:**
+  - `readPolicy` reads the administrative account record from `TOBIN_ADMIN_ACCOUNT_RECORD`, or by default from
+    `accounts/testnet-admin.json`. It requires a Founder and a Security signer.
+  - `verifyCosign` takes the signed XDR.
+- **Outputs:**
+  - `prepareCosign` returns a harmless unsigned `manageData` transaction, its hash, the live signer set and its
+    fingerprint, and the minimal authorizing sets.
+  - `verifyCosign` returns the `verifyEnvelope` result, plus whether the transaction is unchanged since it was
+    prepared, whether the signer set is still fresh, and whether the policy is satisfied.
+- **Safety rules:**
+  - Nothing is submitted. The transaction's sequence number is set 1,000 ahead of the account's, so the network
+    would reject it even if someone sent it.
+  - It refuses to prepare if a required key is not a signer of the account on chain.
+  - Only a transaction prepared by this process within the last 20 minutes can be verified (the record is held in
+    memory).
+  - The signer set is re-read when verifying, and the check fails closed.
+
+### `run.ts`
+
+- **Purpose:** the owner-run, step-by-step execution of the one-unit settlement (MVP-1.5 stage 5), behind
+  `/api/stellar/run` and the `/settle-run` page. It is the only module that submits.
+- **Inputs:**
+  - `readRunConfig` reads `contracts/deployments/testnet.json` (under `TOBIN_REPO_ROOT`), the administrative account
+    policy, `TOBIN_SECOND_ACCOUNT` (required) and `TOBIN_BATCH_ID` (optional).
+  - `buildRunPlan` builds a fixed two-participant plan: one obligation and one instruction of one base unit.
+- **Outputs:**
+  - `runStatus` reports the progress, the mismatches, each step and its last attempt, the next step, the six gates
+    and the balances.
+  - `prepareStep` returns a simulated unsigned transaction, plus any address-credential entries that must be signed
+    in the browser.
+  - `attachEntry` returns the transaction with a signed entry inserted and re-simulated.
+  - `submitStep` returns the outcome.
+  - `resolveStep` re-reads the hash of an unresolved attempt.
+- **Safety rules (enforced on the server, not in the UI):**
+  - Every action re-reads the chain first.
+  - Steps run strictly in order: `stepsDone` derives completed steps from the observed chain state only, and a step
+    already on chain is never prepared again.
+  - Six gates must pass before anything is prepared or submitted:
+    - Testnet only;
+    - the plan moves at most `MAX_UNITS` (1 base unit);
+    - the chain is consistent with the plan;
+    - the governed token's total supply is 1;
+    - the administrative account holds the unit;
+    - Founder and Security are in the live signer set.
+  - A step whose last attempt is `SUBMITTING`, `PENDING`, `SUCCESS` or `UNKNOWN` cannot be prepared or submitted
+    again. An unknown outcome is resolved only by reading the original hash.
+  - Submission needs the exact text `I CONFIRM SUBMIT STEP <n>`.
+  - Submission is refused unless the envelope carries live Founder and Security weight (for the administrative
+    account) or the participant's own signature.
+  - The signed transaction is re-simulated immediately before it is sent. It is sent once, and its hash is then
+    polled 20 times at 2-second intervals.
+  - There is no automatic retry.
+- **State:** prepared transactions and attempts are held in process memory (`PREPARED`, `ATTEMPTS`) and are lost
+  when the server restarts. The chain stays the record. Each submission and outcome is appended to
+  `docs/product/architecture/mvp-1.5/evidence/settlement-run-2026-11-07.jsonl` (public identifiers only). If the
+  append fails, the error is ignored.
+- **Authorization lifetime:** `prepareStep` proposes `entryValidUntil` as the latest ledger plus
+  `ENTRY_LIFETIME_LEDGERS` (30, about 2.5 minutes), and the browser signs the entry with that bound. The founder's
+  10-ledger policy for the offline signer is unchanged. The owner accepted 30 ledgers for the interactive stage 5
+  run only; see the
+  [Testnet verification record](https://github.com/tobin-protocol/tobin/blob/main/docs/product/architecture/mvp-1.5/MVP-1.5-TESTNET-VERIFICATION.md).
+
+### `owner-validation.ts`
+
+- **Purpose:** the server side of the owner-run Freighter validation, behind `/api/stellar/validation` and the
+  `/wallet-check` page.
+- **Inputs:**
+  - A Stellar account address.
+  - `readDeployment` reads `TOBIN_DEPLOYMENT_RECORD`, by default `contracts/deployments/testnet.json`, and the
+    session creator to use for the join test (`TOBIN_VALIDATION_CREATOR`).
+- **Output:** `OwnerValidationMaterial`, which contains:
+  - an unsigned, simulated `create_session` for a random session id;
+  - the authorization entry for the connected account that the network returned in a simulated join of the
+    recorded Open session;
+  - a list of `problems`.
+- **Safety rules:**
+  - The deployment record must carry the Testnet passphrase.
+  - All network access is reads and simulations. Nothing is submitted, and no key is held.
+  - The returned material is for signing tests only.
+- **Access:** the route requires a signed-in user and the request header. Unlike `/api/stellar/cosign` and
+  `/api/stellar/run`, it does not call `ownerToolsAllowed`.
+
+### `owner-access.ts`
+
+- **Purpose:** decides who may drive the owner-run tools that prepare transactions for the administrative account or
+  submit them (`/api/stellar/cosign`, `/api/stellar/run`).
+- **Inputs and outputs:** `ownerToolAccounts()` collects the administrative account, its Founder and Security keys
+  (from `cosign.readPolicy`) and `TOBIN_SECOND_ACCOUNT`. `ownerToolsAllowed(user)` is true only if one of the user's
+  verified wallets is in that set.
+- **Safety rules:**
+  - Being signed in is not enough.
+  - If the account record cannot be read, nobody qualifies through it.
+  - This is an access gate for tooling only. It is neither an institutional role nor Stellar authorization: each
+    transaction still needs real signatures.
+
+### `freighter.ts` and `freighter-core.ts`
+
+- **Purpose:** the browser-side adapter for `@stellar/freighter-api` 6.0.1. The API object is injected so that the
+  logic can be tested.
+  - `freighter-core.ts` has no Stellar SDK dependency, so pages that only inspect the wallet do not download the SDK.
+  - `freighter.ts` adds signing and re-exports everything from `freighter-core.ts`.
+- **Inputs and outputs:**
+  - `inspectWallet` returns a `WalletState` (`UNAVAILABLE`, `NOT_ALLOWED`, `WRONG_NETWORK`, `ACCOUNT_MISMATCH` or
+    `READY`) without prompting the user.
+  - `connectWallet` requests site access.
+  - `browserName` names the browser.
+  - `requestTransactionSignature` returns a `SignResult`.
+- **Safety rules:**
+  - A wallet is `READY` only if Freighter says so, on the expected network passphrase and account.
+  - Before a signed answer is used, `requestTransactionSignature` checks that:
+    - the reported signer is the expected account;
+    - the returned transaction has the same hash as the one that was requested;
+    - it carries a valid ed25519 signature by that key.
+  - A user's rejection is an outcome, not an error.
+  - Nothing is logged or stored.
+- **Test status:** the automated tests use a hand-written mock of the API. The real-extension checks are in the
+  [owner-run Freighter validation record](https://github.com/tobin-protocol/tobin/blob/main/docs/product/architecture/mvp-1.5/MVP-1.5-FREIGHTER-OWNER-VALIDATION.md).
+
+### `wallet-signin.ts`
+
+- **Purpose:** the browser-side wallet sign-in sequence, used by `components/wallet-signin.tsx`,
+  `components/account-app.tsx` and `components/institution-nav.tsx`. It belongs to wallet-first authentication rather
+  than to settlement. See [Authentication and authorization](/docs/architecture/authentication-and-authorization).
+- **Inputs and outputs:**
+  - `runWalletSignIn` takes an injected Freighter API and an HTTP `post` function, and returns a named `SignInState`.
+  - `watchWallet` notices account or network changes without prompting.
+  - `loadFreighter` imports the extension API.
+- **Safety rules:**
+  - The challenge text comes from the server.
+  - The server, not this module, verifies the signature.
+  - The wallet must be on Testnet (`TESTNET_PASSPHRASE`).
+  - Signing times out after `SIGN_TIMEOUT_MS` (120 seconds).
+  - Nothing is stored in the browser.
+
+## Where Testnet-only is enforced
+
+There is no Mainnet configuration. These are the checks in code that keep the layer on Testnet:
+
+| Where | Check |
+|---|---|
+| `execution-plan.buildExecutionPlan` | throws unless `network` is `'testnet'` and the asset identity starts with `testnet:contract:`; `NETWORK_PASSPHRASE` holds only the Testnet passphrase |
+| `rpc.ts` | `TESTNET` holds the Testnet passphrase and RPC URL, and every function defaults to them; `createServer` sets `allowHttp: false` |
+| `live.fetchLiveSignerSet` | returns no set for any network other than Testnet; the Horizon URL for `public` is empty |
+| `run.readRunConfig`, `owner-validation.readDeployment` | throw if the deployment record's `networkPassphrase` is not the Testnet passphrase |
+| `run.runStatus` | the `network` gate must pass before any step is prepared or submitted |
+| `cosign.ts`, `run.ts` | build, parse and verify every transaction with `TESTNET.passphrase`; a transaction hash commits to the passphrase |
+| `freighter-core.inspectWallet`, `wallet-signin.ts` | a wallet on another network is `WRONG_NETWORK` and is never asked to sign |
+| `lib/registry/http.ts` (signer sets), `lib/registry/service.ts` (wallet challenges) | refuse any network other than `testnet` |
+
+The types still name `'public'` in places (`signer-set.Network`, and the `network` field of the registry wallet and
+signer-set types), but no code path accepts it for execution. `node scripts/db.ts asset-add` still accepts the
+`public` network for asset configuration. `buildExecutionPlan` refuses such an asset.
+
+## Test coverage
+
+All suites below are in
+[`apps/web-console/test`](https://github.com/tobin-protocol/tobin/tree/main/apps/web-console/test) and run with
+`npm test --workspace tobin-web-console`. None of them contacts Stellar or a real wallet. Network and wallet
+behaviour in these suites is a labelled mock.
+
+| Module | Covered by | Not covered offline |
+|---|---|---|
+| `execution-plan` | `stellar-plan.test.ts`; through the service in `attempts-ops.test.ts`; `buildRunPlan` in `run.test.ts` | - |
+| `compare` | `stellar-plan.test.ts` (mock observed chains) | - |
+| `signer-set` | `signer-set.test.ts` (real ed25519 signatures, mock fetchers); `fingerprintOf` through the service in `signer-set-ops.test.ts` | live reads |
+| `rpc` | `stellar-rpc.test.ts`: `toScVal`, and `readTransaction`, `pollTransaction` and `submitSigned` against mocks | `buildAndSimulate`, `readObservedChain`, token reads |
+| `retry-policy` | `attempts-ops.test.ts` | - |
+| `run` | `run.test.ts`: `buildRunPlan` and `stepsDone`; `wallet-auth-journey.mjs` checks that `/api/stellar/run` answers 401 when signed out and 403 to a non-owner wallet | `runStatus`, `prepareStep`, `attachEntry`, `submitStep`, `resolveStep` |
+| `cosign` | `wallet-auth-journey.mjs` checks that `/api/stellar/cosign` answers 403 to a non-owner wallet | **no unit tests** |
+| `owner-access` | `wallet-auth.test.ts` (`ownerToolsAllowed`); `wallet-auth-journey.mjs` | - |
+| `owner-validation` | `settlement-journey.mjs` loads the `/wallet-check` page only | **no tests of the module** |
+| `live` | the logic it wraps (`readLiveSignerSet`) is tested in `signer-set.test.ts` | **no tests of the module** |
+| `freighter` | `stellar-rpc.test.ts` (mock API) | real extension |
+| `freighter-core` | `wallet-signin.test.ts`; `stellar-rpc.test.ts` through the re-export | real extension |
+| `wallet-signin` | `wallet-signin.test.ts` (mock wallet and HTTP) | real extension |
+
+Real-network behaviour is documented only by the owner-run, same-author Testnet records listed below, not by the
+automated suites. The browser journeys need a production build. See [Testing](/docs/development/testing).
+
+## Canonical records
+
+- [MVP-1.5 architecture](https://github.com/tobin-protocol/tobin/blob/main/docs/product/architecture/mvp-1.5/MVP-1.5-ARCHITECTURE.md),
+  including the batch-to-contract mapping decision
+- [Wallet and signing](https://github.com/tobin-protocol/tobin/blob/main/docs/product/architecture/mvp-1.5/MVP-1.5-WALLET-AND-SIGNING.md)
+- [Testnet verification](https://github.com/tobin-protocol/tobin/blob/main/docs/product/architecture/mvp-1.5/MVP-1.5-TESTNET-VERIFICATION.md):
+  the stage 4 and stage 5 runs and the 30-ledger decision
+- [Owner-run Freighter validation](https://github.com/tobin-protocol/tobin/blob/main/docs/product/architecture/mvp-1.5/MVP-1.5-FREIGHTER-OWNER-VALIDATION.md)
+- [MVP-1.5 threat model](https://github.com/tobin-protocol/tobin/blob/main/docs/product/architecture/mvp-1.5/MVP-1.5-THREAT-MODEL.md)
+- [MVP-1.5 acceptance](https://github.com/tobin-protocol/tobin/blob/main/docs/product/architecture/mvp-1.5/MVP-1.5-ACCEPTANCE.md)
+  and [closure](https://github.com/tobin-protocol/tobin/blob/main/docs/product/architecture/mvp-1.5/MVP-1.5-CLOSURE.md),
+  which state the limitations
+- [Testnet deployment record](https://github.com/tobin-protocol/tobin/blob/main/contracts/deployments/testnet.json)
