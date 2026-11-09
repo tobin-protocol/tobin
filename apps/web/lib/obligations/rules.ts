@@ -46,3 +46,15 @@ export function transitionOf(kind: string): { from: string | null; to: string } 
   return null;
 }
 export const transitionText = (t: { from: string | null; to: string }): string => (t.from ? `${t.from} to ${t.to}` : `Recorded as ${t.to}`);
+
+/**
+ * Whether the Void action is offered, and the reason when it is not. Void is administrator-only and only while the session is being configured (the console's
+ * `#editable`). It is a separate confirmed action with its own history entry; there is no edit and no delete. PRESENTATION ONLY: the server decides.
+ */
+export function voidGate(input: { adminAllowed: boolean; adminReason: string | null; workflow: "configuring" | "ready" | "closed"; status: "active" | "voided" }): { allowed: boolean; reason: string | null } {
+  if (input.status === "voided") return { allowed: false, reason: "This obligation is already voided." };
+  if (!input.adminAllowed) return { allowed: false, reason: input.adminReason ?? "Only administrators can do this." };
+  if (input.workflow === "ready") return { allowed: false, reason: "The session is marked ready. Obligations can only change while it is being configured. An administrator can reopen it." };
+  if (input.workflow === "closed") return { allowed: false, reason: "A closed session cannot change." };
+  return { allowed: true, reason: null };
+}

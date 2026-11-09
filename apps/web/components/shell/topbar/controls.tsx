@@ -153,7 +153,7 @@ export function SearchCommand() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
   const go = (href: string) => { setOpen(false); router.push(href); };
-  const sessions = (qc.getQueryData<{ sessionId: string; label: string }[]>(["sessions", org.id]) ?? []).slice(0, 50);
+  const sessions = (qc.getQueryData<{ sessionId: string; label: string }[]>(["sessions", org.id]) ?? []).slice(0, 300);
   return (
     <>
       <button type="button" onClick={() => setOpen(true)} aria-label="Search (Ctrl or Cmd plus K)" className={cn(BAR_BTN, "max-sm:hidden")}>

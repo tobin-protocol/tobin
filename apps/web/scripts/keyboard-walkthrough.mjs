@@ -16,7 +16,7 @@ page.on("pageerror", (e) => problems.push(`page error ${e}`));
 const focused = () => page.evaluate(() => {
   const a = document.activeElement; if (!a || a === document.body) return null;
   const cs = getComputedStyle(a);
-  return { tag: a.tagName.toLowerCase(), label: (a.getAttribute("aria-label") || a.getAttribute("title") || (a.labels && a.labels[0] ? a.labels[0].textContent : "") || a.textContent || a.id || "").trim().replace(/\s+/g, " ").slice(0, 60), id: a.id, type: a.getAttribute("type"), ring: (parseFloat(cs.outlineWidth) >= 2 && cs.outlineStyle !== "none") || (() => { const c = a.closest("label"); if (!c) return false; const k = getComputedStyle(c); return parseFloat(k.outlineWidth) >= 2 && k.outlineStyle !== "none"; })(), inDialog: !!a.closest("dialog") };
+  return { tag: a.tagName.toLowerCase(), label: (a.getAttribute("aria-label") || a.getAttribute("title") || (a.labels && a.labels[0] ? a.labels[0].textContent : "") || a.textContent || a.id || "").trim().replace(/\s+/g, " ").slice(0, 60), id: a.id, type: a.getAttribute("type"), ring: (parseFloat(cs.outlineWidth) >= 2 && cs.outlineStyle !== "none") || (() => { const c = a.closest("label"); if (!c) return false; const k = getComputedStyle(c); return parseFloat(k.outlineWidth) >= 2 && k.outlineStyle !== "none"; })(), inDialog: !!a.closest("dialog, [role=dialog]") };
 });
 async function press(key) { await page.keyboard.press(key); }
 /** Tab (or Shift+Tab) until the focused element's label matches; every stop must show a focus ring. */

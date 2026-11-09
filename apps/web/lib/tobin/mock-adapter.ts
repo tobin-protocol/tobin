@@ -59,6 +59,7 @@ export class MockAdapter implements TobinClient {
     calculation: async () => ({ currency: "none", asset: null, calculation: null }),
     markReady: async () => ({ state: "ready", ready: true, checks: [], currency: "none" }),
     close: async () => ({ state: "closed", ready: false, checks: [], currency: "none" }),
+    reopen: async () => ({ state: "configuring", ready: false, checks: [], currency: "none" }),
     get: async (): Promise<SessionDetail> => ({
       workflow: "configuring",
       workspace: {

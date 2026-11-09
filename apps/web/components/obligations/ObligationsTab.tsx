@@ -6,7 +6,7 @@ import { can } from "../../lib/permissions/can.ts";
 import { formatAmount, formatDateTime, humanizeKind } from "../../lib/format.ts";
 import { totalsByAsset } from "../../lib/netting/group.ts";
 import { useSearchParams } from "next/navigation";
-import { historyOf, transitionOf, transitionText } from "../../lib/obligations/rules.ts";
+import { historyOf, transitionOf, transitionText, voidGate } from "../../lib/obligations/rules.ts";
 import { client } from "../../lib/tobin/index.ts";
 import type { ActivityItem, ObligationView } from "../../lib/tobin/types.ts";
 import { useWorkspace } from "../shell/session.tsx";
@@ -15,7 +15,7 @@ import { Button } from "../ui/Button.tsx";
 import { Amount, SegmentTabs, Table, type Col } from "../ui/Data.tsx";
 import { EmptyState, InlineError, StatusMark } from "../ui/Feedback.tsx";
 import { TextField } from "../ui/Form.tsx";
-import { Dialog, SidePanel } from "../ui/Overlays.tsx";
+import { Confirm as Dialog, DetailSheet as SidePanel } from "../tobin/Overlays.tsx";
 import { Card, DataCard, StatGrid } from "../ui/Surfaces.tsx";
 
 type StatusFilter = "all" | "active" | "voided";
@@ -106,11 +106,13 @@ export function ObligationsTab({ sessionId, query, workflow, activity, onChanged
                 );
               })()}
             </div>
-            {selected.status === "active" ? (
-              voidAllowed.allowed && workflow === "configuring" ? (
-                <Button variant="destructive" onClick={() => { setError(null); setVoiding(true); }}>Void obligation</Button>
-              ) : <p className="text-body text-muted" role="note">{!voidAllowed.allowed ? voidAllowed.reason : workflow === "ready" ? "The session is marked ready. Obligations can only change while it is being configured." : "A closed session cannot change."}</p>
-            ) : null}
+            {(() => {
+              const g = voidGate({ adminAllowed: voidAllowed.allowed, adminReason: voidAllowed.reason, workflow, status: selected.status });
+              if (selected.status !== "active") return null;
+              return g.allowed
+                ? <Button variant="destructive" onClick={() => { setError(null); setVoiding(true); }}>Void obligation</Button>
+                : <p className="text-body text-muted" role="note">{g.reason}</p>;
+            })()}
             <p className="text-label text-muted">An obligation cannot be edited or deleted here. Voiding keeps the record and adds its own history entry.</p>
           </div>
         ) : null}

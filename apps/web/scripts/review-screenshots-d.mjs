@@ -91,7 +91,8 @@ for (const w of WIDTHS) {
   check(await page.getByRole("button", { name: "Reject", exact: true }).isDisabled(), `${w}: a plain member has Reject disabled`);
   await shot(page, "approvals-member", w);
   await go(page, base, "settlement");
-  check(await page.getByRole("button", { name: "Prepare settlement", exact: true }).isDisabled(), `${w}: a member cannot prepare settlement`);
+  // before the calculation is approved the close-out has not reached the preparation step at all (it reads "Not yet" on the rail)
+  check(/Not yet/i.test(await page.getByRole("navigation", { name: "Close-out steps" }).getByRole("link", { name: /Prepare settlement/ }).innerText()), `${w}: before approval, Prepare settlement is not yet a step anyone can take`);
   await shot(page, "settlement-member-before", w);
 
   // ============ Bob: reviewer ============
@@ -129,7 +130,10 @@ for (const w of WIDTHS) {
   await page.getByRole("button", { name: "Prepare settlement", exact: true }).click();
   await shot(page, "settlement-prepare-dialog", w);
   await dialog(page).getByRole("button", { name: "Prepare settlement" }).click();
+  await settled(page);
+  await page.goto(`${base}?tab=settlement&step=prepare`); await settled(page);
   await vis(page.getByRole("heading", { name: "Prepared settlement" }), `${w}: the settlement is prepared`);
+  await page.goto(`${base}?tab=settlement&step=batch`); await settled(page);
   await vis(page.getByText("The instructions reconcile exactly to the approved net positions."), `${w}: the instructions reconcile to the approved result`);
   await vis(page.getByLabel("Transaction stages").last().getByText("Prepared").first(), `${w}: the stage rail reaches Prepared`);
   const stagesText = await page.getByLabel("Transaction stages").last().innerText();
@@ -177,7 +181,9 @@ for (const w of WIDTHS) {
   await shot(page, "settlement-approve-dialog", w);
   await dialog(page).getByRole("button", { name: "Approve settlement" }).click();
   await vis(page.getByText("Settlement batch approved").first(), `${w}: the settlement batch is approved`);
+  await page.goto(`${base}?tab=settlement&step=execution`); await settled(page);
   await vis(page.getByText("No execution has been recorded for this batch."), `${w}: no execution exists and the page says what one needs`);
+  await page.goto(`${base}?tab=settlement&step=sign`); await settled(page);
   await vis(page.getByText("Sign", { exact: true }).first(), `${w}: Sign is listed`);
   check(await page.getByText("Not supported").count() >= 5, `${w}: Sign, Submit, Verify and the stage rail all read Not supported`);
   check(await page.locator("#tab-content").getByText("Submitted", { exact: true }).count() <= 1, `${w}: Submitted appears only as a stage name`);

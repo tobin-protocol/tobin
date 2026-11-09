@@ -133,3 +133,16 @@ Plan and the console facts R2 was built against: `docs/web-redesign/plan.md` sec
 - **Mark ready and Close session** (`lib/sessions/workflow-actions.ts`, `components/sessions/SessionActions.tsx`): administrator only, one confirmation each, the console's reason shown when unavailable. Mark ready needs a current calculation; Close needs a ready session and an approved settlement. This app cannot reopen a session.
 - Route-level `loading.tsx`, `error.tsx` and `not-found.tsx`; switching organization on a session URL redirects to `/sessions?notice=org-changed` (`lib/access/org-switch.ts`).
 - Scripts: `node apps/web/scripts/review-r2.mjs <dir>` (needs more than one page of sessions; run `seed-review-data.mjs` with `SEED_EXTRA_SESSIONS=12`) and `node apps/web/scripts/measure-requests.mjs <label>` (API requests per first load, per role).
+
+## Rewrite, phase R3 (2026-11): the workspace tabs and Reopen
+
+Plan, the console facts and every route the tabs call: `docs/web-redesign/plan.md` sections 15 to 17.
+
+- **Reopen session** (`lib/sessions/reopen.ts`, `components/sessions/SessionActions.tsx`): shown only while a session is ready, administrator only, one confirmation that lists what changes, what is kept and what stops applying later. A test checks that wording against the console's service code.
+- **Obligations**: table with search and a status filter, the record form in the action panel (only the backend's fields), a detail sheet with history, Void as its own confirmed action, one total per asset.
+- **Netting**: Inputs, Calculation, Result strip; eligible and excluded tables; Gross and Net cards; positions per asset grouped debtors, creditors, zero; original-versus-net panes with a linked highlight; calculation details; a stale label. No graph.
+- **Settlement** is one linear close-out (`lib/settlement/closeout.ts`, `components/settlement/CloseOut.tsx`): five numbered steps (review the calculation, prepare, review the settlement, the read-only execution record, sign/submit/verify which is not supported). Actions are in the action panel with one confirmation each. `?tab=approvals` redirects to `?tab=settlement&step=review`; `?step=review|prepare|batch|execution|sign` opens a step.
+- **Activity**: `components/activity/ActivityView.tsx` is the one shared list (event type, date range and result filters, a side panel, read-only); the organization page uses the same component.
+- **Layout**: the two-column workspace (content and the 420px action panel) starts at 1280px; from 768px to 1279px the panel sits above the content, so the content keeps the width it needs.
+- **Overlays** in these tabs are shadcn Dialog and Sheet (`components/tobin/Overlays.tsx`); they return focus to the element that opened them.
+- Script: `node apps/web/scripts/review-r3.mjs <dir>` (admin, reviewer and member; makes its own sessions through the real API; one labelled fault injection: a doctored batch response to prove the red diff blocks approval).

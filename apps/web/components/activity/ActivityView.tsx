@@ -8,7 +8,7 @@ import { entityOf } from "../../lib/activity/entity.ts";
 import { Button, ButtonLink } from "../ui/Button.tsx";
 import { EmptyState, StatusMark } from "../ui/Feedback.tsx";
 import { SelectField, TextField } from "../ui/Form.tsx";
-import { SidePanel } from "../ui/Overlays.tsx";
+import { DetailSheet as SidePanel } from "../tobin/Overlays.tsx";
 import { Card, StatGrid } from "../ui/Surfaces.tsx";
 
 const PAGE = 20;

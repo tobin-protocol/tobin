@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { CheckmarkSquare02Icon, Key01Icon } from "@hugeicons/core-free-icons";
+import { Icon } from "../tobin/Icon.tsx";
 import type { ReactNode } from "react";
 import { cn, formatDateTime } from "../../lib/format.ts";
 import { stageText, stageView, STAGE_LABEL, type Stage, type StageInput } from "../../lib/stages.ts";
@@ -85,7 +87,7 @@ export interface DecisionRow { id: string; reviewer: string; decision: "approved
 export function ApprovalBlock({ decisions, note }: { decisions: DecisionRow[]; note?: string | null }) {
   return (
     <section aria-labelledby="approvals-h" className="rounded-card bg-card p-4">
-      <h3 id="approvals-h" className="text-entity font-medium">Review decision</h3>
+      <h3 id="approvals-h" className="flex items-center gap-2 text-entity font-medium"><span data-icon="check" aria-hidden="true" className="shrink-0"><Icon icon={CheckmarkSquare02Icon} size={20} /></span>Review decision</h3>
       {decisions.length === 0 ? (
         <p className="mt-2 text-body text-muted">No decision has been recorded yet.</p>
       ) : (
@@ -116,7 +118,7 @@ export function SignatureBlock({ signers, threshold, signingSupported = false }:
   return (
     <section aria-labelledby="signatures-h" className="rounded-card bg-card p-4">
       <h3 id="signatures-h" className="flex items-center gap-2 text-entity font-medium">
-        <svg aria-hidden="true" data-icon="key" viewBox="0 0 20 20" className="size-5 shrink-0"><circle cx="6.5" cy="10" r="3.5" stroke="currentColor" strokeWidth="1.6" fill="none" /><path d="M10 10h8M15 10v3M17.5 10v2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" fill="none" /></svg>
+        <span data-icon="key" aria-hidden="true" className="shrink-0"><Icon icon={Key01Icon} size={20} /></span>
         Wallet signatures
       </h3>
       {signingSupported ? (

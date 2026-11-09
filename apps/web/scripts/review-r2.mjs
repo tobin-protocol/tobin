@@ -221,7 +221,7 @@ for (const w of WIDTHS) {
   await shot(page, "workspace-overview", w);
   await page.locator("aside[data-sheet]").getByRole("button", { name: "Mark ready" }).first().click();
   const dlg = page.getByRole("dialog");
-  await vis(dlg.getByText(/cannot reopen it/), `${w}: Mark ready asks for one confirmation and states the consequence`);
+  await vis(dlg.getByText(/unless an administrator reopens the session/), `${w}: Mark ready asks for one confirmation and states the consequence`);
   await shot(page, "workspace-ready-dialog", w);
   await dlg.getByRole("button", { name: "Cancel" }).click();
   await dlg.waitFor({ state: "hidden" });
@@ -249,7 +249,8 @@ for (const w of WIDTHS) {
 
   // ---- tabs: the Settlement tab keeps the calculation review reachable ----
   await go(page, `/sessions/${reviewMe}?tab=approvals`);
-  await vis(page.getByRole("navigation", { name: "Settlement views" }), `${w}: ?tab=approvals opens the Settlement tab's calculation review view`);
+  await page.waitForURL(/tab=settlement&step=review/);
+  await vis(page.getByRole("navigation", { name: "Close-out steps" }), `${w}: ?tab=approvals redirects to the Settlement close-out's review step`);
   check((await nav.getByRole("link", { name: /Settlement/ }).getAttribute("aria-current")) === "page", `${w}: Settlement is the active tab for it`);
 
   // ---- organization switch on a session URL ----

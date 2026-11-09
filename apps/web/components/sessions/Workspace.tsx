@@ -1,11 +1,11 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { ApiError } from "../../lib/api/http.ts";
 import { eligibility } from "../../lib/netting/group.ts";
+import { closeOutOf } from "../../lib/settlement/closeout.ts";
 import { lifecycleOf } from "../../lib/sessions/lifecycle.ts";
 import { nextActionOf, type TabKey } from "../../lib/sessions/next-action.ts";
 import { client } from "../../lib/tobin/index.ts";
@@ -16,13 +16,12 @@ import { Button, ButtonLink } from "../ui/Button.tsx";
 import { PageTabs, type TabItem } from "../ui/Data.tsx";
 import { ErrorState, Skeleton } from "../ui/Feedback.tsx";
 import { Panel } from "../ui/Surfaces.tsx";
-import { ApprovalsTab } from "../approvals/ApprovalsTab.tsx";
 import { ReviewPanel } from "../approvals/ReviewPanel.tsx";
 import { NettingTab, RunNettingPanel } from "../netting/NettingTab.tsx";
 import { ObligationsTab } from "../obligations/ObligationsTab.tsx";
 import { RecordObligationPanel } from "../obligations/RecordObligation.tsx";
 import { SettlementPanel } from "../settlement/SettlementPanel.tsx";
-import { SettlementTab } from "../settlement/SettlementTab.tsx";
+import { CloseOut, closeOutFacts, isStep } from "../settlement/CloseOut.tsx";
 import { useSettlement } from "../settlement/useSettlement.ts";
 import { ActionSheet } from "./ActionSheet.tsx";
 import { OverviewTab } from "./OverviewTab.tsx";
@@ -31,7 +30,7 @@ import { SessionHeader, SummaryCard } from "./SessionSummary.tsx";
 import { reasonOf } from "./shared.tsx";
 import { ActivityTab, ParticipantsTab } from "./tabs.tsx";
 
-/** The six tabs. The calculation review is a view inside Settlement (it stays reachable as ?tab=approvals) until the linear close-out is built in R3. */
+/** The six tabs. The calculation review is step 1 of the Settlement close-out; the old ?tab=approvals address redirects there. */
 const TABS: { key: Exclude<TabKey, "approvals">; label: string }[] = [
   { key: "overview", label: "Overview" },
   { key: "participants", label: "Participants" },
@@ -48,9 +47,12 @@ export function Workspace() {
   const params = useSearchParams();
   const { org, actor } = useWorkspace();
   const qc = useQueryClient();
+  const router = useRouter();
   const raw = params.get("tab");
   const tab: TabKey = isTab(raw) ? raw : "overview";
   const group: Exclude<TabKey, "approvals"> = tab === "approvals" ? "settlement" : tab;
+  const stepParam = params.get("step");
+  useEffect(() => { if (raw === "approvals") router.replace(`/sessions/${sessionId}?tab=settlement&step=review`); }, [raw, router, sessionId]);
   const key = (part: string) => ["session", org.id, sessionId, part] as const;
 
   const detail = useQuery({ queryKey: key("detail"), queryFn: () => client.sessions.get(org.id, sessionId), retry: false });
@@ -124,29 +126,19 @@ export function Workspace() {
       <SummaryCard view={view} next={next} batch={batch} />
       <div className="mb-6 border-b border-divider"><PageTabs label="Session sections" items={tabs} activeHref={href(group)} /></div>
 
-      <div className="grid gap-6 max-md:pb-16 lg:grid-cols-[minmax(0,1fr)_420px]">
-        <Panel className="min-w-0 space-y-6 lg:order-1" id="tab-content" aria-label="Section content">
+      <div className="grid gap-6 max-md:pb-16 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <Panel className="min-w-0 space-y-6 xl:order-1" id="tab-content" aria-label="Section content">
           {group === "overview" ? <OverviewTab detail={detail.data} readiness={readiness} participants={participants.data} obligations={obligations.data} sessionId={sessionId} /> : null}
           {group === "participants" ? <ParticipantsTab sessionId={sessionId} query={participants} workflow={detail.data.workflow} onChanged={refresh} /> : null}
           {group === "obligations" ? <ObligationsTab sessionId={sessionId} query={obligations} workflow={detail.data.workflow} activity={detail.data.workspace.activity.items} onChanged={refresh} /> : null}
           {group === "netting" ? <NettingTab sessionId={sessionId} obligations={obligations.data} participants={participants.data} readiness={readiness.data} running={running} runError={runError} /> : null}
-          {group === "settlement" ? (
-            <>
-              <nav aria-label="Settlement views" className="flex flex-wrap gap-2">
-                {([["approvals", "Calculation review"], ["settlement", "Settlement"]] as const).map(([k, l]) => (
-                  <Link key={k} href={href(k)} aria-current={tab === k ? "page" : undefined} className={`inline-flex min-h-11 items-center border px-4 text-body font-medium ${tab === k ? "border-ink bg-ink text-on-button" : "border-divider hover:bg-tile"}`}>{l}</Link>
-                ))}
-              </nav>
-              {tab === "approvals" ? <ApprovalsTab query={authorization} sessionId={sessionId} obligations={obligations.data} calc={settle.calc.data} /> : <SettlementTab s={settle} />}
-            </>
-          ) : null}
+          {group === "settlement" ? <CloseOut s={settle} auth={authorization} obligations={obligations.data} calc={settle.calc.data} workflow={detail.data.workflow} sessionId={sessionId} shown={isStep(stepParam) ? stepParam : null} /> : null}
           {group === "activity" ? <ActivityTab detail={detail.data} sessionId={sessionId} /> : null}
         </Panel>
-        <ActionSheet summary={tab === "obligations" ? "Record an obligation" : tab === "netting" ? "Run netting" : tab === "approvals" ? "Review the calculation" : tab === "settlement" ? "Settlement steps" : next.primary?.label ?? next.title}>
-          {tab === "obligations" ? <><RecordObligationPanel sessionId={sessionId} participants={participants.data ?? []} workflow={detail.data.workflow} onRecorded={refresh} /><WorkflowCard {...wfProps} /></>
-            : tab === "netting" ? <><RunNettingPanel excludedCount={nettingElig.excluded.length} eligibleCount={nettingElig.eligible.length} excludedBlocking={nettingElig.excluded.filter((x) => x.reason === "inactive-participant").length} participantCount={activeIds.size} asset={nettingElig.eligible[0]?.asset ?? null} workflow={detail.data.workflow} running={running} error={runError} onRun={runNetting} /><WorkflowCard {...wfProps} /></>
-            : tab === "approvals" && authorization.data ? <><ReviewPanel sessionId={sessionId} auth={authorization.data} onDecided={refresh} /><WorkflowCard {...wfProps} /></>
-            : tab === "settlement" ? <><SettlementPanel sessionId={sessionId} s={settle} workflow={detail.data.workflow} onChanged={refresh} /><WorkflowCard {...wfProps} /></>
+        <ActionSheet summary={group === "obligations" ? "Record an obligation" : group === "netting" ? "Run netting" : group === "settlement" ? "Close-out action" : next.primary?.label ?? next.title}>
+          {group === "obligations" ? <><RecordObligationPanel sessionId={sessionId} participants={participants.data ?? []} workflow={detail.data.workflow} onRecorded={refresh} /><WorkflowCard {...wfProps} /></>
+            : group === "netting" ? <><RunNettingPanel excludedCount={nettingElig.excluded.length} eligibleCount={nettingElig.eligible.length} excludedBlocking={nettingElig.excluded.filter((x) => x.reason === "inactive-participant").length} participantCount={activeIds.size} asset={nettingElig.eligible[0]?.asset ?? null} workflow={detail.data.workflow} running={running} error={runError} onRun={runNetting} /><WorkflowCard {...wfProps} /></>
+            : group === "settlement" ? <>{authorization.data && (closeOutOf(closeOutFacts(settle, authorization.data, detail.data.workflow)).current === "review" || authorization.data.state !== "approved") ? <ReviewPanel sessionId={sessionId} auth={authorization.data} onDecided={refresh} /> : <SettlementPanel sessionId={sessionId} s={settle} workflow={detail.data.workflow} onChanged={refresh} />}<WorkflowCard {...wfProps} /></>
             : <SessionActionPanel {...wfProps} next={next} href={href} onReload={refresh} />}
         </ActionSheet>
       </div>

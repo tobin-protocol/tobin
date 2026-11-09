@@ -13,7 +13,7 @@ import { Button } from "../ui/Button.tsx";
 import { Table, type Col } from "../ui/Data.tsx";
 import { EmptyState, InlineError, NotSupported } from "../ui/Feedback.tsx";
 import { SelectField } from "../ui/Form.tsx";
-import { Dialog } from "../ui/Overlays.tsx";
+import { Confirm as Dialog } from "../tobin/Overlays.tsx";
 import { Card } from "../ui/Surfaces.tsx";
 import { reasonOf } from "./shared.tsx";
 
@@ -71,7 +71,7 @@ export function ParticipantsTab({ sessionId, query, workflow, onChanged }: { ses
             <Button variant="secondary" disabled={!pick} loading={busy} onClick={add}>Add participant</Button>
           </div>
         ) : (
-          <p className="mt-2 text-body text-muted" role="note">{!manage.allowed ? manage.reason : workflow === "ready" ? "The session is marked ready. It can only change while it is being configured." : "A closed session cannot change."}</p>
+          <p className="mt-2 text-body text-muted" role="note">{!manage.allowed ? manage.reason : workflow === "ready" ? "The session is marked ready. An administrator can reopen it. It can only change while it is being configured." : "A closed session cannot change."}</p>
         )}
         {error ? <div className="mt-3"><InlineError>{error}</InlineError></div> : null}
       </Card>

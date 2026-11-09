@@ -6,7 +6,7 @@
 //        current. It returns the readiness view: { state, ready, checks, currency, note }.
 //   POST .../sessions/:id/close  admin only. The session must be "ready" (the only state that can become closed) AND the latest calculation must have a
 //        settlement batch for it that is approved and still eligible (INVALID_STATE otherwise). Closure is operational: nothing has settled on any network.
-//   There is also POST .../reopen (ready back to configuring); the UI does not offer it (not in scope), so a session marked ready cannot be edited again here.
+//   POST .../sessions/:id/reopen  admin only; ready back to configuring; changes the workflow state only. See lib/sessions/reopen.ts for the consequences.
 import { can, type Actor } from "../permissions/can.ts";
 import type { BatchStatus, ReadinessCheck, WorkflowState } from "../tobin/types.ts";
 
@@ -21,7 +21,7 @@ export interface WorkflowActionFacts {
   reviewed: boolean;
 }
 export interface WorkflowAction { enabled: boolean; /** why it is unavailable; null when enabled */ reason: string | null }
-export interface WorkflowActions { markReady: WorkflowAction; close: WorkflowAction; primary: "close" | "ready" | null }
+export interface WorkflowActions { markReady: WorkflowAction; close: WorkflowAction; reopen: WorkflowAction; primary: "close" | "ready" | null }
 
 const BATCH_TEXT: Record<BatchStatus | "none", string> = {
   none: "No settlement has been prepared.",
@@ -50,5 +50,11 @@ export function workflowActions(f: WorkflowActionFacts): WorkflowActions {
     : f.batch !== "approved" ? no(`Closing needs an approved settlement for the current calculation. ${BATCH_TEXT[f.batch]}`)
     : yes;
 
-  return { markReady, close, primary: close.enabled ? "close" : markReady.enabled && f.reviewed ? "ready" : null };
+  // Reopen exists only for a ready session and the UI shows it only then; for anyone else it explains itself.
+  const reopen: WorkflowAction = !admin.allowed ? no(admin.reason ?? "Only administrators can do this.")
+    : f.workflow === "ready" ? yes
+    : f.workflow === "closed" ? no("A closed session cannot be reopened.")
+    : no("The session is already being configured.");
+
+  return { markReady, close, reopen, primary: close.enabled ? "close" : markReady.enabled && f.reviewed ? "ready" : null };
 }

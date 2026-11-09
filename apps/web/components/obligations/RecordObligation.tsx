@@ -14,7 +14,7 @@ import { reasonOf } from "../sessions/shared.tsx";
 import { Button } from "../ui/Button.tsx";
 import { InlineError } from "../ui/Feedback.tsx";
 import { SelectField, TextField } from "../ui/Form.tsx";
-import { Dialog } from "../ui/Overlays.tsx";
+import { Confirm as Dialog } from "../tobin/Overlays.tsx";
 import { Card, Panel, StatGrid } from "../ui/Surfaces.tsx";
 
 /**
@@ -38,7 +38,7 @@ export function RecordObligationPanel({ sessionId, participants, workflow, onRec
   const v = useWatch({ control: f.control }) as ObligationForm;
 
   if (!editable) {
-    const why = !allowed.allowed ? `${allowed.reason}` : workflow === "ready" ? "The session is marked ready. Obligations can only change while it is being configured." : "A closed session cannot change.";
+    const why = !allowed.allowed ? `${allowed.reason}` : workflow === "ready" ? "The session is marked ready. Obligations can only change while it is being configured. An administrator can reopen it." : "A closed session cannot change.";
     return (
       <Panel className="space-y-3" aria-label="Record an obligation">
         <Card>
