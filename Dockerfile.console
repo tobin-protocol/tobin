@@ -7,4 +7,5 @@ COPY . .
 RUN npm ci --ignore-scripts && npm run build --workspace tobin-web-console
 ENV NODE_ENV=production
 WORKDIR /app/apps/web-console
-CMD ["sh", "-c", "node scripts/db.ts migrate && node scripts/start.mjs"]
+# TOBIN_ASSET_ISSUER (optional): configures the Testnet USD asset the operator list needs before settlement can be prepared (idempotent).
+CMD ["sh", "-c", "node scripts/db.ts migrate && if [ -n \"$TOBIN_ASSET_ISSUER\" ]; then node scripts/db.ts asset-add testnet USD \"$TOBIN_ASSET_ISSUER\"; fi && exec node scripts/start.mjs"]
