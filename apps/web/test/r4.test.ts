@@ -54,3 +54,31 @@ test("last-admin protection", () => {
   assert.equal(lastActiveAdmin([m("a", "admin"), m("b", "member")], "a"), true);
   assert.equal(lastActiveAdmin([m("a", "admin"), m("b", "admin")], "a"), false);
 });
+
+import { roleChangePlan, WALLET_BUTTON_LABEL, WALLET_NOTE } from "../lib/org/rules.ts";
+const mem = (userId: string, role: string) => ({ userId, role, status: "active", name: userId }) as never;
+const admin = { role: "admin", reviewer: false, suspended: false } as never;
+const plain = { role: "member", reviewer: false, suspended: false } as never;
+
+test("role change: administrators only, one confirmation, gains and losses listed", () => {
+  const ms = [mem("a", "admin"), mem("b", "admin"), mem("c", "member")];
+  const up = roleChangePlan(admin, ms, ms[2]!, "admin");
+  assert.equal(up.allowed, true); assert.equal(up.canConfirm, true); assert.equal(up.confirmations, 1);
+  assert.ok(up.gains.length > 0 && up.losses.length === 0);
+  const down = roleChangePlan(admin, ms, ms[1]!, "member");
+  assert.ok(down.losses.length > 0 && down.canConfirm);
+  const member = roleChangePlan(plain, ms, ms[2]!, "admin");
+  assert.equal(member.allowed, false); assert.equal(member.canConfirm, false); assert.ok(member.reason);
+  assert.equal(roleChangePlan(admin, ms, ms[2]!, "member").canConfirm, false, "no change, nothing to confirm");
+});
+test("role change: the last active administrator cannot be demoted", () => {
+  const ms = [mem("a", "admin"), mem("c", "member")];
+  const p = roleChangePlan(admin, ms, ms[0]!, "member");
+  assert.equal(p.blockedLastAdmin, true); assert.equal(p.canConfirm, false);
+});
+test("wallet wording says nothing is linked or verified", () => {
+  assert.equal(WALLET_BUTTON_LABEL, "Connect a wallet");
+  assert.match(WALLET_NOTE, /not available yet/);
+  assert.match(WALLET_NOTE, /nothing is linked, signed or verified/);
+  assert.doesNotMatch(WALLET_BUTTON_LABEL, /link/i);
+});

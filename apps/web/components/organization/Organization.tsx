@@ -4,9 +4,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
-import { can, roleDifferences, roleLabels } from "../../lib/permissions/can.ts";
+import { can, roleLabels } from "../../lib/permissions/can.ts";
 import { formatDate, formatDateTime, INSTITUTION_LABEL } from "../../lib/format.ts";
-import { canRevokeInvitation, invitationState, lastActiveAdmin, REMOVE_CONSEQUENCES, SUSPEND_CONSEQUENCES } from "../../lib/org/rules.ts";
+import { canRevokeInvitation, invitationState, lastActiveAdmin, REMOVE_CONSEQUENCES, roleChangePlan, SUSPEND_CONSEQUENCES } from "../../lib/org/rules.ts";
 import { invitationCreateForm, orgProfileForm, zodResolver, type InvitationCreateForm, type OrgProfileForm } from "../../lib/schemas.ts";
 import { client } from "../../lib/tobin/index.ts";
 import type { Member, Role } from "../../lib/tobin/types.ts";
@@ -145,7 +145,8 @@ function MembersTab() {
 
   const target = action?.m ?? null;
   const last = target ? lastActiveAdmin(members, target.userId) : false;
-  const diff = target ? roleDifferences(target.role, newRole) : { gains: [], losses: [] };
+  const plan = target ? roleChangePlan(actor, members, target, newRole) : null;
+  const diff = plan ?? { gains: [], losses: [] };
 
   return (
     <div className="space-y-4">
@@ -185,7 +186,7 @@ function MembersTab() {
       </SidePanel>
 
       <Dialog open={action?.kind === "role"} onClose={() => setAction(null)} title={`Change ${target?.name ?? "member"}'s role?`} description={`From ${target?.role === "admin" ? "Admin" : "Member"} to ${newRole === "admin" ? "Admin" : "Member"}.`}
-        primary={{ label: "Change role", onClick: () => run(() => client.organizations.setRole(org.id, target!.userId, newRole)), loading: busy, disabled: newRole === target?.role || (last && newRole !== "admin") }}>
+        primary={{ label: "Change role", onClick: () => run(() => client.organizations.setRole(org.id, target!.userId, newRole)), loading: busy, disabled: !plan?.canConfirm }}>
         <div className="space-y-3">
           <SelectField id="role-pick" label="New role" value={newRole} onChange={(e) => setNewRole(e.target.value as Role)}><option value="member">Member</option><option value="admin">Admin</option></SelectField>
           {diff.gains.length > 0 ? <div><p className="text-body font-medium">They will gain</p><ul className="list-disc pl-5 text-body">{diff.gains.map((g) => <li key={g}>{g}</li>)}</ul></div> : null}

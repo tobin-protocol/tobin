@@ -99,7 +99,7 @@ test("APPROVAL / SIGNATURE SEPARATION: the approval block has no signing control
   const approval = section("ApprovalBlock"); const signature = section("SignatureBlock");
   assert.doesNotMatch(approval, /Sign with wallet|SignatureBlock|signingSupported/);
   assert.doesNotMatch(signature, /bApproveb|onApprove|onReject|ApprovalBlock/);
-  assert.match(signature, /Not supported/);
+  assert.match(signature, /<NotSupported /);
   assert.match(signature, /bg-card/, "the signature block is the same white card surface as the approval block");
   assert.match(approval, /bg-card/, "the approval block is a white card");
   assert.match(signature, /data-icon="key"/, "told apart by a key icon");

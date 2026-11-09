@@ -121,7 +121,7 @@ for (const w of WIDTHS) {
   await vis(main(page).getByText(/Invitations are for administrators/), `${w}: invitations show a permission state for a member`);
   await vis(main(page).getByText(/Admin and Member roles/), `${w}: roles are the backend's two`);
   await go(page, "/organization?tab=wallets");
-  await vis(main(page).getByRole("button", { name: "Link wallet" }), `${w}: Wallets has Link wallet`);
+  await vis(main(page).getByRole("button", { name: "Connect a wallet" }), `${w}: Wallets has Connect a wallet`);
   await ctx.clearCookies();
 
   // =============== Alice: administrator ===============
@@ -167,9 +167,9 @@ for (const w of WIDTHS) {
   await vis(main(page).getByText("Invite someone"), `${w}: the old Invitations address still works`);
   await go(page, "/wallets");
   check(/tab=wallets/.test(page.url()), `${w}: /wallets redirects to the Wallets tab`);
-  await vis(main(page).getByText(/Linking is not verification/), `${w}: Wallets says linking is not verification`);
-  await main(page).getByRole("button", { name: "Link wallet" }).click();
-  await vis(dlg(page), `${w}: Link wallet opens the Connect wallet window`);
+  await vis(main(page).getByText(/nothing is linked, signed or verified/), `${w}: Wallets says nothing is linked or verified`);
+  await main(page).getByRole("button", { name: "Connect a wallet" }).click();
+  await vis(dlg(page), `${w}: Connect a wallet opens the Connect wallet window`);
   await shot(page, "organization-wallets-link", w);
   await page.keyboard.press("Escape");
 

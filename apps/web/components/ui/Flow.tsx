@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { cn, formatDateTime } from "../../lib/format.ts";
 import { stageText, stageView, STAGE_LABEL, type Stage, type StageInput } from "../../lib/stages.ts";
 import { Button } from "./Button.tsx";
-import { CrossIcon, StatusMark } from "./Feedback.tsx";
+import { CrossIcon, NotSupported, StatusMark } from "./Feedback.tsx";
 
 export const LIFECYCLE_GROUPS = ["Draft", "Participation", "Obligations", "Netting", "Approval", "Settlement"] as const;
 
@@ -135,7 +135,7 @@ export function SignatureBlock({ signers, threshold, signingSupported = false }:
           <Button variant="primary" className="mt-3">Sign with wallet</Button>
         </>
       ) : (
-        <p className="mt-2 text-body"><span className="font-medium text-muted">Not supported.</span> <span className="text-muted">This app cannot request or collect Stellar signatures. Signing is performed by separate, owner-run tools.</span></p>
+        <NotSupported tone="card" className="mt-2" feature="Collecting Stellar signatures" reason="This app cannot request or collect Stellar signatures. Signing is performed by separate, owner-run tools." />
       )}
     </section>
   );

@@ -3,7 +3,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { formatDate, formatDateTime } from "../../lib/format.ts";
-import { walletRows, type WalletRow } from "../../lib/org/rules.ts";
+import { WALLET_BUTTON_LABEL, WALLET_NOTE, walletRows, type WalletRow } from "../../lib/org/rules.ts";
 import { client } from "../../lib/tobin/index.ts";
 import { useWallet } from "../wallet/WalletProvider.tsx";
 import { useConnectWallet } from "../auth/ConnectWallet.tsx";
@@ -92,8 +92,8 @@ export function WalletsPanel() {
               <Table columns={cols} data={rows} getRowId={(r) => r.id} empty={<EmptyState title="No verified wallet" message="No wallet is linked to this account. The backend lists none." />} />
             )}
           </div>
-          <div className="mt-3"><Button onClick={connect.open}>Link wallet</Button></div>
-          <p className="mt-2 max-w-prose text-label text-muted" role="note">Link wallet opens the Connect wallet window, which only looks for a wallet in this browser. Linking is not verification: nothing is signed here, and Tobin records proof of control only for wallets listed above as verified.</p>
+          <div className="mt-3"><Button onClick={connect.open}>{WALLET_BUTTON_LABEL}</Button></div>
+          <p className="mt-2 max-w-prose text-label text-muted" role="note">{WALLET_NOTE}</p>
           {error ? <div className="mt-3"><InlineError>{error}</InlineError></div> : null}
           <p className="mt-3 text-label text-muted">The backend records no wallet provider, so none is shown.</p>
         </Card>
