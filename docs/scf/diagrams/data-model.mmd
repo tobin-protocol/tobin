@@ -1,0 +1,21 @@
+%% status: current (solid = implemented, dashed = proposed)
+%% title: Data model, core tables (SQLite migrations 1 to 8; immutable tables marked IMMUTABLE)
+erDiagram
+  users ||--o{ memberships : has
+  organizations ||--o{ memberships : has
+  users ||--o{ user_wallets : verifies
+  organizations ||--o{ sessions : owns
+  sessions ||--o{ session_participants : includes
+  sessions ||--o{ obligations : contains
+  sessions ||--o{ calculations : "IMMUTABLE snapshots"
+  calculations ||--o{ authorization_decisions : "IMMUTABLE bound to one"
+  calculations ||--o{ settlement_batches : "IMMUTABLE derives"
+  settlement_batches ||--o{ settlement_instructions : "IMMUTABLE"
+  settlement_batches ||--o{ settlement_batch_reviews : "IMMUTABLE"
+  settlement_batches ||--o{ settlement_executions : "IMMUTABLE"
+  settlement_executions ||--o{ settlement_attempts : "IMMUTABLE"
+  settlement_attempts ||--o{ settlement_attempt_transactions : "IMMUTABLE one hash per step"
+  organizations ||--o{ org_reviewers : grants
+  organizations ||--o{ signer_set_snapshots : "IMMUTABLE"
+  users ||--o{ auth_audit : "IMMUTABLE"
+  organizations ||--o{ activity : "IMMUTABLE"

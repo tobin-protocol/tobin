@@ -169,7 +169,7 @@ After a deployment, view the page source and confirm `og:image` and `twitter:ima
 
 ## Before you deploy
 
-- **Links:** `github` in [src/lib/site.ts](src/lib/site.ts) is the public protocol repository. `docs` is still `null` because no documentation site exists yet; the footer shows a marked "Link pending" placeholder for it and the nav and final call to action omit it. The "Read the source" cards link to files that exist in the repository: re-check the paths if files move.
+- **Links:** `github` in [src/lib/site.ts](src/lib/site.ts) is the public protocol repository. `docs` is set to `https://docs.tobinprotocol.xyz` (the documentation site, `apps/docs`); if it is ever set to `null`, the footer shows a marked "Link pending" placeholder and the nav and final call to action omit it. The "Read the source" cards link to files that exist in the repository: re-check the paths if files move.
 - **Site URL:** see the table above.
 - **Fonts:** nothing to configure. Urbanist, Outfit, Instrument Sans and Space Grotesk are free (SIL Open Font License) and are fetched from Google Fonts by `next/font` at build time, so the build needs network access. No font files are stored in the repository.
 - **Notices and credits:** [NOTICE](NOTICE), [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) and [ASSET-CREDITS.md](ASSET-CREDITS.md) describe the fonts, libraries and media, and what is unverified. Review them before a public release.

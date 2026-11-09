@@ -9,8 +9,8 @@ export const links: { github: string | null; docs: string | null; app: string | 
   github: "https://github.com/tobin-protocol/tobin",
   docs: "https://docs.tobinprotocol.xyz",
   /**
-   * The web application (apps/web). It is local-only today, so there is no production address yet: in a production build this is null unless
-   * NEXT_PUBLIC_TOBIN_APP_URL is set, and the navigation then shows a disabled "Launch app (soon)". In development it points at the local app.
+   * The web application (apps/web). In a production build this is null unless NEXT_PUBLIC_TOBIN_APP_URL is set (the hosted app's address),
+   * and the navigation then shows a disabled "Launch app (soon)". In development it points at the local app.
    */
   app: process.env.NEXT_PUBLIC_TOBIN_APP_URL ?? (process.env.NODE_ENV === "production" ? null : "http://127.0.0.1:3000"),
 };

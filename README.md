@@ -52,9 +52,9 @@ Tobin is institutional clearing and settlement infrastructure built on [Stellar]
 
 The repository holds three connected things:
 
-1. **An institutional application** (`apps/web-console`): organizations and memberships, clearing sessions, obligations, calculations, reviewer approval, settlement preparation and wallet-first sign-in. State is persisted in SQLite.
+1. **An institutional application**: the user-facing app is `apps/web` (the canonical user interface; hosted at app.tobinprotocol.xyz on Vercel for the Testnet demonstration); `apps/web-console` is the backend, API and owner-tools host (hosted on Railway). Together they cover organizations and memberships, clearing sessions, obligations, calculations, reviewer approval, settlement preparation and sign-in. State is persisted in SQLite. The hosted app does not execute settlement.
 2. **Soroban contracts and a TypeScript SDK** (`contracts/`, `packages/mvp1-sdk`): a clearing contract that settles a session atomically in a Soroban token contract, a capped-supply test token, and the netting engine and digest code that both the application and the tests use.
-3. **Stellar Testnet tooling** (inside `apps/web-console`): owner-run tools that verify wallet control, check multisig signer sets, collect real Freighter signatures, submit the settlement transactions one step at a time after the owner's typed confirmation, and read the results back from the network. They keep their own run log and do not update the application's records.
+3. **Stellar Testnet tooling** (inside `apps/web-console`, run locally by the owner; not part of the hosted app): owner-run tools that verify wallet control, check multisig signer sets, collect real Freighter signatures, submit the settlement transactions one step at a time after the owner's typed confirmation, and read the results back from the network. They keep their own run log and do not update the application's records.
 
 **Intended users** are institutions with recurring payment obligations to several counterparties on Stellar: anchors, payment institutions, cross-border payment providers and institutional Stellar applications. Multilateral clearing only helps where several institutions owe each other. Whether real Stellar payment flows are interconnected enough to benefit has **not** been measured yet.
 
@@ -177,8 +177,8 @@ flowchart LR
 
 | Layer | What it is | Where |
 |---|---|---|
-| Frontend | Next.js 16 (App Router) with React 19; pages under `app/(institution)`; client components in `components/` | `apps/web-console` |
-| Backend and API | Route handlers on the Node runtime: `/api/auth/*`, `/api/registry/*`, `/api/stellar/*`; a `proxy.ts` that enforces local-only Host/Origin guards and a per-request CSP | `apps/web-console/app/api`, `proxy.ts` |
+| Frontend | `apps/web` is the canonical user-facing application (Next.js 16, React 19; a client of the console API through a server-side proxy). `apps/web-console` also ships an older institutional UI under `app/(institution)`, the local sandbox page `/` and the W0 console; these overlap with `apps/web` | `apps/web`, `apps/web-console` |
+| Backend and API | `apps/web-console` hosts the API: route handlers on the Node runtime (`/api/auth/*`, `/api/registry/*`, `/api/stellar/*`, `/api/public/*`); a `proxy.ts` that enforces Host/Origin guards (loopback only locally; an allow-list and a shared proxy secret when `TOBIN_DEPLOYMENT_MODE=hosted`) and a per-request CSP | `apps/web-console/app/api`, `proxy.ts` |
 | Persistence | SQLite through `node:sqlite` (no database server, one application instance); numbered, atomic migrations 1 to 8; immutable and append-only tables enforced by triggers | `apps/web-console/lib/db` |
 | Authentication and authorization | Opaque HttpOnly session cookie (hash stored); wallet challenges; membership and role checks on the server in `Registry` | `lib/auth`, `lib/registry` |
 | Stellar integration | `@stellar/stellar-sdk` 17.4.0 and `@stellar/freighter-api` 6.0.1; execution plan, signer-set verifier, RPC adapter, owner-run tools | `lib/stellar` |
@@ -260,7 +260,8 @@ The repository's earlier README tracked the broader protocol on a separate list.
 ```text
 tobin/
 ├── apps/
-│   ├── web-console/        Next.js application: institutional app, owner-run Testnet tools,
+│   ├── web/                canonical user-facing application (Next.js; a client of the console API)
+│   ├── web-console/        backend and API host: institutional API and older UI, owner-run Testnet tools,
 │   │   ├── app/            local sandbox Console and the W0 console; pages and route handlers
 │   │   ├── components/     client components
 │   │   ├── lib/            auth, db (migrations), registry, stellar, server guards, console, w0
@@ -303,7 +304,7 @@ npm run typecheck                                   # all workspaces
 npm run dev --workspace tobin-web-console           # http://127.0.0.1:8787
 ```
 
-Open <http://127.0.0.1:8787/sign-in>. The server is bound to the loopback interface and refuses other Host names by design. The page at `/` is the MVP-1 local sandbox Console and needs the Rust bridge (below); the institutional pages do not.
+Open <http://127.0.0.1:8787/sign-in>. Locally the console binds to the loopback interface and refuses other Host names by design; the user-facing app (`apps/web`, see its README) runs beside it on `127.0.0.1:3000`. The page at `/` is the MVP-1 local sandbox Console and needs the Rust bridge (below); the institutional pages do not.
 
 ### Environment and database
 

@@ -1,0 +1,19 @@
+%% status: proposed (solid = implemented, dashed = proposed)
+%% title: Deployment, planned PostgreSQL topology (MVP-1.7, P3 to P6, nothing here is built)
+flowchart LR
+  classDef planned stroke-dasharray: 5 5,fill:#f4f4f4,stroke:#888
+  USER["Browser"]:::planned
+  WEB["apps/web on Vercel"]:::planned
+  CON["apps/web-console on Railway, asynchronous store"]:::planned
+  PG[("Railway PostgreSQL")]:::planned
+  BK["Backups and restore drill"]:::planned
+  STG["Railway staging environment"]:::planned
+  MON["Monitoring and alerting"]:::planned
+  HX["Hosted settlement execution (P8, not approved)"]:::planned
+  USER -.-> WEB
+  WEB -.->|"shared secret"| CON
+  CON -.-> PG
+  PG -.-> BK
+  STG -.->|"validates before cutover"| CON
+  CON -.-> MON
+  CON -.-> HX

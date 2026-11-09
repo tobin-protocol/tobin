@@ -1,0 +1,18 @@
+%% status: mixed (solid = implemented, dashed = proposed)
+%% title: Clearing lifecycle, application records versus on-chain records
+flowchart LR
+  classDef planned stroke-dasharray: 5 5,fill:#f4f4f4,stroke:#888
+  subgraph APP["Application records: SQLite, not on-chain"]
+    O["Obligations recorded"] --> C["Calculation snapshot: net positions"]
+    C --> A["Reviewer approval of that calculation"]
+    A --> B["Settlement batch prepared and reviewed"]
+    B --> E["Execution preconditions: accounts verified"]
+  end
+  STOP(["Hosted app stops here: no signing, submission or confirmation"])
+  E --> STOP
+  subgraph CHAINX["Owner-run tools, local, Stellar Testnet"]
+    S1["Signed"] --> S2["Submitted"] --> S3["Confirmed: read back by hash"] --> S4["Reconciled with approved batch"]
+  end
+  E --> S1
+  WB["Write confirmed outcome back to application records"]:::planned
+  S4 -.-> WB

@@ -1,0 +1,25 @@
+%% status: mixed (solid = implemented, dashed = proposed)
+%% title: Tobin system context (Stellar Testnet only)
+flowchart LR
+  classDef planned stroke-dasharray: 5 5,fill:#f4f4f4,stroke:#888
+  classDef ext fill:#eef3fb,stroke:#5b7db1
+  INST["Institution users: admins, members, reviewers"]
+  OWNER["Owner and operator: runs local Stellar tools"]
+  WEB["Tobin web app: apps/web"]
+  BACK["Tobin backend: apps/web-console and SQLite"]
+  TOOLS["Owner-run Stellar tools: local only"]
+  FRT["Freighter wallet extension"]:::ext
+  RPC["Soroban RPC and Horizon on Testnet"]:::ext
+  CON["TobinClearingV1 and TobinTestToken contracts"]:::ext
+  DISC["Public Discover API: read only, opt-in"]
+  HOSTSIGN["Hosted signing and submission"]:::planned
+  INST --> WEB
+  WEB --> BACK
+  INST --> DISC
+  DISC --> BACK
+  OWNER --> TOOLS
+  TOOLS <--> FRT
+  TOOLS --> RPC
+  RPC --> CON
+  BACK -.->|"planned: execution in hosted app"| HOSTSIGN
+  HOSTSIGN -.-> RPC

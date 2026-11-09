@@ -1,0 +1,20 @@
+%% status: current (solid = implemented, dashed = proposed)
+%% title: Netting and plan validation, engine versus contract
+flowchart TB
+  OBL["Frozen obligations: debtor, creditor, positive amount"]
+  NET["Engine: net = outgoing minus incoming, positive = debtor"]
+  DEF["Engine default plan: advisory only"]
+  ANY["Any plan proposed by an admitted participant"]
+  VAL{"Contract validate_plan"}
+  RULES["Checks: admitted parties, amounts above zero, no self payment, ascending payer and payee order, at most 16 instructions, checked arithmetic, per party debit = max of net and 0, credit = max of minus net and 0, no party both debits and credits"]
+  OK["Plan stored with digest, earlier approvals cleared"]
+  NO["Rejected with an error code"]
+  NOTE["The contract does not compare the plan with the engine output and does not require a minimal plan"]
+  OBL --> NET --> DEF
+  DEF --> ANY
+  OBL --> VAL
+  ANY --> VAL
+  VAL --- RULES
+  VAL -->|valid| OK
+  VAL -->|invalid| NO
+  VAL -.- NOTE

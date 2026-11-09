@@ -35,3 +35,14 @@ The audit (`docs/web-redesign/audit/`) was written from source only by an agent 
 - **Landing GitHub button appears twice** in `Nav.tsx` (desktop at line 152, mobile menu at line 208). The footer already links GitHub (`Footer.tsx:12`), so no footer change is needed.
 - **Server-side access control.** Next here is 16.4.3, and its docs may have renamed middleware (I have not read `node_modules/next/dist/docs/` yet). The session cookie is set by the console and forwarded by the proxy, so a server layout has to validate it by calling the console's `/api/auth/me` from the server. I will confirm both in R1.
 - **Spec route rename.** `/approvals` becomes `/reviews`. Existing links and the five scripts that open `/approvals` need updating, and the old path should redirect.
+
+## Update (2026-11-09): rows above that no longer match the code
+
+The sections above record the state when they were written and are kept as history. Checked against the current tree (source reading only; nothing was run):
+
+| Earlier statement | Current state | Evidence |
+|---|---|---|
+| The proxy forwards only `/api/auth` and `/api/registry` | It also forwards `/api/public/v1` | `apps/web/lib/proxy-policy.ts:7` |
+| The console has no public read endpoint; Discover has no backend | The console serves a public read-only API; the web app's Discover page is not wired to it in this tree | `apps/web-console/lib/public/discover.ts`; `apps/web/lib/tobin/client.ts` has no Discover method |
+| The UI has no client method for `ready`, `reopen`, `close` | `markReady`, `close` and `reopen` exist | `apps/web/lib/tobin/client.ts:57-59,151-153` |
+| No `loading.tsx`, `error.tsx` or `not-found.tsx`; no `proxy.ts` in `apps/web` | These files exist, and `apps/web/proxy.ts` enforces server-side access control | `apps/web/app/(app)/{loading,error,not-found}.tsx`, `apps/web/app/not-found.tsx`, `apps/web/proxy.ts` |

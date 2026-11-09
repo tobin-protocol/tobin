@@ -1,0 +1,22 @@
+%% status: current (solid = implemented, dashed = proposed)
+%% title: Deployment, current Vercel and Railway topology with SQLite (owner record, not independently verified)
+flowchart LR
+  USER["Browser"]
+  subgraph VERCEL["Vercel project tobin-app"]
+    WEB["apps/web at app.tobinprotocol.xyz"]
+  end
+  subgraph RAILWAY["Railway project tobin-testnet-pilot, environment production"]
+    CON["apps/web-console service, public Railway domain, hosted guards"]
+    VOL[("Volume at /data: tobin.sqlite")]
+    OLDWEB["Earlier web service: superseded, old secret"]
+  end
+  STOP(["Hosted app stops at settlement preparation"])
+  LOCAL["Owner machine: local Stellar tools"]
+  TN["Stellar Testnet"]
+  USER -->|HTTPS| WEB
+  USER -->|"read only /api/public/v1 via the web app"| WEB
+  WEB -->|"shared secret header"| CON
+  CON --> VOL
+  CON --- STOP
+  LOCAL --> TN
+  OLDWEB -.->|"cannot reach the console: old secret"| CON

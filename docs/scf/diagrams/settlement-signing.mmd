@@ -1,0 +1,18 @@
+%% status: current (solid = implemented, dashed = proposed)
+%% title: Settlement preparation and signing, owner-run local path
+sequenceDiagram
+  participant O as Owner in browser
+  participant T as Local console tools
+  participant F as Freighter
+  participant N as Soroban RPC
+  T->>N: read current chain state
+  T->>T: build step from approved batch, cap 1 base unit
+  T->>N: simulate step
+  T->>O: show step and ask for typed confirmation
+  O->>T: I CONFIRM SUBMIT STEP n
+  T->>F: signAuthEntry, valid at most 10 ledgers by policy
+  F-->>T: signed entry
+  T->>F: signTransaction for the envelope
+  F-->>T: signed envelope
+  T->>N: re-simulate, then send once
+  Note over T: Tobin servers hold no private key and never retry automatically
