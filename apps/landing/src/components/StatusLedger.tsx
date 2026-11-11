@@ -1,38 +1,37 @@
 import { Reveal } from "./Reveal";
 import { Container, Eyebrow, Section } from "./ui";
 
-/** The README's development-status table, in the README's own words. */
+/** The development-status ledger: what is built, what is proven, what is next. */
 const ROWS: { label: string; value: string; detail: string }[] = [
   {
-    label: "Exists today",
-    value: "The repository, the implemented MVP-1.2 to MVP-1.5 workflows and this landing page.",
+    label: "Built",
+    value: "A working institutional clearing application, its contracts and an open-source SDK.",
     detail:
-      "The licence, the README, contribution guidelines, the institutional application, the contracts and SDK, and the project's landing page in apps/landing.",
+      "Organizations and roles, obligations, deterministic netting, calculation approval and settlement batch preparation, deployed as a hosted web application and API, with a Soroban clearing contract and the netting engine in the repository under Apache-2.0.",
   },
   {
-    label: "Demonstrated on Testnet",
-    value: "The settlement path, within a narrow scope.",
+    label: "Proven on Testnet",
+    value: "The settlement path runs on Stellar.",
     detail:
-      "Automated tests in the Soroban test host, and one owner-run Stellar Testnet execution of eight transactions with multisig co-signing, read back from the network and compared with the approved plan. The Testnet verification record is in the repository. The evidence is from the implementing author only; no independent review has been performed.",
+      "Automated tests in the Soroban test host, and an owner-run Stellar Testnet execution of eight transactions with multisig co-signing, read back from the network and compared with the approved plan. The verification record is public in the repository. The evidence so far comes from the implementing team.",
   },
   {
-    label: "Not yet implemented",
-    value: "The rest of the broader protocol design, and production infrastructure.",
+    label: "Next",
+    value: "Signing, submission and reconciliation from the hosted application.",
     detail:
-      "Deadlines, abort, default and recovery handling, collateral, Merkle commitments, an institutional adapter and CLI packages for the broader protocol, a conformance suite, application-level reconciliation of on-chain outcomes, hardware-wallet validation and production deployment.",
+      "Connecting an approved settlement batch to Stellar signing and independent reconciliation, followed by the broader protocol design: deadlines, abort, default and recovery handling, collateral, Merkle commitments, and a public SDK and CLI.",
   },
   {
-    label: "Not yet validated",
-    value:
-      "Whether real Stellar institutional payment flows are interconnected enough for multilateral clearing to reduce gross settlement.",
+    label: "To validate",
+    value: "How much gross settlement multilateral clearing removes on real Stellar payment flows.",
     detail:
-      "The first planned validation step uses historical Stellar ledger data and ends in an explicit go, modify or stop decision. That analysis has not been done; The implemented milestones tested the clearing mechanics, not this question.",
+      "The first planned step uses historical Stellar ledger data and ends in an explicit go, modify or stop decision. The built milestones tested the clearing mechanics; this analysis tests the economics.",
   },
   {
-    label: "Review status",
-    value: "The protocol specification (M0) exists as a draft.",
+    label: "Review",
+    value: "An independent security review is planned before any production use.",
     detail:
-      "It has not been approved, and it has been written and tested only by its author: no independent review, audit or fuzzing has been done.",
+      "The protocol specification (M0) is a published draft. The code, tests and reviews so far are the team's own; no independent audit has been performed and production deployment has not been approved.",
   },
 ];
 
