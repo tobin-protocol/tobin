@@ -86,6 +86,7 @@ export const repoLinks = {
   contributing: `${BLOB}CONTRIBUTING.md`,
   security: `${BLOB}SECURITY.md`,
   licence: `${BLOB}LICENSE`,
+  actions: "https://github.com/tobin-protocol/tobin/actions",
   notice: "https://github.com/tobin-protocol/tobin/blob/main/apps/landing/NOTICE",
 } as const;
 

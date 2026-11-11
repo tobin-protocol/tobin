@@ -5,14 +5,19 @@ import { useRef, useState, type KeyboardEvent } from "react";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import {
   ArrowRight02Icon,
+  CheckListIcon,
   CheckmarkCircle02Icon,
   Clock01Icon,
+  CloudServerIcon,
   ComputerTerminal01Icon,
   File01Icon,
   FlashIcon,
   GitBranchIcon,
   ListViewIcon,
+  SecurityCheckIcon,
   Shield01Icon,
+  TestTube01Icon,
+  UserMultiple02Icon,
 } from "@hugeicons/core-free-icons";
 import { repoLinks, sourceCards } from "@/lib/site";
 import { usePinned, useReduceMotion } from "@/lib/stage";
@@ -29,7 +34,7 @@ type Status = "built" | "differs" | "not-built";
 const STATUS_LABEL: Record<Status, string> = {
   built: "Implemented",
   differs: "Implemented, differs from the broader design",
-  "not-built": "Not yet implemented",
+  "not-built": "Planned",
 };
 
 type Card = {
@@ -44,13 +49,24 @@ type Card = {
   linkLabel?: string;
 };
 
-/** Each card and its status follow the README's own statuses. A link appears only where a real file exists. */
+/** Each card and its status follow the repository documents (README, TECHNICAL.md, the Testnet evidence). A link appears only where a real file exists. */
 const CARDS: Card[] = [
+  {
+    id: "organizations",
+    title: "Organizations and roles",
+    status: "built",
+    description:
+      "Organizations with admin, member and reviewer roles and invitation-based membership, enforced on the server and covered by tenant-isolation tests.",
+    icon: UserMultiple02Icon,
+    source: sourceCards[3].path,
+    href: sourceCards[3].href,
+    linkLabel: "Read the technical overview",
+  },
   {
     id: "sessions",
     title: "Sessions and obligations",
     status: "built",
-    description: "Recorded in sessions in the institutional application and, on chain, in the clearing contract.",
+    description: "Clearing sessions and obligations in the institutional application and, on chain, in the clearing contract.",
     icon: File01Icon,
     source: "contracts/README.md",
     href: repoLinks.contracts,
@@ -58,13 +74,24 @@ const CARDS: Card[] = [
   },
   {
     id: "proposal",
-    title: "Net settlement proposal",
+    title: "Deterministic netting",
     status: "built",
-    description: "Deterministic net positions, computed by a TypeScript engine.",
+    description: "Net positions computed by a deterministic TypeScript engine and saved as immutable calculation snapshots; any change to the inputs makes a snapshot stale.",
     icon: ListViewIcon,
     source: sourceCards[2].path,
     href: sourceCards[2].href,
     linkLabel: "Read the engine notes",
+  },
+  {
+    id: "authorization",
+    title: "Authorization and settlement preparation",
+    status: "built",
+    description:
+      "A reviewer approves the exact calculation. An administrator prepares an immutable batch of settlement instructions, and a reviewer approves it; the person who prepared a batch cannot approve it. Prepared batches move no funds.",
+    icon: CheckListIcon,
+    source: sourceCards[3].path,
+    href: sourceCards[3].href,
+    linkLabel: "Read the technical overview",
   },
   {
     id: "approval",
@@ -79,41 +106,78 @@ const CARDS: Card[] = [
   },
   {
     id: "settlement",
-    title: "Atomic settlement",
+    title: "Atomic settlement on Stellar",
     status: "built",
     description:
-      "Net amounts moved atomically by a Soroban contract. Demonstrated on Stellar Testnet in one owner-run execution of eight transactions with multisig co-signing, using a governed test token.",
+      "A Soroban contract validates a settlement plan and moves the net amounts atomically. Deployed on Stellar Testnet and exercised from session creation to settlement in eight transactions, with multisig co-signing and a governed test token (a fixed one-unit scenario run with owner tools).",
     icon: FlashIcon,
-    source: "contracts/README.md",
-    href: repoLinks.contracts,
-    linkLabel: "Read the MVP-1 notes",
+    source: sourceCards[6].path,
+    href: sourceCards[6].href,
+    linkLabel: "Read the Testnet evidence",
+  },
+  {
+    id: "hosted",
+    title: "Hosted application and API",
+    status: "built",
+    description:
+      "A web application and backend API deployed on Vercel and Railway, with role-based access, request-origin checks, rate limits and a public Discover API. Single-region and Testnet only.",
+    icon: CloudServerIcon,
+    source: sourceCards[3].path,
+    href: sourceCards[3].href,
+    linkLabel: "Read the technical overview",
+  },
+  {
+    id: "verification",
+    title: "Automated verification",
+    status: "built",
+    description:
+      "More than 800 automated tests across the contracts, backend and web application run on every pull request, with compiled-contract tests and a browser journey on the main branch. Results are public.",
+    icon: TestTube01Icon,
+    source: ".github/workflows",
+    href: repoLinks.actions,
+    linkLabel: "Read the workflow runs",
+  },
+  {
+    id: "hosted-execution",
+    title: "Signing, submission and reconciliation from the hosted application",
+    status: "not-built",
+    description:
+      "The hosted application prepares and approves settlement batches. Connecting an approved batch to Stellar signing, submission and independent reconciliation is the next planned engineering work.",
+    icon: FlashIcon,
+  },
+  {
+    id: "review",
+    title: "Independent security review",
+    status: "not-built",
+    description: "Planned before any production use. The contracts, the signer and the application have not yet been independently reviewed.",
+    icon: SecurityCheckIcon,
   },
   {
     id: "collateral",
     title: "Collateral",
     status: "not-built",
-    description: "Designed to limit the exposure that can enter a session. Part of the broader protocol design; not yet implemented.",
+    description: "Designed to limit the exposure that can enter a session. Part of the broader protocol design.",
     icon: Shield01Icon,
   },
   {
     id: "merkle",
     title: "Merkle commitments",
     status: "not-built",
-    description: "Designed so the chain holds commitments, not an obligation book. Part of the broader protocol design; not yet implemented.",
+    description: "Designed so the chain holds commitments, not an obligation book. Part of the broader protocol design.",
     icon: GitBranchIcon,
   },
   {
     id: "deadlines",
     title: "Deadlines, abort, default and recovery",
     status: "not-built",
-    description: "Part of the broader protocol design; not yet implemented.",
+    description: "Part of the broader protocol design.",
     icon: Clock01Icon,
   },
   {
     id: "adapter",
-    title: "Institutional adapter, SDK and CLI for the full protocol",
+    title: "Public SDK and CLI",
     status: "not-built",
-    description: "Not yet implemented. No packages are published; the MVP-1 SDK exists as source in the repository.",
+    description: "Planned. No packages are published today; the MVP-1 netting engine exists as source in the repository.",
     icon: ComputerTerminal01Icon,
   },
 ];
@@ -123,7 +187,7 @@ type FilterId = "all" | "built" | "not-built";
 /** The two groups. "Implemented" includes the card that differs from the broader design. */
 const GROUPS: { id: Exclude<FilterId, "all">; label: string; has: (s: Status) => boolean }[] = [
   { id: "built", label: "Implemented", has: (s) => s === "built" || s === "differs" },
-  { id: "not-built", label: "Not yet implemented", has: (s) => s === "not-built" },
+  { id: "not-built", label: "Planned", has: (s) => s === "not-built" },
 ];
 
 const count = (has: (s: Status) => boolean) => CARDS.filter((c) => has(c.status)).length;
@@ -259,12 +323,13 @@ export function BuiltStatus() {
     <Section id="status" labelledBy="status-title" tone="light">
       <Container>
         <Reveal>
-        <Eyebrow>Implemented versus designed</Eyebrow>
+        <Eyebrow>Built and planned</Eyebrow>
         <p className="t-lead mt-6 max-w-[40rem] text-grey-850">
-          The core clearing and settlement workflows are implemented and have been demonstrated
-          through controlled Stellar Testnet execution with test assets. The evidence is from the
-          implementing author, no independent security review has been performed, and production
-          deployment has not yet been approved.
+          The institutional workflow is built and hosted: organizations and roles, obligations, deterministic
+          netting, calculation approval, settlement batch preparation and review, and a Soroban clearing
+          contract deployed and exercised on Stellar Testnet. The code is open source and tested on every change.
+          The evidence so far comes from the implementing team; an independent security review is planned before
+          any production use, and production deployment has not been approved.
         </p>
         </Reveal>
 
@@ -309,7 +374,7 @@ export function BuiltStatus() {
         {/* Summary: counts as text, then one square per card in data order. */}
         <div ref={summary} className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-3">
           <p className="t-mono uppercase tracking-[0.08em] text-grey-600">
-            {COUNTS.built} built · {COUNTS.differs} differs · {COUNTS.notBuilt} not built
+            {COUNTS.built} implemented · {COUNTS.differs} differs from the broader design · {COUNTS.notBuilt} planned
           </p>
           <div aria-hidden="true" className="flex gap-1.5">
             {CARDS.map((c, i) => (
