@@ -1,0 +1,552 @@
+---
+title: TobinClient
+description: The typed client for TobinClearingV1 and TobinTestToken — constructor, preparation methods, state-changing calls, reads, digest helpers, and status.
+---
+
+Source:
+[`packages/mvp1-sdk/src/sdk/client.ts`](https://github.com/tobin-protocol/tobin/blob/main/packages/mvp1-sdk/src/sdk/client.ts).
+
+`TobinClient` is a typed wrapper over a `Transport`. It calls `prepare*` functions from
+[`prepare.ts`](/docs/reference/sdk/prepared-calls), sends them through the transport, and decodes results and errors.
+Every mutating method returns a `CallReceipt` that names the transport the call ran on.
+
+## Constructor
+
+```ts
+new TobinClient(cfg: ClientConfig)
+```
+
+```ts
+interface ClientConfig {
+  transport: Transport;
+  clearing: string;        // TobinClearingV1 contract address (C...)
+  networkId?: Uint8Array;  // 32-byte network id — SHA-256 of the network passphrase
+                           // required only for local digest verification
+}
+```
+
+`networkId` is required only by `verifyDigests`, `digestContext`, `expectedProposalDigest`, and
+`expectedNextProposalDigest`. Construct it with `networkIdOf(passphrase)` from `tobin-mvp1-sdk/sdk`, or read it
+from the `Sandbox` returned by `startSandbox`.
+
+## ranOn
+
+```ts
+get ranOn(): string
+```
+
+Returns `cfg.transport.description` — a short statement of what the transport does (for example,
+`"LOCAL SANDBOX: the real contracts in the Soroban test host; simulated unsigned authorizations; no network, no wallet, nothing on any ledger"`).
+
+## Contract record types
+
+The read methods and `getSessionStatus` return these types, decoded from the contract's storage.
+
+```ts
+type SessionState = 'Open' | 'Committed' | 'Approved' | 'Settled';
+
+interface SessionRecord {
+  creator: string;
+  token: string;
+  maxParticipants: number;
+  maxObligations: number;
+  state: SessionState;
+  participants: string[];         // admission order; the creator is first
+  obligationCommitment: string | null; // 64 hex characters once finalized
+}
+
+interface ProposalRecord {
+  digest: string;        // 64 lowercase hex characters
+  instructions: Instruction[];
+  proposer: string;
+  revision: number;      // increments with each replacement; starts at 1
+}
+
+interface ApprovalRecord {
+  participant: string;
+  digest: string;        // the digest the participant approved
+}
+
+interface SettlementRecord {
+  digest: string;
+  ledgerSequence: number;
+  totalMoved: bigint;
+  instructionCount: number;
+}
+```
+
+`Instruction` is defined in `tobin-mvp1-sdk/engine`: `{ payer: string; payee: string; amount: bigint }`.
+
+## CallReceipt
+
+Returned by every mutating method.
+
+```ts
+interface CallReceipt {
+  fn: string;               // the contract function that was called
+  ranOn: string;            // the transport's description
+  eventCount?: number;      // number of events emitted (if the transport reports them)
+  resources?: Resources;    // compute and storage usage (if the transport reports them)
+}
+```
+
+`Resources` is documented in [Transport and errors](/docs/reference/sdk/transport#resources).
+
+---
+
+## Preparation methods
+
+These methods call `prepare*` functions internally and add the clearing contract address automatically. All are
+synchronous except `prepareJoin` and `prepareSettle`, which read state from the contract first.
+
+### prepareCreateSession
+
+```ts
+prepareCreateSession(p: {
+  creator: string;
+  sessionId: string;
+  token: string;
+  maxParticipants: number;
+  maxObligations: number;
+}): PreparedCall
+```
+
+Delegates to `prepareCreateSession` from [`prepare.ts`](/docs/reference/sdk/prepared-calls#preparecreatesession).
+
+### prepareJoin
+
+```ts
+async prepareJoin(p: { sessionId: string; participant: string }): Promise<PreparedCall>
+```
+
+Reads the session's creator from the contract (one transport call), then delegates to `prepareJoin` from
+[`prepare.ts`](/docs/reference/sdk/prepared-calls#preparejoin). The returned `PreparedCall` requires both the
+participant's and the creator's authorizations.
+
+**Errors:** any error from `getSession` (for example `contract/SessionNotFound`).
+
+### prepareSubmitObligation
+
+```ts
+prepareSubmitObligation(p: { sessionId: string; obligation: Obligation }): PreparedCall
+```
+
+Delegates to `prepareSubmitObligation` from
+[`prepare.ts`](/docs/reference/sdk/prepared-calls#preparesubmitobligation).
+
+### prepareFinalize
+
+```ts
+prepareFinalize(p: { sessionId: string; caller: string }): PreparedCall
+```
+
+Delegates to `prepareFinalize` from [`prepare.ts`](/docs/reference/sdk/prepared-calls#preparefinalize).
+
+### preparePropose
+
+```ts
+preparePropose(p: {
+  sessionId: string;
+  proposer: string;
+  instructions: readonly Instruction[];
+}): PreparedCall
+```
+
+Delegates to `preparePropose` from [`prepare.ts`](/docs/reference/sdk/prepared-calls#preparepropose).
+
+### prepareApprove
+
+```ts
+prepareApprove(p: {
+  sessionId: string;
+  participant: string;
+  digest: string;
+}): PreparedCall
+```
+
+Delegates to `prepareApprove` from [`prepare.ts`](/docs/reference/sdk/prepared-calls#prepareapprove).
+
+### prepareSettle
+
+```ts
+async prepareSettle(sessionId: string, digest?: string): Promise<PreparedCall>
+```
+
+Reads the current session and proposal from the contract (two transport calls), then delegates to `prepareSettle`
+from [`prepare.ts`](/docs/reference/sdk/prepared-calls#preparesettle). `digest` defaults to the current proposal
+digest; pass a stale value explicitly to test `DigestMismatch`.
+
+The returned `PreparedCall` has an `authorizationId` set. It must not be reused after any attempt (EQ-20); call
+`prepareSettle` again after a failure.
+
+**Errors:** `contract/NoProposal` (or `null` from `getProposal`; treated as the zero-proposal case), any error from
+`getSession`.
+
+---
+
+## State-changing methods
+
+Each method builds a `PreparedCall`, sends it through the transport, and returns a `CallReceipt`. Throws a
+`TobinError` on failure. See [Errors](/docs/reference/errors) for the full error table.
+
+### createSession
+
+```ts
+async createSession(
+  p: { creator: string; sessionId: string; token: string; maxParticipants: number; maxObligations: number },
+  options?: InvokeOptions
+): Promise<CallReceipt>
+```
+
+Creates the session. The creator is admitted automatically.
+
+### joinSession
+
+```ts
+async joinSession(
+  p: { sessionId: string; participant: string },
+  options?: InvokeOptions
+): Promise<CallReceipt>
+```
+
+Reads the creator from the contract, then submits a join. Requires both the participant's and the creator's
+authorization; the `InvokeOptions.authorize` list must include both.
+
+### submitObligation
+
+```ts
+async submitObligation(
+  p: { sessionId: string; obligation: Obligation },
+  options?: InvokeOptions
+): Promise<CallReceipt>
+```
+
+Records an obligation. Only the debtor authorizes.
+
+### finalizeObligations
+
+```ts
+async finalizeObligations(
+  p: { sessionId: string; caller: string },
+  options?: InvokeOptions
+): Promise<{ commitment: string; receipt: CallReceipt }>
+```
+
+Freezes the obligation set. Returns the obligation commitment (64 hex characters) and the receipt.
+
+### proposeSettlement
+
+```ts
+async proposeSettlement(
+  p: { sessionId: string; proposer: string; instructions: readonly Instruction[] },
+  options?: InvokeOptions
+): Promise<{ digest: string; approvalsInvalidated: number; replacedDigest: string | null; receipt: CallReceipt }>
+```
+
+Submits a settlement proposal. Returns the new digest, how many approvals the replacement invalidated (zero on the
+first proposal), the replaced digest if there was one, and the receipt.
+
+A replacement clears all prior approvals, regardless of state.
+
+### approveSettlement
+
+```ts
+async approveSettlement(
+  p: { sessionId: string; participant: string; digest: string },
+  options?: InvokeOptions
+): Promise<{ completed: boolean; receipt: CallReceipt }>
+```
+
+Records the participant's approval of the exact digest. `completed` is `true` when this approval is the last one
+needed and the session moves to `Approved`.
+
+An approval of a stale or replaced digest throws `contract/DigestMismatch`.
+
+### settle
+
+```ts
+async settle(
+  p: { sessionId: string; digest?: string },
+  options?: InvokeOptions
+): Promise<CallReceipt>
+```
+
+Reads the current proposal, prepares the settlement, and submits it. Any caller may submit; every debtor must
+authorize its own transfers. `digest` defaults to the current proposal digest.
+
+A failed attempt uses up the authorization round (EQ-20). If this throws, call `settle` again — it internally
+calls `prepareSettle` afresh.
+
+**Errors:** `MissingApproval`, `DigestMismatch`, `AlreadySettled`, token errors (`InsufficientBalance`, etc.),
+`auth/InvalidAction` (a debtor's authorization is missing or wrong), `policy/ReauthorizationRequired` (the
+authorization round was already used).
+
+### mint
+
+```ts
+async mint(
+  token: string,
+  p: { minter: string; to: string; amount: bigint },
+  options?: InvokeOptions
+): Promise<CallReceipt>
+```
+
+Mints test tokens to a recipient. The fixed minter authorizes. Used in development and testing only.
+
+---
+
+## Read methods
+
+Read methods return contract state or `null` for the two optional records. They throw a `TobinError` on any error
+other than the ones they handle gracefully.
+
+### config
+
+```ts
+async config(): Promise<{
+  participantCeiling: number;
+  obligationCeiling: number;
+  instructionCeiling: number;
+}>
+```
+
+Returns the global ceilings set at contract deployment.
+
+### getSession
+
+```ts
+async getSession(sessionId: string): Promise<SessionRecord>
+```
+
+Returns the session record. Throws `contract/SessionNotFound` if no session exists at this id.
+
+### getObligations
+
+```ts
+async getObligations(sessionId: string): Promise<Obligation[]>
+```
+
+Returns all obligations recorded in the session.
+
+### getProposal
+
+```ts
+async getProposal(sessionId: string): Promise<ProposalRecord | null>
+```
+
+Returns the current proposal, or `null` when none has been submitted yet. `contract/NoProposal` is converted to
+`null`; all other errors are rethrown.
+
+### getSettlement
+
+```ts
+async getSettlement(sessionId: string): Promise<SettlementRecord | null>
+```
+
+Returns the terminal settlement record, or `null` before the session is settled. `contract/WrongState` is converted
+to `null`; all other errors are rethrown.
+
+### getApprovals
+
+```ts
+async getApprovals(sessionId: string): Promise<ApprovalRecord[]>
+```
+
+Returns all recorded approvals. Each record names the participant and the digest they approved. Only approvals of
+the **current** digest count toward completion; the contract drops approvals when a proposal is replaced.
+
+### commitmentBytes
+
+```ts
+async commitmentBytes(sessionId: string): Promise<string>
+```
+
+Returns the raw preimage bytes that hash to the obligation commitment (hex string). Used for local verification.
+
+### proposalBytes
+
+```ts
+async proposalBytes(sessionId: string): Promise<string>
+```
+
+Returns the raw preimage bytes that hash to the proposal digest (hex string). Used for local verification.
+
+### tokenBalance
+
+```ts
+async tokenBalance(token: string, who: string): Promise<bigint>
+```
+
+Returns the token balance of an account.
+
+---
+
+## Digest helpers
+
+These helpers compute or verify digests locally. They require `cfg.networkId` to be set.
+
+### digestContext
+
+```ts
+digestContext(sessionId: string, token: string): DigestContext
+```
+
+Returns the context struct needed by the low-level digest functions in `tobin-mvp1-sdk/digest`.
+
+**Throws** `EngineError('INVALID_ID')` if `cfg.networkId` is not set.
+
+### verifyDigests
+
+```ts
+async verifyDigests(sessionId: string): Promise<{
+  commitmentMatches: boolean;
+  proposalMatches: boolean | null;  // null when there is no proposal
+  bytesMatch: boolean;
+}>
+```
+
+Recomputes both digests locally from the contract's own data and compares bytes and hashes with what the contract
+reports. All three fields must be `true` before trusting the commitment or digest.
+
+**Throws** `EngineError('INVALID_ID')` if the obligations are not finalized yet.
+
+### expectedProposalDigest
+
+```ts
+expectedProposalDigest(
+  sessionId: string,
+  token: string,
+  commitmentHex: string,
+  revision: number,
+  plan: readonly Instruction[]
+): string
+```
+
+Returns the digest a proposal **would** have at a given revision, computed entirely from local inputs. A
+participant should compute this before approving and compare it to the digest the client reports; the digests must
+match.
+
+The revision is part of the digest (EQ-05): identical instructions at a different revision produce a different
+digest, so an approval of an older proposal cannot be replayed.
+
+### expectedNextProposalDigest
+
+```ts
+async expectedNextProposalDigest(
+  sessionId: string,
+  plan: readonly Instruction[]
+): Promise<{ revision: number; digest: string }>
+```
+
+Reads the current proposal revision from the contract and returns the digest the **next** accepted proposal would
+have (at `current_revision + 1`, or 1 when there is no current proposal). Use this to predict the digest before
+submitting.
+
+**Throws** `EngineError('INVALID_ID')` if the obligations are not finalized yet.
+
+### settlementIntent
+
+```ts
+async settlementIntent(
+  sessionId: string,
+  approvedDigest: string,
+  dep: DeploymentRecord
+): Promise<ExpectedIntent>
+```
+
+Reads the session and proposal from the contract, then delegates to `settlementIntent` from
+[`intent.ts`](/docs/reference/sdk/transport#intent-helpers).
+
+The session's token must match the pinned deployment record's token; the recomputed digest must match
+`approvedDigest` exactly. Throws `EngineError('INVALID_ID')` if either check fails.
+
+---
+
+## Advisory helpers
+
+### generateDefaultProposal
+
+```ts
+async generateDefaultProposal(sessionId: string): Promise<Instruction[]>
+```
+
+Reads the session and obligations from the contract, then calls the engine's `defaultProposal` function. Returns
+the engine's default instruction list sorted into the contract's required order.
+
+This is advisory: the contract accepts any valid plan and has never been told this plan is canonical. Run
+`validateProposal` to check it before proposing, and verify the resulting digest independently before approving.
+
+### validateProposal
+
+```ts
+async validateProposal(
+  sessionId: string,
+  plan: readonly Instruction[]
+): Promise<ValidationResult>
+```
+
+Reads the session and obligations from the contract, then delegates to `validatePlan` from
+`tobin-mvp1-sdk/engine`. Returns `{ ok: true }` or `{ ok: false; error: ValidationError; message: string }`.
+
+This is advisory: the contract validates every plan itself; a plan that passes here may still be rejected by the
+contract, and a plan that fails here may be accepted by a contract with different rules.
+
+---
+
+## Low-level send
+
+```ts
+async send(
+  call: PreparedCall,
+  options?: InvokeOptions
+): Promise<{ value: unknown; receipt: CallReceipt }>
+```
+
+Sends a prepared call through the transport and returns the raw decoded value with a receipt, or throws a
+`TobinError`. All higher-level methods use `send` internally.
+
+If `call.authorizationId` is set and has already been used by this client instance, `send` throws
+`policy/ReauthorizationRequired` **without calling the transport** (EQ-20).
+
+---
+
+## getSessionStatus
+
+```ts
+async getSessionStatus(sessionId: string): Promise<SessionStatus>
+```
+
+Reads the full session state in one logical operation (five transport calls for session, obligations, proposal,
+approvals, settlement). Returns a `SessionStatus` with advisory data added.
+
+```ts
+interface SessionStatus {
+  sessionId: string;
+  state: SessionState;
+  creator: string;
+  token: string;
+  participants: string[];
+  maxParticipants: number;
+  maxObligations: number;
+  obligations: Obligation[];
+  nets: NetPosition[];            // computed locally from the contract's data; advisory
+  allZero: boolean;               // true when every net is zero
+  commitment: string | null;      // 64 hex chars after finalization
+  proposal: ProposalRecord | null;
+  approvals: { participant: string; approved: boolean }[];
+                                  // only the CURRENT digest counts; a stale approval is false here
+  missingApprovals: string[];     // participants who have not approved the current digest
+  debtorAuthorizations: DebtorAuthorization[];
+                                  // the authorization each debtor must still give for settle
+  settlement: SettlementRecord | null;
+  advice: {
+    defaultProposal: Instruction[] | null;    // null before finalization
+    currentValidation: ValidationResult | null; // null when no proposal
+    currentIsDefault: boolean | null;         // null when either is unavailable
+  };
+  next: string[];  // human-readable suggestions for the next action
+}
+```
+
+`nets` is computed locally from the contract's data and may differ from what the contract computes in future
+versions. It is advisory. `NetPosition` is `{ participant: string; net: bigint }` where `net = outgoing - incoming`.

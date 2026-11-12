@@ -1,0 +1,257 @@
+---
+title: TypeScript SDK
+description: Overview of tobin-mvp1-sdk/sdk — trust boundary, shared types, and a complete worked example running against the local contract sandbox.
+---
+
+Import from `tobin-mvp1-sdk/sdk`. The SDK prepares contract calls, states the authorizations each one requires, and
+decodes results and errors. It does **not** sign, hold keys, or talk to any network.
+
+<Callout type="warn" title="Private workspace package">
+  `tobin-mvp1-sdk` is a private package (`"private": true`). It is not published to a registry; its API is not stable.
+  Node 24 or later is required (`"engines": {"node": ">=24"}`).
+</Callout>
+
+## Trust boundary
+
+| Does | Does not |
+|---|---|
+| Encode calls for `TobinClearingV1` and `TobinTestToken` | Sign anything or hold a private key |
+| State which accounts must authorize each call and exactly what they authorize | Construct or submit a transaction envelope |
+| Decode results and typed errors | Confirm or reconcile an on-chain outcome |
+| Run the real contracts in the local sandbox | Contact a network; the network transport is not implemented (DB-13) |
+
+The only implemented transport is `BridgeTransport` in
+[`tobin-mvp1-sdk/local/bridge`](/docs/reference/sdk/transport#local-sandbox). `NetworkTransportNotAuthorized`
+documents the gap explicitly. There is no wallet transport.
+
+## Import paths
+
+| Import | Contents |
+|---|---|
+| `tobin-mvp1-sdk/sdk` | `prepare*` functions, `TobinClient`, Transport, `TobinError`, intent helpers |
+| `tobin-mvp1-sdk/local/bridge` | `BridgeProcess`, `BridgeTransport`, `startSandbox`, `Sandbox` |
+
+The full subpath export map is in [API and SDK reference](/docs/reference).
+
+## Core types
+
+### PreparedCall
+
+The return type of every `prepare*` function and the input to every transport.
+
+```ts
+interface PreparedCall {
+  authorizationId?: string;  // set only for settle; consumed on first use (EQ-20)
+  contract: string;          // the contract address the call targets
+  fn: string;                // the contract function name
+  args: ScArg[];             // encoded arguments
+  auths: AuthRequirement[];  // the authorization each signer must produce
+  description: string;       // a human-readable summary
+}
+```
+
+`authorizationId` is present only on settlement calls. It is a unique round identifier. Once a `TobinClient` sends a
+call that carries this id — regardless of whether the call succeeds or fails — the id is consumed. Sending the same
+`PreparedCall` object (or any copy of it) again throws a `policy/ReauthorizationRequired` error without touching the
+transport. Prepare the settlement afresh after any failure.
+
+### AuthRequirement
+
+```ts
+interface AuthRequirement {
+  signer: string;       // the account (G...) that must authorize
+  purpose: string;      // what exactly this authorization covers
+  invocation: Invocation;
+}
+```
+
+### Invocation
+
+The exact invocation tree the signer authorizes. The local bridge enforces this against the real contract.
+
+```ts
+interface Invocation {
+  contract: string;
+  fn: string;
+  args: ScArg[];
+  subs: Invocation[];  // sub-invocations; set for settle (the token transfers)
+}
+```
+
+### ScArg
+
+The tagged argument understood by transports.
+
+```ts
+type ScArg =
+  | { t: 'addr' | 'bytes32' | 'i128' | 'string'; v: string }
+  | { t: 'u32'; v: number }
+  | { t: 'obligation'; v: { id: string; debtor: string; creditor: string; amount: string } }
+  | { t: 'instructions'; v: { payer: string; payee: string; amount: string }[] };
+```
+
+Use the `arg` builders rather than constructing `ScArg` values directly.
+
+| Builder | Rust type | Note |
+|---|---|---|
+| `arg.addr(v)` | `Address` | A `G...` or `C...` strkey |
+| `arg.bytes32(hex)` | `BytesN<32>` | 64 lowercase hex characters |
+| `arg.i128(v)` | `i128` | Accepts `bigint` |
+| `arg.u32(v)` | `u32` | Accepts `number` |
+| `arg.obligation(o)` | `Obligation` | Converts `amount: bigint` to string |
+| `arg.instructions(list)` | `Vec<Instruction>` | Converts `amount: bigint` to string |
+
+`arg` is used directly when calling `prepareQuery`; all other `prepare*` functions build their arguments internally.
+
+## Worked example
+
+The example below runs the full clearing lifecycle against the local contract sandbox: mint, create, join, submit
+obligations, finalize, propose, approve, settle, and verify balances. It requires the development bridge to be built
+first.
+
+**Step 1 — build the bridge**
+
+```bash
+cd contracts && cargo build --locked -p tobin-clearing-v1 --example bridge
+```
+
+**Step 2 — set `TOBIN_BRIDGE_EXE`**
+
+```bash
+export TOBIN_BRIDGE_EXE=contracts/target/debug/examples/bridge
+```
+
+```powershell
+$env:TOBIN_BRIDGE_EXE = "C:\path\to\tobin\contracts\target\debug\examples\bridge.exe"
+```
+
+**Step 3 — run the script**
+
+Save the script below in `packages/mvp1-sdk/` and run it with Node 24.
+
+```ts
+import { startSandbox } from 'tobin-mvp1-sdk/local/bridge';
+import { TobinClient } from 'tobin-mvp1-sdk/sdk';
+
+const bridgeExe = process.env['TOBIN_BRIDGE_EXE'];
+if (!bridgeExe) throw new Error('set TOBIN_BRIDGE_EXE to the bridge binary path');
+
+// Allocate actors, deploy the token and clearing contracts in the sandbox.
+const sb = await startSandbox(bridgeExe, {
+  actors: ['bank_a', 'bank_b', 'bank_c', 'minter'],
+  minter: 'minter',
+  cap: 1_000_000n,
+});
+
+const client = new TobinClient({
+  transport: sb.transport,
+  clearing: sb.clearing,
+  networkId: sb.networkId,
+});
+
+// Convenience references: each actor's sandbox address.
+const A = sb.actors['bank_a']!;
+const B = sb.actors['bank_b']!;
+const C = sb.actors['bank_c']!;
+const minter = sb.actors['minter']!;
+
+// Session and obligation ids are 32-byte values encoded as 64 lowercase hex characters.
+const sessionId   = '01'.repeat(32);
+const obligationA = '0a'.repeat(32);
+const obligationB = '0b'.repeat(32);
+const obligationC = '0c'.repeat(32);
+
+try {
+  // 1. Give bank_a tokens it can pay with.
+  await client.mint(sb.token, { minter, to: A, amount: 1_000n });
+
+  // 2. Create the session. The creator (A) authorizes.
+  await client.createSession({
+    creator: A,
+    sessionId,
+    token: sb.token,
+    maxParticipants: 4,
+    maxObligations: 16,
+  });
+  console.log('transport:', client.ranOn);
+
+  // 3. Admit B and C. Each join needs the joiner AND the creator.
+  for (const p of [B, C]) {
+    await client.joinSession({ sessionId, participant: p });
+  }
+
+  // 4. Record obligations. Each debtor authorizes its own.
+  //    A owes B 100; B owes C 80; C owes A 70.
+  await client.submitObligation({
+    sessionId,
+    obligation: { id: obligationA, debtor: A, creditor: B, amount: 100n },
+  });
+  await client.submitObligation({
+    sessionId,
+    obligation: { id: obligationB, debtor: B, creditor: C, amount: 80n },
+  });
+  await client.submitObligation({
+    sessionId,
+    obligation: { id: obligationC, debtor: C, creditor: A, amount: 70n },
+  });
+
+  // 5. Freeze the obligation set. Any admitted participant may do it.
+  const { commitment } = await client.finalizeObligations({ sessionId, caller: C });
+  console.log('commitment:', commitment); // 64 hex characters
+
+  // Check nets: A +30 (payer), B -20 (receiver), C -10 (receiver).
+  const status = await client.getSessionStatus(sessionId);
+  console.log('state:', status.state);       // 'Committed'
+  console.log('nets:', status.nets.map(n => `${n.participant.slice(0, 6)} ${n.net}`));
+
+  // 6. Propose the default netting plan.
+  //    A pays 30 total: 20 to B, 10 to C.
+  const plan = await client.generateDefaultProposal(sessionId);
+  const { digest } = await client.proposeSettlement({
+    sessionId,
+    proposer: B,
+    instructions: plan,
+  });
+  console.log('digest:', digest); // 64 hex characters
+
+  // 7. Every admitted participant approves the exact digest.
+  for (const p of [A, B, C]) {
+    const { completed } = await client.approveSettlement({
+      sessionId,
+      participant: p,
+      digest,
+    });
+    // completed is true only on the final approval (C's here)
+    console.log('approved by', p.slice(0, 6), '— session approved:', completed);
+  }
+
+  // 8. Settle. Any caller may submit; every debtor (here, A) must authorize its transfers.
+  //    The TobinClient fills in the current proposal automatically.
+  const receipt = await client.settle({ sessionId });
+  console.log('settled:', receipt.ranOn);
+  // → "LOCAL SANDBOX: the real contracts in the Soroban test host;
+  //    simulated unsigned authorizations; no network, no wallet,
+  //    nothing on any ledger"
+
+  // 9. Verify final balances.
+  //    A started with 1 000 and paid 30. B received 20. C received 10.
+  console.log('A:', await client.tokenBalance(sb.token, A)); // 970n
+  console.log('B:', await client.tokenBalance(sb.token, B)); // 20n
+  console.log('C:', await client.tokenBalance(sb.token, C)); // 10n
+} finally {
+  sb.close();
+}
+```
+
+```bash
+node lifecycle.mts
+```
+
+The receipt's `ranOn` field names the transport. Here it is `"LOCAL SANDBOX: the real contracts in the Soroban test
+host; simulated unsigned authorizations; no network, no wallet, nothing on any ledger"`. Nothing in this run touches
+any network or ledger.
+
+The lifecycle test in
+[`packages/mvp1-sdk/test/sdk.test.ts`](https://github.com/tobin-protocol/tobin/blob/main/packages/mvp1-sdk/test/sdk.test.ts)
+covers additional scenarios: proposal replacement, all-zero nets, insufficient-balance reverts, and EQ-05 and EQ-20
+invariants. Those tests are skipped when `TOBIN_BRIDGE_EXE` is not set.

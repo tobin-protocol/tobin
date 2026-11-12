@@ -1,0 +1,325 @@
+---
+title: Prepared calls
+description: The standalone prepare* functions and debtorAuthorizations — parameters, authorizations required, contract functions, and errors.
+---
+
+Source:
+[`packages/mvp1-sdk/src/sdk/prepare.ts`](https://github.com/tobin-protocol/tobin/blob/main/packages/mvp1-sdk/src/sdk/prepare.ts).
+
+The `prepare*` functions are **pure**: they accept parameters and return a `PreparedCall` without calling any
+transport. The return value states what will be invoked and which accounts must authorize it. How those authorizations
+are produced (a wallet signature in a real deployment) is the transport's responsibility; the local sandbox applies
+them as simulated unsigned grants that the real contract still enforces.
+
+The canonical authorization matrix is the
+[ABI and authorization reference](https://github.com/tobin-protocol/tobin/blob/main/docs/reference/MVP-1-ABI-AND-AUTHORIZATION-REFERENCE.md).
+The session's on-chain lifecycle is `Open → Committed → Approved → Settled`; functions called in the wrong state
+return `contract/WrongState`. All errors are described in [Errors](/docs/reference/errors).
+
+---
+
+## prepareCreateSession
+
+**Contract function:** `create_session` · **Required state:** session must not yet exist
+
+**Purpose:** Prepare a call that creates a new session. The creator is admitted as the first participant
+automatically, and the session token is fixed for the session's lifetime.
+
+**Parameters**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `clearing` | `string` | The `TobinClearingV1` contract address (`C...`). |
+| `p.creator` | `string` | The account (`G...`) that creates the session; admitted automatically. |
+| `p.sessionId` | `string` | 64 lowercase hex characters (32 bytes); must be unique. |
+| `p.token` | `string` | The settlement token contract (`C...`); fixed for all calls in this session. |
+| `p.maxParticipants` | `number` | 2 to 4. |
+| `p.maxObligations` | `number` | 1 to 16. |
+
+**Returns:** `PreparedCall` with one authorization:
+
+| Signer | Authorizes |
+|---|---|
+| `creator` | `create_session(creator, sessionId, token, maxParticipants, maxObligations)` |
+
+**Errors (when the call is executed):** `SessionExists`, `BadCapacity`, `BadAddressKind`,
+`auth/InvalidAction` (authorization missing or wrong).
+
+---
+
+## prepareJoin
+
+**Contract function:** `join_session` · **Required state:** `Open`
+
+**Purpose:** Prepare a call that admits a new participant. A join requires **two distinct authorizations on the same
+invocation tree**: the participant's own and the creator's. Neither authorization alone is sufficient.
+
+**Parameters**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `clearing` | `string` | The `TobinClearingV1` contract address. |
+| `p.sessionId` | `string` | 64 lowercase hex characters. |
+| `p.participant` | `string` | The account to admit. |
+| `p.creator` | `string` | The session creator. |
+
+**Returns:** `PreparedCall` with two authorizations on the same invocation:
+
+| Signer | Authorizes |
+|---|---|
+| `participant` | `join_session(sessionId, participant)` |
+| `creator` | `join_session(sessionId, participant)` |
+
+The two entries share the same `invocation` object. Withholding either one causes an `auth/InvalidAction` error.
+
+**Errors:** `SessionNotFound`, `WrongState`, `ParticipantExists` (the creator is admitted on creation),
+`TooManyParticipants`, `BadAddressKind`, `auth/InvalidAction`.
+
+<Callout type="info">
+  `TobinClient.prepareJoin` is an async wrapper that reads the creator from the contract. Use it when you have a
+  `TobinClient` and only know the session id; use `prepareJoin` directly when you already have the creator address.
+</Callout>
+
+---
+
+## prepareSubmitObligation
+
+**Contract function:** `submit_obligation` · **Required state:** `Open`
+
+**Purpose:** Prepare a call that records one obligation in the session. Only the debtor authorizes; the creditor
+consents later when it approves the net settlement proposal.
+
+**Parameters**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `clearing` | `string` | The `TobinClearingV1` contract address. |
+| `p.sessionId` | `string` | 64 lowercase hex characters. |
+| `p.obligation` | `Obligation` | `{ id, debtor, creditor, amount }`. `id` is 64 lowercase hex characters; `amount` is a positive `bigint`. |
+
+**Returns:** `PreparedCall` with one authorization:
+
+| Signer | Authorizes |
+|---|---|
+| `obligation.debtor` | `submit_obligation(sessionId, obligation)` |
+
+**Errors:** `SessionNotFound`, `WrongState`, `TooManyObligations`, `DuplicateObligation`, `BadAmount`,
+`SameParty` (debtor and creditor must differ), `UnknownParty` (debtor or creditor not an admitted participant),
+`BadAddressKind`, `auth/InvalidAction`.
+
+---
+
+## prepareFinalize
+
+**Contract function:** `finalize_obligations` · **Required state:** `Open`
+
+**Purpose:** Prepare a call that freezes the participant list, token, and obligation set. The session moves to
+`Committed`. **Any** admitted participant may do this; it edits nothing, moves no funds, and settles nothing.
+
+**Parameters**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `clearing` | `string` | The `TobinClearingV1` contract address. |
+| `p.sessionId` | `string` | 64 lowercase hex characters. |
+| `p.caller` | `string` | Any admitted participant (`G...`). |
+
+**Returns:** `PreparedCall` with one authorization:
+
+| Signer | Authorizes |
+|---|---|
+| `caller` | `finalize_obligations(sessionId, caller)` |
+
+When the call succeeds, the contract returns the obligation commitment (a 64-character hex string). `TobinClient`
+surfaces this as `{ commitment: string; receipt: CallReceipt }`.
+
+**Errors:** `SessionNotFound`, `WrongState`, `TooFewParticipants` (fewer than 2), `NoObligations`,
+`auth/InvalidAction`.
+
+---
+
+## preparePropose
+
+**Contract function:** `propose_settlement` · **Required state:** `Committed` or `Approved`
+
+**Purpose:** Prepare a call that creates or replaces the settlement proposal. The contract validates the plan; a
+replacement invalidates every earlier approval and returns the session to `Committed`. Identical instructions at a
+new revision have a different digest (the revision is bound into the digest; EQ-05).
+
+**Parameters**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `clearing` | `string` | The `TobinClearingV1` contract address. |
+| `p.sessionId` | `string` | 64 lowercase hex characters. |
+| `p.proposer` | `string` | Any admitted participant (`G...`). |
+| `p.instructions` | `readonly Instruction[]` | The list of transfers. Must satisfy the net-flow constraint for every participant. Each `Instruction` is `{ payer, payee, amount: bigint }`. |
+
+**Returns:** `PreparedCall` with one authorization:
+
+| Signer | Authorizes |
+|---|---|
+| `proposer` | `propose_settlement(sessionId, proposer, instructions)` |
+
+When the call succeeds, the contract returns the new proposal digest (64 hex characters). `TobinClient` additionally
+returns `{ approvalsInvalidated: number; replacedDigest: string | null }`.
+
+**Errors:** `SessionNotFound`, `WrongState`, `TooManyInstructions`, `InstructionOrder`, `InstructionSelfPay`,
+`FlowMismatch`, `OffsettingFlows`, `Overflow`, `BadAmount`, `auth/InvalidAction`.
+
+---
+
+## prepareApprove
+
+**Contract function:** `approve_settlement` · **Required state:** `Committed`
+
+**Purpose:** Prepare a call that records one participant's approval of the current proposal, identified by its exact
+digest. This is a protocol approval, not a debit authorization; it does not authorize any token transfer on its own.
+
+**Parameters**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `clearing` | `string` | The `TobinClearingV1` contract address. |
+| `p.sessionId` | `string` | 64 lowercase hex characters. |
+| `p.participant` | `string` | The approving admitted participant (`G...`). |
+| `p.digest` | `string` | The current proposal digest (64 lowercase hex characters). Must match exactly; a stale or replaced digest is refused. |
+
+**Returns:** `PreparedCall` with one authorization:
+
+| Signer | Authorizes |
+|---|---|
+| `participant` | `approve_settlement(sessionId, participant, digest)` |
+
+When the **last** participant approves, the contract moves the session to `Approved`. `TobinClient` surfaces this as
+`{ completed: boolean; receipt: CallReceipt }`.
+
+**Errors:** `SessionNotFound`, `WrongState`, `NotParticipant`, `NoProposal`, `DigestMismatch` (stale or replaced
+proposal), `auth/InvalidAction`.
+
+---
+
+## prepareSettle
+
+**Contract function:** `settle` · **Required state:** `Approved`
+
+**Purpose:** Prepare a settlement call. Any caller may submit; every debtor must authorize its own transfers
+individually with its own debit total and the exact sub-invocations for each token transfer. The contract calls
+`token.transfer(debtor, payee, amount)` for each instruction in its plan; each `transfer` requires the debtor's
+authorization. With an empty plan (all-zero nets) there are no debtors and no authorizations.
+
+**Parameters**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `clearing` | `string` | The `TobinClearingV1` contract address. |
+| `p.sessionId` | `string` | 64 lowercase hex characters. |
+| `p.digest` | `string` | The proposal digest to settle; must equal the current proposal digest. |
+| `p.instructions` | `readonly Instruction[]` | The proposal instructions; must match the contract's stored instructions. |
+| `p.token` | `string` | The session token contract (`C...`). |
+
+**Returns:** `PreparedCall` with one `AuthRequirement` per debtor:
+
+| Signer | Authorizes |
+|---|---|
+| `debtor_i` | `settle(sessionId, digest, total_i)` with sub-invocations `token.transfer(debtor_i, payee, amount)` for each of its instructions |
+
+The returned `PreparedCall` has an `authorizationId` set. It is consumed on the first send, regardless of outcome.
+Call `prepareSettle` again after any failure; do not reuse the same object.
+
+**Throws immediately** if any debtor's total would overflow `i128`
+([`EngineError('OVERFLOW')`](https://github.com/tobin-protocol/tobin/blob/main/packages/mvp1-sdk/src/sdk/prepare.ts)).
+
+**Errors (when the call is executed):** `SessionNotFound`, `WrongState`, `MissingApproval`,
+`DigestMismatch`, `Overflow`, `AlreadySettled`, `auth/InvalidAction`; token contract errors
+(`InsufficientBalance`, `CapExceeded`, `Overflow`) pass through from the token and revert the whole settlement.
+
+<Callout type="warn" title="EQ-20: fresh authorization required after every failure">
+  A failed settlement attempt — whatever the cause — means every debtor must re-authorize from scratch. The SDK
+  enforces this by consuming the `authorizationId` on the first attempt. If `TobinClient.send` or
+  `TobinClient.settle` throws, discard the call, call `prepareSettle` again, obtain new authorizations, and retry.
+  A new sequence number or transaction envelope is not fresh authorization.
+</Callout>
+
+---
+
+## prepareMint
+
+**Contract function:** token's `mint` · **Required state:** none (token-side only)
+
+**Purpose:** Prepare a call that mints test tokens to a recipient. Only the token's fixed minter can authorize this.
+Used in development and testing; not used in a real settlement flow.
+
+**Parameters**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `token` | `string` | The `TobinTestToken` contract address (`C...`). |
+| `p.minter` | `string` | The fixed minter (`G...`). |
+| `p.to` | `string` | The recipient (`G...`). |
+| `p.amount` | `bigint` | A positive `bigint`; must be greater than zero. |
+
+**Returns:** `PreparedCall` with one authorization:
+
+| Signer | Authorizes |
+|---|---|
+| `minter` | `token.mint(to, amount)` |
+
+**Throws immediately** if `amount <= 0n`
+([`EngineError('NON_POSITIVE_AMOUNT')`](https://github.com/tobin-protocol/tobin/blob/main/packages/mvp1-sdk/src/sdk/prepare.ts)).
+
+**Errors:** `CapExceeded` (minting would exceed the supply cap), `auth/InvalidAction`.
+
+---
+
+## prepareQuery
+
+**Contract function:** any read-only function · **Required state:** none
+
+**Purpose:** Prepare a read-only call with no authorization requirements. Used internally by `TobinClient` for all
+read methods; also available for ad-hoc queries.
+
+**Parameters**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `contract` | `string` | The contract address. |
+| `fn` | `string` | The function name. |
+| `args` | `ScArg[]` | The encoded arguments (use the `arg` builders). |
+
+**Returns:** `PreparedCall` with `auths: []` (no authorization required).
+
+---
+
+## debtorAuthorizations
+
+**Purpose:** Given a plan, return the grouped debtor authorizations exactly as the contract groups them: runs of
+consecutive instructions with the same payer. This is a pure utility — it does not call any transport.
+
+The contract processes instructions in a single pass. Instructions with the same payer must be **consecutive** (the
+instruction order invariant); `debtorAuthorizations` relies on this. Use `sortInstructions` from
+`tobin-mvp1-sdk/engine` to sort a plan before calling this function.
+
+**Parameters**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `instructions` | `readonly Instruction[]` | A sorted instruction list. |
+
+**Returns:** `DebtorAuthorization[]`
+
+```ts
+interface DebtorAuthorization {
+  debtor: string;
+  total: bigint;        // checked sum of all amounts for this debtor
+  transfers: { to: string; amount: bigint }[];
+}
+```
+
+Each entry corresponds to one debtor's authorization in a `settle` call: the debtor authorizes `settle(session,
+digest, total)` and the sub-invocations `token.transfer(debtor, to, amount)` for each transfer.
+
+`prepareSettle` calls `debtorAuthorizations` internally. Use it directly when you need to show a debtor what exactly
+it will be authorizing before constructing the call.
+
+**Throws** if any debtor's running total would overflow `i128` (`EngineError('OVERFLOW')`).
