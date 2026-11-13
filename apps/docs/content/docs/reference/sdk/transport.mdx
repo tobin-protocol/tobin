@@ -1,0 +1,366 @@
+---
+title: Transport and errors
+description: The Transport interface, InvokeOptions, InvocationResult, Resources, NetworkTransportNotAuthorized, local sandbox bridge, TobinError, and intent helpers.
+---
+
+Sources:
+[`packages/mvp1-sdk/src/sdk/transport.ts`](https://github.com/tobin-protocol/tobin/blob/main/packages/mvp1-sdk/src/sdk/transport.ts),
+[`packages/mvp1-sdk/src/local/bridge.ts`](https://github.com/tobin-protocol/tobin/blob/main/packages/mvp1-sdk/src/local/bridge.ts),
+[`packages/mvp1-sdk/src/sdk/errors.ts`](https://github.com/tobin-protocol/tobin/blob/main/packages/mvp1-sdk/src/sdk/errors.ts),
+[`packages/mvp1-sdk/src/sdk/intent.ts`](https://github.com/tobin-protocol/tobin/blob/main/packages/mvp1-sdk/src/sdk/intent.ts).
+
+---
+
+## Transport
+
+```ts
+interface Transport {
+  readonly description: string;
+  invoke(call: PreparedCall, options?: InvokeOptions): Promise<InvocationResult>;
+}
+```
+
+`description` is a short human-readable statement of what the transport does and what it does **not** do. It is
+shown in every `CallReceipt`. `TobinClient` reads it via `client.ranOn`.
+
+`invoke` sends the call and returns an `InvocationResult`. It never throws for contract or authorization failures;
+those are encoded in the `ok: false` variant.
+
+The only transport the SDK ships is `BridgeTransport` (the [local sandbox](#local-sandbox)). The network transport
+is not implemented; `NetworkTransportNotAuthorized` documents this explicitly.
+
+---
+
+## InvokeOptions
+
+```ts
+interface InvokeOptions {
+  authorize?: readonly string[];
+}
+```
+
+`authorize` limits which signers from the call's `auths` list actually grant their authorization. If omitted, every
+required signer is included. Passing a subset makes the contract reject the call, which is useful in tests to verify
+that every signer is necessary.
+
+---
+
+## InvocationResult
+
+```ts
+type InvocationResult =
+  | { ok: true; value: unknown; eventCount?: number; resources?: Resources }
+  | { ok: false; errorType: string; code: number | null; codeName?: string; detail?: string };
+```
+
+`errorType` is the Soroban host error type string (`'Contract'`, `'Auth'`, `'Budget'`, etc.). `code` is the numeric
+error code for `'Contract'` errors; it maps to a name in [Errors](/docs/reference/errors). `TobinClient.send`
+converts an `ok: false` result to a `TobinError`.
+
+---
+
+## Resources
+
+```ts
+interface Resources {
+  instructions?: number;
+  memBytes?: number;
+  writeEntries?: number;
+  writeBytes?: number;
+}
+```
+
+Present in `InvocationResult` and `CallReceipt` when the transport reports resource usage. The local bridge reports
+Soroban-simulated compute units. These are for development insight; they are not production fee estimates.
+
+---
+
+## NetworkTransportNotAuthorized
+
+```ts
+class NetworkTransportNotAuthorized implements Transport {
+  readonly description = 'network transport: not implemented (wallet and network work need separate explicit authorization, DB-13)';
+  invoke(call: PreparedCall): Promise<InvocationResult>
+  // → rejects with an error that includes DB-13 and the function name
+}
+```
+
+A deliberate placeholder. If code accidentally receives this transport and calls `invoke`, it rejects with a
+message that names DB-13 and the function, making the gap auditable.
+
+The description is intentionally verbose so that `CallReceipt.ranOn` or `Transport.description` in a log is
+immediately legible.
+
+---
+
+## Local sandbox
+
+Imported from `tobin-mvp1-sdk/local/bridge`.
+
+The local sandbox runs the **real** `TobinClearingV1` and `TobinTestToken` in the Soroban test host by spawning the
+Rust development bridge. Authorization requirements stated by the SDK are applied as simulated unsigned grants that
+the real contract still enforces. This is a fully isolated local environment: no network, no wallet, no transaction
+envelope, nothing on any ledger.
+
+**Precondition:** the bridge binary must be built:
+
+```bash
+cd contracts && cargo build --locked -p tobin-clearing-v1 --example bridge
+```
+
+Then set `TOBIN_BRIDGE_EXE` to the path of the resulting binary.
+
+### BridgeProcess
+
+```ts
+class BridgeProcess {
+  constructor(exe: string, args?: string[])
+  request(req: Record<string, unknown>): Promise<Record<string, unknown> & { ok: boolean }>
+  close(): void
+}
+```
+
+Spawns the bridge binary as a child process and communicates over its stdin/stdout using newline-delimited JSON.
+Requests are strictly ordered: `request` chains each call, so concurrent callers share one queue.
+
+`close` sends EOF to stdin and kills the process. Always call it when finished, or in a `finally` block.
+
+Normally you would use `startSandbox` and `BridgeTransport` rather than `BridgeProcess` directly.
+
+### BridgeTransport
+
+```ts
+class BridgeTransport implements Transport {
+  readonly description: string; // 'LOCAL SANDBOX: the real contracts in the Soroban test host; ...'
+  readonly bridge: BridgeProcess;
+  constructor(bridge: BridgeProcess)
+  async invoke(call: PreparedCall, options?: InvokeOptions): Promise<InvocationResult>
+}
+```
+
+Translates a `PreparedCall` and `InvokeOptions` into a bridge JSON request and maps the reply to an
+`InvocationResult`. When `InvokeOptions.authorize` is set, only the listed signers are included in the grant list;
+the contract still checks them.
+
+### Sandbox
+
+```ts
+interface Sandbox {
+  bridge: BridgeProcess;
+  transport: BridgeTransport;
+  clearing: string;        // TobinClearingV1 contract address deployed in this run
+  token: string;           // TobinTestToken contract address deployed in this run
+  networkId: Uint8Array;   // 32-byte SHA-256 of the sandbox network passphrase
+  actors: Record<string, string>; // name → address for each actor passed to startSandbox
+  close(): void;           // delegates to bridge.close()
+}
+```
+
+A `Sandbox` is created once per test or script run. Its contract addresses and actor addresses are unique to that
+run; do not share them across sandbox instances.
+
+### startSandbox
+
+```ts
+async function startSandbox(
+  exe: string,
+  opts: {
+    actors: (string | { name: string; kind?: 'account' | 'contract' })[],
+    minter: string;    // actor name whose address becomes the token's fixed minter
+    cap: bigint;       // supply cap of the deployed test token
+    accounts?: boolean // pass --accounts to the bridge (optional)
+  }
+): Promise<Sandbox>
+```
+
+Starts the bridge, allocates actors, deploys a `TobinTestToken` with the given cap and minter, deploys a
+`TobinClearingV1`, and reads the sandbox network id. Returns a fully initialized `Sandbox`.
+
+Actor names that are plain strings are created as accounts (`G...`). Pass `{ name, kind: 'contract' }` for a
+contract-kind address. The `minter` name may already be in `actors` or may be a separate allocation; in either case
+it is allocated once.
+
+---
+
+## TobinError
+
+```ts
+type TobinErrorKind = 'contract' | 'token' | 'auth' | 'host' | 'transport' | 'policy';
+
+class TobinError extends Error {
+  readonly kind: TobinErrorKind;
+  readonly code: number | null;    // numeric code for 'contract' and 'token' errors
+  readonly errorName: string;      // stable identifier, e.g. 'DigestMismatch'
+  readonly fn: string;             // the contract function that failed
+}
+```
+
+`TobinClient.send` converts every `ok: false` transport result into a `TobinError`.
+
+| Kind | Meaning |
+|---|---|
+| `contract` | A clearing contract error (`#[contracterror]`); `code` and `errorName` identify it. |
+| `token` | A token contract error (codes 101–105); `code` and `errorName` identify it. |
+| `auth` | A `HOST Error(Auth, ...)` — a required authorization was missing or did not match the exact call. |
+| `host` | Any other Soroban host error (budget exceeded, wasm, etc.). |
+| `transport` | A transport-level failure (I/O, protocol). |
+| `policy` | Refused by the SDK before any call, e.g. reusing a settlement authorization round (EQ-20). |
+
+Authorization failures (`auth`) are host errors, not contract errors: a contract cannot return its own error code
+for a failed `require_auth`. Token errors pass through `settle` as the token's own error codes.
+
+The error message includes the human-readable explanation from `errors.ts` when one is available.
+
+See [Errors](/docs/reference/errors) for the full clearing and token error tables and SDK error kinds.
+
+### toTobinError
+
+```ts
+function toTobinError(
+  fn: string,
+  errorType: string,
+  code: number | null,
+  codeName?: string
+): TobinError
+```
+
+Maps a raw `InvocationResult` failure to a `TobinError`. Used internally by `TobinClient.send`; available for
+custom transport implementations that need to report failures the same way.
+
+---
+
+## Intent helpers
+
+Imported from `tobin-mvp1-sdk/sdk`. These functions build the **expected authorization intent** that the Rust
+authorization signer verifies before signing. They are used by the owner-run tools; they do not send anything and do
+not talk to a wallet.
+
+The design principle: the intent is derived from local state and from the digest that the debtor **approved** (their
+own record), never from a simulated transaction envelope. For settlement, the state read from an untrusted RPC
+authenticates itself by recomputing the approved digest; if it does not match, the intent is refused.
+
+### DeploymentRecord
+
+```ts
+interface DeploymentRecord {
+  version: 1;
+  networkPassphrase: string;   // e.g. 'Test SDF Network ; September 2015'
+  clearing: string;            // TobinClearingV1 contract address (C...)
+  token: string;               // TobinTestToken contract address (C...)
+}
+```
+
+A trust anchor set by the operator. Pinned out-of-band; not read from the network. The `clearing` and `token`
+contracts must be distinct.
+
+```ts
+const DEPLOYMENT_VERSION = 1;
+```
+
+### parseDeploymentRecord
+
+```ts
+function parseDeploymentRecord(text: string): DeploymentRecord
+```
+
+Strict parser for a deployment record JSON text. Rejects unknown fields, mismatched versions, non-contract
+addresses, and identical clearing and token contracts. Throws `EngineError('INVALID_ID')` or
+`EngineError('INVALID_ADDRESS')` on any validation failure.
+
+### deploymentRecordJson
+
+```ts
+function deploymentRecordJson(d: DeploymentRecord): string
+```
+
+Returns the canonical JSON text (fixed key order, 2-space indent, trailing newline).
+
+### networkIdOf
+
+```ts
+function networkIdOf(passphrase: string): Uint8Array
+```
+
+Returns the 32-byte SHA-256 of the network passphrase. This is the `networkId` required by `TobinClient`'s digest
+helpers and digest computations.
+
+### ExpectedIntent
+
+```ts
+interface ExpectedIntent {
+  version: 1;
+  network_passphrase: string;
+  entries: IntentEntry[];
+}
+
+interface IntentEntry {
+  signer: string;    // the account (G...) that must sign
+  tree: IntentTree;
+}
+
+interface IntentTree {
+  contract: string;
+  fn: string;
+  args: ScArg[];
+  subs: IntentTree[];  // sub-invocations; set for settle (the token transfers)
+}
+```
+
+```ts
+const INTENT_VERSION = 1;
+```
+
+### intentFromRequirements
+
+```ts
+function intentFromRequirements(
+  dep: DeploymentRecord,
+  auths: readonly AuthRequirement[]
+): ExpectedIntent
+```
+
+Builds an intent from the authorization requirements of a `PreparedCall` that the SDK built from the user's own
+request. Every contract named anywhere in a tree must be one of the two pinned contracts; every signer must be an
+account.
+
+**Throws** `EngineError('INVALID_ID')` if `auths` is empty or exceeds 32 entries, and
+`EngineError('INVALID_ADDRESS')` if a signer is not an account address or a contract is not in the pinned record.
+
+### settlementIntent
+
+```ts
+function settlementIntent(
+  dep: DeploymentRecord,
+  approvedDigest: string,
+  st: SettlementState
+): ExpectedIntent
+```
+
+Builds the settlement intent **without** looking at any simulated envelope. `approvedDigest` is the digest the
+debtor approved — their own record. The settlement state may come from an untrusted RPC; it is accepted only if the
+state recomputes `approvedDigest` exactly under DB-09 version 2 with the pinned network id, clearing contract, and
+token. Then the expected `settle` tree and nested token transfers are derived locally.
+
+```ts
+interface SettlementState {
+  sessionId: string;
+  participants: readonly string[];
+  obligations: readonly Obligation[];
+  revision: number;
+  instructions: readonly Instruction[];
+  sessionToken: string;   // must equal the pinned token
+}
+```
+
+**Throws** `EngineError('INVALID_ID')` when: the session token differs from the pinned token; the instructions are
+not a valid plan for the obligations; the recomputed digest differs from `approvedDigest`; the plan is all-zero
+(nothing to authorize).
+
+### intentJson
+
+```ts
+function intentJson(i: ExpectedIntent): string
+```
+
+Returns the canonical JSON text (fixed key order, 2-space indent, trailing newline). This is the format the Rust
+signer reads.
